@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+/tmp/
+
+# Go
+*.test
+*.out
+*.prof
+coverage.out
+coverage.html
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Runtime data
+/data/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
