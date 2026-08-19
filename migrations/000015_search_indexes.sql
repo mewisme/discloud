@@ -12,12 +12,3 @@ CREATE INDEX nodes_created_idx
 
 CREATE INDEX nodes_updated_idx
     ON nodes (updated_at, id);
-
-CREATE INDEX files_mime_type_idx
-    ON files (mime_type, node_id);
-
-CREATE INDEX files_category_idx
-    ON files (category, node_id);
-
-CREATE INDEX files_size_idx
-    ON files (size_bytes, node_id);

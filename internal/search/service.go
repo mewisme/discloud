@@ -457,6 +457,9 @@ func normalizeInput(actor Actor, input *Input) error {
 	input.Kind = strings.TrimSpace(input.Kind)
 	input.MIMEType = strings.TrimSpace(input.MIMEType)
 	input.Category = strings.TrimSpace(input.Category)
+	input.OwnerID = strings.TrimSpace(input.OwnerID)
+	input.FolderID = strings.TrimSpace(input.FolderID)
+	input.CollectionID = strings.TrimSpace(input.CollectionID)
 
 	if len(input.Query) > 256 || input.Limit < 1 || input.Limit > 100 {
 		return ErrInvalidQuery
@@ -467,6 +470,10 @@ func normalizeInput(actor Actor, input *Input) error {
 	if input.MinSize != nil && *input.MinSize < 0 ||
 		input.MaxSize != nil && *input.MaxSize < 0 ||
 		input.MinSize != nil && input.MaxSize != nil && *input.MinSize > *input.MaxSize {
+		return ErrInvalidQuery
+	}
+	if input.CreatedFrom != nil && input.CreatedTo != nil && input.CreatedFrom.After(*input.CreatedTo) ||
+		input.UpdatedFrom != nil && input.UpdatedTo != nil && input.UpdatedFrom.After(*input.UpdatedTo) {
 		return ErrInvalidQuery
 	}
 
@@ -507,10 +514,7 @@ func normalizeInput(actor Actor, input *Input) error {
 		return ErrInvalidQuery
 	}
 
-	if (input.AfterID == "") != (input.AfterKey == "") && input.Sort != SortName {
-		return ErrInvalidCursor
-	}
-	if input.AfterID == "" && input.AfterKey != "" {
+	if (input.AfterID == "") != (input.AfterKey == "") {
 		return ErrInvalidCursor
 	}
 	return nil

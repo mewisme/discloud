@@ -125,7 +125,6 @@ func searchBoolParam(value string) (*bool, error) {
 	if value == "" {
 		return nil, nil
 	}
-
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return nil, err
@@ -137,7 +136,6 @@ func searchInt64Param(value string) (*int64, error) {
 	if value == "" {
 		return nil, nil
 	}
-
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return nil, err
@@ -149,7 +147,6 @@ func searchTimeParam(value string) (*time.Time, error) {
 	if value == "" {
 		return nil, nil
 	}
-
 	parsed, err := time.Parse(time.RFC3339, value)
 	if err != nil {
 		return nil, err
@@ -167,9 +164,15 @@ func searchActor(r *http.Request) search.Actor {
 
 func searchResultJSON(item search.Result) searchResultResponse {
 	var parentID *string
-	if item.ParentID != "" {
-		value := item.ParentID
-		parentID = &value
+	collectionID := ""
+
+	if item.StructuralAccess {
+		if item.ParentID != "" {
+			value := item.ParentID
+			parentID = &value
+		}
+	} else {
+		collectionID = item.AccessCollectionID
 	}
 
 	return searchResultResponse{
@@ -177,7 +180,7 @@ func searchResultJSON(item search.Result) searchResultResponse {
 		Kind:         item.Kind,
 		OwnerUserID:  item.OwnerID,
 		ParentID:     parentID,
-		CollectionID: item.AccessCollectionID,
+		CollectionID: collectionID,
 		Name:         item.Name,
 		IsFavorite:   item.IsFavorite,
 		Shared:       item.Shared,
