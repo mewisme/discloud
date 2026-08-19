@@ -3,8 +3,7 @@ import { FolderIcon, LibraryIcon, Share2Icon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { SharedItem } from "@/lib/api/models"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" })
+import { formatDate } from "@/lib/helpers"
 
 export function SharedView({ items }: { items: readonly SharedItem[] }) {
   return (
@@ -49,7 +48,7 @@ export function SharedView({ items }: { items: readonly SharedItem[] }) {
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">{item.ownerUsername}</TableCell>
                   <TableCell><Badge variant="secondary" className="capitalize">{item.accessLevel}</Badge></TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">{dateFormatter.format(new Date(item.sharedAt))}</TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">{formatDate(item.sharedAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

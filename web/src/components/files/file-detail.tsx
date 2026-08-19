@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { File, Node } from "@/lib/api/models"
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
+import { formatBytes, formatDuration, formatNumber } from "@/lib/helpers"
 
 export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: readonly Node[] }) {
   const parent = breadcrumbs[breadcrumbs.length - 1]
@@ -25,7 +24,6 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <CompactBreadcrumbs items={breadcrumbItems} />
-
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -34,7 +32,6 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{formatBytes(file.size)} · {file.mimeType}</p>
         </div>
-
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href={parentHref}>
@@ -58,7 +55,6 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
           <AlertDescription>{file.metadataError || "The file is still available for preview and download."}</AlertDescription>
         </Alert>
       )}
-
       {file.metadataStatus === "pending" && (
         <Alert>
           <FileIcon />
@@ -82,7 +78,7 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
           <Detail label="Metadata" value={<Badge variant="secondary">{file.metadataStatus}</Badge>} />
           {file.width != null && file.height != null && <Detail label="Dimensions" value={`${file.width} × ${file.height}`} />}
           {file.durationMs != null && <Detail label="Duration" value={formatDuration(file.durationMs)} />}
-          {file.bitrateBps != null && <Detail label="Bitrate" value={`${numberFormatter.format(file.bitrateBps / 1000)} kbps`} />}
+          {file.bitrateBps != null && <Detail label="Bitrate" value={`${formatNumber(file.bitrateBps / 1000)} kbps`} />}
           {file.codec && <Detail label="Codec" value={file.codec} />}
           {file.sha256 && <Detail className="sm:col-span-2 lg:col-span-3" label="SHA-256" value={<code className="break-all font-mono text-xs">{file.sha256}</code>} />}
         </CardContent>
@@ -98,19 +94,4 @@ function Detail({ label, value, className }: { label: string; value: React.React
       <div className="mt-1 font-medium">{value}</div>
     </div>
   )
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
-}
-
-function formatDuration(milliseconds: number) {
-  const seconds = Math.round(milliseconds / 1000)
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor(seconds % 3600 / 60)
-  const remainder = seconds % 60
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}` : `${minutes}:${String(remainder).padStart(2, "0")}`
 }

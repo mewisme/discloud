@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { apiJSON } from "@/lib/api/client"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
+import { formatBytes, initials, isActivePath } from "@/lib/helpers"
 
 type NavItem = {
   title: string
@@ -110,7 +111,7 @@ function AppNav({ items }: { items: NavItem[] }) {
       {items.map((item) => (
         <SidebarMenuItem key={item.href}>
           {item.enabled ? (
-            <SidebarMenuButton asChild isActive={activePath(pathname, item.href)} tooltip={item.title}>
+            <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)} tooltip={item.title}>
               <Link href={item.href} onClick={() => setOpenMobile(false)}>
                 <item.icon />
                 <span>{item.title}</span>
@@ -245,32 +246,13 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
         <span className="font-medium">Storage</span>
         {usage.quotaBytes !== null && <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>}
       </div>
-
       <div className="truncate text-xs tabular-nums text-muted-foreground">
         {formatBytes(usage.usedBytes)}
         {usage.reservedBytes > 0 && <span> (+{formatBytes(usage.reservedBytes)})</span>}
         <span> / {usage.quotaBytes === null ? "∞" : formatBytes(usage.quotaBytes)}</span>
       </div>
-
       {usage.quotaBytes !== null && <Progress value={percent} />}
-
       {usage.overQuota && <div className="text-xs font-medium text-destructive">Quota exceeded</div>}
     </div>
   )
-}
-
-function activePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`)
-}
-
-function initials(username: string) {
-  return username.trim().slice(0, 2).toUpperCase() || "DC"
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** exponent
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: exponent === 0 ? 0 : 1 }).format(value)} ${units[exponent]}`
 }

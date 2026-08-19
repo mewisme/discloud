@@ -5,9 +5,7 @@ import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
+import { formatBytes, formatDateTime } from "@/lib/helpers"
 
 export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
   const collectionHref = `/collections/${encodeURIComponent(collection.id)}`
@@ -27,7 +25,6 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <CompactBreadcrumbs items={breadcrumbItems} />
-
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -36,7 +33,6 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{formatBytes(item.size)} · {item.mimeType}</p>
         </div>
-
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href={collectionHref}>
@@ -63,9 +59,9 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
           <Detail label="Type" value={item.category} />
           <Detail label="MIME type" value={item.mimeType} />
           <Detail label="Size" value={formatBytes(item.size)} />
-          <Detail label="Added" value={formatDate(item.addedAt)} />
-          <Detail label="Created" value={formatDate(item.createdAt)} />
-          <Detail label="Modified" value={formatDate(item.updatedAt)} />
+          <Detail label="Added" value={formatDateTime(item.addedAt)} />
+          <Detail label="Created" value={formatDateTime(item.createdAt)} />
+          <Detail label="Modified" value={formatDateTime(item.updatedAt)} />
           {item.sha256 && <Detail className="sm:col-span-2 lg:col-span-3" label="SHA-256" value={<code className="break-all font-mono text-xs">{item.sha256}</code>} />}
         </CardContent>
       </Card>
@@ -84,15 +80,4 @@ function Detail({ label, value, className }: { label: string; value: React.React
 
 function downloadURL(collectionId: string, fileId: string) {
   return `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download?collectionId=${encodeURIComponent(collectionId)}`
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
-}
-
-function formatDate(value: string) {
-  return dateFormatter.format(new Date(value))
 }

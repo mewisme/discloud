@@ -1,9 +1,9 @@
 "use client"
 
-import type { MouseEvent } from "react"
 import { Fragment } from "react"
 import { Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { handleClientNavigation } from "@/lib/helpers"
 
 export type CompactBreadcrumbItem = {
   id: string
@@ -35,7 +35,7 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
                 <DropdownMenuContent align="start">
                   {middle.map((item) => (
                     <DropdownMenuItem key={item.id} asChild>
-                      <a href={item.href} onClick={(event) => activate(event, item, onNavigate)}>{item.label}</a>
+                      <a href={item.href} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -47,7 +47,6 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
 
         {visible.map((item, index) => {
           const current = item.id === items[items.length - 1].id
-
           return (
             <Fragment key={item.id}>
               {index > 0 && <BreadcrumbSeparator />}
@@ -72,14 +71,8 @@ function BreadcrumbEntry({ item, current, onNavigate }: { item: CompactBreadcrum
   return (
     <BreadcrumbItem className="min-w-0">
       <BreadcrumbLink asChild>
-        <a href={item.href} className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={(event) => activate(event, item, onNavigate)}>{item.label}</a>
+        <a href={item.href} className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
       </BreadcrumbLink>
     </BreadcrumbItem>
   )
-}
-
-function activate(event: MouseEvent<HTMLAnchorElement>, item: CompactBreadcrumbItem, onNavigate?: (item: CompactBreadcrumbItem) => void) {
-  if (!onNavigate || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  event.preventDefault()
-  onNavigate(item)
 }

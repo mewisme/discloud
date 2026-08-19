@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { Collection, CollectionPage, CollectionsQuery, CreateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { formatDate } from "@/lib/helpers"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -175,8 +176,4 @@ function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collect
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value))
 }

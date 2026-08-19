@@ -5,8 +5,7 @@ import { useUploads, type UploadTask } from "@/components/uploads/upload-provide
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
+import { formatBytes } from "@/lib/helpers"
 
 export function UploadManager() {
   const { tasks, retry, cancel, remove } = useUploads()
@@ -114,11 +113,4 @@ function statusLabel(task: UploadTask) {
     default:
       return "Failed"
   }
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
 }
