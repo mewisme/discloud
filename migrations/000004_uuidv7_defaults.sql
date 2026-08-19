@@ -1,0 +1,4 @@
+-- +goose Up
+
+ALTER TABLE users ALTER COLUMN id SET DEFAULT uuidv7();
+ALTER TABLE nodes ALTER COLUMN id SET DEFAULT uuidv7();

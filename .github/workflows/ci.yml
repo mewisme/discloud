@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: discloud
+          POSTGRES_USER: discloud
+          POSTGRES_PASSWORD: discloud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U discloud -d discloud"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DISCLOUD_TEST_DATABASE_DSN: postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.5"
+          cache: true
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build
+        run: go build ./cmd/discloud
+
+      - name: Build container
+        run: docker build -t discloud:test .

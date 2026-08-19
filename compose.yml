@@ -1,0 +1,27 @@
+name: discloud
+
+networks:
+  network:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: discloud
+      POSTGRES_USER: discloud
+      POSTGRES_PASSWORD: discloud
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U discloud -d discloud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - network
+
+volumes:
+  postgres-data:
