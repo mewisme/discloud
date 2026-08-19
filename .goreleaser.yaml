@@ -1,0 +1,73 @@
+version: 2
+
+project_name: discloud
+
+builds:
+  - id: discloud
+    main: ./cmd/discloud
+    binary: discloud
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: discloud
+    ids:
+      - discloud
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^chore:"
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  name_template: "{{ .Tag }}"
+  prerelease: auto
+  make_latest: true
+
+dockers_v2:
+  - id: discloud
+    ids:
+      - discloud
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - "{{ .Env.DISCLOUD_DOCKER_IMAGE }}"
+    tags:
+      - "{{ .Tag }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.title": "DisCloud"
+      "org.opencontainers.image.description": "Self-hosted Discord-backed file storage"
+      "org.opencontainers.image.version": "{{ .Tag }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"

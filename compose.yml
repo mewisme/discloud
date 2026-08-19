@@ -1,28 +1,48 @@
 name: discloud
 
-networks:
-  network:
-    driver: bridge
-
 services:
+  backend:
+    image: ghcr.io/mewisme/discloud:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: 1000:1000
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DISCLOUD_HTTP_LISTEN_ADDRESS: ":8080"
+      DISCLOUD_DATABASE_DSN: postgres://discloud:discloud@postgres:5432/discloud?sslmode=disable
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - network
+
   postgres:
     image: postgres:18-alpine
-    container_name: postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: discloud
       POSTGRES_USER: discloud
       POSTGRES_PASSWORD: discloud
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U discloud -d discloud"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U discloud -d discloud
       interval: 5s
       timeout: 5s
       retries: 10
     networks:
       - network
+
+networks:
+  network:
+    driver: bridge
 
 volumes:
   postgres-data:
