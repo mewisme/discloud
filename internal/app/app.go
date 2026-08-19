@@ -12,12 +12,14 @@ import (
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
+	"github.com/mewisme/discloud/internal/discordstore"
 	"github.com/mewisme/discloud/internal/httpapi"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
 	"github.com/mewisme/discloud/internal/setup"
+	"github.com/mewisme/discloud/internal/uploads"
 	"github.com/mewisme/discloud/migrations"
 )
 
@@ -49,27 +51,34 @@ func Run() error {
 		return err
 	}
 
+	tokens := make([]string, len(cfg.Discord.Bots))
+	for i, bot := range cfg.Discord.Bots {
+		tokens[i] = bot.Token
+	}
+
+	blobStore, err := discordstore.New(ctx, cfg.Discord.ChannelID, tokens, nil)
+	if err != nil {
+		return fmt.Errorf("create Discord blob store: %w", err)
+	}
+
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
 	adminUserService := adminusers.New(pool)
 	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
+	uploadService := uploads.New(pool, cfg.Upload.ChunkSizeBytes, cfg.Upload.SessionTTL)
+	partUploader := uploads.NewPartUploader(uploadService, blobStore)
+	finalizer := uploads.NewFinalizer(uploadService, blobStore)
 
-	handler := httpapi.NewRouter(
-		httpapi.RouterDependencies{
-			Ready:      pool.Ping,
-			Setup:      setupService,
-			Auth:       authService,
-			AdminUsers: adminUserService,
-			ACL:        aclService,
-			Nodes:      nodeService,
-		},
-		cfg.HTTP,
-		cfg.Auth,
-	)
+	go uploads.RunExpiryWorker(ctx, uploadService, logger.With("component", "upload-expiry"))
+
+	handler := httpapi.NewRouter(httpapi.RouterDependencies{
+		Ready: pool.Ping, Setup: setupService, Auth: authService, AdminUsers: adminUserService,
+		ACL: aclService, Nodes: nodeService, Uploads: uploadService,
+		PartUploader: partUploader, Finalizer: finalizer,
+	}, cfg.HTTP, cfg.Auth)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)
-
 	logger.Info("HTTP server started", "address", server.Addr)
 
 	if err := runServer(ctx, server, cfg.HTTP.ShutdownTimeout); err != nil {

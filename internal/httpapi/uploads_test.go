@@ -1,0 +1,37 @@
+package httpapi
+
+import (
+	"encoding/hex"
+	"testing"
+)
+
+func TestParseSHA256(t *testing.T) {
+	raw := make([]byte, 32)
+	for i := range raw {
+		raw[i] = byte(i)
+	}
+
+	got, err := parseSHA256(hex.EncodeToString(raw))
+	if err != nil {
+		t.Fatalf("parseSHA256(): %v", err)
+	}
+	for i := range got {
+		if got[i] != raw[i] {
+			t.Fatalf("byte %d = %d, want %d", i, got[i], raw[i])
+		}
+	}
+}
+
+func TestParseSHA256RejectsInvalidValues(t *testing.T) {
+	for _, value := range []string{"", "abc", string(make([]byte, 64)), "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"} {
+		if _, err := parseSHA256(value); err == nil {
+			t.Fatalf("parseSHA256(%q) accepted invalid value", value)
+		}
+	}
+}
+
+func TestOptionalSHA256(t *testing.T) {
+	if value, err := optionalSHA256(nil); err != nil || value != nil {
+		t.Fatalf("optionalSHA256(nil) = %x, %v", value, err)
+	}
+}
