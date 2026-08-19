@@ -18,7 +18,7 @@ type createFolderRequest struct {
 	Name     string `json:"name"`
 }
 
-type updateFolderRequest struct {
+type updateNodeRequest struct {
 	Name     *string `json:"name"`
 	ParentID *string `json:"parentId"`
 }
@@ -37,10 +37,12 @@ type nodeResponse struct {
 
 type folderChildResponse struct {
 	nodeResponse
-	Size      *int64 `json:"size,omitempty"`
-	MIMEType  string `json:"mimeType,omitempty"`
-	Extension string `json:"extension,omitempty"`
-	Category  string `json:"category,omitempty"`
+	Size        *int64 `json:"size,omitempty"`
+	MIMEType    string `json:"mimeType,omitempty"`
+	Extension   string `json:"extension,omitempty"`
+	Category    string `json:"category,omitempty"`
+	AccessLevel string `json:"accessLevel"`
+	CanFavorite bool   `json:"canFavorite"`
 }
 
 func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService *auth.Service, cfg config.AuthConfig) {
@@ -75,6 +77,8 @@ func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService 
 		_ = json.NewEncoder(w).Encode(nodeJSON(node))
 	})
 
+	protected("PATCH /api/v1/nodes/{nodeId}", updateNodeHandler(service, "nodeId", false))
+
 	protected("GET /api/v1/folders/{folderId}", func(w http.ResponseWriter, r *http.Request) {
 		node, err := service.Get(r.Context(), nodeActor(r), r.PathValue("folderId"))
 		if err == nil && node.Kind != "folder" {
@@ -95,7 +99,7 @@ func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService 
 			return
 		}
 
-		children, hasMore, err := service.ListBrowserChildren(r.Context(), nodeActor(r), r.PathValue("folderId"), options)
+		children, hasMore, accessLevel, err := service.ListBrowserChildren(r.Context(), nodeActor(r), r.PathValue("folderId"), options)
 		if writeNodeError(w, r, err) {
 			return
 		}
@@ -112,11 +116,13 @@ func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService 
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(struct {
-			Nodes      []folderChildResponse `json:"nodes"`
-			NextCursor string                `json:"nextCursor,omitempty"`
+			Nodes       []folderChildResponse `json:"nodes"`
+			AccessLevel string                `json:"accessLevel"`
+			NextCursor  string                `json:"nextCursor,omitempty"`
 		}{
-			Nodes:      response,
-			NextCursor: nextCursor,
+			Nodes:       response,
+			AccessLevel: accessLevel.String(),
+			NextCursor:  nextCursor,
 		})
 	})
 
@@ -137,30 +143,33 @@ func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService 
 		}{response})
 	})
 
-	protected("PATCH /api/v1/folders/{folderId}", func(w http.ResponseWriter, r *http.Request) {
-		var input updateFolderRequest
+	protected("PATCH /api/v1/folders/{folderId}", updateNodeHandler(service, "folderId", true))
+}
+
+func updateNodeHandler(service *nodes.Service, pathParam string, folderOnly bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input updateNodeRequest
 		if err := decodeJSON(w, r, accountBodyLimit, &input); err != nil {
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid JSON body")
 			return
 		}
-
 		if (input.Name == nil) == (input.ParentID == nil) {
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "provide exactly one of name or parentId")
 			return
 		}
 
+		nodeID := r.PathValue(pathParam)
 		var (
 			node nodes.Node
 			err  error
 		)
-
 		if input.Name != nil {
-			node, err = service.Rename(r.Context(), nodeActor(r), r.PathValue("folderId"), *input.Name)
+			node, err = service.Rename(r.Context(), nodeActor(r), nodeID, *input.Name)
 		} else {
-			node, err = service.Move(r.Context(), nodeActor(r), r.PathValue("folderId"), *input.ParentID)
+			node, err = service.Move(r.Context(), nodeActor(r), nodeID, *input.ParentID)
 		}
 
-		if err == nil && node.Kind != "folder" {
+		if err == nil && folderOnly && node.Kind != "folder" {
 			err = nodes.ErrNotFound
 		}
 		if writeNodeError(w, r, err) {
@@ -169,7 +178,7 @@ func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService 
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(nodeJSON(node))
-	})
+	}
 }
 
 func nodeActor(r *http.Request) nodes.Actor {
@@ -207,6 +216,8 @@ func folderChildJSON(node nodes.BrowserNode) folderChildResponse {
 		MIMEType:     node.MIMEType,
 		Extension:    node.Extension,
 		Category:     node.Category,
+		AccessLevel:  node.AccessLevel.String(),
+		CanFavorite:  node.CanFavorite,
 	}
 }
 
@@ -226,11 +237,7 @@ func browserNodeCursor(node nodes.BrowserNode, sort nodes.BrowserSort) string {
 }
 
 func nodeListOptions(r *http.Request) (nodes.BrowserListOptions, error) {
-	options := nodes.BrowserListOptions{
-		Limit: 50,
-		Sort:  nodes.BrowserSortName,
-		Order: nodes.BrowserOrderAsc,
-	}
+	options := nodes.BrowserListOptions{Limit: 50, Sort: nodes.BrowserSortName, Order: nodes.BrowserOrderAsc}
 
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		limit, err := strconv.Atoi(raw)
@@ -267,7 +274,6 @@ func nodeListOptions(r *http.Request) (nodes.BrowserListOptions, error) {
 	if options.Sort != nodes.BrowserSortName {
 		count = 3
 	}
-
 	parts, err := cursor.Decode(rawCursor, count)
 	if err != nil {
 		return nodes.BrowserListOptions{}, errors.New("invalid cursor")

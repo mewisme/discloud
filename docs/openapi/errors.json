@@ -68,6 +68,7 @@
     "deleteFolderPermission":[400,401,403,404,500],
     "favoriteNode":[401,403,404,500],
     "unfavoriteNode":[401,403,404,500],
+    "updateNode":[400,401,403,404,409,500],
     "getFile":[401,404,500],
     "trashFile":[400,401,403,404,409,500],
     "streamFile":[400,401,404,416,500,502,503],

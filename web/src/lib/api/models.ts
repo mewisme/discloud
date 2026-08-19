@@ -50,6 +50,7 @@ export type BrowserNode = NodePage["nodes"][number]
 export type FolderChildrenQuery = OperationQuery<"listFolderChildren">
 export type Breadcrumbs = OperationJSON<"getFolderBreadcrumbs", 200>
 export type CreateFolderInput = OperationBody<"createFolder">
+export type UpdateNodeInput = OperationBody<"updateNode">
 export type UpdateFolderInput = OperationBody<"updateFolder">
 export type BatchFoldersInput = OperationBody<"createFolderBatch">
 export type BatchFoldersResult = OperationJSON<"createFolderBatch", 200>

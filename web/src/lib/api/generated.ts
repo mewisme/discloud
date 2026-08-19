@@ -821,6 +821,22 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/nodes/{nodeId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch: operations["updateNode"];
+        readonly trace?: never;
+    };
     readonly "/api/v1/nodes/{nodeId}/favorite": {
         readonly parameters: {
             readonly query?: never;
@@ -1305,6 +1321,9 @@ export type components = {
             readonly width?: number;
         };
         readonly FolderChild: components["schemas"]["Node"] & {
+            /** @enum {string} */
+            readonly accessLevel: "view" | "edit" | "full";
+            readonly canFavorite: boolean;
             /** @enum {string} */
             readonly category?: "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other";
             readonly extension?: string;
@@ -1861,6 +1880,8 @@ export type components = {
             };
             content: {
                 readonly "application/json": {
+                    /** @enum {string} */
+                    readonly accessLevel: "view" | "edit" | "full";
                     readonly nextCursor?: string;
                     readonly nodes: readonly components["schemas"]["FolderChild"][];
                 };
@@ -2318,6 +2339,16 @@ export type components = {
             readonly content: {
                 readonly "application/json": {
                     readonly username: string;
+                };
+            };
+        };
+        readonly UpdateNode: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name: string;
+                } | {
+                    /** Format: uuid */
+                    readonly parentId: string;
                 };
             };
         };
@@ -3269,6 +3300,21 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["AdminUsage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly updateNode: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly nodeId: components["parameters"]["nodeId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["UpdateNode"];
+        readonly responses: {
+            readonly 200: components["responses"]["Node"];
             readonly default: components["responses"]["Problem"];
         };
     };

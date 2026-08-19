@@ -37,10 +37,12 @@ type BrowserListOptions struct {
 
 type BrowserNode struct {
 	Node
-	SizeBytes *int64
-	MIMEType  string
-	Extension string
-	Category  string
+	SizeBytes   *int64
+	MIMEType    string
+	Extension   string
+	Category    string
+	AccessLevel acl.Level
+	CanFavorite bool
 }
 
 func (s *Service) Root(ctx context.Context, actor Actor) (Node, error) {
@@ -60,21 +62,29 @@ func (s *Service) Root(ctx context.Context, actor Actor) (Node, error) {
 	return node, nil
 }
 
-func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID string, options BrowserListOptions) ([]BrowserNode, bool, error) {
+func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID string, options BrowserListOptions) ([]BrowserNode, bool, acl.Level, error) {
 	options, err := normalizeBrowserListOptions(options)
 	if err != nil {
-		return nil, false, err
+		return nil, false, acl.None, err
 	}
-	if err := s.require(ctx, actor, parentID, acl.View); err != nil {
-		return nil, false, err
+
+	parentLevel, err := s.acl.Resolve(ctx, parentID, actor.UserID, actor.Admin)
+	if errors.Is(err, acl.ErrNotFound) {
+		return nil, false, acl.None, ErrNotFound
+	}
+	if err != nil {
+		return nil, false, acl.None, err
+	}
+	if err := accessError(parentLevel, acl.View); err != nil {
+		return nil, false, acl.None, err
 	}
 
 	parent, err := loadNode(ctx, s.pool, parentID, false)
 	if err != nil {
-		return nil, false, err
+		return nil, false, acl.None, err
 	}
 	if parent.Kind != "folder" {
-		return nil, false, ErrNotFolder
+		return nil, false, acl.None, ErrNotFolder
 	}
 
 	sortExpr := "n.name_key"
@@ -90,7 +100,7 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 		operator, direction = "<", "DESC"
 	}
 
-	args := []any{parent.ID, options.Limit + 1}
+	args := []any{parent.ID, options.Limit + 1, actor.UserID}
 	query := `
 		SELECT
 			n.id::text,
@@ -106,9 +116,13 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			f.size_bytes,
 			COALESCE(f.mime_type, ''),
 			COALESCE(f.extension, ''),
-			COALESCE(f.category, '')
+			COALESCE(f.category, ''),
+			COALESCE(fp.level, '')
 		FROM nodes n
 		LEFT JOIN files f ON f.node_id = n.id
+		LEFT JOIN folder_permissions fp
+		  ON fp.folder_id = n.id
+		 AND fp.user_id = $3::uuid
 		WHERE n.parent_id = $1::uuid
 		  AND n.deleted_at IS NULL
 	`
@@ -116,13 +130,13 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 	if options.AfterID != "" {
 		switch options.Sort {
 		case BrowserSortName:
-			query += fmt.Sprintf("\n AND (n.name_key, n.id) %s ($3, $4::uuid)", operator)
+			query += fmt.Sprintf("\n AND (n.name_key, n.id) %s ($4, $5::uuid)", operator)
 			args = append(args, options.AfterValue, options.AfterID)
 		case BrowserSortUpdated:
-			query += fmt.Sprintf("\n AND (n.updated_at, n.name_key, n.id) %s ($3::timestamptz, $4, $5::uuid)", operator)
+			query += fmt.Sprintf("\n AND (n.updated_at, n.name_key, n.id) %s ($4::timestamptz, $5, $6::uuid)", operator)
 			args = append(args, options.AfterValue, options.AfterNameKey, options.AfterID)
 		case BrowserSortSize:
-			query += fmt.Sprintf("\n AND (COALESCE(f.size_bytes, 0), n.name_key, n.id) %s ($3::bigint, $4, $5::uuid)", operator)
+			query += fmt.Sprintf("\n AND (COALESCE(f.size_bytes, 0), n.name_key, n.id) %s ($4::bigint, $5, $6::uuid)", operator)
 			args = append(args, options.AfterValue, options.AfterNameKey, options.AfterID)
 		}
 	}
@@ -137,9 +151,9 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		if isInvalidUUID(err) {
-			return nil, false, ErrInvalidCursor
+			return nil, false, acl.None, ErrInvalidCursor
 		}
-		return nil, false, fmt.Errorf("list browser children: %w", err)
+		return nil, false, acl.None, fmt.Errorf("list browser children: %w", err)
 	}
 	defer rows.Close()
 
@@ -147,6 +161,8 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 	for rows.Next() {
 		var item BrowserNode
 		var size pgtype.Int8
+		var directLevel string
+
 		if err := rows.Scan(
 			&item.ID,
 			&item.Kind,
@@ -162,24 +178,50 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			&item.MIMEType,
 			&item.Extension,
 			&item.Category,
+			&directLevel,
 		); err != nil {
-			return nil, false, fmt.Errorf("scan browser child: %w", err)
+			return nil, false, acl.None, fmt.Errorf("scan browser child: %w", err)
 		}
+
 		if size.Valid {
 			value := size.Int64
 			item.SizeBytes = &value
 		}
+
+		item.AccessLevel, err = effectiveBrowserAccess(parentLevel, directLevel, actor.Admin || item.OwnerID == actor.UserID)
+		if err != nil {
+			return nil, false, acl.None, err
+		}
+		item.CanFavorite = actor.Admin || item.OwnerID == actor.UserID
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("read browser children: %w", err)
+		return nil, false, acl.None, fmt.Errorf("read browser children: %w", err)
 	}
 
 	hasMore := len(result) > options.Limit
 	if hasMore {
 		result = result[:options.Limit]
 	}
-	return result, hasMore, nil
+	return result, hasMore, parentLevel, nil
+}
+
+func effectiveBrowserAccess(inherited acl.Level, direct string, owner bool) (acl.Level, error) {
+	if owner {
+		return acl.Full, nil
+	}
+	if direct == "" {
+		return inherited, nil
+	}
+
+	level, err := acl.ParseLevel(direct)
+	if err != nil {
+		return acl.None, fmt.Errorf("invalid stored permission level: %w", err)
+	}
+	if level > inherited {
+		return level, nil
+	}
+	return inherited, nil
 }
 
 func normalizeBrowserListOptions(options BrowserListOptions) (BrowserListOptions, error) {
