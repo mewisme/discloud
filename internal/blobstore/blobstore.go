@@ -38,3 +38,23 @@ type BlobStore interface {
 		length int64,
 	) (io.ReadCloser, error)
 }
+
+type AttemptBlobStore interface {
+	BlobStore
+
+	SelectUploadBot(
+		excludedBotUserIDs []string,
+	) (string, error)
+
+	PutChunkWithBot(
+		ctx context.Context,
+		botUserID string,
+		r io.Reader,
+		size int64,
+		sha256 [32]byte,
+	) (PutResult, error)
+
+	ClassifyError(
+		err error,
+	) (class string, retryable bool)
+}
