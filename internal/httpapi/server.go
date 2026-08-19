@@ -90,6 +90,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 		registerCollectionRoutes(mux, deps.Collections, deps.Auth, authConfig)
 		registerCollectionAccessRoutes(mux, deps.Collections, deps.Auth, authConfig)
 	}
+	if deps.ACL != nil && deps.Collections != nil && deps.Auth != nil {
+		registerSharedRoutes(mux, deps.ACL, deps.Collections, deps.Auth, authConfig)
+	}
 	if deps.Files != nil && deps.Auth != nil {
 		registerFileRoutes(mux, deps.Files, deps.Collections, deps.Auth, authConfig)
 	}

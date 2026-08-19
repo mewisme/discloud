@@ -1029,6 +1029,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/shared": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List resources shared directly with the current user */
+        readonly get: operations["listSharedItems"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/shares": {
         readonly parameters: {
             readonly query?: never;
@@ -1520,6 +1537,27 @@ export type components = {
             readonly resourceId: string;
             /** @enum {string} */
             readonly resourceType: "file" | "folder" | "collection";
+        };
+        readonly SharedItem: {
+            /** @enum {string} */
+            readonly accessLevel: "view" | "edit" | "full";
+            readonly description?: string;
+            /** Format: uuid */
+            readonly id: string;
+            readonly isRoot: boolean;
+            /** @enum {string} */
+            readonly kind: "folder" | "collection";
+            readonly name: string;
+            /** Format: uuid */
+            readonly ownerUserId: string;
+            readonly ownerUsername: string;
+            /** Format: date-time */
+            readonly sharedAt: string;
+            /** Format: date-time */
+            readonly updatedAt: string;
+        };
+        readonly SharedItems: {
+            readonly items: readonly components["schemas"]["SharedItem"][];
         };
         readonly StorageOverview: {
             /** Format: int64 */
@@ -3570,6 +3608,27 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["SetupStatus"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly listSharedItems: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Direct folder and collection shares received by the current user. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SharedItems"];
+                };
+            };
             readonly default: components["responses"]["Problem"];
         };
     };

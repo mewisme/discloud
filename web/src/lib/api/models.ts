@@ -91,6 +91,9 @@ export type AddCollectionItemInput = OperationBody<"addCollectionItem">
 export type CollectionAccess = OperationJSON<"listCollectionAccess", 200>
 export type CollectionAccessGrant = CollectionAccess["access"][number]
 
+export type SharedItems = OperationJSON<"listSharedItems", 200>
+export type SharedItem = SharedItems["items"][number]
+
 export type CreateShareInput = OperationBody<"createShare">
 export type Share = OperationJSON<"createShare", 201>
 export type ShareResourceType = Share["resourceType"]
