@@ -3,12 +3,13 @@
 import type { ComponentType, ReactNode } from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
-import { ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
+import { ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
@@ -24,6 +25,7 @@ type NavItem = {
 
 const workspace: NavItem[] = [
   { title: "Files", href: "/files", icon: FolderIcon, enabled: true },
+  { title: "Search", href: "/search", icon: SearchIcon, enabled: true },
   { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: false },
   { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: false },
   { title: "Shared", href: "/shared", icon: Share2Icon, enabled: false },
@@ -32,6 +34,7 @@ const workspace: NavItem[] = [
 
 const titles = [
   ["/settings/security", "Security"],
+  ["/search", "Search"],
   ["/files", "Files"],
 ] as const
 
@@ -125,13 +128,19 @@ function AppNav({ items }: { items: NavItem[] }) {
 
 function AppHeader() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const title = titles.find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1] ?? "DisCloud"
+  const searchValue = pathname === "/search" ? searchParams.get("q") ?? "" : ""
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-4" />
-      <span className="text-sm font-medium">{title}</span>
+      <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
+      <form action="/search" className="relative ml-auto w-full max-w-sm">
+        <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input key={searchValue} name="q" defaultValue={searchValue} maxLength={256} placeholder="Search…" className="h-8 pl-8" />
+      </form>
     </header>
   )
 }
@@ -254,7 +263,6 @@ function initials(username: string) {
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B"
-
   const units = ["B", "KiB", "MiB", "GiB", "TiB"]
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   const value = bytes / 1024 ** exponent
