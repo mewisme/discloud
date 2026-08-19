@@ -1,17 +1,23 @@
 import type { Metadata } from "next"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { redirect } from "next/navigation"
+import { connection } from "next/server"
+import { LoginForm } from "@/components/auth/login-form"
+import { apiServerJSON } from "@/lib/api/server"
+import type { SetupStatus } from "@/lib/api/models"
+import { authenticatedPath, getCurrentUser } from "@/lib/auth/session"
 
 export const metadata: Metadata = {
   title: "Sign in",
 }
 
-export default function LoginPage() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>Your DisCloud instance is ready. Authentication will be configured in the next client phase.</CardDescription>
-      </CardHeader>
-    </Card>
-  )
+export default async function LoginPage() {
+  await connection()
+
+  const status = await apiServerJSON<SetupStatus>("/api/v1/setup/status")
+  if (status.setupRequired) redirect("/setup")
+
+  const user = await getCurrentUser()
+  if (user) redirect(authenticatedPath(user))
+
+  return <LoginForm />
 }

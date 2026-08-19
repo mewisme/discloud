@@ -1,4 +1,5 @@
 import "server-only"
+import { headers as requestHeaders } from "next/headers"
 import { apiError } from "@/lib/api/error"
 
 export async function apiServerJSON<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -15,6 +16,14 @@ export async function apiServerJSON<T>(path: string, init: RequestInit = {}): Pr
   if (!response.ok) throw await apiError(response)
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+export async function apiServerAuthJSON<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const incoming = await requestHeaders()
+  const headers = new Headers(init.headers)
+  const cookie = incoming.get("cookie")
+  if (cookie) headers.set("Cookie", cookie)
+  return apiServerJSON<T>(path, { ...init, headers })
 }
 
 function apiServerURL(path: string) {

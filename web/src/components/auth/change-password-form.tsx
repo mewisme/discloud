@@ -12,69 +12,63 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
-import type { SetupInput, SetupResult } from "@/lib/api/models"
+import type { ChangePasswordInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 
-const setupSchema = z.object({
-  username: z.string().trim().min(1, "Username is required"),
-  password: z.string().refine((value) => Array.from(value).length >= 12, "Password must be at least 12 characters"),
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().refine((value) => Array.from(value).length >= 12, "Password must be at least 12 characters"),
   confirmPassword: z.string(),
-}).refine((value) => value.password === value.confirmPassword, {
+}).refine((value) => value.newPassword === value.confirmPassword, {
   path: ["confirmPassword"],
   message: "Passwords do not match",
 })
 
-type SetupFormValues = z.infer<typeof setupSchema>
+type PasswordValues = z.infer<typeof passwordSchema>
 type FormError = { message: string; requestID?: string }
 
-export function SetupForm() {
+export function ChangePasswordForm() {
   const router = useRouter()
   const [formError, setFormError] = useState<FormError>()
-  const form = useForm<SetupFormValues>({
-    resolver: zodResolver(setupSchema),
-    defaultValues: { username: "", password: "", confirmPassword: "" },
+  const form = useForm<PasswordValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
   })
 
-  async function onSubmit(values: SetupFormValues) {
+  async function onSubmit(values: PasswordValues) {
     setFormError(undefined)
 
     try {
-      const input: SetupInput = { username: values.username, password: values.password }
-      await apiJSON<SetupResult>("/api/v1/setup", { method: "POST", body: input })
-      toast.success("Administrator created")
-      router.replace("/login")
+      const input: ChangePasswordInput = { currentPassword: values.currentPassword, newPassword: values.newPassword }
+      await apiJSON<void>("/api/v1/me/password", { method: "PUT", body: input })
+      toast.success("Password changed")
+      router.replace("/files")
       router.refresh()
     } catch (error) {
-      handleSubmitError(error)
+      handleError(error)
     }
   }
 
-  function handleSubmitError(error: unknown) {
+  function handleError(error: unknown) {
     if (!(error instanceof APIError)) {
-      setFormError({ message: "Could not connect to DisCloud. Try again." })
+      setFormError({ message: "Could not change password. Try again." })
       return
     }
 
-    if (error.status === 409) {
-      toast.info("Setup was already completed")
-      router.replace("/login")
-      router.refresh()
+    const message = error.message.toLowerCase()
+
+    if (error.status === 400 && message.includes("current password")) {
+      form.setError("currentPassword", { message: error.message }, { shouldFocus: true })
       return
     }
 
-    if (error.status === 400 && error.message.toLowerCase().includes("username")) {
-      form.setError("username", { message: error.message }, { shouldFocus: true })
+    if (error.status === 400 && message.includes("12 characters")) {
+      form.setError("newPassword", { message: error.message }, { shouldFocus: true })
       return
     }
 
-    if (error.status === 400 && error.message.toLowerCase().includes("password")) {
-      form.setError("password", { message: error.message }, { shouldFocus: true })
-      return
-    }
-
-    setFormError({ message: error.message || "Could not complete setup.", requestID: error.requestID })
+    setFormError({ message: error.message || "Could not change password.", requestID: error.requestID })
   }
 
   const { errors, isSubmitting } = form.formState
@@ -82,8 +76,8 @@ export function SetupForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create administrator</CardTitle>
-        <CardDescription>Create the first account for this DisCloud instance.</CardDescription>
+        <CardTitle>Change your password</CardTitle>
+        <CardDescription>You must choose a new password before continuing.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -91,42 +85,39 @@ export function SetupForm() {
             {formError && (
               <Alert variant="destructive">
                 <TriangleAlertIcon />
-                <AlertTitle>Setup failed</AlertTitle>
+                <AlertTitle>Password change failed</AlertTitle>
                 <AlertDescription>
                   {formError.message}
                   {formError.requestID && <p className="mt-1 font-mono text-xs">Request ID: {formError.requestID}</p>}
                 </AlertDescription>
               </Alert>
             )}
-
-            <Field data-invalid={!!errors.username}>
-              <FieldLabel htmlFor="username">Username</FieldLabel>
-              <Input
-                id="username"
-                autoComplete="username"
+            <Field data-invalid={!!errors.currentPassword}>
+              <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+              <PasswordInput
+                id="current-password"
+                autoComplete="current-password"
                 autoFocus
                 disabled={isSubmitting}
-                aria-invalid={!!errors.username}
-                {...form.register("username")}
+                aria-invalid={!!errors.currentPassword}
+                {...form.register("currentPassword")}
               />
-              <FieldError errors={[errors.username]} />
+              <FieldError errors={[errors.currentPassword]} />
             </Field>
-
-            <Field data-invalid={!!errors.password}>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
+            <Field data-invalid={!!errors.newPassword}>
+              <FieldLabel htmlFor="new-password">New password</FieldLabel>
               <PasswordInput
-                id="password"
+                id="new-password"
                 autoComplete="new-password"
                 disabled={isSubmitting}
-                aria-invalid={!!errors.password}
-                {...form.register("password")}
+                aria-invalid={!!errors.newPassword}
+                {...form.register("newPassword")}
               />
               <FieldDescription>Use at least 12 characters.</FieldDescription>
-              <FieldError errors={[errors.password]} />
+              <FieldError errors={[errors.newPassword]} />
             </Field>
-
             <Field data-invalid={!!errors.confirmPassword}>
-              <FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel>
+              <FieldLabel htmlFor="confirm-password">Confirm new password</FieldLabel>
               <PasswordInput
                 id="confirm-password"
                 autoComplete="new-password"
@@ -136,10 +127,9 @@ export function SetupForm() {
               />
               <FieldError errors={[errors.confirmPassword]} />
             </Field>
-
             <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2Icon className="animate-spin" />}
-              {isSubmitting ? "Creating administrator…" : "Create administrator"}
+              {isSubmitting ? "Changing password…" : "Change password"}
             </Button>
           </FieldGroup>
         </form>
