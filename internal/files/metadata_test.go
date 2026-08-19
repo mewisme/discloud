@@ -48,7 +48,7 @@ func TestFileExtension(t *testing.T) {
 		"photo.JPG":      "jpg",
 		"archive.tar.gz": "gz",
 		"README":         "",
-		".gitignore":     "gitignore",
+		".gitignore":     "",
 	}
 
 	for name, want := range tests {

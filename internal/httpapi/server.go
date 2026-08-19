@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/mewisme/discloud/internal/acl"
+	"github.com/mewisme/discloud/internal/adminops"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/collections"
@@ -23,6 +24,7 @@ type RouterDependencies struct {
 	Setup        *setup.Service
 	Auth         *auth.Service
 	AdminUsers   *adminusers.Service
+	AdminOps     *adminops.Service
 	ACL          *acl.Service
 	Nodes        *nodes.Service
 	Uploads      *uploads.Service
@@ -61,6 +63,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.AdminUsers != nil && deps.Auth != nil {
 		registerAdminUserRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
+	}
+	if deps.AdminOps != nil && deps.Auth != nil {
+		registerAdminOpsRoutes(mux, deps.AdminOps, deps.Auth, authConfig)
 	}
 	if deps.Nodes != nil && deps.Auth != nil {
 		registerNodeRoutes(mux, deps.Nodes, deps.Auth, authConfig)

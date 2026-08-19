@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/mewisme/discloud/internal/acl"
+	"github.com/mewisme/discloud/internal/adminops"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/collections"
@@ -70,6 +71,7 @@ func Run() error {
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
 	adminUserService := adminusers.New(pool)
+	adminOpsService := adminops.New(pool)
 	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
 	uploadService := uploads.New(pool, cfg.Upload.ChunkSizeBytes, cfg.Upload.SessionTTL)
@@ -88,15 +90,25 @@ func Run() error {
 		"file.metadata": metadataProcessor.Handle,
 	})
 	for i := range cfg.Jobs.WorkerCount {
-		workerID := fmt.Sprintf("job-worker-%d", i+1)
-		go jobWorker.Run(ctx, workerID)
+		go jobWorker.Run(ctx, fmt.Sprintf("job-worker-%d", i+1))
 	}
 
 	handler := httpapi.NewRouter(httpapi.RouterDependencies{
-		Ready: readinessCheck(pool, blobStore), Setup: setupService, Auth: authService,
-		AdminUsers: adminUserService, ACL: aclService, Nodes: nodeService, Uploads: uploadService,
-		PartUploader: partUploader, Finalizer: finalizer, Files: fileService, Folders: folderService,
-		Collections: collectionService, Shares: shareService, Search: searchService,
+		Ready:        readinessCheck(pool, blobStore),
+		Setup:        setupService,
+		Auth:         authService,
+		AdminUsers:   adminUserService,
+		AdminOps:     adminOpsService,
+		ACL:          aclService,
+		Nodes:        nodeService,
+		Uploads:      uploadService,
+		PartUploader: partUploader,
+		Finalizer:    finalizer,
+		Files:        fileService,
+		Folders:      folderService,
+		Collections:  collectionService,
+		Shares:       shareService,
+		Search:       searchService,
 	}, cfg.HTTP, cfg.Auth)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)
