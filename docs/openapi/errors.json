@@ -26,6 +26,7 @@
     "logout": [403, 500],
     "getAuthenticatedUser": [401, 500],
     "getMe": [401, 500],
+    "getMyUsage": [401, 500],
     "updateMe": [400, 401, 403, 409, 500],
     "changePassword": [400, 401, 403, 409, 500],
     "listSessions": [401, 500],

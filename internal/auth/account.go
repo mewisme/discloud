@@ -26,6 +26,34 @@ type Session struct {
 	Current   bool
 }
 
+type Usage struct {
+	QuotaBytes     *int64
+	UsedBytes      int64
+	ReservedBytes  int64
+	AvailableBytes *int64
+	OverQuota      bool
+}
+
+func (s *Service) Usage(ctx context.Context, userID string) (Usage, error) {
+	var usage Usage
+	if err := s.pool.QueryRow(ctx, `
+		SELECT storage_quota_bytes, storage_used_bytes, storage_reserved_bytes
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(&usage.QuotaBytes, &usage.UsedBytes, &usage.ReservedBytes); err != nil {
+		return Usage{}, fmt.Errorf("get usage: %w", err)
+	}
+	if usage.QuotaBytes != nil {
+		available := *usage.QuotaBytes - usage.UsedBytes - usage.ReservedBytes
+		if available < 0 {
+			usage.OverQuota = true
+			available = 0
+		}
+		usage.AvailableBytes = &available
+	}
+	return usage, nil
+}
+
 func (s *Service) ListSessions(ctx context.Context, userID, currentSessionID string) ([]Session, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, created_at, expires_at

@@ -130,22 +130,22 @@ func TestAuthHTTPFlowIntegration(t *testing.T) {
 		t.Fatalf("me status = %d, body = %s", meRec.Code, meRec.Body.String())
 	}
 
-	mfaReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/mfa", nil)
-	mfaReq.AddCookie(sessionCookie)
+	usageReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/usage", nil)
+	usageReq.AddCookie(sessionCookie)
 
-	mfaRec := httptest.NewRecorder()
-	router.ServeHTTP(mfaRec, mfaReq)
+	usageRec := httptest.NewRecorder()
+	router.ServeHTTP(usageRec, usageReq)
 
-	if mfaRec.Code != http.StatusOK {
-		t.Fatalf("MFA status = %d, body = %s", mfaRec.Code, mfaRec.Body.String())
+	if usageRec.Code != http.StatusOK {
+		t.Fatalf("usage status = %d, body = %s", usageRec.Code, usageRec.Body.String())
 	}
 
-	var mfaStatus mfaStatusResponse
-	if err := json.NewDecoder(mfaRec.Body).Decode(&mfaStatus); err != nil {
-		t.Fatalf("decode MFA status: %v", err)
+	var usage accountUsageResponse
+	if err := json.NewDecoder(usageRec.Body).Decode(&usage); err != nil {
+		t.Fatalf("decode usage: %v", err)
 	}
-	if mfaStatus.Enabled {
-		t.Fatal("new user unexpectedly has MFA enabled")
+	if usage.QuotaBytes != nil || usage.UsedBytes != 0 || usage.ReservedBytes != 0 || usage.AvailableBytes != nil || usage.OverQuota {
+		t.Fatalf("unexpected usage = %+v", usage)
 	}
 
 	logoutReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)

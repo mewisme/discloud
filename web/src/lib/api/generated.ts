@@ -789,6 +789,22 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/me/usage": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getMyUsage"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/nodes/{nodeId}/favorite": {
         readonly parameters: {
             readonly query?: never;
@@ -3199,6 +3215,19 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getMyUsage: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["AdminUsage"];
             readonly default: components["responses"]["Problem"];
         };
     };

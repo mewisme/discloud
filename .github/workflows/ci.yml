@@ -125,6 +125,10 @@ jobs:
         working-directory: web
         run: pnpm api:types:check
 
+      - name: Generate Next.js types
+        working-directory: web
+        run: pnpm next typegen        
+
       - name: Lint
         working-directory: web
         run: pnpm lint

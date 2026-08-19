@@ -12,6 +12,7 @@ export type MFAChallenge = Extract<LoginResult, { mfaRequired: true }>
 export type VerifyLoginMFAInput = OperationBody<"verifyLoginMFA">
 export type UpdateMeInput = OperationBody<"updateMe">
 export type ChangePasswordInput = OperationBody<"changePassword">
+export type CurrentUserUsage = OperationJSON<"getMyUsage", 200>
 export type Sessions = OperationJSON<"listSessions", 200>
 export type Session = Sessions["sessions"][number]
 export type MFAStatus = OperationJSON<"getMFAStatus", 200>

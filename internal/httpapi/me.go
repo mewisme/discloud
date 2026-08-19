@@ -28,6 +28,14 @@ type sessionResponse struct {
 	Current   bool      `json:"current"`
 }
 
+type accountUsageResponse struct {
+	QuotaBytes     *int64 `json:"quotaBytes"`
+	UsedBytes      int64  `json:"usedBytes"`
+	ReservedBytes  int64  `json:"reservedBytes"`
+	AvailableBytes *int64 `json:"availableBytes"`
+	OverQuota      bool   `json:"overQuota"`
+}
+
 func registerMeRoutes(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
 	protected := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, requireAuth(service, cfg, handler))
@@ -55,6 +63,24 @@ func registerMeRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Auth
 		default:
 			writeUser(w, user)
 		}
+	})
+
+	protected("GET /api/v1/me/usage", func(w http.ResponseWriter, r *http.Request) {
+		usage, err := service.Usage(r.Context(), currentPrincipal(r.Context()).User.ID)
+		if err != nil {
+			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not get usage")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(accountUsageResponse{
+			QuotaBytes:     usage.QuotaBytes,
+			UsedBytes:      usage.UsedBytes,
+			ReservedBytes:  usage.ReservedBytes,
+			AvailableBytes: usage.AvailableBytes,
+			OverQuota:      usage.OverQuota,
+		})
 	})
 
 	protected("PUT /api/v1/me/password", func(w http.ResponseWriter, r *http.Request) {

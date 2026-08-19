@@ -1,33 +1,30 @@
-import Link from "next/link"
-import { FolderOpenIcon, ShieldCheckIcon } from "lucide-react"
-import { LogoutButton } from "@/components/auth/logout-button"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Metadata } from "next"
+import { FolderOpenIcon } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+
+export const metadata: Metadata = {
+  title: "Files",
+}
 
 export default function FilesPage() {
   return (
-    <main className="grid min-h-dvh place-items-center p-6">
-      <Card className="w-full max-w-md">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
+        <p className="text-sm text-muted-foreground">Browse and manage your DisCloud storage.</p>
+      </div>
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FolderOpenIcon className="size-4" />
-            Files
+            File browser
           </CardTitle>
-          <CardDescription>You are signed in. The file browser will be implemented in the upcoming client phases.</CardDescription>
+          <CardDescription>Your authenticated application shell is ready.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Your authenticated DisCloud session is active.</p>
+          <p className="text-sm text-muted-foreground">Folder navigation and file browsing are implemented in Phase 7.</p>
         </CardContent>
-        <CardFooter className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/settings/security">
-              <ShieldCheckIcon />
-              Security
-            </Link>
-          </Button>
-          <LogoutButton />
-        </CardFooter>
       </Card>
-    </main>
+    </div>
   )
 }
