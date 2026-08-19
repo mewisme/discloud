@@ -7,6 +7,7 @@ networks:
 services:
   postgres:
     image: postgres:18-alpine
+    container_name: postgres
     environment:
       POSTGRES_DB: discloud
       POSTGRES_USER: discloud
