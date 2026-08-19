@@ -65,6 +65,8 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+    flags:
+      - "--target=release"
     labels:
       "org.opencontainers.image.title": "DisCloud"
       "org.opencontainers.image.description": "Self-hosted Discord-backed file storage"

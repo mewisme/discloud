@@ -48,9 +48,8 @@ func observabilityMiddleware(
 			trace.Traceparent(),
 		)
 
-		route := routePattern(request)
 		recordMetrics := metrics != nil &&
-			route != "/api/v1/admin/metrics"
+			r.URL.Path != "/api/v1/admin/metrics"
 
 		if recordMetrics {
 			metrics.BeginHTTP()
@@ -60,7 +59,7 @@ func observabilityMiddleware(
 		next.ServeHTTP(writer, request)
 		duration := time.Since(started)
 
-		route = routePattern(request)
+		route := routePattern(request)
 		status := writer.status
 		if status == 0 {
 			status = http.StatusOK

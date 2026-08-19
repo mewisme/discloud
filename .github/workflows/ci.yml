@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
 
     services:
@@ -67,11 +68,67 @@ jobs:
           version: "~> v2"
           args: check
 
-      - name: Build container
+      - name: Build local container
         run: docker build --pull -t discloud:test .
+
+      - name: Build release container target
+        shell: bash
+        run: |
+          context="$(mktemp -d)"
+          trap 'rm -rf "$context"' EXIT
+
+          mkdir -p "$context/linux/amd64"
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o "$context/linux/amd64/discloud" \
+            ./cmd/discloud
+
+          docker build \
+            --pull \
+            --target release \
+            --build-arg TARGETPLATFORM=linux/amd64 \
+            --file Dockerfile \
+            --tag discloud:release-test \
+            "$context"
 
       - name: Validate Compose
         shell: bash
         run: |
           cp .env.example .env
           docker compose config >/dev/null
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: web/package.json
+          cache-dependency-path: web/pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: web
+        run: pnpm lint
+
+      - name: Type check
+        working-directory: web
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        working-directory: web
+        run: pnpm build

@@ -2,6 +2,12 @@
 .github
 .env
 .env.*
+.goreleaser.yaml
+README.md
+compose.yml
+desktop
+docs
+web
 bin
 dist
 tmp

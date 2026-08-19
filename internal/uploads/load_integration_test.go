@@ -401,7 +401,7 @@ func runConcurrentUploadLoad(
 		SELECT count(*)
 		FROM jobs
 		WHERE type = 'file.metadata'
-	`, userID).Scan(&metadataJobs); err != nil {
+	`).Scan(&metadataJobs); err != nil {
 		t.Fatalf(
 			"count metadata jobs: %v",
 			err,

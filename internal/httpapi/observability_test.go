@@ -72,3 +72,43 @@ func TestObservabilityMiddlewareContinuesTraceAndRecordsRoute(t *testing.T) {
 		t.Fatalf("resource ID leaked into metrics:\n%s", text)
 	}
 }
+
+func TestObservabilityMiddlewareDoesNotRecordMetricsEndpoint(t *testing.T) {
+	metrics := observability.NewMetrics(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/admin/metrics", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := RequestIDMiddleware(
+		observabilityMiddleware(metrics, logger, mux),
+	)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/metrics",
+		nil,
+	)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+
+	var output bytes.Buffer
+	if err := metrics.WritePrometheus(context.Background(), &output); err != nil {
+		t.Fatalf("WritePrometheus(): %v", err)
+	}
+
+	text := output.String()
+	if strings.Contains(text, `route="/api/v1/admin/metrics"`) {
+		t.Fatalf("metrics endpoint recorded itself:\n%s", text)
+	}
+	if strings.Contains(text, `route="unmatched"`) {
+		t.Fatalf("metrics endpoint recorded itself as unmatched:\n%s", text)
+	}
+}
