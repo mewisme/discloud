@@ -277,22 +277,22 @@ func (s *Service) Breadcrumbs(ctx context.Context, actor Actor, nodeID string) (
 			WHERE parent.deleted_at IS NULL
 		)
 		SELECT
-			id::text,
-			kind,
-			owner_user_id::text,
-			COALESCE(parent_id::text, ''),
-			name,
-			name_key,
-			is_root,
-			is_favorite,
-			created_at,
-			updated_at,
+			ancestors.id::text,
+			ancestors.kind,
+			ancestors.owner_user_id::text,
+			COALESCE(ancestors.parent_id::text, ''),
+			ancestors.name,
+			ancestors.name_key,
+			ancestors.is_root,
+			ancestors.is_favorite,
+			ancestors.created_at,
+			ancestors.updated_at,
 			fp.folder_id IS NOT NULL
 		FROM ancestors
 		LEFT JOIN folder_permissions fp
 		  ON fp.folder_id = ancestors.id
 		 AND fp.user_id = $2::uuid
-		ORDER BY depth DESC
+		ORDER BY ancestors.depth DESC
 	`, nodeID, actor.UserID)
 	if err != nil {
 		if isInvalidUUID(err) {
