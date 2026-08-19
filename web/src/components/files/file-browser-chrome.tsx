@@ -2,9 +2,10 @@
 
 import type { MouseEvent } from "react"
 import { Fragment, useState } from "react"
-import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, LayoutGridIcon, ListIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, Globe2Icon, LayoutGridIcon, ListIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
 import { AccessDialog } from "@/components/access/access-dialog"
 import { CreateFolderDialog } from "@/components/files/node-actions"
+import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { useUploadTarget } from "@/components/uploads/upload-target"
 import { Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
@@ -38,7 +39,8 @@ export function FileBrowserChrome({
   onOptionsChange: (patch: Partial<BrowserOptions>) => void
 }) {
   const uploadTarget = useUploadTarget()
-  const [shareOpen, setShareOpen] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [publicShareOpen, setPublicShareOpen] = useState(false)
   const editable = accessLevel !== "view"
   const shareable = accessLevel === "full"
 
@@ -68,7 +70,7 @@ export function FileBrowserChrome({
             <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
           </Button>
           <DesktopControls options={options} onChange={onOptionsChange} onSortChange={changeSort} />
-          <FolderActionsMenu folder={folder} options={options} canShare={shareable} onShare={() => setShareOpen(true)} />
+          <FolderActionsMenu folder={folder} options={options} canShare={shareable} onAccess={() => setAccessOpen(true)} onPublicShare={() => setPublicShareOpen(true)} />
         </div>
 
         <div className="flex items-center justify-end gap-2 sm:hidden">
@@ -78,11 +80,16 @@ export function FileBrowserChrome({
               <UploadIcon />
             </Button>
           )}
-          <FolderActionsMenu folder={folder} options={options} canShare={shareable} mobile reloading={reloading} onReload={onReload} onShare={() => setShareOpen(true)} onOptionsChange={onOptionsChange} />
+          <FolderActionsMenu folder={folder} options={options} canShare={shareable} mobile reloading={reloading} onReload={onReload} onAccess={() => setAccessOpen(true)} onPublicShare={() => setPublicShareOpen(true)} onOptionsChange={onOptionsChange} />
         </div>
       </div>
 
-      {shareable && <AccessDialog resource={{ type: "folder", id: folder.id, name: folder.isRoot ? "Files" : folder.name }} open={shareOpen} onOpenChange={setShareOpen} trigger={null} />}
+      {shareable && (
+        <>
+          <AccessDialog resource={{ type: "folder", id: folder.id, name: folder.isRoot ? "Files" : folder.name }} open={accessOpen} onOpenChange={setAccessOpen} trigger={null} />
+          <PublicShareDialog resourceType="folder" resourceId={folder.id} resourceName={folder.isRoot ? "Files" : folder.name} open={publicShareOpen} onOpenChange={setPublicShareOpen} trigger={null} />
+        </>
+      )}
     </>
   )
 }
@@ -185,7 +192,8 @@ function FolderActionsMenu({
   mobile = false,
   reloading = false,
   onReload,
-  onShare,
+  onAccess,
+  onPublicShare,
   onOptionsChange,
 }: {
   folder: Node
@@ -194,7 +202,8 @@ function FolderActionsMenu({
   mobile?: boolean
   reloading?: boolean
   onReload?: () => Promise<void>
-  onShare: () => void
+  onAccess: () => void
+  onPublicShare: () => void
   onOptionsChange?: (patch: Partial<BrowserOptions>) => void
 }) {
   return (
@@ -220,10 +229,17 @@ function FolderActionsMenu({
         </DropdownMenuItem>
 
         {canShare && (
-          <DropdownMenuItem onSelect={onShare}>
-            <Share2Icon />
-            Manage access
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onAccess}>
+              <Share2Icon />
+              Manage access
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onPublicShare}>
+              <Globe2Icon />
+              Public link
+            </DropdownMenuItem>
+          </>
         )}
 
         {mobile && onOptionsChange && (

@@ -101,6 +101,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Shares != nil && deps.Auth != nil {
 		registerShareRoutes(mux, deps.Shares, deps.Auth, authConfig)
+		registerActiveShareRoute(mux, deps.Shares, deps.Auth, authConfig)
 	}
 	if deps.Shares != nil && deps.Files != nil && deps.Folders != nil {
 		registerPublicShareRoutes(mux, deps.Shares, deps.Files, deps.Folders)

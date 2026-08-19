@@ -2,7 +2,8 @@
 
 import { Fragment, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, TriangleAlertIcon } from "lucide-react"
+import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, TriangleAlertIcon } from "lucide-react"
+import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -115,10 +116,12 @@ export function NodeActionsMenu({
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
+  const [publicShareOpen, setPublicShareOpen] = useState(false)
   const [favoritePending, setFavoritePending] = useState(false)
   const editable = node.accessLevel !== "view"
+  const canPublicShare = node.accessLevel === "full"
 
-  if (!editable && !node.canFavorite) return null
+  if (!editable && !node.canFavorite && !canPublicShare) return null
 
   async function favorite() {
     setFavoritePending(true)
@@ -137,7 +140,7 @@ export function NodeActionsMenu({
             <MoreHorizontalIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-full">
+        <DropdownMenuContent align="end" className="w-48">
           {editable && (
             <>
               <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
@@ -150,7 +153,19 @@ export function NodeActionsMenu({
               </DropdownMenuItem>
             </>
           )}
-          {editable && node.canFavorite && <DropdownMenuSeparator />}
+
+          {canPublicShare && (
+            <>
+              {editable && <DropdownMenuSeparator />}
+              <DropdownMenuItem onSelect={() => setPublicShareOpen(true)}>
+                <Globe2Icon />
+                Public link
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {(editable || canPublicShare) && node.canFavorite && <DropdownMenuSeparator />}
+
           {node.canFavorite && (
             <DropdownMenuItem disabled={favoritePending} onSelect={() => void favorite()}>
               {favoritePending ? <Loader2Icon className="animate-spin" /> : node.isFavorite ? <StarOffIcon /> : <StarIcon />}
@@ -159,7 +174,9 @@ export function NodeActionsMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
       {renameOpen && <RenameNodeDialog node={node} open onOpenChange={setRenameOpen} onReload={onReload} />}
+
       {moveOpen && (
         <MoveNodeDialog
           node={node}
@@ -170,6 +187,17 @@ export function NodeActionsMenu({
           open
           onOpenChange={setMoveOpen}
           onMoved={onMoved}
+        />
+      )}
+
+      {canPublicShare && (
+        <PublicShareDialog
+          resourceType={node.kind}
+          resourceId={node.id}
+          resourceName={node.name}
+          open={publicShareOpen}
+          onOpenChange={setPublicShareOpen}
+          trigger={null}
         />
       )}
     </>

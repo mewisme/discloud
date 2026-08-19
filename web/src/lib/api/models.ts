@@ -97,6 +97,7 @@ export type SharedItem = SharedItems["items"][number]
 export type CreateShareInput = OperationBody<"createShare">
 export type Share = OperationJSON<"createShare", 201>
 export type ShareResourceType = Share["resourceType"]
+export type ActiveShareQuery = OperationQuery<"getActiveShare">
 export type PublicShare = OperationJSON<"resolvePublicShare", 200>
 export type PublicFolder = OperationJSON<"getPublicFolder", 200>
 export type PublicItems = OperationJSON<"listPublicCollectionItems", 200>
