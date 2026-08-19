@@ -93,10 +93,10 @@ func Run() error {
 	}
 
 	handler := httpapi.NewRouter(httpapi.RouterDependencies{
-		Ready: pool.Ping, Setup: setupService, Auth: authService, AdminUsers: adminUserService,
-		ACL: aclService, Nodes: nodeService, Uploads: uploadService, PartUploader: partUploader,
-		Finalizer: finalizer, Files: fileService, Folders: folderService, Collections: collectionService,
-		Shares: shareService, Search: searchService,
+		Ready: readinessCheck(pool, blobStore), Setup: setupService, Auth: authService,
+		AdminUsers: adminUserService, ACL: aclService, Nodes: nodeService, Uploads: uploadService,
+		PartUploader: partUploader, Finalizer: finalizer, Files: fileService, Folders: folderService,
+		Collections: collectionService, Shares: shareService, Search: searchService,
 	}, cfg.HTTP, cfg.Auth)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)

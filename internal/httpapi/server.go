@@ -94,7 +94,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 		registerSearchRoutes(mux, deps.Search, deps.Auth, authConfig)
 	}
 
-	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))
+	handler := csrfMiddleware(httpConfig, mux)
+	handler = securityHeadersMiddleware(httpConfig, handler)
+	return RequestIDMiddleware(handler)
 }
 
 func NewServer(cfg config.HTTPConfig, handler http.Handler) *http.Server {

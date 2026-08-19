@@ -57,6 +57,23 @@ func Claim(ctx context.Context, pool *pgxpool.Pool, workerID string) (*Job, erro
 	return &job, nil
 }
 
+func Touch(ctx context.Context, pool *pgxpool.Pool, jobID, workerID string) error {
+	tag, err := pool.Exec(ctx, `
+		UPDATE jobs
+		SET locked_at = now(), updated_at = now()
+		WHERE id = $1::uuid
+		  AND status = 'running'
+		  AND locked_by = $2
+	`, jobID, workerID)
+	if err != nil {
+		return fmt.Errorf("refresh job lease: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrLeaseLost
+	}
+	return nil
+}
+
 func Complete(ctx context.Context, pool *pgxpool.Pool, jobID, workerID string) error {
 	tag, err := pool.Exec(ctx, `
 		UPDATE jobs
@@ -125,6 +142,38 @@ func Retry(ctx context.Context, pool *pgxpool.Pool, jobID, workerID string, runA
 		return ErrLeaseLost
 	}
 	return nil
+}
+
+func RecoverStale(ctx context.Context, pool *pgxpool.Pool, leaseTimeout time.Duration) (int64, error) {
+	if leaseTimeout <= 0 {
+		return 0, errors.New("job lease timeout must be greater than zero")
+	}
+
+	tag, err := pool.Exec(ctx, `
+		UPDATE jobs
+		SET status = CASE
+				WHEN attempts >= max_attempts THEN 'dead'
+				ELSE 'queued'
+		    END,
+		    run_at = CASE
+				WHEN attempts >= max_attempts THEN run_at
+				ELSE now()
+		    END,
+		    locked_at = NULL,
+		    locked_by = NULL,
+		    last_error = CASE
+				WHEN attempts >= max_attempts THEN 'worker lease expired after final attempt'
+				ELSE 'worker lease expired'
+		    END,
+		    updated_at = now()
+		WHERE status = 'running'
+		  AND locked_at IS NOT NULL
+		  AND locked_at < now() - ($1::bigint * interval '1 millisecond')
+	`, leaseTimeout.Milliseconds())
+	if err != nil {
+		return 0, fmt.Errorf("recover stale jobs: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 func errorText(err error) string {

@@ -10,7 +10,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const defaultPollInterval = time.Second
+const (
+	defaultPollInterval      = time.Second
+	defaultLeaseTimeout      = 5 * time.Minute
+	defaultHeartbeatInterval = time.Minute
+	defaultRecoveryInterval  = time.Minute
+	finishTimeout            = 5 * time.Second
+)
 
 type Handler func(context.Context, Job) error
 
@@ -48,8 +54,27 @@ func NewWorker(pool *pgxpool.Pool, logger *slog.Logger, handlers map[string]Hand
 
 func (w *Worker) Run(ctx context.Context, workerID string) {
 	logger := w.logger.With("worker_id", workerID)
+	nextRecovery := time.Time{}
 
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		now := time.Now()
+		if !now.Before(nextRecovery) {
+			count, err := RecoverStale(ctx, w.pool, defaultLeaseTimeout)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Error("recover stale jobs failed", "error", err)
+			} else if count > 0 {
+				logger.Warn("recovered stale jobs", "count", count)
+			}
+			nextRecovery = now.Add(defaultRecoveryInterval)
+		}
+
 		job, err := Claim(ctx, w.pool, workerID)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -77,15 +102,27 @@ func (w *Worker) runJob(ctx context.Context, workerID string, job Job, logger *s
 	handler, ok := w.handlers[job.Type]
 	if !ok {
 		err := fmt.Errorf("unsupported job type %q", job.Type)
-		if finishErr := Fail(ctx, w.pool, job.ID, workerID, err); finishErr != nil {
+		finishCtx, cancel := finishContext(ctx)
+		defer cancel()
+		if finishErr := Fail(finishCtx, w.pool, job.ID, workerID, err); finishErr != nil {
 			logger.Error("fail unsupported job failed", "job_id", job.ID, "error", finishErr)
 		}
 		return
 	}
 
-	err := handler(ctx, job)
+	jobCtx, cancelJob := context.WithCancel(ctx)
+	heartbeatDone := make(chan struct{})
+	go w.heartbeat(jobCtx, cancelJob, workerID, job, logger, heartbeatDone)
+
+	err := handler(jobCtx, job)
+	cancelJob()
+	<-heartbeatDone
+
+	finishCtx, cancelFinish := finishContext(ctx)
+	defer cancelFinish()
+
 	if err == nil {
-		if err := Complete(ctx, w.pool, job.ID, workerID); err != nil && ctx.Err() == nil {
+		if err := Complete(finishCtx, w.pool, job.ID, workerID); err != nil {
 			logger.Error("complete job failed", "job_id", job.ID, "type", job.Type, "error", err)
 		}
 		return
@@ -93,14 +130,18 @@ func (w *Worker) runJob(ctx context.Context, workerID string, job Job, logger *s
 
 	var permanent *PermanentError
 	if errors.As(err, &permanent) {
-		if finishErr := Fail(ctx, w.pool, job.ID, workerID, err); finishErr != nil && ctx.Err() == nil {
+		if finishErr := Fail(finishCtx, w.pool, job.ID, workerID, err); finishErr != nil {
 			logger.Error("fail job failed", "job_id", job.ID, "type", job.Type, "error", finishErr)
 		}
 		return
 	}
 
 	runAt := time.Now().UTC().Add(retryDelay(job.Attempts))
-	if retryErr := Retry(ctx, w.pool, job.ID, workerID, runAt, err); retryErr != nil && ctx.Err() == nil {
+	if ctx.Err() != nil {
+		runAt = time.Now().UTC()
+	}
+
+	if retryErr := Retry(finishCtx, w.pool, job.ID, workerID, runAt, err); retryErr != nil {
 		logger.Error("retry job failed", "job_id", job.ID, "type", job.Type, "error", retryErr)
 		return
 	}
@@ -113,6 +154,30 @@ func (w *Worker) runJob(ctx context.Context, workerID string, job Job, logger *s
 		"max_attempts", job.MaxAttempts,
 		"error", err,
 	)
+}
+
+func (w *Worker) heartbeat(ctx context.Context, cancel context.CancelFunc, workerID string, job Job, logger *slog.Logger, done chan<- struct{}) {
+	defer close(done)
+
+	ticker := time.NewTicker(defaultHeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := Touch(ctx, w.pool, job.ID, workerID)
+			if errors.Is(err, ErrLeaseLost) {
+				logger.Error("job lease lost", "job_id", job.ID, "type", job.Type)
+				cancel()
+				return
+			}
+			if err != nil {
+				logger.Warn("refresh job lease failed", "job_id", job.ID, "type", job.Type, "error", err)
+			}
+		}
+	}
 }
 
 func retryDelay(attempt int) time.Duration {
@@ -135,4 +200,11 @@ func wait(ctx context.Context, duration time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func finishContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx.Err() == nil {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(context.Background(), finishTimeout)
 }
