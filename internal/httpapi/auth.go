@@ -21,11 +21,22 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+type mfaVerifyRequest struct {
+	ChallengeToken string `json:"challengeToken"`
+	Code           string `json:"code"`
+}
+
 type userResponse struct {
 	ID                 string `json:"id"`
 	Username           string `json:"username"`
 	Role               string `json:"role"`
 	MustChangePassword bool   `json:"mustChangePassword"`
+}
+
+type mfaRequiredResponse struct {
+	MFARequired    bool      `json:"mfaRequired"`
+	ChallengeToken string    `json:"challengeToken"`
+	ExpiresAt      time.Time `json:"expiresAt"`
 }
 
 func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
@@ -46,6 +57,50 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
+		w.Header().Set("Cache-Control", "no-store")
+
+		if result.MFARequired {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(mfaRequiredResponse{
+				MFARequired:    true,
+				ChallengeToken: result.ChallengeToken,
+				ExpiresAt:      result.ChallengeExpiresAt,
+			})
+			return
+		}
+
+		setSessionCookie(w, cfg, result.Token, result.ExpiresAt)
+		writeUser(w, result.User)
+	})
+
+	mux.HandleFunc("POST /api/v1/auth/mfa/verify", func(w http.ResponseWriter, r *http.Request) {
+		var input mfaVerifyRequest
+		if err := decodeJSON(w, r, authBodyLimit, &input); err != nil {
+			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+			return
+		}
+
+		result, err := service.CompleteMFA(
+			r.Context(),
+			input.ChallengeToken,
+			input.Code,
+			limitRunes(r.UserAgent(), 512),
+			requestIP(r),
+		)
+
+		switch {
+		case errors.Is(err, auth.ErrInvalidMFA):
+			WriteProblem(w, r, http.StatusUnauthorized, "Unauthorized", "invalid MFA challenge or code")
+			return
+		case errors.Is(err, auth.ErrMFAUnavailable):
+			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "MFA service unavailable")
+			return
+		case err != nil:
+			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not complete authentication")
+			return
+		}
+
+		w.Header().Set("Cache-Control", "no-store")
 		setSessionCookie(w, cfg, result.Token, result.ExpiresAt)
 		writeUser(w, result.User)
 	})
@@ -67,6 +122,7 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 	})))
 
 	registerMeRoutes(mux, service, cfg)
+	registerMFARoutes(mux, service, cfg)
 }
 
 func requireAuth(service *auth.Service, cfg config.AuthConfig, next http.Handler) http.Handler {

@@ -47,7 +47,7 @@ func Run() error {
 	}
 
 	setupService := setup.New(pool)
-	authService := auth.New(pool, cfg.Auth.SessionTTL)
+	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
 	handler := httpapi.NewRouter(pool.Ping, setupService, authService, cfg.HTTP, cfg.Auth)
 	server := httpapi.NewServer(cfg.HTTP, handler)
 

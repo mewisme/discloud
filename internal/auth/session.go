@@ -7,16 +7,16 @@ import (
 	"fmt"
 )
 
-func newSessionToken() (string, [32]byte, error) {
+func newOpaqueToken() (string, [32]byte, error) {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
-		return "", [32]byte{}, fmt.Errorf("generate session token: %w", err)
+		return "", [32]byte{}, fmt.Errorf("generate token: %w", err)
 	}
 
 	token := base64.RawURLEncoding.EncodeToString(secret[:])
-	return token, hashSessionToken(token), nil
+	return token, hashOpaqueToken(token), nil
 }
 
-func hashSessionToken(token string) [32]byte {
+func hashOpaqueToken(token string) [32]byte {
 	return sha256.Sum256([]byte(token))
 }

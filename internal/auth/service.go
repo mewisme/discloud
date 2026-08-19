@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	mfadomain "github.com/mewisme/discloud/internal/mfa"
 )
 
 var (
@@ -24,9 +26,12 @@ type User struct {
 }
 
 type LoginResult struct {
-	Token     string
-	ExpiresAt time.Time
-	User      User
+	Token              string
+	ExpiresAt          time.Time
+	User               User
+	MFARequired        bool
+	ChallengeToken     string
+	ChallengeExpiresAt time.Time
 }
 
 type Principal struct {
@@ -37,10 +42,17 @@ type Principal struct {
 type Service struct {
 	pool       *pgxpool.Pool
 	sessionTTL time.Duration
+	mfa        *mfadomain.Service
 }
 
 func New(pool *pgxpool.Pool, sessionTTL time.Duration) *Service {
 	return &Service{pool: pool, sessionTTL: sessionTTL}
+}
+
+func NewWithMFA(pool *pgxpool.Pool, sessionTTL time.Duration, issuer string, masterKey []byte) *Service {
+	service := New(pool, sessionTTL)
+	service.mfa = mfadomain.New(pool, issuer, masterKey)
+	return service
 }
 
 func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAddress string) (*LoginResult, error) {
@@ -72,7 +84,56 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 		return nil, ErrInvalidCredentials
 	}
 
-	token, tokenHash, err := newSessionToken()
+	var mfaEnabled bool
+	if err := s.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM mfa_totp WHERE user_id = $1)", user.ID).Scan(&mfaEnabled); err != nil {
+		return nil, fmt.Errorf("check MFA status: %w", err)
+	}
+
+	if mfaEnabled {
+		if s.mfa == nil {
+			return nil, ErrMFAUnavailable
+		}
+
+		token, expiresAt, err := s.createMFAChallenge(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		return &LoginResult{
+			MFARequired:        true,
+			ChallengeToken:     token,
+			ChallengeExpiresAt: expiresAt,
+		}, nil
+	}
+
+	return s.createSession(ctx, user, userAgent, ipAddress)
+}
+
+func (s *Service) CompleteMFA(ctx context.Context, challengeToken, code, userAgent, ipAddress string) (*LoginResult, error) {
+	userID, err := s.verifyMFAChallenge(ctx, challengeToken, code)
+	if err != nil {
+		return nil, err
+	}
+
+	var user User
+	err = s.pool.QueryRow(ctx, `
+		SELECT id::text, username::text, role, must_change_password
+		FROM users
+		WHERE id = $1 AND status = 'active'
+	`, userID).Scan(&user.ID, &user.Username, &user.Role, &user.MustChangePassword)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read MFA user: %w", err)
+	}
+
+	return s.createSession(ctx, user, userAgent, ipAddress)
+}
+
+func (s *Service) createSession(ctx context.Context, user User, userAgent, ipAddress string) (*LoginResult, error) {
+	token, tokenHash, err := newOpaqueToken()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +146,11 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
-	return &LoginResult{Token: token, ExpiresAt: expiresAt, User: user}, nil
+	return &LoginResult{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		User:      user,
+	}, nil
 }
 
 func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, error) {
@@ -93,7 +158,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 		return nil, ErrUnauthenticated
 	}
 
-	tokenHash := hashSessionToken(token)
+	tokenHash := hashOpaqueToken(token)
 	var principal Principal
 
 	err := s.pool.QueryRow(ctx, `
@@ -127,13 +192,14 @@ func (s *Service) RevokeToken(ctx context.Context, token string) error {
 		return nil
 	}
 
-	hash := hashSessionToken(token)
+	tokenHash := hashOpaqueToken(token)
 	if _, err := s.pool.Exec(ctx, `
 		UPDATE sessions
 		SET revoked_at = COALESCE(revoked_at, now())
 		WHERE token_hash = $1
-	`, hash[:]); err != nil {
+	`, tokenHash[:]); err != nil {
 		return fmt.Errorf("revoke session: %w", err)
 	}
+
 	return nil
 }
