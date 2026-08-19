@@ -1,10 +1,18 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
+import { SetupForm } from "@/components/auth/setup-form"
 import { apiServerJSON } from "@/lib/api/server"
 import type { SetupStatus } from "@/lib/api/models"
 
-export default async function Home() {
+export const metadata: Metadata = {
+  title: "Setup",
+}
+
+export default async function SetupPage() {
   await connection()
   const status = await apiServerJSON<SetupStatus>("/api/v1/setup/status")
-  redirect(status.setupRequired ? "/setup" : "/login")
+
+  if (!status.setupRequired) redirect("/login")
+  return <SetupForm />
 }

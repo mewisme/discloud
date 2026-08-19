@@ -1,5 +1,6 @@
 import "client-only"
-import { APIError, type APIJSONInit, type APIRequestInit, type Problem, type Query } from "@/lib/api/types"
+import { apiError } from "@/lib/api/error"
+import type { APIJSONInit, APIRequestInit, Query } from "@/lib/api/types"
 
 const API_PREFIX = "/api/backend"
 
@@ -45,19 +46,6 @@ export async function apiJSON<T>(path: string, options: APIJSONInit = {}): Promi
 
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
-}
-
-async function apiError(response: Response) {
-  let problem: Problem | undefined
-  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim()
-
-  if (contentType === "application/problem+json") {
-    try {
-      problem = await response.json() as Problem
-    } catch { }
-  }
-
-  return new APIError(response.status, response.statusText, problem)
 }
 
 function requestControl(signal: AbortSignal | null | undefined, timeoutMs: number) {
