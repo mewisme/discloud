@@ -13,6 +13,7 @@ CREATE TABLE folder_permissions (
 CREATE INDEX folder_permissions_user_idx
     ON folder_permissions (user_id, folder_id);
 
+-- +goose StatementBegin
 CREATE FUNCTION discloud_validate_folder_permission()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -44,6 +45,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+-- +goose StatementEnd
 
 CREATE CONSTRAINT TRIGGER folder_permissions_target_invariant
 AFTER INSERT OR UPDATE ON folder_permissions

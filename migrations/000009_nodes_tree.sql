@@ -10,6 +10,7 @@ CREATE INDEX nodes_parent_active_idx
     ON nodes (parent_id, name_key, id)
     WHERE deleted_at IS NULL;
 
+-- +goose StatementBegin
 CREATE FUNCTION discloud_validate_node_parent()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -45,6 +46,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+-- +goose StatementEnd
 
 CREATE CONSTRAINT TRIGGER nodes_parent_invariant
 AFTER INSERT OR UPDATE ON nodes
@@ -52,6 +54,7 @@ DEFERRABLE INITIALLY IMMEDIATE
 FOR EACH ROW
 EXECUTE FUNCTION discloud_validate_node_parent();
 
+-- +goose StatementBegin
 CREATE FUNCTION discloud_protect_root_node()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -85,6 +88,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+-- +goose StatementEnd
 
 CREATE TRIGGER nodes_protect_root_update
 BEFORE UPDATE ON nodes
