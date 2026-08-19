@@ -8,6 +8,7 @@ import (
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
+	"github.com/mewisme/discloud/internal/files"
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -23,6 +24,7 @@ type RouterDependencies struct {
 	Uploads      *uploads.Service
 	PartUploader *uploads.PartUploader
 	Finalizer    *uploads.Finalizer
+	Files        *files.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -60,6 +62,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Uploads != nil && deps.PartUploader != nil && deps.Finalizer != nil && deps.Auth != nil {
 		registerUploadRoutes(mux, deps.Uploads, deps.PartUploader, deps.Finalizer, deps.Auth, authConfig)
+	}
+	if deps.Files != nil && deps.Auth != nil {
+		registerFileRoutes(mux, deps.Files, deps.Auth, authConfig)
 	}
 
 	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))

@@ -13,6 +13,7 @@ import (
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/discordstore"
+	"github.com/mewisme/discloud/internal/files"
 	"github.com/mewisme/discloud/internal/httpapi"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
@@ -69,13 +70,14 @@ func Run() error {
 	uploadService := uploads.New(pool, cfg.Upload.ChunkSizeBytes, cfg.Upload.SessionTTL)
 	partUploader := uploads.NewPartUploader(uploadService, blobStore)
 	finalizer := uploads.NewFinalizer(uploadService, blobStore)
+	fileService := files.New(pool, blobStore)
 
 	go uploads.RunExpiryWorker(ctx, uploadService, logger.With("component", "upload-expiry"))
 
 	handler := httpapi.NewRouter(httpapi.RouterDependencies{
 		Ready: pool.Ping, Setup: setupService, Auth: authService, AdminUsers: adminUserService,
-		ACL: aclService, Nodes: nodeService, Uploads: uploadService,
-		PartUploader: partUploader, Finalizer: finalizer,
+		ACL: aclService, Nodes: nodeService, Uploads: uploadService, PartUploader: partUploader,
+		Finalizer: finalizer, Files: fileService,
 	}, cfg.HTTP, cfg.Auth)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)
