@@ -1241,6 +1241,8 @@ export type components = {
             readonly resourceType?: string;
         };
         readonly Collection: {
+            /** @enum {string} */
+            readonly accessLevel: "view" | "edit" | "full";
             /** Format: date-time */
             readonly createdAt: string;
             readonly description?: string;

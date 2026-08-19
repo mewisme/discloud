@@ -27,13 +27,14 @@ const workspace: NavItem[] = [
   { title: "Files", href: "/files", icon: FolderIcon, enabled: true },
   { title: "Search", href: "/search", icon: SearchIcon, enabled: true },
   { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: false },
-  { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: false },
+  { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: true },
   { title: "Shared", href: "/shared", icon: Share2Icon, enabled: false },
   { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: false },
 ]
 
 const titles = [
   ["/settings/security", "Security"],
+  ["/collections", "Collections"],
   ["/search", "Search"],
   ["/files", "Files"],
 ] as const

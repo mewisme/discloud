@@ -37,6 +37,7 @@ type collectionResponse struct {
 	OwnerUserID string    `json:"ownerUserId"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
+	AccessLevel string    `json:"accessLevel"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -77,14 +78,20 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 			afterNameKey, afterID = parts[0], parts[1]
 		}
 
-		items, hasMore, err := service.List(r.Context(), collectionActor(r), limit, afterNameKey, afterID)
+		actor := collectionActor(r)
+		items, hasMore, err := service.List(r.Context(), actor, limit, afterNameKey, afterID)
+		if writeCollectionError(w, r, err) {
+			return
+		}
+
+		levels, err := service.AccessLevels(r.Context(), actor, items)
 		if writeCollectionError(w, r, err) {
 			return
 		}
 
 		response := make([]collectionResponse, len(items))
 		for i, item := range items {
-			response[i] = collectionJSON(item)
+			response[i] = collectionJSON(item, levels[item.ID])
 		}
 
 		var nextCursor string
@@ -114,16 +121,23 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(collectionJSON(collection))
+		_ = json.NewEncoder(w).Encode(collectionJSON(collection, collections.Full))
 	})
 
 	protected("GET /api/v1/collections/{collectionId}", func(w http.ResponseWriter, r *http.Request) {
-		collection, err := service.Get(r.Context(), collectionActor(r), r.PathValue("collectionId"))
+		actor := collectionActor(r)
+		collection, err := service.Get(r.Context(), actor, r.PathValue("collectionId"))
 		if writeCollectionError(w, r, err) {
 			return
 		}
+
+		level, err := service.AccessLevel(r.Context(), actor, collection.ID)
+		if writeCollectionError(w, r, err) {
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(collectionJSON(collection))
+		_ = json.NewEncoder(w).Encode(collectionJSON(collection, level))
 	})
 
 	protected("PATCH /api/v1/collections/{collectionId}", func(w http.ResponseWriter, r *http.Request) {
@@ -137,15 +151,21 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 			return
 		}
 
-		collection, err := service.Update(r.Context(), collectionActor(r), r.PathValue("collectionId"), collections.UpdateInput{
+		actor := collectionActor(r)
+		collection, err := service.Update(r.Context(), actor, r.PathValue("collectionId"), collections.UpdateInput{
 			Name: input.Name, Description: input.Description,
 		})
 		if writeCollectionError(w, r, err) {
 			return
 		}
 
+		level, err := service.AccessLevel(r.Context(), actor, collection.ID)
+		if writeCollectionError(w, r, err) {
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(collectionJSON(collection))
+		_ = json.NewEncoder(w).Encode(collectionJSON(collection, level))
 	})
 
 	protected("DELETE /api/v1/collections/{collectionId}", func(w http.ResponseWriter, r *http.Request) {
@@ -164,13 +184,19 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 			}
 		}
 
-		collection, err := service.Restore(r.Context(), collectionActor(r), r.PathValue("collectionId"), input.Name)
+		actor := collectionActor(r)
+		collection, err := service.Restore(r.Context(), actor, r.PathValue("collectionId"), input.Name)
+		if writeCollectionError(w, r, err) {
+			return
+		}
+
+		level, err := service.AccessLevel(r.Context(), actor, collection.ID)
 		if writeCollectionError(w, r, err) {
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(collectionJSON(collection))
+		_ = json.NewEncoder(w).Encode(collectionJSON(collection, level))
 	})
 
 	protected("GET /api/v1/collections/{collectionId}/items", func(w http.ResponseWriter, r *http.Request) {
@@ -229,10 +255,11 @@ func collectionActor(r *http.Request) collections.Actor {
 	return collections.Actor{UserID: principal.User.ID, Admin: principal.User.Role == "admin"}
 }
 
-func collectionJSON(collection collections.Collection) collectionResponse {
+func collectionJSON(collection collections.Collection, level collections.Level) collectionResponse {
 	return collectionResponse{
 		ID: collection.ID, OwnerUserID: collection.OwnerID, Name: collection.Name,
-		Description: collection.Description, CreatedAt: collection.CreatedAt, UpdatedAt: collection.UpdatedAt,
+		Description: collection.Description, AccessLevel: level.String(),
+		CreatedAt: collection.CreatedAt, UpdatedAt: collection.UpdatedAt,
 	}
 }
 
