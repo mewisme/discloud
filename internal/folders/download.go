@@ -9,7 +9,34 @@ import (
 	"github.com/mewisme/discloud/internal/files"
 )
 
+type archiveOpener func(string, int64) (io.ReadCloser, error)
+
 func (s *Service) WriteZIP(ctx context.Context, actor Actor, archive Archive, dst io.Writer) error {
+	return s.writeZIP(ctx, archive, dst, func(fileID string, size int64) (io.ReadCloser, error) {
+		_, reader, err := s.files.Open(
+			ctx,
+			files.Actor{UserID: actor.UserID, Admin: actor.Admin},
+			fileID,
+			0,
+			size,
+		)
+		return reader, err
+	})
+}
+
+// WriteZIPStored skips ACL; caller must authorize another access context first.
+func (s *Service) WriteZIPStored(ctx context.Context, archive Archive, dst io.Writer) error {
+	if s.stored == nil {
+		return ErrArchiveInvariant
+	}
+
+	return s.writeZIP(ctx, archive, dst, func(fileID string, size int64) (io.ReadCloser, error) {
+		_, reader, err := s.stored.OpenStored(ctx, fileID, 0, size)
+		return reader, err
+	})
+}
+
+func (s *Service) writeZIP(ctx context.Context, archive Archive, dst io.Writer, open archiveOpener) error {
 	writer := zip.NewWriter(dst)
 
 	fail := func(err error) error {
@@ -40,13 +67,7 @@ func (s *Service) WriteZIP(ctx context.Context, actor Actor, archive Archive, ds
 			continue
 		}
 
-		_, reader, err := s.files.Open(
-			ctx,
-			files.Actor{UserID: actor.UserID, Admin: actor.Admin},
-			entry.NodeID,
-			0,
-			entry.SizeBytes,
-		)
+		reader, err := open(entry.NodeID, entry.SizeBytes)
 		if err != nil {
 			return fail(err)
 		}

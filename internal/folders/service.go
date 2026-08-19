@@ -40,10 +40,15 @@ type fileOpener interface {
 	Open(context.Context, files.Actor, string, int64, int64) (files.File, io.ReadCloser, error)
 }
 
+type storedFileOpener interface {
+	OpenStored(context.Context, string, int64, int64) (files.File, io.ReadCloser, error)
+}
+
 type Service struct {
-	pool  *pgxpool.Pool
-	acl   *acl.Service
-	files fileOpener
+	pool   *pgxpool.Pool
+	acl    *acl.Service
+	files  fileOpener
+	stored storedFileOpener
 }
 
 type treeNode struct {
@@ -56,7 +61,12 @@ type treeNode struct {
 }
 
 func New(pool *pgxpool.Pool, fileService *files.Service) *Service {
-	return &Service{pool: pool, acl: acl.New(pool), files: fileService}
+	return &Service{
+		pool:   pool,
+		acl:    acl.New(pool),
+		files:  fileService,
+		stored: fileService,
+	}
 }
 
 func (s *Service) PrepareArchive(ctx context.Context, actor Actor, folderID string) (Archive, error) {
@@ -67,7 +77,15 @@ func (s *Service) PrepareArchive(ctx context.Context, actor Actor, folderID stri
 	if err != nil {
 		return Archive{}, err
 	}
+	return s.prepareArchive(ctx, folderID)
+}
 
+// PrepareArchiveStored skips ACL; caller must authorize another access context first.
+func (s *Service) PrepareArchiveStored(ctx context.Context, folderID string) (Archive, error) {
+	return s.prepareArchive(ctx, folderID)
+}
+
+func (s *Service) prepareArchive(ctx context.Context, folderID string) (Archive, error) {
 	rows, err := s.pool.Query(ctx, `
 		WITH RECURSIVE tree AS (
 			SELECT id, parent_id, kind, name, name_key, created_at, 0 AS depth
@@ -102,7 +120,14 @@ func (s *Service) PrepareArchive(ctx context.Context, actor Actor, folderID stri
 	nodes := make([]treeNode, 0)
 	for rows.Next() {
 		var node treeNode
-		if err := rows.Scan(&node.ID, &node.ParentID, &node.Kind, &node.Name, &node.SizeBytes, &node.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&node.ID,
+			&node.ParentID,
+			&node.Kind,
+			&node.Name,
+			&node.SizeBytes,
+			&node.CreatedAt,
+		); err != nil {
 			return Archive{}, fmt.Errorf("scan folder archive: %w", err)
 		}
 		nodes = append(nodes, node)
@@ -114,7 +139,7 @@ func (s *Service) PrepareArchive(ctx context.Context, actor Actor, folderID stri
 		return Archive{}, ErrNotFound
 	}
 
-	// ponytail: keep tree metadata in memory; page it only when huge trees become a measured problem.
+	// ponytail: keep tree metadata in memory; page when huge trees become a measured problem.
 	return buildArchive(nodes)
 }
 
@@ -138,7 +163,10 @@ func buildArchive(nodes []treeNode) (Archive, error) {
 		filename = base + ".zip"
 	}
 
-	archive := Archive{Filename: filename, Entries: make([]ArchiveEntry, 0, len(nodes))}
+	archive := Archive{
+		Filename: filename,
+		Entries:  make([]ArchiveEntry, 0, len(nodes)),
+	}
 	paths := map[string]string{root.ID: base}
 	used := make(map[string]map[string]struct{})
 
@@ -187,5 +215,6 @@ func buildArchive(nodes []treeNode) (Archive, error) {
 			SizeBytes: size, CreatedAt: node.CreatedAt,
 		})
 	}
+
 	return archive, nil
 }
