@@ -6,14 +6,21 @@ import { DownloadIcon, FileIcon, Loader2Icon, TriangleAlertIcon } from "lucide-r
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { apiRequest } from "@/lib/api/client"
-import type { File } from "@/lib/api/models"
 import { filePreviewKind } from "@/lib/files/preview"
 
 const textPreviewLimit = 256 * 1024
 
-export function FilePreview({ file }: { file: File }) {
+type PreviewFile = {
+  id: string
+  name: string
+  size: number
+  mimeType: string
+  category?: string
+}
+
+export function FilePreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
   const kind = filePreviewKind(file.mimeType, file.category)
-  const contentURL = fileContentURL(file.id)
+  const contentURL = fileContentURL(file.id, collectionId)
 
   switch (kind) {
     case "image":
@@ -37,13 +44,13 @@ export function FilePreview({ file }: { file: File }) {
     case "pdf":
       return <iframe src={contentURL} title={file.name} className="h-[70vh] w-full rounded-xl border bg-background" />
     case "text":
-      return <TextPreview file={file} />
+      return <TextPreview file={file} collectionId={collectionId} />
     default:
-      return <UnsupportedPreview file={file} />
+      return <UnsupportedPreview file={file} collectionId={collectionId} />
   }
 }
 
-function TextPreview({ file }: { file: File }) {
+function TextPreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(file.size > 0)
   const [error, setError] = useState<string>()
@@ -58,6 +65,7 @@ function TextPreview({ file }: { file: File }) {
     async function load() {
       try {
         const response = await apiRequest(`/api/v1/files/${file.id}/content`, {
+          query: collectionId ? { collectionId } : undefined,
           headers: { Range: `bytes=0-${end}` },
           signal: controller.signal,
         })
@@ -72,7 +80,7 @@ function TextPreview({ file }: { file: File }) {
 
     void load()
     return () => controller.abort()
-  }, [file.id, file.size])
+  }, [collectionId, file.id, file.size])
 
   if (loading) {
     return (
@@ -103,7 +111,7 @@ function TextPreview({ file }: { file: File }) {
   )
 }
 
-function UnsupportedPreview({ file }: { file: File }) {
+function UnsupportedPreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
   return (
     <div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center">
       <div className="space-y-4">
@@ -113,7 +121,7 @@ function UnsupportedPreview({ file }: { file: File }) {
           <p className="text-sm text-muted-foreground">This file type is not previewed in the browser.</p>
         </div>
         <Button asChild>
-          <a href={fileDownloadURL(file.id)}>
+          <a href={fileDownloadURL(file.id, collectionId)}>
             <DownloadIcon />
             Download file
           </a>
@@ -123,10 +131,12 @@ function UnsupportedPreview({ file }: { file: File }) {
   )
 }
 
-function fileContentURL(fileId: string) {
-  return `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/content`
+function fileContentURL(fileId: string, collectionId?: string) {
+  const base = `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/content`
+  return collectionId ? `${base}?collectionId=${encodeURIComponent(collectionId)}` : base
 }
 
-function fileDownloadURL(fileId: string) {
-  return `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download`
+function fileDownloadURL(fileId: string, collectionId?: string) {
+  const base = `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download`
+  return collectionId ? `${base}?collectionId=${encodeURIComponent(collectionId)}` : base
 }

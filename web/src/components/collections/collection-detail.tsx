@@ -140,7 +140,7 @@ export function CollectionDetail({ initialCollection, initialItems }: { initialC
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
                       <ItemIcon item={item} />
-                      <span className="truncate font-medium">{item.name}</span>
+                      <Link href={collectionFileURL(collection.id, item.fileId)} className="truncate font-medium hover:underline">{item.name}</Link>
                     </div>
                   </TableCell>
                   <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{item.category || "File"}</TableCell>
@@ -190,10 +190,7 @@ function EditCollectionDialog({ collection, onUpdated }: { collection: Collectio
     setFormError(undefined)
 
     try {
-      const input: UpdateCollectionInput = {
-        name: values.name,
-        description: values.description.trim(),
-      }
+      const input: UpdateCollectionInput = { name: values.name, description: values.description.trim() }
       const updated = await apiJSON<Collection>(`/api/v1/collections/${collection.id}`, { method: "PATCH", body: input })
       onUpdated(updated)
       changeOpen(false)
@@ -244,15 +241,7 @@ function EditCollectionDialog({ collection, onUpdated }: { collection: Collectio
   )
 }
 
-function AddItemDialog({
-  collectionId,
-  existingItems,
-  onAdded,
-}: {
-  collectionId: string
-  existingItems: readonly CollectionItem[]
-  onAdded: () => Promise<void>
-}) {
+function AddItemDialog({ collectionId, existingItems, onAdded }: { collectionId: string; existingItems: readonly CollectionItem[]; onAdded: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
@@ -339,7 +328,6 @@ function AddItemDialog({
             <div className="divide-y">
               {results.map((item) => {
                 const added = existing.has(item.id)
-
                 return (
                   <div key={item.id} className="flex items-center gap-3 p-3">
                     <SearchResultIcon result={item} />
@@ -386,6 +374,10 @@ function fileIcon(category?: string) {
     default:
       return <FileIcon className="size-4 shrink-0" />
   }
+}
+
+function collectionFileURL(collectionId: string, fileId: string) {
+  return `/collections/${encodeURIComponent(collectionId)}/files/${encodeURIComponent(fileId)}`
 }
 
 function collectionDownloadURL(collectionId: string, fileId: string) {

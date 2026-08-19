@@ -1,0 +1,110 @@
+import Link from "next/link"
+import { DownloadIcon, FileIcon, LibraryIcon } from "lucide-react"
+import { FilePreview } from "@/components/files/file-preview"
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Collection, CollectionItem } from "@/lib/api/models"
+
+const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
+
+export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
+  const previewFile = {
+    id: item.fileId,
+    name: item.name,
+    size: item.size,
+    mimeType: item.mimeType,
+    category: item.category,
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/collections">Collections</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href={`/collections/${collection.id}`}>{collection.name}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{item.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <FileIcon className="size-5 shrink-0" />
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{item.name}</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{formatBytes(item.size)} · {item.mimeType}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/collections/${collection.id}`}>
+              <LibraryIcon />
+              Collection
+            </Link>
+          </Button>
+          <Button asChild>
+            <a href={downloadURL(collection.id, item.fileId)}>
+              <DownloadIcon />
+              Download
+            </a>
+          </Button>
+        </div>
+      </div>
+
+      <FilePreview file={previewFile} collectionId={collection.id} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>File details</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <Detail label="Type" value={item.category} />
+          <Detail label="MIME type" value={item.mimeType} />
+          <Detail label="Size" value={formatBytes(item.size)} />
+          <Detail label="Added" value={formatDate(item.addedAt)} />
+          <Detail label="Created" value={formatDate(item.createdAt)} />
+          <Detail label="Modified" value={formatDate(item.updatedAt)} />
+          {item.sha256 && <Detail className="sm:col-span-2 lg:col-span-3" label="SHA-256" value={<code className="break-all font-mono text-xs">{item.sha256}</code>} />}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function Detail({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
+    </div>
+  )
+}
+
+function downloadURL(collectionId: string, fileId: string) {
+  return `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download?collectionId=${encodeURIComponent(collectionId)}`
+}
+
+function formatBytes(bytes: number) {
+  if (bytes === 0) return "0 B"
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
+}
+
+function formatDate(value: string) {
+  return dateFormatter.format(new Date(value))
+}

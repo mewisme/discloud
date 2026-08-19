@@ -47,9 +47,7 @@ export function SearchView() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={options.kind} onValueChange={(value) => replaceOptions({ kind: value as SearchKind })}>
-          <SelectTrigger size="sm" className="w-32">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
             <SelectItem value="file">Files</SelectItem>
@@ -58,9 +56,7 @@ export function SearchView() {
         </Select>
 
         <Select value={options.category} onValueChange={(value) => replaceOptions({ category: value as SearchCategory })}>
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             <SelectItem value="image">Images</SelectItem>
@@ -76,9 +72,7 @@ export function SearchView() {
         </Select>
 
         <Select value={options.favorite} onValueChange={(value) => replaceOptions({ favorite: value as SearchFlag })}>
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="any">Any favorite</SelectItem>
             <SelectItem value="true">Favorites</SelectItem>
@@ -87,9 +81,7 @@ export function SearchView() {
         </Select>
 
         <Select value={options.shared} onValueChange={(value) => replaceOptions({ shared: value as SearchFlag })}>
-          <SelectTrigger size="sm" className="w-32">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="any">Any sharing</SelectItem>
             <SelectItem value="true">Shared</SelectItem>
@@ -98,9 +90,7 @@ export function SearchView() {
         </Select>
 
         <Select value={options.sort} onValueChange={(value) => changeSort(value as SearchSort)}>
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             {options.q && <SelectItem value="relevance">Relevance</SelectItem>}
             <SelectItem value="name">Name</SelectItem>
@@ -111,9 +101,7 @@ export function SearchView() {
         </Select>
 
         <Select value={options.order} onValueChange={(value) => replaceOptions({ order: value as "asc" | "desc" })}>
-          <SelectTrigger size="sm" className="w-32">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="asc">Ascending</SelectItem>
             <SelectItem value="desc">Descending</SelectItem>
@@ -164,10 +152,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
 
     async function load() {
       try {
-        const page = await apiJSON<SearchPage>("/api/v1/search", {
-          query: searchQuery(options),
-          signal: controller.signal,
-        })
+        const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options), signal: controller.signal })
         setResults([...page.results])
         setNextCursor(page.nextCursor)
       } catch (cause) {
@@ -198,10 +183,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
     setLoadingMore(true)
 
     try {
-      const page = await apiJSON<SearchPage>("/api/v1/search", {
-        query: searchQuery(options, nextCursor),
-        signal: controller.signal,
-      })
+      const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, nextCursor), signal: controller.signal })
       setResults((current) => [...current, ...page.results])
       setNextCursor(page.nextCursor)
     } catch (cause) {
@@ -294,11 +276,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
       <TableCell>
         <div className="flex min-w-0 items-center gap-2">
           <ResultIcon result={result} />
-          {href ? (
-            <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link>
-          ) : (
-            <span className="truncate font-medium">{result.name}</span>
-          )}
+          {href ? <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link> : <span className="truncate font-medium">{result.name}</span>}
           {result.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" />}
         </div>
       </TableCell>
@@ -345,6 +323,7 @@ function ResultIcon({ result }: { result: SearchResult }) {
 
 function resultHref(result: SearchResult) {
   if (result.kind === "folder") return `/files/${result.id}`
+  if (result.collectionId) return `/collections/${encodeURIComponent(result.collectionId)}/files/${encodeURIComponent(result.id)}`
   if (result.parentId) return `/files/file/${result.id}`
   return undefined
 }
