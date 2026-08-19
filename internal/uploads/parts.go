@@ -85,70 +85,162 @@ func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID strin
 		os.Remove(file.Name())
 	}()
 
-	if chunk, err := u.chunks.FindByDigest(ctx, expectedSHA256, size); err == nil {
-		part, err := u.attachPart(ctx, actor, session.ID, partIndex, chunk.ID, size, expectedSHA256)
-		return PutPartResult{Part: part, Deduplicated: true}, err
-	} else if !errors.Is(err, chunks.ErrNotFound) {
+	var result PutPartResult
+	err = u.chunks.WithDigestLock(ctx, expectedSHA256, size, func() error {
+		current, err := u.service.Get(ctx, actor, session.ID)
+		if err != nil {
+			return err
+		}
+
+		currentSize, err := validatePartSession(current, partIndex)
+		if err != nil {
+			return err
+		}
+		if currentSize != size {
+			return ErrPartSizeMismatch
+		}
+
+		if part, err := u.getPart(ctx, current.ID, partIndex); err == nil {
+			if part.SizeBytes != size || part.SHA256 != expectedSHA256 {
+				return ErrPartConflict
+			}
+			result = PutPartResult{Part: part, Deduplicated: true}
+			return nil
+		} else if !errors.Is(err, errPartNotFound) {
+			return err
+		}
+
+		if chunk, err := u.chunks.FindByDigest(ctx, expectedSHA256, size); err == nil {
+			part, err := u.attachPart(
+				ctx,
+				actor,
+				current.ID,
+				partIndex,
+				chunk.ID,
+				size,
+				expectedSHA256,
+			)
+			if err != nil {
+				return err
+			}
+			result = PutPartResult{Part: part, Deduplicated: true}
+			return nil
+		} else if !errors.Is(err, chunks.ErrNotFound) {
+			return err
+		}
+
+		for {
+			excluded, err := u.service.UsedBotIDs(ctx, current.ID, partIndex)
+			if err != nil {
+				return err
+			}
+			if len(excluded) >= MaxDistinctChunkUploadAttempts {
+				return ErrAttemptsExhausted
+			}
+
+			botUserID, err := u.blobs.SelectUploadBot(excluded)
+			if err != nil {
+				return err
+			}
+
+			attempt, err := u.service.StartAttempt(ctx, current.ID, partIndex, botUserID)
+			if errors.Is(err, ErrBotAlreadyTried) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				return fmt.Errorf("rewind upload part: %w", err)
+			}
+
+			put, err := u.blobs.PutChunkWithBot(
+				ctx,
+				botUserID,
+				file,
+				size,
+				expectedSHA256,
+			)
+			if err != nil {
+				class, retryable := blobstore.Classify(err)
+				if finishErr := u.service.FinishAttempt(
+					ctx,
+					attempt.ID,
+					AttemptFailed,
+					class,
+					err.Error(),
+				); finishErr != nil {
+					return finishErr
+				}
+				if !retryable {
+					return err
+				}
+				continue
+			}
+
+			if put.BotUserID != botUserID {
+				_ = u.service.FinishAttempt(
+					ctx,
+					attempt.ID,
+					AttemptFailed,
+					"protocol",
+					"storage returned unexpected bot",
+				)
+				return ErrStorageInvariant
+			}
+
+			registration, err := u.chunks.Register(
+				ctx,
+				expectedSHA256,
+				size,
+				put.Location,
+			)
+			if err != nil {
+				return err
+			}
+
+			if !registration.Created && registration.Chunk.Location != put.Location {
+				if cleaner, ok := u.blobs.(blobstore.TechnicalBlobStore); ok {
+					_ = cleaner.DeleteChunk(ctx, put.Location)
+				}
+			}
+
+			if err := u.service.FinishAttempt(
+				ctx,
+				attempt.ID,
+				AttemptSucceeded,
+				"",
+				"",
+			); err != nil {
+				return err
+			}
+
+			part, err := u.attachPart(
+				ctx,
+				actor,
+				current.ID,
+				partIndex,
+				registration.Chunk.ID,
+				size,
+				expectedSHA256,
+			)
+			if err != nil {
+				return err
+			}
+
+			result = PutPartResult{
+				Part:         part,
+				Deduplicated: !registration.Created,
+			}
+			return nil
+		}
+	})
+	if err != nil {
 		return PutPartResult{}, err
 	}
 
-	for {
-		excluded, err := u.service.UsedBotIDs(ctx, session.ID, partIndex)
-		if err != nil {
-			return PutPartResult{}, err
-		}
-		if len(excluded) >= MaxDistinctChunkUploadAttempts {
-			return PutPartResult{}, ErrAttemptsExhausted
-		}
-
-		botUserID, err := u.blobs.SelectUploadBot(excluded)
-		if err != nil {
-			return PutPartResult{}, err
-		}
-
-		attempt, err := u.service.StartAttempt(ctx, session.ID, partIndex, botUserID)
-		if errors.Is(err, ErrBotAlreadyTried) {
-			continue
-		}
-		if err != nil {
-			return PutPartResult{}, err
-		}
-
-		if _, err := file.Seek(0, io.SeekStart); err != nil {
-			return PutPartResult{}, fmt.Errorf("rewind upload part: %w", err)
-		}
-
-		put, err := u.blobs.PutChunkWithBot(ctx, botUserID, file, size, expectedSHA256)
-		if err != nil {
-			class, retryable := blobstore.Classify(err)
-			if finishErr := u.service.FinishAttempt(ctx, attempt.ID, AttemptFailed, class, err.Error()); finishErr != nil {
-				return PutPartResult{}, finishErr
-			}
-			if !retryable {
-				return PutPartResult{}, err
-			}
-			continue
-		}
-
-		if put.BotUserID != botUserID {
-			_ = u.service.FinishAttempt(ctx, attempt.ID, AttemptFailed, "protocol", "storage returned unexpected bot")
-			return PutPartResult{}, ErrStorageInvariant
-		}
-
-		registration, err := u.chunks.Register(ctx, expectedSHA256, size, put.Location)
-		if err != nil {
-			return PutPartResult{}, err
-		}
-		if err := u.service.FinishAttempt(ctx, attempt.ID, AttemptSucceeded, "", ""); err != nil {
-			return PutPartResult{}, err
-		}
-
-		part, err := u.attachPart(ctx, actor, session.ID, partIndex, registration.Chunk.ID, size, expectedSHA256)
-		if err != nil {
-			return PutPartResult{}, err
-		}
-		return PutPartResult{Part: part, Deduplicated: !registration.Created}, nil
-	}
+	return result, nil
 }
 
 func (u *PartUploader) getPart(ctx context.Context, uploadID string, partIndex int) (Part, error) {
@@ -203,7 +295,13 @@ func (u *PartUploader) attachPart(ctx context.Context, actor Actor, uploadID str
 		}
 
 		part, err = scanPart(tx.QueryRow(ctx, `
-			INSERT INTO upload_parts (upload_id, part_index, chunk_id, part_size_bytes, sha256)
+			INSERT INTO upload_parts (
+				upload_id,
+				part_index,
+				chunk_id,
+				part_size_bytes,
+				sha256
+			)
 			VALUES ($1::uuid, $2, $3::uuid, $4, $5)
 			RETURNING upload_id::text, part_index, chunk_id::text, part_size_bytes, sha256, created_at
 		`, uploadID, partIndex, chunkID, size, digest[:]))
@@ -266,7 +364,9 @@ func spoolPart(src io.Reader, size int64, expectedSHA256 [32]byte) (*os.File, er
 		cleanup()
 		return nil, fmt.Errorf("%w: exceeds %d bytes", ErrPartSizeMismatch, size)
 	}
-	if extraErr != nil && !errors.Is(extraErr, io.EOF) && !errors.Is(extraErr, io.ErrUnexpectedEOF) {
+	if extraErr != nil &&
+		!errors.Is(extraErr, io.EOF) &&
+		!errors.Is(extraErr, io.ErrUnexpectedEOF) {
 		cleanup()
 		return nil, fmt.Errorf("read upload part tail: %w", extraErr)
 	}
@@ -289,7 +389,14 @@ func scanPart(row scanner) (Part, error) {
 	var part Part
 	var digest []byte
 
-	if err := row.Scan(&part.UploadID, &part.PartIndex, &part.ChunkID, &part.SizeBytes, &digest, &part.CreatedAt); err != nil {
+	if err := row.Scan(
+		&part.UploadID,
+		&part.PartIndex,
+		&part.ChunkID,
+		&part.SizeBytes,
+		&digest,
+		&part.CreatedAt,
+	); err != nil {
 		return Part{}, err
 	}
 	if len(digest) != len(part.SHA256) {

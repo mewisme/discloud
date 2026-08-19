@@ -39,6 +39,10 @@ type AttemptBlobStore interface {
 	PutChunkWithBot(ctx context.Context, botUserID string, r io.Reader, size int64, sha256 [32]byte) (PutResult, error)
 }
 
+type TechnicalBlobStore interface {
+	DeleteChunk(ctx context.Context, location ChunkLocation) error
+}
+
 func Classify(err error) (string, bool) {
 	var classified ClassifiedError
 	if errors.As(err, &classified) {

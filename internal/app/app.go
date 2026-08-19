@@ -21,6 +21,7 @@ import (
 	"github.com/mewisme/discloud/internal/jobs"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
+	"github.com/mewisme/discloud/internal/orphangc"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
 	"github.com/mewisme/discloud/internal/search"
@@ -45,7 +46,11 @@ func Run() error {
 	}
 	slog.SetDefault(logger)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
 	defer stop()
 
 	pool, err := postgres.Open(ctx, cfg.Database)
@@ -54,7 +59,12 @@ func Run() error {
 	}
 	defer pool.Close()
 
-	if err := migrate.Up(ctx, pool, migrations.FS, logger.With("component", "migrations")); err != nil {
+	if err := migrate.Up(
+		ctx,
+		pool,
+		migrations.FS,
+		logger.With("component", "migrations"),
+	); err != nil {
 		return err
 	}
 
@@ -63,18 +73,32 @@ func Run() error {
 		tokens[i] = bot.Token
 	}
 
-	blobStore, err := discordstore.New(ctx, cfg.Discord.ChannelID, tokens, nil)
+	blobStore, err := discordstore.New(
+		ctx,
+		cfg.Discord.ChannelID,
+		tokens,
+		nil,
+	)
 	if err != nil {
 		return fmt.Errorf("create Discord blob store: %w", err)
 	}
 
 	setupService := setup.New(pool)
-	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
+	authService := auth.NewWithMFA(
+		pool,
+		cfg.Auth.SessionTTL,
+		cfg.MFA.Issuer,
+		cfg.Encryption.MasterKey,
+	)
 	adminUserService := adminusers.New(pool)
 	adminOpsService := adminops.New(pool)
 	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
-	uploadService := uploads.New(pool, cfg.Upload.ChunkSizeBytes, cfg.Upload.SessionTTL)
+	uploadService := uploads.New(
+		pool,
+		cfg.Upload.ChunkSizeBytes,
+		cfg.Upload.SessionTTL,
+	)
 	partUploader := uploads.NewPartUploader(uploadService, blobStore)
 	finalizer := uploads.NewFinalizer(uploadService, blobStore)
 	fileService := files.New(pool, blobStore)
@@ -83,38 +107,63 @@ func Run() error {
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
 	metadataProcessor := files.NewMetadataProcessor(fileService)
+	orphanCleaner := orphangc.New(
+		pool,
+		blobStore,
+		logger.With("component", "orphan-gc"),
+	)
 
-	go uploads.RunExpiryWorker(ctx, uploadService, logger.With("component", "upload-expiry"))
+	go uploads.RunExpiryWorker(
+		ctx,
+		uploadService,
+		logger.With("component", "upload-expiry"),
+	)
+	go orphanCleaner.Run(ctx)
 
-	jobWorker := jobs.NewWorker(pool, logger.With("component", "jobs"), map[string]jobs.Handler{
-		"file.metadata": metadataProcessor.Handle,
-	})
+	jobWorker := jobs.NewWorker(
+		pool,
+		logger.With("component", "jobs"),
+		map[string]jobs.Handler{
+			"file.metadata": metadataProcessor.Handle,
+		},
+	)
 	for i := range cfg.Jobs.WorkerCount {
-		go jobWorker.Run(ctx, fmt.Sprintf("job-worker-%d", i+1))
+		go jobWorker.Run(
+			ctx,
+			fmt.Sprintf("job-worker-%d", i+1),
+		)
 	}
 
-	handler := httpapi.NewRouter(httpapi.RouterDependencies{
-		Ready:        readinessCheck(pool, blobStore),
-		Setup:        setupService,
-		Auth:         authService,
-		AdminUsers:   adminUserService,
-		AdminOps:     adminOpsService,
-		ACL:          aclService,
-		Nodes:        nodeService,
-		Uploads:      uploadService,
-		PartUploader: partUploader,
-		Finalizer:    finalizer,
-		Files:        fileService,
-		Folders:      folderService,
-		Collections:  collectionService,
-		Shares:       shareService,
-		Search:       searchService,
-	}, cfg.HTTP, cfg.Auth)
+	handler := httpapi.NewRouter(
+		httpapi.RouterDependencies{
+			Ready:        readinessCheck(pool, blobStore),
+			Setup:        setupService,
+			Auth:         authService,
+			AdminUsers:   adminUserService,
+			AdminOps:     adminOpsService,
+			ACL:          aclService,
+			Nodes:        nodeService,
+			Uploads:      uploadService,
+			PartUploader: partUploader,
+			Finalizer:    finalizer,
+			Files:        fileService,
+			Folders:      folderService,
+			Collections:  collectionService,
+			Shares:       shareService,
+			Search:       searchService,
+		},
+		cfg.HTTP,
+		cfg.Auth,
+	)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)
 	logger.Info("HTTP server started", "address", server.Addr)
 
-	if err := runServer(ctx, server, cfg.HTTP.ShutdownTimeout); err != nil {
+	if err := runServer(
+		ctx,
+		server,
+		cfg.HTTP.ShutdownTimeout,
+	); err != nil {
 		return err
 	}
 
