@@ -22,39 +22,27 @@ type PutResult struct {
 	BotUserID string
 }
 
-type BlobStore interface {
-	PutChunk(
-		ctx context.Context,
-		excludedBotUserIDs []string,
-		r io.Reader,
-		size int64,
-		sha256 [32]byte,
-	) (PutResult, error)
+type ClassifiedError interface {
+	error
+	StorageClass() string
+	StorageRetryable() bool
+}
 
-	OpenChunk(
-		ctx context.Context,
-		location ChunkLocation,
-		offset int64,
-		length int64,
-	) (io.ReadCloser, error)
+type BlobStore interface {
+	PutChunk(ctx context.Context, excludedBotUserIDs []string, r io.Reader, size int64, sha256 [32]byte) (PutResult, error)
+	OpenChunk(ctx context.Context, location ChunkLocation, offset, length int64) (io.ReadCloser, error)
 }
 
 type AttemptBlobStore interface {
 	BlobStore
+	SelectUploadBot(excludedBotUserIDs []string) (string, error)
+	PutChunkWithBot(ctx context.Context, botUserID string, r io.Reader, size int64, sha256 [32]byte) (PutResult, error)
+}
 
-	SelectUploadBot(
-		excludedBotUserIDs []string,
-	) (string, error)
-
-	PutChunkWithBot(
-		ctx context.Context,
-		botUserID string,
-		r io.Reader,
-		size int64,
-		sha256 [32]byte,
-	) (PutResult, error)
-
-	ClassifyError(
-		err error,
-	) (class string, retryable bool)
+func Classify(err error) (string, bool) {
+	var classified ClassifiedError
+	if errors.As(err, &classified) {
+		return classified.StorageClass(), classified.StorageRetryable()
+	}
+	return "unknown", false
 }
