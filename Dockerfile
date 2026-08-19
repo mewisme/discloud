@@ -2,7 +2,9 @@
 
 FROM --platform=$BUILDPLATFORM alpine:3.24.1 AS certs
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates \
+    && mkdir -p /tmp \
+    && chmod 1777 /tmp
 
 # GoReleaser target.
 # dockers_v2 provides $TARGETPLATFORM/discloud in its temporary build context.
@@ -13,7 +15,10 @@ ARG UID=1000
 ARG GID=1000
 
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=certs --chmod=1777 /tmp /tmp
 COPY $TARGETPLATFORM/discloud /discloud
+
+ENV TMPDIR=/tmp
 
 USER ${UID}:${GID}
 
@@ -53,7 +58,10 @@ ARG UID=1000
 ARG GID=1000
 
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=certs --chmod=1777 /tmp /tmp
 COPY --from=build /out/discloud /discloud
+
+ENV TMPDIR=/tmp
 
 USER ${UID}:${GID}
 

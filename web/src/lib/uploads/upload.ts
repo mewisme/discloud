@@ -51,30 +51,19 @@ export async function uploadFile({
   let uploadedBytes = (session.parts ?? []).reduce((total, part) => total + part.size, 0)
   callbacks.onProgress(uploadedBytes)
 
-  const controller = new AbortController()
-  const abort = () => controller.abort(signal.reason)
-  if (signal.aborted) abort()
-  else signal.addEventListener("abort", abort, { once: true })
+  const results = await Promise.allSettled(plan.filter((part) => !uploadedParts.has(part.index)).map((part) => partGate.run(async () => {
+    throwIfAborted(signal)
+    const blob = file.slice(part.start, part.end)
+    const digest = await sha256Hex(blob)
+    throwIfAborted(signal)
+    await putPart(session.id, part.index, blob, digest, signal)
+    uploadedBytes += part.size
+    callbacks.onProgress(uploadedBytes)
+  })))
 
-  try {
-    await Promise.all(plan.filter((part) => !uploadedParts.has(part.index)).map((part) => partGate.run(async () => {
-      throwIfAborted(controller.signal)
-
-      try {
-        const blob = file.slice(part.start, part.end)
-        const digest = await sha256Hex(blob)
-        throwIfAborted(controller.signal)
-        await putPart(session.id, part.index, blob, digest, controller.signal)
-        uploadedBytes += part.size
-        callbacks.onProgress(uploadedBytes)
-      } catch (error) {
-        controller.abort(error)
-        throw error
-      }
-    })))
-  } finally {
-    signal.removeEventListener("abort", abort)
-  }
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected" && !isAbortError(result.reason))
+    ?? results.find((result): result is PromiseRejectedResult => result.status === "rejected")
+  if (failure) throw failure.reason
 
   callbacks.onFinalizing()
   await apiJSON<CompletedFile>(`/api/v1/uploads/${session.id}/complete`, { method: "POST", signal })
@@ -127,6 +116,10 @@ async function sha256Hex(blob: Blob) {
 
 function retryablePartError(error: unknown) {
   return error instanceof TypeError || error instanceof APIError && (error.status === 502 || error.status === 503)
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError"
 }
 
 function throwIfAborted(signal: AbortSignal) {

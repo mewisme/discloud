@@ -36,7 +36,12 @@ async function proxy(request: Request, { params }: RouteContext) {
 
   try {
     return await fetch(upstream, { cache: "no-store" })
-  } catch {
+  } catch (reason) {
+    console.error("Backend proxy request failed", {
+      method: request.method,
+      target: `${target.origin}${target.pathname}`,
+      error: errorMessage(reason),
+    })
     return problem(502, "Bad Gateway", "backend API is unavailable")
   }
 }
@@ -84,6 +89,13 @@ function originOf(value: string) {
   } catch {
     return ""
   }
+}
+
+function errorMessage(reason: unknown) {
+  if (reason instanceof Error) {
+    return reason.cause instanceof Error ? `${reason.message}: ${reason.cause.message}` : reason.message
+  }
+  return String(reason)
 }
 
 function problem(status: number, title: string, detail: string) {

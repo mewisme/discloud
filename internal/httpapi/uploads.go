@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -246,20 +247,38 @@ func writeUploadError(w http.ResponseWriter, r *http.Request, err error) bool {
 	case errors.Is(err, uploads.ErrQuotaExceeded):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "storage quota exceeded")
 	case errors.Is(err, uploads.ErrAttemptsExhausted), errors.Is(err, uploads.ErrStorageUnavailable), errors.Is(err, blobstore.ErrNoUsableBot):
+		logUploadServerError(r, err, "unavailable", true)
 		WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "upload storage is temporarily unavailable")
 	case errors.Is(err, uploads.ErrStorageInvariant):
+		logUploadServerError(r, err, "protocol", false)
 		WriteProblem(w, r, http.StatusBadGateway, "Bad Gateway", "storage returned an invalid response")
 	default:
 		class, retryable := blobstore.Classify(err)
 		if class != "unknown" {
+			logUploadServerError(r, err, class, retryable)
 			status := http.StatusBadGateway
 			if retryable {
 				status = http.StatusServiceUnavailable
 			}
 			WriteProblem(w, r, status, http.StatusText(status), "Discord storage request failed")
 		} else {
+			logUploadServerError(r, err, "internal", false)
 			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not process upload")
 		}
 	}
 	return true
+}
+
+func logUploadServerError(r *http.Request, err error, class string, retryable bool) {
+	slog.ErrorContext(
+		r.Context(),
+		"Upload request failed",
+		"request_id", RequestID(r.Context()),
+		"route", routePattern(r),
+		"upload_id", r.PathValue("uploadId"),
+		"part_index", r.PathValue("partIndex"),
+		"error_class", class,
+		"retryable", retryable,
+		"error", err,
+	)
 }
