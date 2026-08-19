@@ -741,6 +741,22 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/me/root": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getMyRoot"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/me/sessions": {
         readonly parameters: {
             readonly query?: never;
@@ -1287,6 +1303,14 @@ export type components = {
             /** Format: int64 */
             readonly size: number;
             readonly width?: number;
+        };
+        readonly FolderChild: components["schemas"]["Node"] & {
+            /** @enum {string} */
+            readonly category?: "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other";
+            readonly extension?: string;
+            readonly mimeType?: string;
+            /** Format: int64 */
+            readonly size?: number;
         };
         readonly JobDiagnostic: {
             readonly attempts: number;
@@ -1838,7 +1862,7 @@ export type components = {
             content: {
                 readonly "application/json": {
                     readonly nextCursor?: string;
-                    readonly nodes: readonly components["schemas"]["Node"][];
+                    readonly nodes: readonly components["schemas"]["FolderChild"][];
                 };
             };
         };
@@ -2063,6 +2087,8 @@ export type components = {
         readonly fileId: string;
         readonly folderId: string;
         readonly folderIdQuery: string;
+        readonly folderOrder: "asc" | "desc";
+        readonly folderSort: "name" | "updated" | "size";
         readonly from: string;
         readonly jobStatus: "queued" | "running" | "completed" | "failed" | "dead";
         readonly jobType: string;
@@ -2970,6 +2996,8 @@ export interface operations {
             readonly query?: {
                 readonly cursor?: components["parameters"]["cursor"];
                 readonly limit?: components["parameters"]["limit"];
+                readonly order?: components["parameters"]["folderOrder"];
+                readonly sort?: components["parameters"]["folderSort"];
             };
             readonly header?: never;
             readonly path: {
@@ -3174,6 +3202,19 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["ChangePassword"];
         readonly responses: {
             readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getMyRoot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["Node"];
             readonly default: components["responses"]["Problem"];
         };
     };

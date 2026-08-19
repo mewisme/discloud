@@ -1,30 +1,23 @@
 import type { Metadata } from "next"
-import { FolderOpenIcon } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { FileBrowser } from "@/components/files/file-browser"
+import { parseBrowserOptions, type BrowserSearchParams } from "@/lib/files/browser"
+import { loadFileBrowser } from "@/lib/files/browser-server"
 
 export const metadata: Metadata = {
   title: "Files",
 }
 
-export default function FilesPage() {
+export default async function FilesPage({ searchParams }: { searchParams: Promise<BrowserSearchParams> }) {
+  const options = parseBrowserOptions(await searchParams)
+  const data = await loadFileBrowser(undefined, options)
+
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
-        <p className="text-sm text-muted-foreground">Browse and manage your DisCloud storage.</p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FolderOpenIcon className="size-4" />
-            File browser
-          </CardTitle>
-          <CardDescription>Your authenticated application shell is ready.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Folder navigation and file browsing are implemented in Phase 7.</p>
-        </CardContent>
-      </Card>
-    </div>
+    <FileBrowser
+      key={`${data.folder.id}:${options.sort}:${options.order}`}
+      folder={data.folder}
+      breadcrumbs={data.breadcrumbs}
+      initialPage={data.page}
+      options={options}
+    />
   )
 }
