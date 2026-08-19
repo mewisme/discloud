@@ -1,8 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { AccessDialog } from "@/components/access/access-dialog"
 import { FileBrowser } from "@/components/files/file-browser"
-import { FileUploadTarget } from "@/components/uploads/upload-target"
 import { APIError } from "@/lib/api/types"
 import { parseBrowserOptions, type BrowserOptions, type BrowserSearchParams } from "@/lib/files/browser"
 import { loadFileBrowser } from "@/lib/files/browser-server"
@@ -22,24 +20,7 @@ export default async function FolderPage({
   const options = parseBrowserOptions(query)
   const data = await loadFolder(folderId, options)
 
-  return (
-    <>
-      {data.page.accessLevel === "full" && (
-        <div className="mx-auto mb-3 flex w-full max-w-7xl justify-end">
-          <AccessDialog resource={{ type: "folder", id: data.folder.id, name: data.folder.name }} />
-        </div>
-      )}
-      <FileUploadTarget folderId={data.folder.id} disabled={data.page.accessLevel === "view"}>
-        <FileBrowser
-          key={`${data.folder.id}:${options.sort}:${options.order}`}
-          folder={data.folder}
-          breadcrumbs={data.breadcrumbs}
-          initialPage={data.page}
-          options={options}
-        />
-      </FileUploadTarget>
-    </>
-  )
+  return <FileBrowser folder={data.folder} breadcrumbs={data.breadcrumbs} initialPage={data.page} options={options} />
 }
 
 async function loadFolder(folderId: string, options: BrowserOptions) {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import type { ReactNode } from "react"
+import { useEffect, useState } from "react"
 import { Loader2Icon, Share2Icon, Trash2Icon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -20,42 +21,63 @@ type AccessResource = {
 
 type Grant = Pick<AccessGrant, "userId" | "username" | "level">
 
-export function AccessDialog({ resource }: { resource: AccessResource }) {
-  const [open, setOpen] = useState(false)
+type AccessDialogProps = {
+  resource: AccessResource
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  trigger?: ReactNode | null
+}
+
+export function AccessDialog({ resource, open: controlledOpen, onOpenChange, trigger }: AccessDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [grants, setGrants] = useState<Grant[]>([])
   const [username, setUsername] = useState("")
   const [level, setLevel] = useState<AccessLevel>("view")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [pendingUserId, setPendingUserId] = useState<string>()
   const [error, setError] = useState<string>()
+  const open = controlledOpen ?? internalOpen
+  const triggerNode = trigger === undefined ? (
+    <Button size="sm" variant="outline">
+      <Share2Icon />
+      Share
+    </Button>
+  ) : trigger
 
-  async function changeOpen(next: boolean) {
-    setOpen(next)
-    setError(undefined)
+  useEffect(() => {
+    if (!open) return
+
+    const controller = new AbortController()
+
+    async function load() {
+      try {
+        if (resource.type === "folder") {
+          const data = await apiJSON<FolderPermissions>(`/api/v1/folders/${resource.id}/permissions`, { signal: controller.signal })
+          if (!controller.signal.aborted) setGrants([...data.permissions])
+        } else {
+          const data = await apiJSON<CollectionAccess>(`/api/v1/collections/${resource.id}/access`, { signal: controller.signal })
+          if (!controller.signal.aborted) setGrants([...data.access])
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted) setError(errorMessage(cause, "Could not load access"))
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => controller.abort()
+  }, [open, resource.id, resource.type])
+
+  function changeOpen(next: boolean) {
+    if (controlledOpen === undefined) setInternalOpen(next)
+    onOpenChange?.(next)
+
     if (!next) {
       setUsername("")
-      return
-    }
-    await load()
-  }
-
-  async function load() {
-    setLoading(true)
-    setError(undefined)
-
-    try {
-      if (resource.type === "folder") {
-        const data = await apiJSON<FolderPermissions>(`/api/v1/folders/${resource.id}/permissions`)
-        setGrants([...data.permissions])
-      } else {
-        const data = await apiJSON<CollectionAccess>(`/api/v1/collections/${resource.id}/access`)
-        setGrants([...data.access])
-      }
-    } catch (cause) {
-      setError(errorMessage(cause, "Could not load access"))
-    } finally {
-      setLoading(false)
+      setError(undefined)
+      setLoading(true)
     }
   }
 
@@ -102,6 +124,7 @@ export function AccessDialog({ resource }: { resource: AccessResource }) {
       const path = resource.type === "folder"
         ? `/api/v1/folders/${resource.id}/permissions/${grant.userId}`
         : `/api/v1/collections/${resource.id}/access/${grant.userId}`
+
       await apiJSON<void>(path, { method: "DELETE" })
       setGrants((current) => current.filter((item) => item.userId !== grant.userId))
       toast.success(`Removed direct access for ${grant.username}`)
@@ -114,9 +137,11 @@ export function AccessDialog({ resource }: { resource: AccessResource }) {
 
   async function putGrant(userId: string, nextLevel: AccessLevel) {
     const input = { level: nextLevel } satisfies AccessLevelInput
+
     if (resource.type === "folder") {
       return apiJSON<AccessGrant>(`/api/v1/folders/${resource.id}/permissions/${userId}`, { method: "PUT", body: input })
     }
+
     return apiJSON<CollectionAccessGrant>(`/api/v1/collections/${resource.id}/access/${userId}`, { method: "PUT", body: input })
   }
 
@@ -125,13 +150,8 @@ export function AccessDialog({ resource }: { resource: AccessResource }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => void changeOpen(next)}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Share2Icon />
-          Share
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      {triggerNode && <DialogTrigger asChild>{triggerNode}</DialogTrigger>}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Manage access</DialogTitle>
