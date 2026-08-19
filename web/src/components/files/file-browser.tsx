@@ -1,11 +1,13 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ArrowDownIcon, ArrowUpIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, LayoutGridIcon, ListIcon, Loader2Icon, StarIcon, StarOffIcon, XIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, LayoutGridIcon, ListIcon, Loader2Icon, StarIcon, StarOffIcon, UploadIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { CreateFolderDialog, NodeActionsMenu } from "@/components/files/node-actions"
+import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "@/components/uploads/upload-provider"
+import { useUploadTarget } from "@/components/uploads/upload-target"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -43,6 +45,7 @@ const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
 export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileBrowserProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const uploadTarget = useUploadTarget()
   const [nodes, setNodes] = useState<BrowserNode[]>(() => [...initialPage.nodes])
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
@@ -52,6 +55,34 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
   const bulkCanFavorite = selectedNodes.length > 0 && selectedNodes.every((node) => node.canFavorite)
   const bulkFavorite = selectedNodes.length > 0 && !selectedNodes.every((node) => node.isFavorite)
   const currentPage: NodePage = { nodes, accessLevel: initialPage.accessLevel, ...(nextCursor ? { nextCursor } : {}) }
+
+  const reload = useCallback(async () => {
+    const query = { limit: 50, sort: options.sort, order: options.order } satisfies FolderChildrenQuery
+    const page = await apiJSON<NodePage>(`/api/v1/folders/${folder.id}/children`, { query })
+    setNodes([...page.nodes])
+    setNextCursor(page.nextCursor)
+    setSelected(new Set())
+  }, [folder.id, options.order, options.sort])
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
+    function completed(event: Event) {
+      const detail = (event as CustomEvent<UploadCompletedDetail>).detail
+      if (detail?.folderId !== folder.id) return
+
+      if (timeout) clearTimeout(timeout)
+      timeout = setTimeout(() => {
+        void reload().catch(() => toast.error("Upload completed, but the browser could not refresh"))
+      }, 150)
+    }
+
+    window.addEventListener(UPLOAD_COMPLETED_EVENT, completed)
+    return () => {
+      if (timeout) clearTimeout(timeout)
+      window.removeEventListener(UPLOAD_COMPLETED_EVENT, completed)
+    }
+  }, [folder.id, reload])
 
   function updateOptions(next: Partial<BrowserOptions>) {
     router.replace(browserURL(pathname, { ...options, ...next }), { scroll: false })
@@ -81,14 +112,6 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
       next.delete(nodeId)
       return next
     })
-  }
-
-  async function reload() {
-    const query = { limit: 50, sort: options.sort, order: options.order } satisfies FolderChildrenQuery
-    const page = await apiJSON<NodePage>(`/api/v1/folders/${folder.id}/children`, { query })
-    setNodes([...page.nodes])
-    setNextCursor(page.nextCursor)
-    setSelected(new Set())
   }
 
   async function setFavorite(node: BrowserNode, favorite: boolean) {
@@ -200,7 +223,17 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {initialPage.accessLevel !== "view" && <CreateFolderDialog folder={folder} onReload={reload} />}
+          {initialPage.accessLevel !== "view" && (
+            <>
+              <CreateFolderDialog folder={folder} onReload={reload} />
+              {uploadTarget && (
+                <Button size="sm" variant="outline" onClick={uploadTarget.open}>
+                  <UploadIcon />
+                  Upload
+                </Button>
+              )}
+            </>
+          )}
           <BrowserControls options={options} onChange={updateOptions} onSortChange={changeSort} />
         </div>
       </div>

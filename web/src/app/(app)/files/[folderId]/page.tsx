@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { FileBrowser } from "@/components/files/file-browser"
+import { FileUploadTarget } from "@/components/uploads/upload-target"
 import { APIError } from "@/lib/api/types"
 import { parseBrowserOptions, type BrowserOptions, type BrowserSearchParams } from "@/lib/files/browser"
 import { loadFileBrowser } from "@/lib/files/browser-server"
@@ -21,13 +22,15 @@ export default async function FolderPage({
   const data = await loadFolder(folderId, options)
 
   return (
-    <FileBrowser
-      key={`${data.folder.id}:${options.sort}:${options.order}`}
-      folder={data.folder}
-      breadcrumbs={data.breadcrumbs}
-      initialPage={data.page}
-      options={options}
-    />
+    <FileUploadTarget folderId={data.folder.id} disabled={data.page.accessLevel === "view"}>
+      <FileBrowser
+        key={`${data.folder.id}:${options.sort}:${options.order}`}
+        folder={data.folder}
+        breadcrumbs={data.breadcrumbs}
+        initialPage={data.page}
+        options={options}
+      />
+    </FileUploadTarget>
   )
 }
 
