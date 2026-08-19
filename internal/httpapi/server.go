@@ -7,6 +7,7 @@ import (
 	"github.com/mewisme/discloud/internal/acl"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
+	"github.com/mewisme/discloud/internal/collections"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/files"
 	"github.com/mewisme/discloud/internal/folders"
@@ -27,6 +28,7 @@ type RouterDependencies struct {
 	Finalizer    *uploads.Finalizer
 	Files        *files.Service
 	Folders      *folders.Service
+	Collections  *collections.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -67,8 +69,12 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	if deps.Uploads != nil && deps.PartUploader != nil && deps.Finalizer != nil && deps.Auth != nil {
 		registerUploadRoutes(mux, deps.Uploads, deps.PartUploader, deps.Finalizer, deps.Auth, authConfig)
 	}
+	if deps.Collections != nil && deps.Auth != nil {
+		registerCollectionRoutes(mux, deps.Collections, deps.Auth, authConfig)
+		registerCollectionAccessRoutes(mux, deps.Collections, deps.Auth, authConfig)
+	}
 	if deps.Files != nil && deps.Auth != nil {
-		registerFileRoutes(mux, deps.Files, deps.Auth, authConfig)
+		registerFileRoutes(mux, deps.Files, deps.Collections, deps.Auth, authConfig)
 	}
 	if deps.Folders != nil && deps.Auth != nil {
 		registerFolderDownloadRoutes(mux, deps.Folders, deps.Auth, authConfig)

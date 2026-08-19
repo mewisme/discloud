@@ -13,6 +13,7 @@ import (
 
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/blobstore"
+	"github.com/mewisme/discloud/internal/collections"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/files"
 )
@@ -38,7 +39,7 @@ type fileResponse struct {
 	MetadataError  string          `json:"metadataError,omitempty"`
 }
 
-func registerFileRoutes(mux *http.ServeMux, service *files.Service, authService *auth.Service, cfg config.AuthConfig) {
+func registerFileRoutes(mux *http.ServeMux, service *files.Service, collectionService *collections.Service, authService *auth.Service, cfg config.AuthConfig) {
 	protected := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, requireAuth(authService, cfg, handler))
 	}
@@ -53,17 +54,20 @@ func registerFileRoutes(mux *http.ServeMux, service *files.Service, authService 
 	})
 
 	protected("GET /api/v1/files/{fileId}/content", func(w http.ResponseWriter, r *http.Request) {
-		serveFile(w, r, service, false)
+		serveFile(w, r, service, collectionService, false)
 	})
 
 	protected("GET /api/v1/files/{fileId}/download", func(w http.ResponseWriter, r *http.Request) {
-		serveFile(w, r, service, true)
+		serveFile(w, r, service, collectionService, true)
 	})
 }
 
-func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, download bool) {
-	file, err := service.Get(r.Context(), fileActor(r), r.PathValue("fileId"))
-	if writeFileError(w, r, err) {
+func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, collectionService *collections.Service, download bool) {
+	fileID := r.PathValue("fileId")
+	collectionID := strings.TrimSpace(r.URL.Query().Get("collectionId"))
+
+	file, err := getFileForRequest(r, service, collectionService, fileID, collectionID)
+	if writeFileContextError(w, r, err) {
 		return
 	}
 
@@ -87,8 +91,8 @@ func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, d
 		start, length, status = byteRange.Start, byteRange.Length(), http.StatusPartialContent
 	}
 
-	_, reader, err := service.Open(r.Context(), fileActor(r), file.ID, start, length)
-	if writeFileError(w, r, err) {
+	_, reader, err := openFileForRequest(r, service, collectionService, fileID, collectionID, start, length)
+	if writeFileContextError(w, r, err) {
 		return
 	}
 	defer reader.Close()
@@ -103,6 +107,32 @@ func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, d
 		return
 	}
 	_, _ = io.Copy(w, reader)
+}
+
+func getFileForRequest(r *http.Request, service *files.Service, collectionService *collections.Service, fileID, collectionID string) (files.File, error) {
+	if collectionID == "" {
+		return service.Get(r.Context(), fileActor(r), fileID)
+	}
+	if collectionService == nil {
+		return files.File{}, collections.ErrNotFound
+	}
+	if err := collectionService.CanViewItem(r.Context(), collectionActor(r), collectionID, fileID); err != nil {
+		return files.File{}, err
+	}
+	return service.GetStored(r.Context(), fileID)
+}
+
+func openFileForRequest(r *http.Request, service *files.Service, collectionService *collections.Service, fileID, collectionID string, start, length int64) (files.File, io.ReadCloser, error) {
+	if collectionID == "" {
+		return service.Open(r.Context(), fileActor(r), fileID, start, length)
+	}
+	if collectionService == nil {
+		return files.File{}, nil, collections.ErrNotFound
+	}
+	if err := collectionService.CanViewItem(r.Context(), collectionActor(r), collectionID, fileID); err != nil {
+		return files.File{}, nil, err
+	}
+	return service.OpenStored(r.Context(), fileID, start, length)
 }
 
 func setFileHeaders(w http.ResponseWriter, file files.File, download bool, length int64) {
@@ -153,6 +183,18 @@ func fileJSON(file files.File) fileResponse {
 		response.SHA256 = hex.EncodeToString(file.SHA256)
 	}
 	return response
+}
+
+func writeFileContextError(w http.ResponseWriter, r *http.Request, err error) bool {
+	switch {
+	case errors.Is(err, collections.ErrNotFound),
+		errors.Is(err, collections.ErrForbidden),
+		errors.Is(err, collections.ErrFileNotFound):
+		WriteProblem(w, r, http.StatusNotFound, "Not Found", "file not found")
+		return true
+	default:
+		return writeFileError(w, r, err)
+	}
 }
 
 func writeFileError(w http.ResponseWriter, r *http.Request, err error) bool {
