@@ -21,6 +21,7 @@ import (
 	"github.com/mewisme/discloud/internal/jobs"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
+	"github.com/mewisme/discloud/internal/observability"
 	"github.com/mewisme/discloud/internal/orphangc"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
@@ -92,6 +93,7 @@ func Run() error {
 	)
 	adminUserService := adminusers.New(pool)
 	adminOpsService := adminops.New(pool)
+	metrics := observability.NewMetrics(pool)
 	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
 	uploadService := uploads.New(
@@ -141,6 +143,7 @@ func Run() error {
 			Auth:         authService,
 			AdminUsers:   adminUserService,
 			AdminOps:     adminOpsService,
+			Metrics:      metrics,
 			ACL:          aclService,
 			Nodes:        nodeService,
 			Uploads:      uploadService,

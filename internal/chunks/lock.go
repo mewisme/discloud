@@ -30,7 +30,7 @@ func (r *Repository) WithDigestLock(ctx context.Context, digest [32]byte, size i
 			unlockErr := conn.QueryRow(unlockCtx, `
 				SELECT pg_advisory_unlock(
 					hashtextextended(
-						encode($1::bytea, 'hex') || ':' || $2::text,
+						encode($1::bytea, 'hex') || ':' || ($2::bigint)::text,
 						0
 					)
 				)
@@ -39,24 +39,29 @@ func (r *Repository) WithDigestLock(ctx context.Context, digest [32]byte, size i
 			if unlockErr != nil || !unlocked {
 				_ = conn.Conn().Close(unlockCtx)
 				if err == nil {
-					err = fmt.Errorf("release chunk digest lock: %w", unlockErr)
+					if unlockErr != nil {
+						err = fmt.Errorf("release chunk digest lock: %w", unlockErr)
+					} else {
+						err = fmt.Errorf("release chunk digest lock: lock was not held")
+					}
 				}
 			}
 		}
+
 		conn.Release()
 	}()
 
 	if _, err := conn.Exec(ctx, `
 		SELECT pg_advisory_lock(
 			hashtextextended(
-				encode($1::bytea, 'hex') || ':' || $2::text,
+				encode($1::bytea, 'hex') || ':' || ($2::bigint)::text,
 				0
 			)
 		)
 	`, digest[:], size); err != nil {
 		return fmt.Errorf("acquire chunk digest lock: %w", err)
 	}
-	locked = true
 
+	locked = true
 	return fn()
 }
