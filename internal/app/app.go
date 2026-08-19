@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/mewisme/discloud/internal/acl"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
@@ -51,6 +52,7 @@ func Run() error {
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
 	adminUserService := adminusers.New(pool)
+	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
 
 	handler := httpapi.NewRouter(
@@ -59,6 +61,7 @@ func Run() error {
 			Setup:      setupService,
 			Auth:       authService,
 			AdminUsers: adminUserService,
+			ACL:        aclService,
 			Nodes:      nodeService,
 		},
 		cfg.HTTP,

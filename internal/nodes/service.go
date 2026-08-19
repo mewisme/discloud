@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mewisme/discloud/internal/acl"
 	"github.com/mewisme/discloud/internal/audit"
 	"github.com/mewisme/discloud/internal/postgres"
 )
@@ -17,6 +18,7 @@ import (
 var (
 	ErrNotFound      = errors.New("node not found")
 	ErrNotFolder     = errors.New("node is not a folder")
+	ErrForbidden     = errors.New("permission denied")
 	ErrNameConflict  = errors.New("node name already exists")
 	ErrRootImmutable = errors.New("root node is immutable")
 	ErrCycle         = errors.New("folder cycle")
@@ -44,6 +46,7 @@ type Node struct {
 
 type Service struct {
 	pool *pgxpool.Pool
+	acl  *acl.Service
 }
 
 type scanner interface {
@@ -68,18 +71,17 @@ const nodeColumns = `
 `
 
 func New(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool}
+	return &Service{
+		pool: pool,
+		acl:  acl.New(pool),
+	}
 }
 
 func (s *Service) Get(ctx context.Context, actor Actor, nodeID string) (Node, error) {
-	node, err := loadNode(ctx, s.pool, nodeID, false)
-	if err != nil {
+	if err := s.require(ctx, actor, nodeID, acl.View); err != nil {
 		return Node{}, err
 	}
-	if !canManage(actor, node.OwnerID) {
-		return Node{}, ErrNotFound
-	}
-	return node, nil
+	return loadNode(ctx, s.pool, nodeID, false)
 }
 
 func (s *Service) CreateFolder(ctx context.Context, actor Actor, parentID, name string) (Node, error) {
@@ -88,8 +90,20 @@ func (s *Service) CreateFolder(ctx context.Context, actor Actor, parentID, name 
 		return Node{}, err
 	}
 
+	preliminary, err := loadNode(ctx, s.pool, parentID, false)
+	if err != nil {
+		return Node{}, err
+	}
+	if preliminary.Kind != "folder" {
+		return Node{}, ErrNotFolder
+	}
+
 	var node Node
 	err = postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := lockOwnerTree(ctx, tx, preliminary.OwnerID); err != nil {
+			return err
+		}
+
 		parent, err := loadNode(ctx, tx, parentID, true)
 		if err != nil {
 			return err
@@ -97,8 +111,9 @@ func (s *Service) CreateFolder(ctx context.Context, actor Actor, parentID, name 
 		if parent.Kind != "folder" {
 			return ErrNotFolder
 		}
-		if !canManage(actor, parent.OwnerID) {
-			return ErrNotFound
+
+		if err := s.requireTx(ctx, tx, actor, parent.ID, acl.Edit); err != nil {
+			return err
 		}
 
 		err = tx.QueryRow(ctx, `
@@ -158,15 +173,16 @@ func (s *Service) ListChildren(
 	afterNameKey string,
 	afterID string,
 ) ([]Node, bool, error) {
+	if err := s.require(ctx, actor, parentID, acl.View); err != nil {
+		return nil, false, err
+	}
+
 	parent, err := loadNode(ctx, s.pool, parentID, false)
 	if err != nil {
 		return nil, false, err
 	}
 	if parent.Kind != "folder" {
 		return nil, false, ErrNotFolder
-	}
-	if !canManage(actor, parent.OwnerID) {
-		return nil, false, ErrNotFound
 	}
 
 	args := []any{parent.ID, limit + 1}
@@ -198,27 +214,32 @@ func (s *Service) ListChildren(
 	}
 	defer rows.Close()
 
-	nodes := make([]Node, 0, limit+1)
+	result := make([]Node, 0, limit+1)
 	for rows.Next() {
 		node, err := scanNode(rows)
 		if err != nil {
 			return nil, false, fmt.Errorf("scan child: %w", err)
 		}
-		nodes = append(nodes, node)
+		result = append(result, node)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, false, fmt.Errorf("read children: %w", err)
 	}
 
-	hasMore := len(nodes) > limit
+	hasMore := len(result) > limit
 	if hasMore {
-		nodes = nodes[:limit]
+		result = result[:limit]
 	}
 
-	return nodes, hasMore, nil
+	return result, hasMore, nil
 }
 
 func (s *Service) Breadcrumbs(ctx context.Context, actor Actor, nodeID string) ([]Node, error) {
+	target, err := s.Get(ctx, actor, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.pool.Query(ctx, `
 		WITH RECURSIVE ancestors AS (
 			SELECT
@@ -265,10 +286,14 @@ func (s *Service) Breadcrumbs(ctx context.Context, actor Actor, nodeID string) (
 			is_root,
 			is_favorite,
 			created_at,
-			updated_at
+			updated_at,
+			fp.folder_id IS NOT NULL
 		FROM ancestors
+		LEFT JOIN folder_permissions fp
+		  ON fp.folder_id = ancestors.id
+		 AND fp.user_id = $2::uuid
 		ORDER BY depth DESC
-	`, nodeID)
+	`, nodeID, actor.UserID)
 	if err != nil {
 		if isInvalidUUID(err) {
 			return nil, ErrNotFound
@@ -278,24 +303,47 @@ func (s *Service) Breadcrumbs(ctx context.Context, actor Actor, nodeID string) (
 	defer rows.Close()
 
 	result := make([]Node, 0)
+	directGrant := make([]bool, 0)
+
 	for rows.Next() {
-		node, err := scanNode(rows)
-		if err != nil {
+		var node Node
+		var granted bool
+
+		if err := rows.Scan(
+			&node.ID,
+			&node.Kind,
+			&node.OwnerID,
+			&node.ParentID,
+			&node.Name,
+			&node.NameKey,
+			&node.IsRoot,
+			&node.IsFavorite,
+			&node.CreatedAt,
+			&node.UpdatedAt,
+			&granted,
+		); err != nil {
 			return nil, fmt.Errorf("scan breadcrumb: %w", err)
 		}
+
 		result = append(result, node)
+		directGrant = append(directGrant, granted)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read breadcrumbs: %w", err)
 	}
-	if len(result) == 0 {
-		return nil, ErrNotFound
-	}
-	if !canManage(actor, result[0].OwnerID) {
-		return nil, ErrNotFound
+
+	if actor.Admin || target.OwnerID == actor.UserID {
+		return result, nil
 	}
 
-	return result, nil
+	for i, granted := range directGrant {
+		if granted {
+			return result[i:], nil
+		}
+	}
+
+	return nil, ErrNotFound
 }
 
 func (s *Service) Rename(ctx context.Context, actor Actor, nodeID, name string) (Node, error) {
@@ -304,17 +352,30 @@ func (s *Service) Rename(ctx context.Context, actor Actor, nodeID, name string) 
 		return Node{}, err
 	}
 
+	preliminary, err := loadNode(ctx, s.pool, nodeID, false)
+	if err != nil {
+		return Node{}, err
+	}
+	if preliminary.IsRoot {
+		return Node{}, ErrRootImmutable
+	}
+
 	var node Node
 	err = postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := lockOwnerTree(ctx, tx, preliminary.OwnerID); err != nil {
+			return err
+		}
+
 		current, err := loadNode(ctx, tx, nodeID, true)
 		if err != nil {
 			return err
 		}
-		if !canManage(actor, current.OwnerID) {
-			return ErrNotFound
-		}
 		if current.IsRoot {
 			return ErrRootImmutable
+		}
+
+		if err := s.requireTx(ctx, tx, actor, current.ID, acl.Edit); err != nil {
+			return err
 		}
 
 		err = tx.QueryRow(ctx, `
@@ -365,30 +426,26 @@ func (s *Service) Move(ctx context.Context, actor Actor, nodeID, parentID string
 	if err != nil {
 		return Node{}, err
 	}
-	if !canManage(actor, preliminary.OwnerID) {
-		return Node{}, ErrNotFound
-	}
 	if preliminary.IsRoot {
 		return Node{}, ErrRootImmutable
 	}
 
 	var node Node
 	err = postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `
-			SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
-		`, preliminary.OwnerID); err != nil {
-			return fmt.Errorf("lock owner tree: %w", err)
+		if err := lockOwnerTree(ctx, tx, preliminary.OwnerID); err != nil {
+			return err
 		}
 
 		current, err := loadNode(ctx, tx, nodeID, true)
 		if err != nil {
 			return err
 		}
-		if current.OwnerID != preliminary.OwnerID || !canManage(actor, current.OwnerID) {
-			return ErrNotFound
-		}
 		if current.IsRoot {
 			return ErrRootImmutable
+		}
+
+		if err := s.requireTx(ctx, tx, actor, current.ID, acl.Edit); err != nil {
+			return err
 		}
 
 		parent, err := loadNode(ctx, tx, parentID, true)
@@ -404,6 +461,10 @@ func (s *Service) Move(ctx context.Context, actor Actor, nodeID, parentID string
 				return ErrCrossOwner
 			}
 			return ErrNotFound
+		}
+
+		if err := s.requireTx(ctx, tx, actor, parent.ID, acl.Edit); err != nil {
+			return err
 		}
 
 		if current.ParentID == parent.ID {
@@ -460,6 +521,38 @@ func (s *Service) Move(ctx context.Context, actor Actor, nodeID, parentID string
 	}
 
 	return node, nil
+}
+
+func (s *Service) require(ctx context.Context, actor Actor, nodeID string, required acl.Level) error {
+	level, err := s.acl.Resolve(ctx, nodeID, actor.UserID, actor.Admin)
+	if errors.Is(err, acl.ErrNotFound) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return accessError(level, required)
+}
+
+func (s *Service) requireTx(ctx context.Context, tx pgx.Tx, actor Actor, nodeID string, required acl.Level) error {
+	level, err := s.acl.ResolveTx(ctx, tx, nodeID, actor.UserID, actor.Admin)
+	if errors.Is(err, acl.ErrNotFound) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return accessError(level, required)
+}
+
+func accessError(level, required acl.Level) error {
+	if level.Allows(required) {
+		return nil
+	}
+	if level == acl.None {
+		return ErrNotFound
+	}
+	return ErrForbidden
 }
 
 func loadNode(ctx context.Context, db queryRower, nodeID string, lock bool) (Node, error) {
@@ -528,8 +621,13 @@ func folderContains(ctx context.Context, tx pgx.Tx, startID, targetID string) (b
 	return contains, nil
 }
 
-func canManage(actor Actor, ownerID string) bool {
-	return actor.Admin || actor.UserID == ownerID
+func lockOwnerTree(ctx context.Context, tx pgx.Tx, ownerID string) error {
+	if _, err := tx.Exec(ctx, `
+		SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
+	`, ownerID); err != nil {
+		return fmt.Errorf("lock owner tree: %w", err)
+	}
+	return nil
 }
 
 func isUniqueViolation(err error) bool {

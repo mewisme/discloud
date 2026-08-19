@@ -223,6 +223,8 @@ func writeNodeError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
 	case errors.Is(err, nodes.ErrNotFound):
 		WriteProblem(w, r, http.StatusNotFound, "Not Found", "node not found")
+	case errors.Is(err, nodes.ErrForbidden):
+		WriteProblem(w, r, http.StatusForbidden, "Forbidden", "insufficient folder permission")
 	case errors.Is(err, nodes.ErrInvalidName):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", err.Error())
 	case errors.Is(err, nodes.ErrInvalidCursor):
