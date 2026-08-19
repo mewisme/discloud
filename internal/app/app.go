@@ -17,6 +17,7 @@ import (
 	"github.com/mewisme/discloud/internal/files"
 	"github.com/mewisme/discloud/internal/folders"
 	"github.com/mewisme/discloud/internal/httpapi"
+	"github.com/mewisme/discloud/internal/jobs"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/postgres"
@@ -79,8 +80,17 @@ func Run() error {
 	collectionService := collections.New(pool)
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
+	metadataProcessor := files.NewMetadataProcessor(fileService)
 
 	go uploads.RunExpiryWorker(ctx, uploadService, logger.With("component", "upload-expiry"))
+
+	jobWorker := jobs.NewWorker(pool, logger.With("component", "jobs"), map[string]jobs.Handler{
+		"file.metadata": metadataProcessor.Handle,
+	})
+	for i := range cfg.Jobs.WorkerCount {
+		workerID := fmt.Sprintf("job-worker-%d", i+1)
+		go jobWorker.Run(ctx, workerID)
+	}
 
 	handler := httpapi.NewRouter(httpapi.RouterDependencies{
 		Ready: pool.Ping, Setup: setupService, Auth: authService, AdminUsers: adminUserService,

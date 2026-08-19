@@ -1,6 +1,6 @@
 module github.com/mewisme/discloud
 
-go 1.26
+go 1.26.5
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
@@ -18,7 +18,7 @@ require (
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
