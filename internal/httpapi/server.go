@@ -7,6 +7,7 @@ import (
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
+	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/setup"
 )
 
@@ -15,6 +16,7 @@ type RouterDependencies struct {
 	Setup      *setup.Service
 	Auth       *auth.Service
 	AdminUsers *adminusers.Service
+	Nodes      *nodes.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -44,6 +46,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.AdminUsers != nil && deps.Auth != nil {
 		registerAdminUserRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
+	}
+	if deps.Nodes != nil && deps.Auth != nil {
+		registerNodeRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 	}
 
 	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))

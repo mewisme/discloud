@@ -13,6 +13,7 @@ import (
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/httpapi"
 	"github.com/mewisme/discloud/internal/logging"
+	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
 	"github.com/mewisme/discloud/internal/setup"
@@ -50,6 +51,7 @@ func Run() error {
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
 	adminUserService := adminusers.New(pool)
+	nodeService := nodes.New(pool)
 
 	handler := httpapi.NewRouter(
 		httpapi.RouterDependencies{
@@ -57,6 +59,7 @@ func Run() error {
 			Setup:      setupService,
 			Auth:       authService,
 			AdminUsers: adminUserService,
+			Nodes:      nodeService,
 		},
 		cfg.HTTP,
 		cfg.Auth,
