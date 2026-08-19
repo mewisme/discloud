@@ -242,14 +242,18 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
     <div className="mx-1 space-y-2 rounded-lg border bg-background p-2.5 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-medium">Storage</span>
-        <span className="text-muted-foreground">{usage.quotaBytes === null ? "Unlimited" : `${Math.round(percent)}%`}</span>
+        {usage.quotaBytes !== null && <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>}
       </div>
+
+      <div className="truncate text-xs tabular-nums text-muted-foreground">
+        {formatBytes(usage.usedBytes)}
+        {usage.reservedBytes > 0 && <span> (+{formatBytes(usage.reservedBytes)})</span>}
+        <span> / {usage.quotaBytes === null ? "∞" : formatBytes(usage.quotaBytes)}</span>
+      </div>
+
       {usage.quotaBytes !== null && <Progress value={percent} />}
-      <div className="text-xs text-muted-foreground">
-        {usage.quotaBytes === null ? `${formatBytes(usage.usedBytes)} used` : `${formatBytes(usage.usedBytes)} of ${formatBytes(usage.quotaBytes)}`}
-        {usage.reservedBytes > 0 && <span> · {formatBytes(usage.reservedBytes)} reserved</span>}
-      </div>
-      {usage.overQuota && <div className="text-xs font-medium text-destructive">Storage quota exceeded</div>}
+
+      {usage.overQuota && <div className="text-xs font-medium text-destructive">Quota exceeded</div>}
     </div>
   )
 }

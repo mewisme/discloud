@@ -1141,6 +1141,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/users/lookup": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Look up an active user by exact username */
+        readonly get: operations["lookupUser"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/healthz": {
         readonly parameters: {
             readonly query?: never;
@@ -1606,6 +1623,11 @@ export type components = {
             readonly mustChangePassword: boolean;
             /** @enum {string} */
             readonly role: "admin" | "user";
+            readonly username: string;
+        };
+        readonly UserLookup: {
+            /** Format: uuid */
+            readonly id: string;
             readonly username: string;
         };
     };
@@ -3670,6 +3692,29 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["UploadPart"];
         readonly responses: {
             readonly 200: components["responses"]["UploadPart"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly lookupUser: {
+        readonly parameters: {
+            readonly query: {
+                readonly username: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Exact active user match. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["UserLookup"];
+                };
+            };
             readonly default: components["responses"]["Problem"];
         };
     };

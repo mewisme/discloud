@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { AccessDialog } from "@/components/access/access-dialog"
 import { CollectionDetail } from "@/components/collections/collection-detail"
 import { apiServerAuthJSON } from "@/lib/api/server"
 import type { Collection, CollectionItems } from "@/lib/api/models"
@@ -12,7 +13,17 @@ export const metadata: Metadata = {
 export default async function CollectionPage({ params }: { params: Promise<{ collectionId: string }> }) {
   const { collectionId } = await params
   const data = await loadCollection(collectionId)
-  return <CollectionDetail initialCollection={data.collection} initialItems={data.items.items} />
+
+  return (
+    <>
+      {data.collection.accessLevel === "full" && (
+        <div className="mx-auto mb-3 flex w-full max-w-7xl justify-end">
+          <AccessDialog resource={{ type: "collection", id: data.collection.id, name: data.collection.name }} />
+        </div>
+      )}
+      <CollectionDetail initialCollection={data.collection} initialItems={data.items.items} />
+    </>
+  )
 }
 
 async function loadCollection(collectionId: string) {

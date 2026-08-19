@@ -6,6 +6,8 @@ export type SetupResult = OperationJSON<"completeSetup", 201>
 
 export type User = OperationJSON<"getAuthenticatedUser", 200>
 export type UserRole = User["role"]
+export type LookupUser = OperationJSON<"lookupUser", 200>
+export type LookupUserQuery = OperationQuery<"lookupUser">
 export type LoginInput = OperationBody<"login">
 export type LoginResult = OperationJSON<"login", 200>
 export type MFAChallenge = Extract<LoginResult, { mfaRequired: true }>

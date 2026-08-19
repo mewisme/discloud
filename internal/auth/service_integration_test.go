@@ -73,6 +73,14 @@ func TestSessionLifecycleIntegration(t *testing.T) {
 
 	service := New(pool, time.Hour)
 
+	lookup, err := service.LookupActiveUser(ctx, "ALICE")
+	if err != nil {
+		t.Fatalf("lookup active user: %v", err)
+	}
+	if lookup.ID != userID || lookup.Username != "alice" {
+		t.Fatalf("lookup = %+v", lookup)
+	}
+
 	login, err := service.Login(ctx, "Alice", "correct-horse-battery-staple", "integration-test", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("login: %v", err)
@@ -97,6 +105,9 @@ func TestSessionLifecycleIntegration(t *testing.T) {
 		t.Fatalf("disable user: %v", err)
 	}
 
+	if _, err := service.LookupActiveUser(ctx, "alice"); !errors.Is(err, ErrUserLookupNotFound) {
+		t.Fatalf("disabled user lookup = %v", err)
+	}
 	if _, err := service.Authenticate(ctx, login.Token); !errors.Is(err, ErrUnauthenticated) {
 		t.Fatalf("disabled user session = %v", err)
 	}
