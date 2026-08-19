@@ -9,6 +9,7 @@ import (
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/files"
+	"github.com/mewisme/discloud/internal/folders"
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -25,6 +26,7 @@ type RouterDependencies struct {
 	PartUploader *uploads.PartUploader
 	Finalizer    *uploads.Finalizer
 	Files        *files.Service
+	Folders      *folders.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -56,6 +58,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Nodes != nil && deps.Auth != nil {
 		registerNodeRoutes(mux, deps.Nodes, deps.Auth, authConfig)
+		registerFolderBatchRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 	}
 	if deps.ACL != nil && deps.Auth != nil {
 		registerPermissionRoutes(mux, deps.ACL, deps.Auth, authConfig)
@@ -65,6 +68,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Files != nil && deps.Auth != nil {
 		registerFileRoutes(mux, deps.Files, deps.Auth, authConfig)
+	}
+	if deps.Folders != nil && deps.Auth != nil {
+		registerFolderDownloadRoutes(mux, deps.Folders, deps.Auth, authConfig)
 	}
 
 	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))
