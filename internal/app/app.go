@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/httpapi"
@@ -48,7 +49,19 @@ func Run() error {
 
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(pool, cfg.Auth.SessionTTL, cfg.MFA.Issuer, cfg.Encryption.MasterKey)
-	handler := httpapi.NewRouter(pool.Ping, setupService, authService, cfg.HTTP, cfg.Auth)
+	adminUserService := adminusers.New(pool)
+
+	handler := httpapi.NewRouter(
+		httpapi.RouterDependencies{
+			Ready:      pool.Ping,
+			Setup:      setupService,
+			Auth:       authService,
+			AdminUsers: adminUserService,
+		},
+		cfg.HTTP,
+		cfg.Auth,
+	)
+
 	server := httpapi.NewServer(cfg.HTTP, handler)
 
 	logger.Info("HTTP server started", "address", server.Addr)

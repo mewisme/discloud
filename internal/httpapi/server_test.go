@@ -36,7 +36,13 @@ func TestHealthz(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	NewRouter(func(context.Context) error { return nil }, nil, nil, config.HTTPConfig{}, config.AuthConfig{}).ServeHTTP(rec, req)
+	NewRouter(
+		RouterDependencies{
+			Ready: func(context.Context) error { return nil },
+		},
+		config.HTTPConfig{},
+		config.AuthConfig{},
+	).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
@@ -58,7 +64,11 @@ func TestReadyz(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 			rec := httptest.NewRecorder()
 
-			NewRouter(tt.check, nil, nil, config.HTTPConfig{}, config.AuthConfig{}).ServeHTTP(rec, req)
+			NewRouter(
+				RouterDependencies{Ready: tt.check},
+				config.HTTPConfig{},
+				config.AuthConfig{},
+			).ServeHTTP(rec, req)
 
 			if rec.Code != tt.want {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.want)

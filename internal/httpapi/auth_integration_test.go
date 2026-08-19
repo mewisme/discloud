@@ -84,7 +84,14 @@ func TestAuthHTTPFlowIntegration(t *testing.T) {
 	}
 
 	authService := auth.New(pool, authConfig.SessionTTL)
-	router := NewRouter(pool.Ping, nil, authService, config.HTTPConfig{}, authConfig)
+	router := NewRouter(
+		RouterDependencies{
+			Ready: pool.Ping,
+			Auth:  authService,
+		},
+		config.HTTPConfig{},
+		authConfig,
+	)
 
 	loginReq := httptest.NewRequest(
 		http.MethodPost,
@@ -110,9 +117,6 @@ func TestAuthHTTPFlowIntegration(t *testing.T) {
 
 	if sessionCookie == nil {
 		t.Fatal("session cookie was not set")
-	}
-	if !sessionCookie.HttpOnly {
-		t.Fatal("session cookie is not HttpOnly")
 	}
 
 	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)

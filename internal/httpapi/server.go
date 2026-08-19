@@ -4,18 +4,20 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/setup"
 )
 
-func NewRouter(
-	ready func(context.Context) error,
-	setupService *setup.Service,
-	authService *auth.Service,
-	httpConfig config.HTTPConfig,
-	authConfig config.AuthConfig,
-) http.Handler {
+type RouterDependencies struct {
+	Ready      func(context.Context) error
+	Setup      *setup.Service
+	Auth       *auth.Service
+	AdminUsers *adminusers.Service
+}
+
+func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -23,18 +25,25 @@ func NewRouter(
 	})
 
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
-		if err := ready(r.Context()); err != nil {
+		if deps.Ready == nil {
+			WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "service is not ready")
+			return
+		}
+		if err := deps.Ready(r.Context()); err != nil {
 			WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "service is not ready")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	if setupService != nil {
-		registerSetupRoutes(mux, setupService)
+	if deps.Setup != nil {
+		registerSetupRoutes(mux, deps.Setup)
 	}
-	if authService != nil {
-		registerAuthRoutes(mux, authService, authConfig)
+	if deps.Auth != nil {
+		registerAuthRoutes(mux, deps.Auth, authConfig)
+	}
+	if deps.AdminUsers != nil && deps.Auth != nil {
+		registerAdminUserRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
 	}
 
 	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))

@@ -32,9 +32,11 @@ func TestRequestIDMiddleware(t *testing.T) {
 
 func TestReadyzProblem(t *testing.T) {
 	router := NewRouter(
-		func(context.Context) error { return errors.New("database unavailable") },
-		nil,
-		nil,
+		RouterDependencies{
+			Ready: func(context.Context) error {
+				return errors.New("database unavailable")
+			},
+		},
 		config.HTTPConfig{},
 		config.AuthConfig{},
 	)
