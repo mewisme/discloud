@@ -15,7 +15,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Use pnpm only.
 - Keep imports contiguous.
 - Keep code compact and readable; avoid unnecessary line breaks and empty lines.
-- Run `pnpm lint`, `pnpm exec tsc --noEmit`, and `pnpm build` before considering a web phase complete.
+- Run `pnpm lint`, `pnpm typecheck`, and `pnpm build` before considering a web phase complete.
 
 ## Next.js
 
@@ -53,10 +53,14 @@ Do not recreate dialogs, drawers, dropdowns, forms, tables, command palettes, to
 ## Data
 
 - The backend OpenAPI contract is the source of truth.
+- Generate API types with `pnpm api:types`.
+- Commit `src/lib/api/generated.ts` but never edit it manually.
+- Use types from `src/lib/api/models.ts` or derive them from generated operations.
+- Run `pnpm api:types:check` when backend OpenAPI changes.
 - Do not invent client-only API fields or domain semantics.
 - Backend session cookies remain the authentication source of truth.
 - Never store authentication tokens in localStorage or sessionStorage.
-- After the API layer exists, do not scatter raw backend `fetch` calls across components.
+- Do not scatter raw backend `fetch` calls across components.
 
 ## State
 
