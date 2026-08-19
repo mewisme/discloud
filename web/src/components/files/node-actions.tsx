@@ -137,7 +137,7 @@ export function NodeActionsMenu({
             <MoreHorizontalIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-full">
           {editable && (
             <>
               <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
