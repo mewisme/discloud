@@ -1,11 +1,14 @@
 # DisCloud Web
 
-Next.js web client for DisCloud.
-
-The client is currently scaffolded and will consume the versioned DisCloud
-HTTP API.
+Next.js client for DisCloud.
 
 ## Development
+
+Create the environment file:
+
+```bash
+cp .env.example .env.local
+````
 
 Install dependencies:
 
@@ -13,7 +16,7 @@ Install dependencies:
 pnpm install
 ```
 
-Start the development server:
+Start the backend, then run:
 
 ```bash
 pnpm dev
@@ -25,6 +28,12 @@ Open:
 http://localhost:3000
 ```
 
+Browser API requests use the same-origin `/api/backend/*` proxy. The backend URL is configured server-side through:
+
+```text
+DISCLOUD_API_URL
+```
+
 ## Checks
 
 ```bash
@@ -33,7 +42,7 @@ pnpm exec tsc --noEmit
 pnpm build
 ```
 
-Backend API contracts are documented in:
+Backend API contract:
 
 ```text
 ../docs/openapi.json
