@@ -20,13 +20,24 @@ func csrfMiddleware(cfg config.HTTPConfig, next http.Handler) http.Handler {
 }
 
 func validRequestOrigin(r *http.Request, cfg config.HTTPConfig) bool {
+	switch strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))) {
+	case "cross-site", "same-site":
+		return false
+	case "", "same-origin", "none":
+	default:
+		return false
+	}
+
 	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
 		return sameOrigin(r, cfg, origin)
 	}
 	if referer := strings.TrimSpace(r.Header.Get("Referer")); referer != "" {
 		return sameOrigin(r, cfg, referer)
 	}
-	return !strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site")
+
+	// ponytail: requests without browser fetch metadata are treated as
+	// non-browser clients; session authentication still applies downstream.
+	return true
 }
 
 func sameOrigin(r *http.Request, cfg config.HTTPConfig, raw string) bool {
