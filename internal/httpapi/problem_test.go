@@ -31,9 +31,15 @@ func TestRequestIDMiddleware(t *testing.T) {
 }
 
 func TestReadyzProblem(t *testing.T) {
-	router := NewRouter(func(context.Context) error { return errors.New("database unavailable") }, nil, nil, config.AuthConfig{})
-	rec := httptest.NewRecorder()
+	router := NewRouter(
+		func(context.Context) error { return errors.New("database unavailable") },
+		nil,
+		nil,
+		config.HTTPConfig{},
+		config.AuthConfig{},
+	)
 
+	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 
 	if rec.Code != http.StatusServiceUnavailable {

@@ -48,7 +48,9 @@ func Run() error {
 
 	setupService := setup.New(pool)
 	authService := auth.New(pool, cfg.Auth.SessionTTL)
-	server := httpapi.NewServer(cfg.HTTP, httpapi.NewRouter(pool.Ping, setupService, authService, cfg.Auth))
+	handler := httpapi.NewRouter(pool.Ping, setupService, authService, cfg.HTTP, cfg.Auth)
+	server := httpapi.NewServer(cfg.HTTP, handler)
+
 	logger.Info("HTTP server started", "address", server.Addr)
 
 	if err := runServer(ctx, server, cfg.HTTP.ShutdownTimeout); err != nil {

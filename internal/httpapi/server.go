@@ -9,7 +9,13 @@ import (
 	"github.com/mewisme/discloud/internal/setup"
 )
 
-func NewRouter(ready func(context.Context) error, setupService *setup.Service, authService *auth.Service, authConfig config.AuthConfig) http.Handler {
+func NewRouter(
+	ready func(context.Context) error,
+	setupService *setup.Service,
+	authService *auth.Service,
+	httpConfig config.HTTPConfig,
+	authConfig config.AuthConfig,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -31,7 +37,7 @@ func NewRouter(ready func(context.Context) error, setupService *setup.Service, a
 		registerAuthRoutes(mux, authService, authConfig)
 	}
 
-	return RequestIDMiddleware(mux)
+	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))
 }
 
 func NewServer(cfg config.HTTPConfig, handler http.Handler) *http.Server {

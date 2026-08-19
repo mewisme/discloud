@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/mewisme/discloud/internal/postgres/migrate"
 	"github.com/mewisme/discloud/migrations"
 )
@@ -51,7 +52,8 @@ func TestSessionLifecycleIntegration(t *testing.T) {
 	}
 	defer pool.Close()
 
-	if err := migrate.Up(ctx, pool, migrations.FS, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := migrate.Up(ctx, pool, migrations.FS, logger); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -87,12 +89,30 @@ func TestSessionLifecycleIntegration(t *testing.T) {
 		t.Fatalf("authenticated user = %s, want %s", principal.User.ID, userID)
 	}
 
+	if _, err := service.Login(ctx, "alice", "wrong-password", "", ""); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("wrong password login = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, "UPDATE users SET status = 'disabled', disabled_at = now() WHERE id = $1", userID); err != nil {
+		t.Fatalf("disable user: %v", err)
+	}
+
+	if _, err := service.Authenticate(ctx, login.Token); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("disabled user session = %v", err)
+	}
+	if _, err := service.Login(ctx, "alice", "correct-horse-battery-staple", "", ""); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("disabled user login = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, "UPDATE users SET status = 'active', disabled_at = NULL WHERE id = $1", userID); err != nil {
+		t.Fatalf("enable user: %v", err)
+	}
+
 	if err := service.RevokeToken(ctx, login.Token); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
-	_, err = service.Authenticate(ctx, login.Token)
-	if !errors.Is(err, ErrUnauthenticated) {
+	if _, err := service.Authenticate(ctx, login.Token); !errors.Is(err, ErrUnauthenticated) {
 		t.Fatalf("authenticate after revoke = %v, want unauthenticated", err)
 	}
 }
