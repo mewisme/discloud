@@ -14,6 +14,7 @@ export type UpdateMeInput = OperationBody<"updateMe">
 export type ChangePasswordInput = OperationBody<"changePassword">
 export type Sessions = OperationJSON<"listSessions", 200>
 export type Session = Sessions["sessions"][number]
+export type MFAStatus = OperationJSON<"getMFAStatus", 200>
 export type MFAEnrollment = OperationJSON<"beginMFAEnrollment", 201>
 export type MFACodeInput = OperationBody<"confirmMFAEnrollment">
 export type RecoveryCodes = OperationJSON<"confirmMFAEnrollment", 200>

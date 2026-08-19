@@ -25,7 +25,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Read the installed Next.js documentation under `node_modules/next/dist/docs/` before using framework APIs.
 - Use route groups:
   - `(public)` for unauthenticated public pages and public shares.
-  - `(auth)` for setup, login, and MFA flows.
+  - `(auth)` for setup, login, MFA, and forced authentication flows.
   - `(app)` for authenticated application routes.
   - admin routes live under `(app)/admin`.
 - Keep navigation/filter state in the URL when it should survive refresh or deep linking.
@@ -33,22 +33,23 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## UI
 
+All default shadcn UI components are already installed in `src/components/ui`.
+
 Before implementing UI, prefer in this order:
 
 1. Existing `src/components/ui` primitive.
-2. Official shadcn/ui component.
-3. Configured or suitable shadcn registry component.
-4. Mature dedicated library.
-5. Browser/React/Next.js native API.
-6. Minimal custom code.
+2. Suitable external shadcn registry component when functionality is not covered by installed defaults.
+3. Mature dedicated library.
+4. Browser/React/Next.js native API.
+5. Minimal custom code.
 
-Use `pnpm dlx shadcn@latest add <component>` when adding official shadcn components.
+Do not run `shadcn add` for default shadcn components.
 
-Do not add a registry to `components.json` until a feature actually needs it.
+No external shadcn registry is configured yet. Add one only when a concrete feature materially benefits from it.
 
 Keep registry primitives in `src/components/ui`. Compose application or feature-specific components outside `ui`.
 
-Do not recreate dialogs, drawers, dropdowns, forms, tables, command palettes, toasts, carousels, OTP inputs, charts, resizable panels, or other primitives already covered by shadcn or installed libraries.
+Do not recreate dialogs, drawers, dropdowns, forms, tables, command palettes, toasts, carousels, OTP inputs, charts, resizable panels, or other primitives already covered by installed shadcn components or libraries.
 
 ## Data
 

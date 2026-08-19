@@ -20,6 +20,14 @@ var (
 	ErrMFAUnavailable = errors.New("MFA service unavailable")
 )
 
+func (s *Service) MFAEnabled(ctx context.Context, userID string) (bool, error) {
+	var enabled bool
+	if err := s.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM mfa_totp WHERE user_id = $1)", userID).Scan(&enabled); err != nil {
+		return false, fmt.Errorf("check MFA status: %w", err)
+	}
+	return enabled, nil
+}
+
 func (s *Service) EnrollMFA(ctx context.Context, userID, username string) (*mfadomain.Enrollment, error) {
 	if s.mfa == nil {
 		return nil, ErrMFAUnavailable

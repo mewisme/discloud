@@ -645,6 +645,22 @@ export type paths = {
         readonly patch: operations["updateMe"];
         readonly trace?: never;
     };
+    readonly "/api/v1/me/mfa": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getMFAStatus"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/me/mfa/recovery-codes/regenerate": {
         readonly parameters: {
             readonly query?: never;
@@ -1768,6 +1784,17 @@ export type components = {
                     /** Format: date-time */
                     readonly expiresAt: string;
                     readonly provisioningUri: string;
+                };
+            };
+        };
+        /** @description Successful response. */
+        readonly MFAStatus: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": {
+                    readonly enabled: boolean;
                 };
             };
         };
@@ -3053,6 +3080,19 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["UpdateMe"];
         readonly responses: {
             readonly 200: components["responses"]["User"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getMFAStatus: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["MFAStatus"];
             readonly default: components["responses"]["Problem"];
         };
     };

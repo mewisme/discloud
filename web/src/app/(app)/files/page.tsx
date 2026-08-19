@@ -1,5 +1,7 @@
-import { FolderOpenIcon } from "lucide-react"
+import Link from "next/link"
+import { FolderOpenIcon, ShieldCheckIcon } from "lucide-react"
 import { LogoutButton } from "@/components/auth/logout-button"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function FilesPage() {
@@ -16,7 +18,13 @@ export default function FilesPage() {
         <CardContent>
           <p className="text-sm text-muted-foreground">Your authenticated DisCloud session is active.</p>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/settings/security">
+              <ShieldCheckIcon />
+              Security
+            </Link>
+          </Button>
           <LogoutButton />
         </CardFooter>
       </Card>

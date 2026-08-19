@@ -15,6 +15,10 @@ type mfaCodeRequest struct {
 	Code string `json:"code"`
 }
 
+type mfaStatusResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
 type mfaEnrollmentResponse struct {
 	ProvisioningURI string    `json:"provisioningUri"`
 	ExpiresAt       time.Time `json:"expiresAt"`
@@ -28,6 +32,18 @@ func registerMFARoutes(mux *http.ServeMux, service *auth.Service, cfg config.Aut
 	protected := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, requireAuth(service, cfg, handler))
 	}
+
+	protected("GET /api/v1/me/mfa", func(w http.ResponseWriter, r *http.Request) {
+		enabled, err := service.MFAEnabled(r.Context(), currentPrincipal(r.Context()).User.ID)
+		if err != nil {
+			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not check MFA status")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(mfaStatusResponse{Enabled: enabled})
+	})
 
 	protected("POST /api/v1/me/mfa/totp/enroll", func(w http.ResponseWriter, r *http.Request) {
 		principal := currentPrincipal(r.Context())

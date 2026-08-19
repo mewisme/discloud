@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -127,6 +128,24 @@ func TestAuthHTTPFlowIntegration(t *testing.T) {
 
 	if meRec.Code != http.StatusOK {
 		t.Fatalf("me status = %d, body = %s", meRec.Code, meRec.Body.String())
+	}
+
+	mfaReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/mfa", nil)
+	mfaReq.AddCookie(sessionCookie)
+
+	mfaRec := httptest.NewRecorder()
+	router.ServeHTTP(mfaRec, mfaReq)
+
+	if mfaRec.Code != http.StatusOK {
+		t.Fatalf("MFA status = %d, body = %s", mfaRec.Code, mfaRec.Body.String())
+	}
+
+	var mfaStatus mfaStatusResponse
+	if err := json.NewDecoder(mfaRec.Body).Decode(&mfaStatus); err != nil {
+		t.Fatalf("decode MFA status: %v", err)
+	}
+	if mfaStatus.Enabled {
+		t.Fatal("new user unexpectedly has MFA enabled")
 	}
 
 	logoutReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
