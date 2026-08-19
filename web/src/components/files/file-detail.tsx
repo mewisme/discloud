@@ -1,10 +1,9 @@
-import { Fragment } from "react"
-import Link from "next/link"
 import { DownloadIcon, FileIcon, FolderIcon, TriangleAlertIcon } from "lucide-react"
+import Link from "next/link"
 import { FilePreview } from "@/components/files/file-preview"
+import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { File, Node } from "@/lib/api/models"
@@ -13,28 +12,19 @@ const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
 
 export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: readonly Node[] }) {
   const parent = breadcrumbs[breadcrumbs.length - 1]
-  const parentHref = parent?.isRoot ? "/files" : `/files/${file.parentFolderId}`
+  const parentHref = parent?.isRoot ? "/files" : parent ? `/files/${encodeURIComponent(parent.id)}` : "/files"
+  const breadcrumbItems = [
+    ...breadcrumbs.map((item) => ({
+      id: item.id,
+      label: item.isRoot ? "Files" : item.name,
+      href: item.isRoot ? "/files" : `/files/${encodeURIComponent(item.id)}`,
+    })),
+    { id: `file:${file.id}`, label: file.name },
+  ]
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-      <Breadcrumb>
-        <BreadcrumbList>
-          {breadcrumbs.map((item, index) => (
-            <Fragment key={item.id}>
-              {index > 0 && <BreadcrumbSeparator />}
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href={item.isRoot ? "/files" : `/files/${item.id}`}>{item.isRoot ? "Files" : item.name}</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-            </Fragment>
-          ))}
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{file.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <CompactBreadcrumbs items={breadcrumbItems} />
 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
@@ -44,6 +34,7 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{formatBytes(file.size)} · {file.mimeType}</p>
         </div>
+
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href={parentHref}>

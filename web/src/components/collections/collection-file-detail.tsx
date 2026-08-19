@@ -1,7 +1,7 @@
-import Link from "next/link"
 import { DownloadIcon, FileIcon, LibraryIcon } from "lucide-react"
+import Link from "next/link"
 import { FilePreview } from "@/components/files/file-preview"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
@@ -10,6 +10,7 @@ const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
 
 export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
+  const collectionHref = `/collections/${encodeURIComponent(collection.id)}`
   const previewFile = {
     id: item.fileId,
     name: item.name,
@@ -17,28 +18,15 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
     mimeType: item.mimeType,
     category: item.category,
   }
+  const breadcrumbItems = [
+    { id: "collections", label: "Collections", href: "/collections" },
+    { id: `collection:${collection.id}`, label: collection.name, href: collectionHref },
+    { id: `file:${item.fileId}`, label: item.name },
+  ]
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link href="/collections">Collections</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link href={`/collections/${collection.id}`}>{collection.name}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{item.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <CompactBreadcrumbs items={breadcrumbItems} />
 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
@@ -51,7 +39,7 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/collections/${collection.id}`}>
+            <Link href={collectionHref}>
               <LibraryIcon />
               Collection
             </Link>

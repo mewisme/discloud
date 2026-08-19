@@ -1,13 +1,12 @@
 "use client"
 
-import type { MouseEvent } from "react"
-import { Fragment, useState } from "react"
+import { useState } from "react"
 import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, Globe2Icon, LayoutGridIcon, ListIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
 import { AccessDialog } from "@/components/access/access-dialog"
 import { CreateFolderDialog } from "@/components/files/node-actions"
+import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { useUploadTarget } from "@/components/uploads/upload-target"
-import { Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -43,6 +42,11 @@ export function FileBrowserChrome({
   const [publicShareOpen, setPublicShareOpen] = useState(false)
   const editable = accessLevel !== "view"
   const shareable = accessLevel === "full"
+  const breadcrumbItems = breadcrumbs.map((item) => ({
+    id: item.id,
+    label: item.isRoot ? "Files" : item.name,
+    href: folderBrowserURL(item.id, options),
+  }))
 
   function changeSort(sort: BrowserSort) {
     onOptionsChange({ sort, order: sort === "name" ? "asc" : "desc" })
@@ -50,7 +54,7 @@ export function FileBrowserChrome({
 
   return (
     <>
-      <BrowserBreadcrumbs items={breadcrumbs} options={options} onNavigate={onNavigate} />
+      <CompactBreadcrumbs items={breadcrumbItems} onNavigate={(item) => onNavigate(item.id)} />
 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0">
@@ -91,67 +95,6 @@ export function FileBrowserChrome({
         </>
       )}
     </>
-  )
-}
-
-function BrowserBreadcrumbs({ items, options, onNavigate }: { items: readonly Node[]; options: BrowserOptions; onNavigate: (folderId: string) => void }) {
-  const collapsed = items.length > 4
-  const first = items[0]
-  const middle = collapsed ? items.slice(1, -2) : []
-  const visible = collapsed ? items.slice(-2) : items
-
-  return (
-    <Breadcrumb className="min-w-0">
-      <BreadcrumbList className="flex-nowrap overflow-hidden">
-        {collapsed && first && (
-          <>
-            <BreadcrumbEntry item={first} options={options} onNavigate={onNavigate} />
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-md outline-none hover:text-foreground">
-                  <BreadcrumbEllipsis />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {middle.map((item) => (
-                    <DropdownMenuItem key={item.id} onSelect={() => onNavigate(item.id)}>{item.isRoot ? "Files" : item.name}</DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-          </>
-        )}
-
-        {visible.map((item, index) => {
-          const current = index === visible.length - 1
-          return (
-            <Fragment key={item.id}>
-              {index > 0 && <BreadcrumbSeparator />}
-              {current ? (
-                <BreadcrumbItem className="min-w-0">
-                  <BreadcrumbPage className="truncate">{item.isRoot ? "Files" : item.name}</BreadcrumbPage>
-                </BreadcrumbItem>
-              ) : (
-                <BreadcrumbEntry item={item} options={options} onNavigate={onNavigate} />
-              )}
-            </Fragment>
-          )
-        })}
-      </BreadcrumbList>
-    </Breadcrumb>
-  )
-}
-
-function BreadcrumbEntry({ item, options, onNavigate }: { item: Node; options: BrowserOptions; onNavigate: (folderId: string) => void }) {
-  return (
-    <BreadcrumbItem className="min-w-0">
-      <BreadcrumbLink asChild>
-        <a href={folderBrowserURL(item.id, options)} className="max-w-36 truncate" onClick={(event) => navigateFolderLink(event, item.id, onNavigate)}>
-          {item.isRoot ? "Files" : item.name}
-        </a>
-      </BreadcrumbLink>
-    </BreadcrumbItem>
   )
 }
 
@@ -287,10 +230,4 @@ function FolderActionsMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-function navigateFolderLink(event: MouseEvent<HTMLAnchorElement>, folderId: string, navigate: (folderId: string) => void) {
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  event.preventDefault()
-  navigate(folderId)
 }

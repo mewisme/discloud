@@ -5,7 +5,7 @@ import Image from "next/image"
 import { DownloadIcon, FileIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { apiRequest } from "@/lib/api/client"
+import { apiRequest, apiURL } from "@/lib/api/client"
 import { filePreviewKind } from "@/lib/files/preview"
 
 const textPreviewLimit = 256 * 1024
@@ -18,9 +18,15 @@ type PreviewFile = {
   category?: string
 }
 
-export function FilePreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
+export type FilePreviewSource = {
+  contentPath: string
+  downloadPath: string
+}
+
+export function FilePreview({ file, collectionId, source: customSource }: { file: PreviewFile; collectionId?: string; source?: FilePreviewSource }) {
   const kind = filePreviewKind(file.mimeType, file.category)
-  const contentURL = fileContentURL(file.id, collectionId)
+  const source = customSource ?? structuralSource(file.id, collectionId)
+  const contentURL = apiURL(source.contentPath)
 
   switch (kind) {
     case "image":
@@ -44,13 +50,13 @@ export function FilePreview({ file, collectionId }: { file: PreviewFile; collect
     case "pdf":
       return <iframe src={contentURL} title={file.name} className="h-[70vh] w-full rounded-xl border bg-background" />
     case "text":
-      return <TextPreview file={file} collectionId={collectionId} />
+      return <TextPreview file={file} source={source} />
     default:
-      return <UnsupportedPreview file={file} collectionId={collectionId} />
+      return <UnsupportedPreview file={file} source={source} />
   }
 }
 
-function TextPreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
+function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(file.size > 0)
   const [error, setError] = useState<string>()
@@ -64,8 +70,7 @@ function TextPreview({ file, collectionId }: { file: PreviewFile; collectionId?:
 
     async function load() {
       try {
-        const response = await apiRequest(`/api/v1/files/${file.id}/content`, {
-          query: collectionId ? { collectionId } : undefined,
+        const response = await apiRequest(source.contentPath, {
           headers: { Range: `bytes=0-${end}` },
           signal: controller.signal,
         })
@@ -80,7 +85,7 @@ function TextPreview({ file, collectionId }: { file: PreviewFile; collectionId?:
 
     void load()
     return () => controller.abort()
-  }, [collectionId, file.id, file.size])
+  }, [file.size, source.contentPath])
 
   if (loading) {
     return (
@@ -111,7 +116,7 @@ function TextPreview({ file, collectionId }: { file: PreviewFile; collectionId?:
   )
 }
 
-function UnsupportedPreview({ file, collectionId }: { file: PreviewFile; collectionId?: string }) {
+function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
   return (
     <div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center">
       <div className="space-y-4">
@@ -121,7 +126,7 @@ function UnsupportedPreview({ file, collectionId }: { file: PreviewFile; collect
           <p className="text-sm text-muted-foreground">This file type is not previewed in the browser.</p>
         </div>
         <Button asChild>
-          <a href={fileDownloadURL(file.id, collectionId)}>
+          <a href={apiURL(source.downloadPath)}>
             <DownloadIcon />
             Download file
           </a>
@@ -131,12 +136,12 @@ function UnsupportedPreview({ file, collectionId }: { file: PreviewFile; collect
   )
 }
 
-function fileContentURL(fileId: string, collectionId?: string) {
-  const base = `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/content`
-  return collectionId ? `${base}?collectionId=${encodeURIComponent(collectionId)}` : base
-}
+function structuralSource(fileId: string, collectionId?: string): FilePreviewSource {
+  const suffix = collectionId ? `?collectionId=${encodeURIComponent(collectionId)}` : ""
+  const encoded = encodeURIComponent(fileId)
 
-function fileDownloadURL(fileId: string, collectionId?: string) {
-  const base = `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download`
-  return collectionId ? `${base}?collectionId=${encodeURIComponent(collectionId)}` : base
+  return {
+    contentPath: `/api/v1/files/${encoded}/content${suffix}`,
+    downloadPath: `/api/v1/files/${encoded}/download${suffix}`,
+  }
 }
