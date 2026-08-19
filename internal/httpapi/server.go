@@ -59,6 +59,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	if deps.Nodes != nil && deps.Auth != nil {
 		registerNodeRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 		registerFolderBatchRoutes(mux, deps.Nodes, deps.Auth, authConfig)
+		registerTrashRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 	}
 	if deps.ACL != nil && deps.Auth != nil {
 		registerPermissionRoutes(mux, deps.ACL, deps.Auth, authConfig)

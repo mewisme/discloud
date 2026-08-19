@@ -117,6 +117,12 @@ func (s *Service) Restore(ctx context.Context, actor Actor, nodeID string, input
 			return ErrNotDeleted
 		}
 
+		if !actor.Admin && actor.UserID != current.OwnerID {
+			if err := s.requireTx(ctx, tx, actor, current.ParentID, acl.Edit); err != nil {
+				return err
+			}
+		}
+
 		parentID := current.ParentID
 		if input.ParentID != "" {
 			parentID = input.ParentID
@@ -143,6 +149,16 @@ func (s *Service) Restore(ctx context.Context, actor Actor, nodeID string, input
 				return ErrRestoreTarget
 			}
 			return err
+		}
+
+		if current.Kind == "folder" {
+			cycle, err := folderContains(ctx, tx, parent.ID, current.ID)
+			if err != nil {
+				return err
+			}
+			if cycle {
+				return ErrCycle
+			}
 		}
 
 		name, nameKey := current.Name, current.NameKey
@@ -215,6 +231,28 @@ func (s *Service) Restore(ctx context.Context, actor Actor, nodeID string, input
 		return Node{}, err
 	}
 	return restored, nil
+}
+
+func (s *Service) TrashKind(ctx context.Context, actor Actor, nodeID, kind string) error {
+	state, err := loadNodeState(ctx, s.pool, nodeID, false)
+	if err != nil {
+		return err
+	}
+	if state.Kind != kind {
+		return ErrNotFound
+	}
+	return s.Trash(ctx, actor, nodeID)
+}
+
+func (s *Service) RestoreKind(ctx context.Context, actor Actor, nodeID, kind string, input RestoreInput) (Node, error) {
+	state, err := loadNodeState(ctx, s.pool, nodeID, false)
+	if err != nil {
+		return Node{}, err
+	}
+	if state.Kind != kind {
+		return Node{}, ErrNotFound
+	}
+	return s.Restore(ctx, actor, nodeID, input)
 }
 
 func activeSubtreeBytes(ctx context.Context, tx pgx.Tx, nodeID string, includeDeletedRoot bool) (int64, error) {
@@ -308,6 +346,7 @@ func quotaAllowsRestore(quota *int64, used, reserved, bytes int64) bool {
 	if used > *quota {
 		return false
 	}
+
 	remaining := *quota - used
 	if reserved > remaining {
 		return false
