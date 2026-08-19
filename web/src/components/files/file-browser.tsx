@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ArrowDownIcon, ArrowUpIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, LayoutGridIcon, ListIcon, Loader2Icon, StarIcon, StarOffIcon, UploadIcon, XIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, LayoutGridIcon, ListIcon, Loader2Icon, StarIcon, StarOffIcon, UploadIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { CreateFolderDialog, NodeActionsMenu } from "@/components/files/node-actions"
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "@/components/uploads/upload-provider"
@@ -70,7 +70,6 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
     function completed(event: Event) {
       const detail = (event as CustomEvent<UploadCompletedDetail>).detail
       if (detail?.folderId !== folder.id) return
-
       if (timeout) clearTimeout(timeout)
       timeout = setTimeout(() => {
         void reload().catch(() => toast.error("Upload completed, but the browser could not refresh"))
@@ -149,8 +148,7 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
 
     if (failures.size) {
       setNodes((current) => current.map((node) => failures.has(node.id) ? { ...node, isFavorite: previous.get(node.id) ?? node.isFavorite } : node))
-      const unauthorized = errors.some((error) => error instanceof APIError && error.status === 401)
-      if (unauthorized) {
+      if (errors.some((error) => error instanceof APIError && error.status === 401)) {
         router.replace("/login")
         router.refresh()
       } else {
@@ -234,6 +232,12 @@ export function FileBrowser({ folder, breadcrumbs, initialPage, options }: FileB
               )}
             </>
           )}
+          <Button size="sm" variant="outline" asChild>
+            <a href={`/api/backend/api/v1/folders/${encodeURIComponent(folder.id)}/download`}>
+              <DownloadIcon />
+              Download folder
+            </a>
+          </Button>
           <BrowserControls options={options} onChange={updateOptions} onSortChange={changeSort} />
         </div>
       </div>
@@ -355,7 +359,7 @@ function NodeList(props: NodeViewProps) {
                   {node.kind === "folder" ? (
                     <Link className="truncate font-medium hover:underline" href={folderURL(node.id, props.options)}>{node.name}</Link>
                   ) : (
-                    <span className="truncate font-medium">{node.name}</span>
+                    <Link className="truncate font-medium hover:underline" href={`/files/file/${node.id}`}>{node.name}</Link>
                   )}
                   {node.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
                 </div>
@@ -389,11 +393,7 @@ function NodeGrid(props: NodeViewProps) {
           </div>
 
           <div className="min-w-0">
-            {node.kind === "folder" ? (
-              <Link className="block truncate text-sm font-medium hover:underline" href={folderURL(node.id, props.options)}>{node.name}</Link>
-            ) : (
-              <div className="truncate text-sm font-medium">{node.name}</div>
-            )}
+            <Link className="block truncate text-sm font-medium hover:underline" href={node.kind === "folder" ? folderURL(node.id, props.options) : `/files/file/${node.id}`}>{node.name}</Link>
             <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
               <span className="truncate">{node.kind === "file" && node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}</span>
               {node.isFavorite && <StarIcon className="size-3 shrink-0 fill-current" aria-label="Favorite" />}

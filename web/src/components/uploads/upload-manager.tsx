@@ -68,7 +68,7 @@ function UploadItem({
 
       <Progress value={percent} />
 
-      {task.error && <p className="break-words text-xs text-destructive">{task.error}</p>}
+      {task.error && <p className="wrap-break-word text-xs text-destructive">{task.error}</p>}
 
       {(task.status === "error" || canCancel || canRemove) && (
         <div className="flex justify-end gap-2">
