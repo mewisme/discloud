@@ -21,6 +21,7 @@ import (
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
+	"github.com/mewisme/discloud/internal/search"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -77,6 +78,7 @@ func Run() error {
 	folderService := folders.New(pool, fileService)
 	collectionService := collections.New(pool)
 	shareService := shares.New(pool, collectionService)
+	searchService := search.New(pool)
 
 	go uploads.RunExpiryWorker(ctx, uploadService, logger.With("component", "upload-expiry"))
 
@@ -84,7 +86,7 @@ func Run() error {
 		Ready: pool.Ping, Setup: setupService, Auth: authService, AdminUsers: adminUserService,
 		ACL: aclService, Nodes: nodeService, Uploads: uploadService, PartUploader: partUploader,
 		Finalizer: finalizer, Files: fileService, Folders: folderService, Collections: collectionService,
-		Shares: shareService,
+		Shares: shareService, Search: searchService,
 	}, cfg.HTTP, cfg.Auth)
 
 	server := httpapi.NewServer(cfg.HTTP, handler)

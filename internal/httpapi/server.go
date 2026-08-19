@@ -12,6 +12,7 @@ import (
 	"github.com/mewisme/discloud/internal/files"
 	"github.com/mewisme/discloud/internal/folders"
 	"github.com/mewisme/discloud/internal/nodes"
+	"github.com/mewisme/discloud/internal/search"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -31,6 +32,7 @@ type RouterDependencies struct {
 	Folders      *folders.Service
 	Collections  *collections.Service
 	Shares       *shares.Service
+	Search       *search.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -64,6 +66,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 		registerNodeRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 		registerFolderBatchRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 		registerTrashRoutes(mux, deps.Nodes, deps.Auth, authConfig)
+		registerFavoriteRoutes(mux, deps.Nodes, deps.Auth, authConfig)
 	}
 	if deps.ACL != nil && deps.Auth != nil {
 		registerPermissionRoutes(mux, deps.ACL, deps.Auth, authConfig)
@@ -86,6 +89,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Shares != nil && deps.Files != nil && deps.Folders != nil {
 		registerPublicShareRoutes(mux, deps.Shares, deps.Files, deps.Folders)
+	}
+	if deps.Search != nil && deps.Auth != nil {
+		registerSearchRoutes(mux, deps.Search, deps.Auth, authConfig)
 	}
 
 	return RequestIDMiddleware(csrfMiddleware(httpConfig, mux))
