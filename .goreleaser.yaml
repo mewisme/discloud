@@ -56,7 +56,7 @@ dockers_v2:
   - id: discloud
     ids:
       - discloud
-    dockerfile: Dockerfile.goreleaser
+    dockerfile: Dockerfile
     images:
       - "{{ .Env.DISCLOUD_DOCKER_IMAGE }}"
     tags:
