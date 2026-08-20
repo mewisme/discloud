@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -66,8 +66,11 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
   const [resourceType, setResourceType] = useState("")
   const [resourceId, setResourceId] = useState("")
   const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
 
   async function load(cursor?: string, append = false) {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
 
     try {
@@ -86,6 +89,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not load audit events."))
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }
@@ -157,7 +161,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
           </TableBody>
         </Table>
 
-        <LoadMoreFooter loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
       </div>
     </div>
   )
@@ -169,8 +173,11 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
   const [status, setStatus] = useState<JobStatus | "all">("all")
   const [type, setType] = useState("")
   const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
 
   async function load(cursor?: string, append = false) {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
 
     try {
@@ -187,6 +194,7 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not load jobs."))
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }
@@ -274,7 +282,7 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
           </TableBody>
         </Table>
 
-        <LoadMoreFooter loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
       </div>
     </div>
   )
@@ -287,8 +295,11 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
   const [ownerUserId, setOwnerUserId] = useState("")
   const [actorUserId, setActorUserId] = useState("")
   const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
 
   async function load(cursor?: string, append = false) {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
 
     try {
@@ -306,6 +317,7 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not load upload diagnostics."))
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }
@@ -412,8 +424,53 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
           </TableBody>
         </Table>
 
-        <LoadMoreFooter loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
       </div>
+    </div>
+  )
+}
+
+function InfiniteScrollSentinel({
+  loading,
+  hasMore,
+  onLoad,
+}: {
+  loading: boolean
+  hasMore: boolean
+  onLoad: () => void
+}) {
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const onLoadRef = useRef(onLoad)
+
+  useEffect(() => {
+    onLoadRef.current = onLoad
+  }, [onLoad])
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasMore || loading) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) onLoadRef.current()
+      },
+      { rootMargin: "320px 0px" },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loading])
+
+  return (
+    <div ref={sentinelRef} className="flex min-h-10 items-center justify-center border-t">
+      {loading && (
+        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2Icon className="size-3.5 animate-spin" />
+          Loading more…
+        </div>
+      )}
+
+      {!loading && !hasMore && <span className="py-2 text-xs text-muted-foreground">End of results</span>}
     </div>
   )
 }
@@ -436,21 +493,6 @@ function JSONDialog({ title, description, value }: { title: string; description:
         <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted p-4 text-xs leading-relaxed">{JSON.stringify(value, null, 2)}</pre>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function LoadMoreFooter({ loading, hasMore, onLoad }: { loading: boolean; hasMore: boolean; onLoad: () => void }) {
-  return (
-    <div className="flex items-center justify-center border-t p-2">
-      {hasMore ? (
-        <Button size="sm" variant="ghost" disabled={loading} onClick={onLoad}>
-          {loading && <Loader2Icon className="animate-spin" />}
-          Load more
-        </Button>
-      ) : (
-        <span className="py-1 text-xs text-muted-foreground">{loading ? "Loading…" : "End of results"}</span>
-      )}
-    </div>
   )
 }
 
