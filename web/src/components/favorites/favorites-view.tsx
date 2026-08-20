@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { DateTime } from "@/components/common/date-time"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -13,10 +14,12 @@ import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { setNodeFavorite } from "@/lib/files/favorite"
+import { fileBrowserPath, folderBrowserPath } from "@/lib/files/navigation"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
 
 export function FavoritesView() {
   const router = useRouter()
+  const workspace = useWorkspace()
   const [results, setResults] = useState<SearchResult[]>([])
   const [nextCursor, setNextCursor] = useState<string>()
   const [loading, setLoading] = useState(true)
@@ -34,22 +37,19 @@ export function FavoritesView() {
 
       try {
         const page = await apiJSON<SearchPage>("/api/v1/search", {
-          query: favoriteQuery(),
+          query: favoriteQuery(workspace.id),
           signal: controller.signal,
         })
-
         if (controller.signal.aborted) return
         setResults([...page.results])
         setNextCursor(page.nextCursor)
       } catch (cause) {
         if (controller.signal.aborted) return
-
         if (cause instanceof APIError && cause.status === 401) {
           router.replace("/login")
           router.refresh()
           return
         }
-
         setError(apiErrorMessage(cause, "Could not load favorites"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -62,7 +62,7 @@ export function FavoritesView() {
       controller.abort()
       moreController.current?.abort()
     }
-  }, [retryKey, router])
+  }, [retryKey, router, workspace.id])
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
@@ -75,22 +75,19 @@ export function FavoritesView() {
 
     try {
       const page = await apiJSON<SearchPage>("/api/v1/search", {
-        query: favoriteQuery(nextCursor),
+        query: favoriteQuery(workspace.id, nextCursor),
         signal: controller.signal,
       })
-
       if (controller.signal.aborted) return
       setResults((current) => appendUnique(current, page.results))
       setNextCursor(page.nextCursor)
     } catch (cause) {
       if (controller.signal.aborted) return
-
       if (cause instanceof APIError && cause.status === 401) {
         router.replace("/login")
         router.refresh()
         return
       }
-
       setError(apiErrorMessage(cause, "Could not load more favorites"))
     } finally {
       if (!controller.signal.aborted) setLoadingMore(false)
@@ -100,11 +97,7 @@ export function FavoritesView() {
   async function removeFavorite(result: SearchResult) {
     if (pendingIds.has(result.id)) return
 
-    setPendingIds((current) => {
-      const next = new Set(current)
-      next.add(result.id)
-      return next
-    })
+    setPendingIds((current) => new Set(current).add(result.id))
 
     try {
       await setNodeFavorite(result.id, false)
@@ -116,7 +109,6 @@ export function FavoritesView() {
         router.refresh()
         return
       }
-
       toast.error(apiErrorMessage(cause, "Could not remove from favorites"))
     } finally {
       setPendingIds((current) => {
@@ -137,7 +129,7 @@ export function FavoritesView() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Favorites</h1>
-        <p className="text-sm text-muted-foreground">Files and folders you marked for quick access.</p>
+        <p className="text-sm text-muted-foreground">Favorite files and folders in @{workspace.username}&apos;s workspace.</p>
       </div>
 
       {loading ? (
@@ -164,12 +156,7 @@ export function FavoritesView() {
 
               <TableBody>
                 {results.map((result) => (
-                  <FavoriteRow
-                    key={`${result.id}:${result.collectionId ?? ""}`}
-                    result={result}
-                    pending={pendingIds.has(result.id)}
-                    onRemove={removeFavorite}
-                  />
+                  <FavoriteRow key={result.id} result={result} pending={pendingIds.has(result.id)} onRemove={removeFavorite} />
                 ))}
               </TableBody>
             </Table>
@@ -189,16 +176,15 @@ export function FavoritesView() {
   )
 }
 
-function FavoriteRow({
-  result,
-  pending,
-  onRemove,
-}: {
+function FavoriteRow({ result, pending, onRemove }: {
   result: SearchResult
   pending: boolean
   onRemove: (result: SearchResult) => Promise<void>
 }) {
-  const href = resultHref(result)
+  const workspace = useWorkspace()
+  const href = result.kind === "folder"
+    ? folderBrowserPath(workspace.username, result.id)
+    : fileBrowserPath(workspace.username, result.id)
 
   return (
     <TableRow>
@@ -207,10 +193,7 @@ function FavoriteRow({
           {result.kind === "folder"
             ? <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
             : <FileIcon className="size-4 shrink-0 text-muted-foreground" />}
-
-          {href
-            ? <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link>
-            : <span className="truncate font-medium">{result.name}</span>}
+          <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link>
         </div>
       </TableCell>
 
@@ -230,7 +213,7 @@ function FavoriteRow({
         <div className="flex justify-end gap-1">
           {result.kind === "file" && (
             <Button size="icon-sm" variant="ghost" asChild>
-              <a href={downloadURL(result)} aria-label={`Download ${result.name}`} title="Download">
+              <a href={`/api/backend/api/v1/files/${encodeURIComponent(result.id)}/download`} aria-label={`Download ${result.name}`} title="Download">
                 <DownloadIcon />
               </a>
             </Button>
@@ -271,7 +254,6 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
           <p className="font-medium">Favorites unavailable</p>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
         </div>
-
         <Button size="sm" variant="outline" onClick={onRetry}>
           <RefreshCwIcon />
           Try again
@@ -295,8 +277,9 @@ function EmptyState() {
   )
 }
 
-function favoriteQuery(cursor?: string): SearchQuery {
+function favoriteQuery(ownerId: string, cursor?: string): SearchQuery {
   return {
+    ownerId,
     favorite: true,
     sort: "updated",
     order: "desc",
@@ -305,24 +288,11 @@ function favoriteQuery(cursor?: string): SearchQuery {
   }
 }
 
-function resultHref(result: SearchResult) {
-  if (result.kind === "folder") return `/files/${encodeURIComponent(result.id)}`
-  if (result.collectionId) return `/collections/${encodeURIComponent(result.collectionId)}/files/${encodeURIComponent(result.id)}`
-  if (result.parentId) return `/files/file/${encodeURIComponent(result.id)}`
-  return undefined
-}
-
-function downloadURL(result: SearchResult) {
-  const base = `/api/backend/api/v1/files/${encodeURIComponent(result.id)}/download`
-  return result.collectionId ? `${base}?collectionId=${encodeURIComponent(result.collectionId)}` : base
-}
-
 function appendUnique(current: readonly SearchResult[], incoming: readonly SearchResult[]) {
-  const ids = new Set(current.map((result) => `${result.id}:${result.collectionId ?? ""}`))
+  const ids = new Set(current.map((result) => result.id))
   return [...current, ...incoming.filter((result) => {
-    const key = `${result.id}:${result.collectionId ?? ""}`
-    if (ids.has(key)) return false
-    ids.add(key)
+    if (ids.has(result.id)) return false
+    ids.add(result.id)
     return true
   })]
 }

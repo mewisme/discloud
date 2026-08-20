@@ -60,12 +60,12 @@ export function WorkspaceSwitcher() {
   }, [currentUser.role, loaded, loading, open, router])
 
   function select(username: string) {
-    if (username === workspace.owner.username) {
+    if (username === workspace.username) {
       setOpen(false)
       return
     }
 
-    const relative = workspaceRelativePath(pathname, workspace.owner.username)
+    const relative = workspaceRelativePath(pathname, workspace.username)
     let suffix = relative ?? ""
 
     if (suffix.startsWith("folders/") || suffix.startsWith("files/")) suffix = ""
@@ -84,7 +84,7 @@ export function WorkspaceSwitcher() {
     return (
       <div className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm group-data-[collapsible=icon]:justify-center">
         <FolderRootIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate group-data-[collapsible=icon]:hidden">{workspace.owner.username}&apos;s Workspace</span>
+        <span className="truncate group-data-[collapsible=icon]:hidden">{workspace.username}&apos;s Workspace</span>
       </div>
     )
   }
@@ -95,7 +95,7 @@ export function WorkspaceSwitcher() {
         <Button variant="ghost" className="h-9 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center">
           <FolderRootIcon className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
-            {workspace.owner.username}&apos;s Workspace
+            {workspace.username}&apos;s Workspace
           </span>
           <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </Button>
@@ -127,7 +127,7 @@ export function WorkspaceSwitcher() {
               <CommandGroup heading="Workspaces">
                 {users.map((user) => (
                   <CommandItem key={user.id} value={`${user.username} ${user.role}`} onSelect={() => select(user.username)}>
-                    <CheckIcon className={cn("size-4", user.id === workspace.owner.id ? "opacity-100" : "opacity-0")} />
+                    <CheckIcon className={cn("size-4", user.id === workspace.id ? "opacity-100" : "opacity-0")} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate">{user.username}</p>
                       <p className="text-xs capitalize text-muted-foreground">{user.role}</p>

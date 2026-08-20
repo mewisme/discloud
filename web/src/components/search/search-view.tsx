@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
+import { useWorkspace } from "@/components/app/workspace-context"
 import { DateTime } from "@/components/common/date-time"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,7 @@ import { AdminUserPicker } from "@/components/users/admin-user-picker"
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { fileBrowserPath, folderBrowserPath } from "@/lib/files/navigation"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
 import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort, searchURL } from "@/lib/search/options"
 
@@ -22,53 +24,49 @@ export function SearchView() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const user = useCurrentUser()
-  const admin = user.role === "admin"
+  const workspace = useWorkspace()
   const queryKey = searchParams.toString()
   const options = useMemo(() => parseSearchOptions(new URLSearchParams(queryKey)), [queryKey])
 
   const replaceOptions = useCallback((patch: Partial<SearchOptions>) => {
-    router.replace(searchURL(patchSearchOptions(options, patch)), { scroll: false })
-  }, [options, router])
-
-  useEffect(() => {
-    if (!admin && options.ownerId) {
-      router.replace(searchURL({ ...options, ownerId: "" }), { scroll: false })
-    }
-  }, [admin, options, router])
+    router.replace(searchURL(workspace.username, patchSearchOptions(options, patch)), { scroll: false })
+  }, [options, router, workspace.username])
 
   function changeSort(sort: SearchSort) {
     replaceOptions({ sort, order: defaultSearchOrder(sort) })
   }
 
-  function reset() {
-    router.replace("/search", { scroll: false })
+  function changeWorkspace(next: { username: string }) {
+    router.push(searchURL(next.username, options), { scroll: false })
   }
 
-  const filtered =
-    options.kind !== "all"
+  function reset() {
+    router.replace(searchURL(workspace.username, parseSearchOptions(new URLSearchParams())), { scroll: false })
+  }
+
+  const filtered = options.kind !== "all"
     || options.category !== "all"
     || options.favorite !== "any"
     || options.shared !== "any"
-    || admin && !!options.ownerId
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
         <p className="text-sm text-muted-foreground">
-          {admin
-            ? "Search all active files and folders across every user."
-            : "Search files and folders you have access to."}
+          Search files and folders in @{workspace.username}&apos;s workspace.
         </p>
       </div>
 
       <SearchInput key={`search-input:${options.q}`} initialValue={options.q} onChange={(q) => replaceOptions({ q })} />
 
       <div className="flex flex-wrap items-center gap-2">
-        {admin && (
+        {user.role === "admin" && (
           <AdminUserPicker
-            value={options.ownerId}
-            onValueChange={(ownerId) => replaceOptions({ ownerId })}
+            value={workspace.id}
+            valueLabel={workspace.username}
+            ariaLabel="Filter search by user"
+            onValueChange={changeWorkspace}
           />
         )}
 
@@ -172,7 +170,7 @@ export function SearchView() {
         )}
       </div>
 
-      <SearchResults key={`search-results:${queryKey}`} options={options} admin={admin} />
+      <SearchResults key={`search-results:${workspace.id}:${queryKey}`} options={options} />
     </div>
   )
 }
@@ -194,8 +192,9 @@ function SearchInput({ initialValue, onChange }: { initialValue: string; onChang
   )
 }
 
-function SearchResults({ options, admin }: { options: SearchOptions; admin: boolean }) {
+function SearchResults({ options }: { options: SearchOptions }) {
   const router = useRouter()
+  const workspace = useWorkspace()
   const [results, setResults] = useState<SearchResult[]>([])
   const [nextCursor, setNextCursor] = useState<string>()
   const [loading, setLoading] = useState(true)
@@ -210,21 +209,18 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
     async function load() {
       try {
         const page = await apiJSON<SearchPage>("/api/v1/search", {
-          query: searchQuery(options, undefined, admin),
+          query: searchQuery(options, workspace.id),
           signal: controller.signal,
         })
-
         setResults([...page.results])
         setNextCursor(page.nextCursor)
       } catch (cause) {
         if (controller.signal.aborted) return
-
         if (cause instanceof APIError && cause.status === 401) {
           router.replace("/login")
           router.refresh()
           return
         }
-
         setError(apiErrorMessage(cause, "Could not search files"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -237,7 +233,7 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
       controller.abort()
       moreController.current?.abort()
     }
-  }, [admin, options, retryKey, router])
+  }, [options, retryKey, router, workspace.id])
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
@@ -250,21 +246,18 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
 
     try {
       const page = await apiJSON<SearchPage>("/api/v1/search", {
-        query: searchQuery(options, nextCursor, admin),
+        query: searchQuery(options, workspace.id, nextCursor),
         signal: controller.signal,
       })
-
       setResults((current) => [...current, ...page.results])
       setNextCursor(page.nextCursor)
     } catch (cause) {
       if (controller.signal.aborted) return
-
       if (cause instanceof APIError && cause.status === 401) {
         router.replace("/login")
         router.refresh()
         return
       }
-
       setError(apiErrorMessage(cause, "Could not load more results"))
     } finally {
       if (!controller.signal.aborted) setLoadingMore(false)
@@ -296,7 +289,6 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
             <p className="font-medium">Search unavailable</p>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           </div>
-
           <Button size="sm" variant="outline" onClick={retry}>
             <RefreshCwIcon />
             Try again
@@ -311,9 +303,7 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
       <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center">
         <div>
           <SearchIcon className="mx-auto mb-3 size-9 text-muted-foreground" />
-          <p className="font-medium">
-            {options.q ? "No matching items" : admin ? "No files or folders found" : "No accessible items"}
-          </p>
+          <p className="font-medium">{options.q ? "No matching items" : "No files or folders found"}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {options.q ? "Try a different query or remove some filters." : "Files and folders will appear here when available."}
           </p>
@@ -344,7 +334,7 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
           </TableHeader>
 
           <TableBody>
-            {results.map((result) => <SearchResultRow key={`${result.id}:${result.collectionId ?? ""}`} result={result} />)}
+            {results.map((result) => <SearchResultRow key={result.id} result={result} />)}
           </TableBody>
         </Table>
       </div>
@@ -362,21 +352,17 @@ function SearchResults({ options, admin }: { options: SearchOptions; admin: bool
 }
 
 function SearchResultRow({ result }: { result: SearchResult }) {
-  const href = resultHref(result)
-  const collectionOnly = result.kind === "file" && !result.parentId && !!result.collectionId
+  const workspace = useWorkspace()
+  const href = result.kind === "folder"
+    ? folderBrowserPath(workspace.username, result.id)
+    : fileBrowserPath(workspace.username, result.id)
 
   return (
     <TableRow>
       <TableCell>
         <div className="flex min-w-0 items-center gap-2">
           <ResultIcon result={result} />
-          {href ? (
-            <Link href={href} className="truncate font-medium hover:underline">
-              {result.name}
-            </Link>
-          ) : (
-            <span className="truncate font-medium">{result.name}</span>
-          )}
+          <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link>
           {result.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
         </div>
       </TableCell>
@@ -387,13 +373,11 @@ function SearchResultRow({ result }: { result: SearchResult }) {
 
       <TableCell className="hidden sm:table-cell">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {collectionOnly
-            ? <><FileIcon className="size-3.5" />Collection</>
-            : result.shared
-              ? <><Share2Icon className="size-3.5" />Shared</>
-              : result.isFavorite
-                ? <><HeartIcon className="size-3.5" />Favorite</>
-                : "Accessible"}
+          {result.shared
+            ? <><Share2Icon className="size-3.5" />Shared</>
+            : result.isFavorite
+              ? <><HeartIcon className="size-3.5" />Favorite</>
+              : "Workspace"}
         </div>
       </TableCell>
 
@@ -408,7 +392,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
       <TableCell>
         {result.kind === "file" && (
           <Button size="icon-sm" variant="ghost" asChild>
-            <a href={downloadURL(result)} aria-label={`Download ${result.name}`}>
+            <a href={`/api/backend/api/v1/files/${encodeURIComponent(result.id)}/download`} aria-label={`Download ${result.name}`}>
               <DownloadIcon />
             </a>
           </Button>
@@ -438,22 +422,10 @@ function ResultIcon({ result }: { result: SearchResult }) {
   }
 }
 
-function resultHref(result: SearchResult) {
-  if (result.kind === "folder") return `/files/${result.id}`
-  if (result.collectionId) return `/collections/${encodeURIComponent(result.collectionId)}/files/${encodeURIComponent(result.id)}`
-  if (result.parentId) return `/files/file/${result.id}`
-  return undefined
-}
-
-function downloadURL(result: SearchResult) {
-  const base = `/api/backend/api/v1/files/${encodeURIComponent(result.id)}/download`
-  return result.collectionId ? `${base}?collectionId=${encodeURIComponent(result.collectionId)}` : base
-}
-
-function searchQuery(options: SearchOptions, cursor: string | undefined, admin: boolean): SearchQuery {
+function searchQuery(options: SearchOptions, ownerId: string, cursor?: string): SearchQuery {
   return {
     q: options.q || undefined,
-    ownerId: admin && options.ownerId ? options.ownerId : undefined,
+    ownerId,
     kind: options.kind === "all" ? undefined : options.kind,
     category: options.category === "all" ? undefined : options.category,
     favorite: options.favorite === "any" ? undefined : options.favorite === "true",

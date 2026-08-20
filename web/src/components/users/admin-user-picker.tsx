@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckIcon, ChevronsUpDownIcon, Loader2Icon, RefreshCwIcon, UserRoundIcon } from "lucide-react"
+import { CheckIcon, ChevronsUpDownIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -14,12 +14,14 @@ import { cn } from "@/lib/utils"
 
 export function AdminUserPicker({
   value,
+  valueLabel,
   onValueChange,
-  allLabel = "All users",
+  ariaLabel = "Select user",
 }: {
   value: string
-  onValueChange: (userId: string) => void
-  allLabel?: string
+  valueLabel: string
+  onValueChange: (user: AdminDirectoryUser) => void
+  ariaLabel?: string
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -28,7 +30,6 @@ export function AdminUserPicker({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const controllerRef = useRef<AbortController>(null)
-  const selected = users.find((user) => user.id === value)
 
   const load = useCallback(async (force = false) => {
     if (loading || loaded && !force) return
@@ -60,21 +61,15 @@ export function AdminUserPicker({
     }
   }, [loaded, loading, router])
 
-  useEffect(() => {
-    return () => controllerRef.current?.abort()
-  }, [])
-
-  useEffect(() => {
-    if (value && !loaded && !loading) void load()
-  }, [load, loaded, loading, value])
+  useEffect(() => () => controllerRef.current?.abort(), [])
 
   function changeOpen(next: boolean) {
     setOpen(next)
     if (next && !loaded) void load()
   }
 
-  function select(userId: string) {
-    onValueChange(userId)
+  function select(user: AdminDirectoryUser) {
+    onValueChange(user)
     setOpen(false)
   }
 
@@ -86,12 +81,10 @@ export function AdminUserPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Filter search by user"
+          aria-label={ariaLabel}
           className="w-48 justify-between font-normal"
         >
-          <span className="min-w-0 truncate">
-            {value ? selected?.username ?? `User ${value.slice(0, 8)}…` : allLabel}
-          </span>
+          <span className="min-w-0 truncate">@{valueLabel}</span>
           <ChevronsUpDownIcon className="shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -99,7 +92,6 @@ export function AdminUserPicker({
       <PopoverContent align="start" className="w-72 p-0">
         <Command>
           <CommandInput placeholder="Search users…" />
-
           <CommandList>
             {loading && users.length === 0 && (
               <CommandItem disabled>
@@ -122,27 +114,26 @@ export function AdminUserPicker({
 
             {!error && (
               <CommandGroup heading="Users">
-                <CommandItem value="All users" onSelect={() => select("")}>
-                  <CheckIcon className={cn("size-4", value ? "opacity-0" : "opacity-100")} />
-                  <UserRoundIcon />
-                  <span>{allLabel}</span>
-                </CommandItem>
+                {users.map((user) => {
+                  const disabled = user.status !== "active"
 
-                {users.map((user) => (
-                  <CommandItem
-                    key={user.id}
-                    value={`${user.username} ${user.role} ${user.status} ${user.id}`}
-                    onSelect={() => select(user.id)}
-                  >
-                    <CheckIcon className={cn("size-4", value === user.id ? "opacity-100" : "opacity-0")} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate">{user.username}</p>
-                      <p className="truncate text-xs capitalize text-muted-foreground">
-                        {user.role} · {user.status}
-                      </p>
-                    </div>
-                  </CommandItem>
-                ))}
+                  return (
+                    <CommandItem
+                      key={user.id}
+                      value={`${user.username} ${user.role} ${user.status} ${user.id}`}
+                      disabled={disabled}
+                      onSelect={() => select(user)}
+                    >
+                      <CheckIcon className={cn("size-4", value === user.id ? "opacity-100" : "opacity-0")} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate">{user.username}</p>
+                        <p className="truncate text-xs capitalize text-muted-foreground">
+                          {user.role} · {user.status}
+                        </p>
+                      </div>
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             )}
           </CommandList>
