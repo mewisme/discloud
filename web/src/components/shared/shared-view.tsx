@@ -60,7 +60,7 @@ export function SharedView({ items }: { items: readonly SharedItem[] }) {
 }
 
 function itemName(item: SharedItem) {
-  return item.kind === "folder" && (item.isRoot || !item.name) ? `${item.ownerUsername}'s Files` : item.name
+  return item.kind === "folder" && (item.isRoot || !item.name) ? `${item.ownerUsername}'s Workspace` : item.name
 }
 
 function itemHref(item: SharedItem) {

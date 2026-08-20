@@ -46,7 +46,7 @@ export function FileBrowserChrome({
   const shareable = accessLevel === "full"
   const breadcrumbItems = breadcrumbs.map((item) => ({
     id: item.id,
-    label: item.isRoot ? `${user.username}'s workspace` : item.name,
+    label: item.isRoot ? `${user.username}'s Workspace` : item.name,
     href: folderBrowserURL(item.id, options),
   }))
 

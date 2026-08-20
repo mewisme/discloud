@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, HeartIcon, Loader2Icon, SearchIcon, Share2Icon, StarIcon, XIcon } from "lucide-react"
+import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, HeartIcon, Loader2Icon, RefreshCwIcon, SearchIcon, Share2Icon, StarIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -131,7 +131,7 @@ function SearchInput({ initialValue, onChange }: { initialValue: string; onChang
   return (
     <div className="relative">
       <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input value={value} maxLength={256} autoFocus placeholder="Search files and folders…" className="h-11 pl-9" onChange={(event) => setValue(event.target.value)} />
+      <Input value={value} maxLength={256} autoFocus aria-label="Search files and folders" placeholder="Search files and folders…" className="h-11 pl-9" onChange={(event) => setValue(event.target.value)} />
     </div>
   )
 }
@@ -143,6 +143,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string>()
+  const [retryKey, setRetryKey] = useState(0)
   const moreController = useRef<AbortController>(null)
 
   useEffect(() => {
@@ -171,13 +172,14 @@ function SearchResults({ options }: { options: SearchOptions }) {
       controller.abort()
       moreController.current?.abort()
     }
-  }, [options, router])
+  }, [options, retryKey, router])
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
     const controller = new AbortController()
     moreController.current?.abort()
     moreController.current = controller
+    setError(undefined)
     setLoadingMore(true)
 
     try {
@@ -197,11 +199,17 @@ function SearchResults({ options }: { options: SearchOptions }) {
     }
   }
 
+  function retry() {
+    setError(undefined)
+    setLoading(true)
+    setRetryKey((current) => current + 1)
+  }
+
   if (loading) {
     return (
       <div className="grid min-h-64 place-items-center rounded-xl border">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2Icon className="size-4 animate-spin" />
+        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" aria-hidden />
           Searching…
         </div>
       </div>
@@ -211,9 +219,15 @@ function SearchResults({ options }: { options: SearchOptions }) {
   if (error && results.length === 0) {
     return (
       <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center">
-        <div>
-          <p className="font-medium">Search unavailable</p>
-          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+        <div className="space-y-3">
+          <div role="alert">
+            <p className="font-medium">Search unavailable</p>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={retry}>
+            <RefreshCwIcon />
+            Try again
+          </Button>
         </div>
       </div>
     )
@@ -233,7 +247,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="overflow-hidden rounded-xl border">
         <Table>
@@ -256,7 +270,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
       {nextCursor && (
         <div className="flex justify-center">
           <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore && <Loader2Icon className="animate-spin" />}
+            {loadingMore && <Loader2Icon className="animate-spin" aria-hidden />}
             {loadingMore ? "Loading…" : "Load more"}
           </Button>
         </div>
