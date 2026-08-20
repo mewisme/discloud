@@ -1703,11 +1703,13 @@ export type components = {
             /** Format: int64 */
             readonly beforeUsedBytes: number;
             readonly changed: boolean;
+            readonly name: string;
             readonly overQuota: boolean;
             /** Format: int64 */
             readonly quotaBytes: number | null;
             /** Format: uuid */
             readonly userId: string;
+            readonly username: string;
         };
         readonly SearchResult: {
             readonly category?: string;

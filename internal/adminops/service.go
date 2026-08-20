@@ -126,6 +126,8 @@ type StorageOverview struct {
 
 type QuotaReconciliation struct {
 	UserID              string `json:"userId"`
+	Username            string `json:"username"`
+	Name                string `json:"name"`
 	QuotaBytes          *int64 `json:"quotaBytes"`
 	BeforeUsedBytes     int64  `json:"beforeUsedBytes"`
 	AfterUsedBytes      int64  `json:"afterUsedBytes"`

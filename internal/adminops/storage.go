@@ -125,6 +125,8 @@ func (s *Service) ReconcileQuota(ctx context.Context, actorUserID, userID string
 		rows, err := tx.Query(ctx, `
 			SELECT
 				id::text,
+				username::text,
+				name,
 				storage_quota_bytes,
 				storage_used_bytes,
 				storage_reserved_bytes
@@ -145,6 +147,8 @@ func (s *Service) ReconcileQuota(ctx context.Context, actorUserID, userID string
 			var item QuotaReconciliation
 			if err := rows.Scan(
 				&item.UserID,
+				&item.Username,
+				&item.Name,
 				&item.QuotaBytes,
 				&item.BeforeUsedBytes,
 				&item.BeforeReservedBytes,
@@ -242,7 +246,10 @@ func (s *Service) ReconcileQuota(ctx context.Context, actorUserID, userID string
 		}
 
 		sort.Slice(reconciled, func(i, j int) bool {
-			return reconciled[i].UserID < reconciled[j].UserID
+			if reconciled[i].Username == reconciled[j].Username {
+				return reconciled[i].UserID < reconciled[j].UserID
+			}
+			return reconciled[i].Username < reconciled[j].Username
 		})
 
 		event := audit.Event{
