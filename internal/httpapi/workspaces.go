@@ -14,6 +14,7 @@ import (
 type workspaceOwnerResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
+	Name     string `json:"name"`
 	Role     string `json:"role"`
 	Status   string `json:"status"`
 }
@@ -64,7 +65,7 @@ func registerWorkspaceRoutes(mux *http.ServeMux, service *adminusers.Service, au
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(workspaceResponse{
 			Owner: workspaceOwnerResponse{
-				ID: owner.ID, Username: owner.Username, Role: owner.Role, Status: owner.Status,
+				ID: owner.ID, Username: owner.Username, Name: owner.Name, Role: owner.Role, Status: owner.Status,
 			},
 			Root: workspaceRootResponse{
 				ID: root.ID, Name: root.Name,

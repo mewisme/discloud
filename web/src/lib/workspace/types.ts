@@ -1,10 +1,4 @@
-import type { CurrentUserUsage, Node } from "@/lib/api/models"
+import type { WorkspaceDetails } from "@/lib/api/models"
 
-export type Workspace = {
-  owner: {
-    id: string
-    username: string
-  }
-  root: Node
-  usage: CurrentUserUsage
-}
+export type Workspace = WorkspaceDetails
+export type WorkspaceOwner = Workspace["owner"]

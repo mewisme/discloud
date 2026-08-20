@@ -2,10 +2,9 @@
 
 import { createContext, type ReactNode, useContext } from "react"
 
-export type Workspace = {
-  id: string
-  username: string
-}
+import type { WorkspaceOwner } from "@/lib/workspace/types"
+
+export type Workspace = WorkspaceOwner
 
 const WorkspaceContext = createContext<Workspace | null>(null)
 

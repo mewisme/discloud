@@ -84,7 +84,7 @@ export function WorkspaceSwitcher() {
     return (
       <div className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm group-data-[collapsible=icon]:justify-center">
         <FolderRootIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate group-data-[collapsible=icon]:hidden">{workspace.username}&apos;s Workspace</span>
+        <span className="truncate group-data-[collapsible=icon]:hidden">{workspace.name}</span>
       </div>
     )
   }
@@ -95,7 +95,7 @@ export function WorkspaceSwitcher() {
         <Button variant="ghost" className="h-9 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center">
           <FolderRootIcon className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
-            {workspace.username}&apos;s Workspace
+            {workspace.name}
           </span>
           <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </Button>
@@ -145,7 +145,9 @@ export function WorkspaceSwitcher() {
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate">{user.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">@{user.username} · <span className="capitalize">{user.role}</span></p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        @{user.username} · <span className="capitalize">{user.role}</span>
+                      </p>
                     </div>
                   </CommandItem>
                 ))}

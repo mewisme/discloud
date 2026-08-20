@@ -4289,6 +4289,7 @@ export interface operations {
                         readonly owner: {
                             /** Format: uuid */
                             readonly id: string;
+                            readonly name: string;
                             /** @enum {string} */
                             readonly role: "admin" | "user";
                             readonly status: string;

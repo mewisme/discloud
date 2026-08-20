@@ -111,7 +111,7 @@ function AppSidebar({
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>
-            {workspace.username === user.username ? "Workspace" : `${workspace.username}'s Workspace`}
+            {workspace.username === user.username ? "Workspace" : `${workspace.name}'s Workspace`}
           </SidebarGroupLabel>
 
           <SidebarGroupContent>
