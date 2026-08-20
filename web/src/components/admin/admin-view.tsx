@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, ShieldCheckIcon, UserRoundIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
-import { CreateUserDialog, ManageUserDialog, ReconcileQuotaDialog } from "@/components/admin/admin-user-dialogs"
+import { CreateUserDialog, ReconcileQuotaDialog, UserActions } from "@/components/admin/admin-user-dialogs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,6 +81,7 @@ export function AdminView({
           </div>
           <p className="mt-1 text-sm text-muted-foreground">Manage users and inspect DisCloud storage state.</p>
         </div>
+
         <CreateUserDialog onCreated={userCreated} />
       </div>
 
@@ -90,6 +91,7 @@ export function AdminView({
             <h2 className="text-lg font-semibold">Storage</h2>
             <p className="text-sm text-muted-foreground">Logical usage, physical chunks, reservations, and quota consistency.</p>
           </div>
+
           <ReconcileQuotaDialog onReconciled={reconciled} />
         </div>
 
@@ -120,7 +122,7 @@ export function AdminView({
                 <TableHead className="hidden w-28 md:table-cell">Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Storage</TableHead>
                 <TableHead className="hidden xl:table-cell">Quota</TableHead>
-                <TableHead className="w-28" />
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
 
@@ -173,7 +175,7 @@ export function AdminView({
 
                     <TableCell>
                       <div className="flex justify-end">
-                        <ManageUserDialog user={user} currentUserId={currentUserId} onUpdated={userUpdated} />
+                        <UserActions user={user} currentUserId={currentUserId} onUpdated={userUpdated} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -205,7 +207,6 @@ function StorageOverviewCards({ storage }: { storage: StorageOverview }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard icon={<UsersIcon />} label="Users" value={formatNumber(storage.userCount)} detail={`${formatNumber(storage.activeFileCount)} active files`} />
-
       <MetricCard
         icon={<HardDriveIcon />}
         label="Logical storage"
@@ -213,23 +214,19 @@ function StorageOverviewCards({ storage }: { storage: StorageOverview }) {
         detail={logicalMismatch ? `Cached ${formatBytes(storage.cachedLogicalUsedBytes)} · mismatch` : "Quota cache matches"}
         warning={logicalMismatch}
       />
-
       <MetricCard
         icon={<DatabaseIcon />}
         label="Unique chunks"
         value={formatBytes(storage.uniqueChunkBytes)}
         detail={`${formatNumber(storage.uniqueChunkCount)} chunks · ${formatNumber(storage.readyChunkCount)} ready`}
       />
-
       <MetricCard
         icon={<FileIcon />}
         label="Reserved"
         value={formatBytes(storage.derivedReservedBytes)}
-        detail={
-          reservedMismatch || storage.quotaMismatchUsers > 0
-            ? `${formatNumber(storage.quotaMismatchUsers)} quota mismatch users`
-            : `${formatBytes(storage.orphanCandidateChunkBytes)} orphan candidates`
-        }
+        detail={reservedMismatch || storage.quotaMismatchUsers > 0
+          ? `${formatNumber(storage.quotaMismatchUsers)} quota mismatch users`
+          : `${formatBytes(storage.orphanCandidateChunkBytes)} orphan candidates`}
         warning={reservedMismatch || storage.quotaMismatchUsers > 0}
       />
     </div>
