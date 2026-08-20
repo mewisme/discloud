@@ -27,10 +27,11 @@ export function WorkspaceSwitcher() {
   const [users, setUsers] = useState<AdminDirectoryUser[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [reloadVersion, setReloadVersion] = useState(0)
   const [error, setError] = useState<string>()
 
   useEffect(() => {
-    if (!open || loaded || loading || currentUser.role !== "admin") return
+    if (!open || loaded || currentUser.role !== "admin") return
 
     const controller = new AbortController()
     setLoading(true)
@@ -38,10 +39,9 @@ export function WorkspaceSwitcher() {
 
     void listAdminUserDirectory(controller.signal)
       .then((items) => {
-        if (!controller.signal.aborted) {
-          setUsers(items.filter((user) => user.status === "active"))
-          setLoaded(true)
-        }
+        if (controller.signal.aborted) return
+        setUsers(items.filter((user) => user.status === "active"))
+        setLoaded(true)
       })
       .catch((cause) => {
         if (controller.signal.aborted) return
@@ -57,7 +57,7 @@ export function WorkspaceSwitcher() {
       })
 
     return () => controller.abort()
-  }, [currentUser.role, loaded, loading, open, router])
+  }, [currentUser.role, loaded, open, reloadVersion, router])
 
   function select(username: string) {
     if (username === workspace.username) {
@@ -78,6 +78,12 @@ export function WorkspaceSwitcher() {
     setOpen(false)
     setOpenMobile(false)
     router.push(href)
+  }
+
+  function retry() {
+    setError(undefined)
+    setLoaded(false)
+    setReloadVersion((value) => value + 1)
   }
 
   if (currentUser.role !== "admin") {
@@ -116,15 +122,7 @@ export function WorkspaceSwitcher() {
             {error && (
               <div className="space-y-2 p-3">
                 <p className="text-sm text-destructive">{error}</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    setLoaded(false)
-                    setError(undefined)
-                  }}
-                >
+                <Button size="sm" variant="outline" className="w-full" onClick={retry}>
                   <RefreshCwIcon />
                   Try again
                 </Button>

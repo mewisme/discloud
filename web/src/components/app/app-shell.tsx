@@ -10,6 +10,7 @@ import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { HeaderUserMenu } from "@/components/app/header-user-menu"
 import { ModeToggle } from "@/components/app/mode-toggle"
 import { type Workspace, WorkspaceProvider } from "@/components/app/workspace-context"
+import { WorkspaceSwitcher } from "@/components/app/workspace-switcher"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
@@ -111,6 +112,11 @@ function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupContent>
+            <WorkspaceSwitcher />
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
           <SidebarGroupLabel>
             {workspace.username === user.username ? "Workspace" : `${workspace.name}'s workspace`}
           </SidebarGroupLabel>
@@ -179,7 +185,7 @@ function AppHeader({ user, workspace }: { user: User; workspace: Workspace }) {
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75">
       <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger />
-        <Separator orientation="vertical" className="h-5" />
+        <Separator orientation="vertical" className="h-8" />
         <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">{title}</span>
       </div>
 
