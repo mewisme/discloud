@@ -8,14 +8,11 @@ import { FilePreview } from "@/components/files/file-preview"
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Spinner } from "@/components/ui/spinner"
-import { apiURL } from "@/lib/api/client"
 import { filePreviewKind } from "@/lib/files/preview"
+import { clearPreviewPreloadWindow, setPreviewPreloadWindow } from "@/lib/files/preview-preload"
 import { cn } from "@/lib/utils"
 
 const infoAutoHideMs = 2200
-const previewWarmRangeEnd = 256 * 1024 - 1
-const warmedPreviewAssets = new Set<string>()
-const warmingPreviewAssets = new Set<string>()
 
 export type PreviewCarouselFile = {
   id: string
@@ -38,6 +35,7 @@ export function FilePreviewCarousel({
 }) {
   const router = useRouter()
   const { config } = useUserConfig()
+  const preloadOwnerRef = useRef(Symbol("file-preview-carousel"))
   const [api, setApi] = useState<CarouselApi>()
   const [infoVisible, setInfoVisible] = useState(true)
   const navigatingToRef = useRef<string | undefined>(undefined)
@@ -53,9 +51,12 @@ export function FilePreviewCarousel({
   }, [files])
   const currentIndex = slides.findIndex((file) => file.id === currentFile.id)
   const [selectedIndex, setSelectedIndex] = useState(Math.max(0, currentIndex))
-  const preloadTargets = slides.slice(
-    selectedIndex + 1,
-    selectedIndex + 1 + config.common.filePreview.preloadNext,
+  const preloadTargets = useMemo(
+    () => slides.slice(
+      selectedIndex + 1,
+      selectedIndex + 1 + config.common.filePreview.preloadNext,
+    ),
+    [config.common.filePreview.preloadNext, selectedIndex, slides],
   )
 
   const clearInfoTimer = useCallback(() => {
@@ -82,7 +83,20 @@ export function FilePreviewCarousel({
   }, [clearInfoTimer])
 
   useEffect(() => {
-    return clearInfoTimer
+    setPreviewPreloadWindow(
+      preloadOwnerRef.current,
+      preloadTargets,
+      collectionId,
+    )
+  }, [collectionId, preloadTargets])
+
+  useEffect(() => {
+    const preloadOwner = preloadOwnerRef.current
+
+    return () => {
+      clearPreviewPreloadWindow(preloadOwner)
+      clearInfoTimer()
+    }
   }, [clearInfoTimer])
 
   useEffect(() => {
@@ -117,6 +131,7 @@ export function FilePreviewCarousel({
     }
 
     api.on("select", select)
+
     return () => {
       api.off("select", select)
     }
@@ -129,82 +144,76 @@ export function FilePreviewCarousel({
   const selected = slides[selectedIndex]
 
   return (
-    <>
-      <Carousel
-        setApi={setApi}
-        opts={{
-          startIndex: currentIndex,
-          align: "start",
-          loop: false,
-        }}
-        tabIndex={0}
-        aria-label="File preview"
-        className="min-w-0"
-        onMouseEnter={() => showInfo()}
-        onMouseMove={() => {
-          if (!infoVisible) showInfo()
-        }}
-        onMouseLeave={hideInfo}
-        onFocusCapture={() => showInfo()}
-      >
-        <CarouselContent className="ml-0">
-          {slides.map((file, index) => (
-            <CarouselItem key={file.id} className="pl-0">
-              {file.id === currentFile.id ? (
-                <FilePreview file={currentFile} collectionId={collectionId} />
-              ) : (
-                <PendingPreview file={file} active={index === selectedIndex} />
-              )}
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-
-        <CarouselPrevious
-          variant="secondary"
-          className="left-3 z-20 bg-background/85 shadow-md backdrop-blur-md"
-        />
-
-        <CarouselNext
-          variant="secondary"
-          className="right-3 z-20 bg-background/85 shadow-md backdrop-blur-md"
-        />
-
-        {selected && (
-          <>
-            <p className="sr-only" role="status" aria-live="polite">
-              {selected.name}, {selectedIndex + 1} of {slides.length}
-            </p>
-
-            <div
-              aria-hidden
-              className={cn(
-                "pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 rounded-full border bg-background/85 px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-md transition-[opacity,transform] duration-200",
-                infoVisible ? "-translate-y-0 opacity-100" : "translate-y-2 opacity-0",
-              )}
-            >
-              <span className="block truncate">{selected.name}</span>
-              <span className="text-muted-foreground">
-                {selectedIndex + 1} / {slides.length}
-              </span>
-            </div>
-          </>
-        )}
-      </Carousel>
-
-      <div aria-hidden className="hidden">
-        {preloadTargets.map((file) => (
-          <PreviewAssetPreloader
-            key={file.id}
-            file={file}
-            collectionId={collectionId}
-          />
+    <Carousel
+      setApi={setApi}
+      opts={{
+        startIndex: currentIndex,
+        align: "start",
+        loop: false,
+      }}
+      tabIndex={0}
+      aria-label="File preview"
+      className="min-w-0"
+      onMouseEnter={() => showInfo()}
+      onMouseMove={() => {
+        if (!infoVisible) showInfo()
+      }}
+      onMouseLeave={hideInfo}
+      onFocusCapture={() => showInfo()}
+    >
+      <CarouselContent className="ml-0">
+        {slides.map((file, index) => (
+          <CarouselItem key={file.id} className="pl-0">
+            {file.id === currentFile.id ? (
+              <FilePreview file={currentFile} collectionId={collectionId} />
+            ) : (
+              <PendingPreview file={file} active={index === selectedIndex} />
+            )}
+          </CarouselItem>
         ))}
-      </div>
-    </>
+      </CarouselContent>
+
+      <CarouselPrevious
+        variant="secondary"
+        className="left-3 z-20 bg-background/85 shadow-md backdrop-blur-md"
+      />
+
+      <CarouselNext
+        variant="secondary"
+        className="right-3 z-20 bg-background/85 shadow-md backdrop-blur-md"
+      />
+
+      {selected && (
+        <>
+          <p className="sr-only" role="status" aria-live="polite">
+            {selected.name}, {selectedIndex + 1} of {slides.length}
+          </p>
+
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 rounded-full border bg-background/85 px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-md transition-[opacity,transform] duration-200",
+              infoVisible ? "-translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+            )}
+          >
+            <span className="block truncate">{selected.name}</span>
+            <span className="text-muted-foreground">
+              {selectedIndex + 1} / {slides.length}
+            </span>
+          </div>
+        </>
+      )}
+    </Carousel>
   )
 }
 
-function PendingPreview({ file, active }: { file: PreviewCarouselFile; active: boolean }) {
+function PendingPreview({
+  file,
+  active,
+}: {
+  file: PreviewCarouselFile
+  active: boolean
+}) {
   return (
     <div className="grid min-h-80 place-items-center overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
       <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
@@ -217,92 +226,4 @@ function PendingPreview({ file, active }: { file: PreviewCarouselFile; active: b
       </div>
     </div>
   )
-}
-
-function PreviewAssetPreloader({
-  file,
-  collectionId,
-}: {
-  file: PreviewCarouselFile
-  collectionId?: string
-}) {
-  useEffect(() => {
-    const kind = filePreviewKind(file.mimeType, file.category)
-    const contentURL = apiURL(
-      `/files/${encodeURIComponent(file.id)}/content`,
-      collectionId ? { collectionId } : undefined,
-    )
-
-    if (warmedPreviewAssets.has(contentURL) || warmingPreviewAssets.has(contentURL)) return
-
-    warmingPreviewAssets.add(contentURL)
-
-    if (kind === "image") {
-      const image = new window.Image()
-
-      const complete = (success: boolean) => {
-        warmingPreviewAssets.delete(contentURL)
-        if (success) warmedPreviewAssets.add(contentURL)
-      }
-
-      image.decoding = "async"
-      image.onload = () => complete(true)
-      image.onerror = () => complete(false)
-      image.src = contentURL
-
-      return () => {
-        image.onload = null
-        image.onerror = null
-      }
-    }
-
-    if (kind === "video" || kind === "audio") {
-      const media = document.createElement(kind)
-
-      const complete = () => {
-        warmingPreviewAssets.delete(contentURL)
-        warmedPreviewAssets.add(contentURL)
-      }
-
-      const fail = () => {
-        warmingPreviewAssets.delete(contentURL)
-      }
-
-      media.preload = "metadata"
-      media.addEventListener("loadedmetadata", complete, { once: true })
-      media.addEventListener("error", fail, { once: true })
-      media.src = contentURL
-      media.load()
-
-      return () => {
-        media.removeEventListener("loadedmetadata", complete)
-        media.removeEventListener("error", fail)
-        media.removeAttribute("src")
-        media.load()
-      }
-    }
-
-    if (kind === "pdf" || kind === "text") {
-      const controller = new AbortController()
-
-      void fetch(contentURL, {
-        credentials: "include",
-        headers: {
-          Range: `bytes=0-${previewWarmRangeEnd}`,
-        },
-        signal: controller.signal,
-      }).then((response) => {
-        warmingPreviewAssets.delete(contentURL)
-        if (response.ok) warmedPreviewAssets.add(contentURL)
-      }).catch(() => {
-        warmingPreviewAssets.delete(contentURL)
-      })
-
-      return () => controller.abort()
-    }
-
-    warmingPreviewAssets.delete(contentURL)
-  }, [collectionId, file.category, file.id, file.mimeType])
-
-  return null
 }
