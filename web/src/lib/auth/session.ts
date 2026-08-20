@@ -3,6 +3,7 @@ import "server-only"
 import type { User } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
+import { workspacePath } from "@/lib/files/navigation"
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
@@ -13,6 +14,6 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-export function authenticatedPath(user: Pick<User, "mustChangePassword">) {
-  return user.mustChangePassword ? "/change-password" : "/files"
+export function authenticatedPath(user: Pick<User, "mustChangePassword" | "username">) {
+  return user.mustChangePassword ? "/change-password" : workspacePath(user.username)
 }

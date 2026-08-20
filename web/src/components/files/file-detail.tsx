@@ -4,7 +4,7 @@ import { DownloadIcon, FileIcon, FolderIcon, InfoIcon, TriangleAlertIcon } from 
 import Link from "next/link"
 import type { ReactNode } from "react"
 
-import { useCurrentUser } from "@/components/app/current-user-context"
+import { useWorkspace } from "@/components/app/workspace-context"
 import { FilePreviewCarousel, type PreviewCarouselFile } from "@/components/files/file-preview-carousel"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { File, Node } from "@/lib/api/models"
+import { fileBrowserPath, folderBrowserPath, workspacePath } from "@/lib/files/navigation"
 import { formatBytes, formatDuration, formatNumber } from "@/lib/helpers"
 
 export function FileDetail({
@@ -23,14 +24,19 @@ export function FileDetail({
   breadcrumbs: readonly Node[]
   previewFiles: readonly PreviewCarouselFile[]
 }) {
-  const user = useCurrentUser()
+  const workspace = useWorkspace()
   const parent = breadcrumbs[breadcrumbs.length - 1]
-  const parentHref = parent?.isRoot ? "/files" : parent ? `/files/${encodeURIComponent(parent.id)}` : "/files"
+  const parentHref = parent?.isRoot
+    ? folderBrowserPath(workspace.username)
+    : parent
+      ? folderBrowserPath(workspace.username, parent.id)
+      : folderBrowserPath(workspace.username)
+
   const breadcrumbItems = [
     ...breadcrumbs.map((item) => ({
       id: item.id,
-      label: item.isRoot ? `${user.username}'s Workspace` : item.name,
-      href: item.isRoot ? "/files" : `/files/${encodeURIComponent(item.id)}`,
+      label: item.isRoot ? `${workspace.username}'s Workspace` : item.name,
+      href: folderBrowserPath(workspace.username, item.isRoot ? undefined : item.id),
     })),
     { id: `file:${file.id}`, label: file.name },
   ]
@@ -89,7 +95,7 @@ export function FileDetail({
           <FilePreviewCarousel
             currentFile={file}
             files={previewFiles}
-            routeBase="/files/file"
+            routeBase={workspacePath(workspace.username, "files")}
           />
         </section>
 

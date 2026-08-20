@@ -9,11 +9,13 @@ import { CommandPalette } from "@/components/app/command-palette"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { HeaderUserMenu } from "@/components/app/header-user-menu"
 import { ModeToggle } from "@/components/app/mode-toggle"
+import { type Workspace, WorkspaceProvider } from "@/components/app/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
+import { workspacePath, workspaceRelativePath } from "@/lib/files/navigation"
 import { formatBytes, isActivePath } from "@/lib/helpers"
 
 type NavItem = {
@@ -24,82 +26,81 @@ type NavItem = {
   exact?: boolean
 }
 
-const workspace: NavItem[] = [
-  { title: "Files", href: "/files", icon: FolderIcon, enabled: true },
-  { title: "Search", href: "/search", icon: SearchIcon, enabled: true },
-  { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: true },
-  { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: true },
-  { title: "Shared", href: "/shared", icon: Share2Icon, enabled: true },
-  { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: true },
-]
-
-const management: NavItem[] = [
-  { title: "Admin", href: "/admin", icon: ShieldIcon, enabled: true, exact: true },
-  { title: "Diagnostics", href: "/admin/diagnostics", icon: ActivityIcon, enabled: true },
-]
-
-const titles = [
-  ["/settings/profile", "Profile"],
-  ["/settings/security", "Security"],
-  ["/settings/common", "Common"],
-  ["/settings", "Settings"],
-  ["/admin/diagnostics", "Diagnostics"],
-  ["/collections", "Collections"],
-  ["/favorites", "Favorites"],
-  ["/shared", "Shared"],
-  ["/search", "Search"],
-  ["/trash", "Trash"],
-  ["/admin", "Admin"],
-  ["/files", "Files"],
-] as const
-
 export function AppShell({
   children,
   user,
+  workspace,
   usage,
   defaultSidebarOpen,
 }: {
   children: ReactNode
   user: User
+  workspace: Workspace
   usage: CurrentUserUsage
   defaultSidebarOpen: boolean
 }) {
   return (
     <CurrentUserProvider user={user}>
-      <SidebarProvider defaultOpen={defaultSidebarOpen}>
-        <Button asChild size="sm" variant="secondary" className="fixed left-3 top-3 z-50 -translate-y-20 shadow-lg transition-transform focus:translate-y-0">
-          <Link href="#main-content">Skip to content</Link>
-        </Button>
+      <WorkspaceProvider workspace={workspace}>
+        <SidebarProvider defaultOpen={defaultSidebarOpen}>
+          <Button asChild size="sm" variant="secondary" className="fixed left-3 top-3 z-50 -translate-y-20 shadow-lg transition-transform focus:translate-y-0">
+            <Link href="#main-content">Skip to content</Link>
+          </Button>
 
-        <AppSidebar user={user} usage={usage} />
+          <AppSidebar user={user} workspace={workspace} usage={usage} />
 
-        <SidebarInset>
-          <AppHeader user={user} />
+          <SidebarInset>
+            <AppHeader user={user} workspace={workspace} />
 
-          <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
-            {children}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
+            <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
+              {children}
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </WorkspaceProvider>
     </CurrentUserProvider>
   )
 }
 
-function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
+function AppSidebar({
+  user,
+  workspace,
+  usage,
+}: {
+  user: User
+  workspace: Workspace
+  usage: CurrentUserUsage
+}) {
+  const workspaceItems: NavItem[] = [
+    { title: "Files", href: workspacePath(workspace.username), icon: FolderIcon, enabled: true, exact: true },
+    { title: "Search", href: workspacePath(workspace.username, "search"), icon: SearchIcon, enabled: true },
+    { title: "Favorites", href: workspacePath(workspace.username, "favorites"), icon: HeartIcon, enabled: true },
+    { title: "Collections", href: workspacePath(workspace.username, "collections"), icon: LibraryIcon, enabled: true },
+    { title: "Shared", href: workspacePath(workspace.username, "shared"), icon: Share2Icon, enabled: true },
+    { title: "Trash", href: workspacePath(workspace.username, "trash"), icon: Trash2Icon, enabled: true },
+  ]
+
+  const managementItems: NavItem[] = [
+    { title: "Admin", href: workspacePath(workspace.username, "admin"), icon: ShieldIcon, enabled: true, exact: true },
+    { title: "Diagnostics", href: workspacePath(workspace.username, "admin/diagnostics"), icon: ActivityIcon, enabled: true },
+  ]
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip="DisCloud">
-              <Link href="/files">
+              <Link href={workspacePath(workspace.username)}>
                 <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                   <CloudIcon className="size-4" />
                 </div>
 
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">DisCloud</span>
-                  <span className="truncate text-xs text-muted-foreground">File storage</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    @{workspace.username}
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -109,10 +110,12 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            {workspace.username === user.username ? "Workspace" : `${workspace.username}'s Workspace`}
+          </SidebarGroupLabel>
 
           <SidebarGroupContent>
-            <AppNav items={workspace} />
+            <AppNav items={workspaceItems} />
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -121,14 +124,14 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
             <SidebarGroupLabel>Management</SidebarGroupLabel>
 
             <SidebarGroupContent>
-              <AppNav items={management} />
+              <AppNav items={managementItems} />
             </SidebarGroupContent>
           </SidebarGroup>
         )}
       </SidebarContent>
 
       <SidebarFooter>
-        <QuotaUsage usage={usage} />
+        <QuotaUsage username={workspace.username} usage={usage} showOwner={workspace.username !== user.username} />
       </SidebarFooter>
 
       <SidebarRail />
@@ -143,7 +146,7 @@ function AppNav({ items }: { items: NavItem[] }) {
   return (
     <SidebarMenu>
       {items.map((item) => {
-        const active = item.exact ? pathname === item.href : isActivePath(pathname, item.href)
+        const active = item.exact ? pathname === item.href || pathname === `${item.href}/` : isActivePath(pathname, item.href)
 
         return (
           <SidebarMenuItem key={item.href}>
@@ -155,11 +158,7 @@ function AppNav({ items }: { items: NavItem[] }) {
                 </Link>
               </SidebarMenuButton>
             ) : (
-              <SidebarMenuButton
-                aria-disabled
-                className="cursor-not-allowed opacity-50"
-                tooltip={`${item.title} · coming soon`}
-              >
+              <SidebarMenuButton aria-disabled className="cursor-not-allowed opacity-50" tooltip={`${item.title} · coming soon`}>
                 <item.icon />
                 <span>{item.title}</span>
               </SidebarMenuButton>
@@ -171,9 +170,9 @@ function AppNav({ items }: { items: NavItem[] }) {
   )
 }
 
-function AppHeader({ user }: { user: User }) {
+function AppHeader({ user, workspace }: { user: User; workspace: Workspace }) {
   const pathname = usePathname()
-  const title = titles.find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1] ?? "DisCloud"
+  const title = routeTitle(pathname, workspace.username)
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75">
@@ -199,7 +198,15 @@ function AppHeader({ user }: { user: User }) {
   )
 }
 
-function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
+function QuotaUsage({
+  username,
+  usage,
+  showOwner,
+}: {
+  username: string
+  usage: CurrentUserUsage
+  showOwner: boolean
+}) {
   const committed = usage.usedBytes + usage.reservedBytes
   const percent = usage.quotaBytes === null
     ? 0
@@ -208,7 +215,9 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
   return (
     <div className="mx-1 space-y-2 rounded-lg border bg-background p-2.5 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium">Storage</span>
+        <span className="min-w-0 truncate font-medium">
+          {showOwner ? `@${username} storage` : "Storage"}
+        </span>
         {usage.quotaBytes !== null && (
           <span className="tabular-nums text-muted-foreground">
             {Math.round(percent)}%
@@ -226,4 +235,23 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
       {usage.overQuota && <div className="text-xs font-medium text-destructive">Quota exceeded</div>}
     </div>
   )
+}
+
+function routeTitle(pathname: string, username: string) {
+  const path = workspaceRelativePath(pathname, username)
+  if (!path) return "DisCloud"
+  if (path === "/" || path.startsWith("/folders/")) return "Files"
+  if (path.startsWith("/files/")) return "File"
+  if (path.startsWith("/admin/diagnostics")) return "Diagnostics"
+  if (path === "/admin" || path.startsWith("/admin/")) return "Admin"
+  if (path.startsWith("/settings/profile")) return "Profile"
+  if (path.startsWith("/settings/security")) return "Security"
+  if (path.startsWith("/settings/common")) return "Common"
+  if (path === "/settings" || path.startsWith("/settings/")) return "Settings"
+  if (path.startsWith("/collections")) return "Collections"
+  if (path.startsWith("/favorites")) return "Favorites"
+  if (path.startsWith("/shared")) return "Shared"
+  if (path.startsWith("/search")) return "Search"
+  if (path.startsWith("/trash")) return "Trash"
+  return "DisCloud"
 }

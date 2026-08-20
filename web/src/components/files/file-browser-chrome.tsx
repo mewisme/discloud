@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
 
 import { AccessDialog } from "@/components/access/access-dialog"
-import { useCurrentUser } from "@/components/app/current-user-context"
+import { useWorkspace } from "@/components/app/workspace-context"
 import { CreateFolderDialog } from "@/components/files/node-actions"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
@@ -18,7 +18,6 @@ import type { Node, NodePage, UserConfig } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
 import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "@/lib/files/commands"
 import { folderBrowserURL } from "@/lib/files/navigation"
-import { cn } from "@/lib/utils"
 
 type ToolbarConfig = UserConfig["common"]["fileBrowserToolbar"]
 
@@ -49,7 +48,7 @@ export function FileBrowserChrome({
   onReload: () => Promise<void>
   onOptionsChange: (patch: Partial<BrowserOptions>) => void
 }) {
-  const user = useCurrentUser()
+  const workspace = useWorkspace()
   const uploadTarget = useUploadTarget()
   const [accessOpen, setAccessOpen] = useState(false)
   const [publicShareOpen, setPublicShareOpen] = useState(false)
@@ -57,8 +56,8 @@ export function FileBrowserChrome({
   const shareable = accessLevel === "full"
   const breadcrumbItems = breadcrumbs.map((item) => ({
     id: item.id,
-    label: item.isRoot ? `${user.username}'s Workspace` : item.name,
-    href: folderBrowserURL(item.id, options),
+    label: item.isRoot ? `${workspace.username}'s Workspace` : item.name,
+    href: folderBrowserURL(workspace.username, item.isRoot ? undefined : item.id, options),
   }))
 
   function changeSort(sort: BrowserSort) {

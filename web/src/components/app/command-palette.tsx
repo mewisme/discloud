@@ -5,25 +5,27 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
+import { useWorkspace } from "@/components/app/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { FILE_BROWSER_CREATE_FOLDER_EVENT, FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
-import { folderIdFromBrowserPath } from "@/lib/files/navigation"
+import { folderBrowserPath, folderIdFromBrowserPath, workspacePath } from "@/lib/files/navigation"
 
 export function CommandPalette() {
   const router = useRouter()
   const pathname = usePathname()
   const user = useCurrentUser()
+  const workspace = useWorkspace()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [folders, setFolders] = useState<SearchResult[]>([])
   const [folderLoading, setFolderLoading] = useState(false)
   const [folderError, setFolderError] = useState(false)
   const value = query.trim()
-  const inFileBrowser = folderIdFromBrowserPath(pathname) !== null
+  const inFileBrowser = folderIdFromBrowserPath(pathname, workspace.username) !== null
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -52,6 +54,7 @@ export function CommandPalette() {
       try {
         const searchQuery = {
           q: value,
+          ownerId: workspace.id,
           kind: "folder",
           sort: "relevance",
           order: "desc",
@@ -62,11 +65,13 @@ export function CommandPalette() {
         setFolders([...page.results].filter((result) => result.kind === "folder"))
       } catch (error) {
         if (controller.signal.aborted) return
+
         if (error instanceof APIError && error.status === 401) {
           router.replace("/login")
           router.refresh()
           return
         }
+
         setFolders([])
         setFolderError(true)
       } finally {
@@ -78,7 +83,7 @@ export function CommandPalette() {
       clearTimeout(timeout)
       controller.abort()
     }
-  }, [open, router, value])
+  }, [open, router, value, workspace.id])
 
   function close() {
     setOpen(false)
@@ -95,7 +100,9 @@ export function CommandPalette() {
   function searchFiles() {
     const params = new URLSearchParams()
     if (value) params.set("q", value)
-    navigate(params.size ? `/search?${params}` : "/search")
+
+    const base = workspacePath(workspace.username, "search")
+    navigate(params.size ? `${base}?${params}` : base)
   }
 
   function browserCommand(eventName: string) {
@@ -134,7 +141,7 @@ export function CommandPalette() {
             </CommandGroup>
 
             {value.length >= 2 && (
-              <CommandGroup heading="Go to folder">
+              <CommandGroup heading={`Go to folder · @${workspace.username}`}>
                 {folderLoading && (
                   <CommandItem disabled>
                     <Loader2Icon className="animate-spin" />
@@ -144,7 +151,11 @@ export function CommandPalette() {
                 {!folderLoading && folderError && <CommandItem disabled>Folder search unavailable</CommandItem>}
                 {!folderLoading && !folderError && folders.length === 0 && <CommandItem disabled>No matching folders</CommandItem>}
                 {!folderLoading && folders.map((folder) => (
-                  <CommandItem key={folder.id} value={`folder:${folder.id}:${folder.name}`} onSelect={() => navigate(`/files/${encodeURIComponent(folder.id)}`)}>
+                  <CommandItem
+                    key={folder.id}
+                    value={`folder:${folder.id}:${folder.name}`}
+                    onSelect={() => navigate(folderBrowserPath(workspace.username, folder.id))}
+                  >
                     <FolderIcon />
                     <span className="truncate">{folder.name}</span>
                   </CommandItem>
@@ -166,13 +177,36 @@ export function CommandPalette() {
             )}
 
             <CommandGroup heading="Navigate">
-              <CommandItem onSelect={() => navigate("/files")}><FolderIcon />Files</CommandItem>
-              <CommandItem onSelect={() => navigate("/favorites")}><HeartIcon />Favorites</CommandItem>
-              <CommandItem onSelect={() => navigate("/collections")}><LibraryIcon />Collections</CommandItem>
-              <CommandItem onSelect={() => navigate("/shared")}><Share2Icon />Shared</CommandItem>
-              <CommandItem onSelect={() => navigate("/trash")}><Trash2Icon />Trash</CommandItem>
-              <CommandItem onSelect={() => navigate("/settings")}><SettingsIcon />Settings</CommandItem>
-              {user.role === "admin" && <CommandItem onSelect={() => navigate("/admin")}><ShieldIcon />Admin</CommandItem>}
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username))}>
+                <FolderIcon />
+                Files
+              </CommandItem>
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "favorites"))}>
+                <HeartIcon />
+                Favorites
+              </CommandItem>
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "collections"))}>
+                <LibraryIcon />
+                Collections
+              </CommandItem>
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "shared"))}>
+                <Share2Icon />
+                Shared
+              </CommandItem>
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "trash"))}>
+                <Trash2Icon />
+                Trash
+              </CommandItem>
+              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "settings"))}>
+                <SettingsIcon />
+                Settings
+              </CommandItem>
+              {user.role === "admin" && (
+                <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "admin"))}>
+                  <ShieldIcon />
+                  Admin
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

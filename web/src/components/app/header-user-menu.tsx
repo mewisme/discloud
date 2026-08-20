@@ -6,15 +6,18 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useSidebar } from "@/components/ui/sidebar"
 import { apiJSON } from "@/lib/api/client"
 import type { User } from "@/lib/api/models"
+import { workspacePath } from "@/lib/files/navigation"
 
 export function HeaderUserMenu({ user }: { user: User }) {
   const router = useRouter()
+  const workspace = useWorkspace()
   const { setOpenMobile } = useSidebar()
   const [pending, setPending] = useState(false)
 
@@ -35,11 +38,7 @@ export function HeaderUserMenu({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-8 gap-2 rounded-lg px-1.5 sm:pr-2"
-          aria-label={`Open ${user.username} menu`}
-        >
+        <Button variant="ghost" className="h-8 gap-2 rounded-lg px-1.5 sm:pr-2" aria-label={`Open ${user.username} menu`}>
           <CurrentUserAvatar className="size-6" />
           <span className="hidden max-w-32 truncate text-sm font-medium lg:inline">
             {user.username}
@@ -52,14 +51,9 @@ export function HeaderUserMenu({ user }: { user: User }) {
         <DropdownMenuLabel className="font-normal">
           <div className="flex items-center gap-3 py-1">
             <CurrentUserAvatar className="size-10" />
-
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
-                {user.username}
-              </p>
-              <p className="truncate text-xs capitalize text-muted-foreground">
-                {user.role}
-              </p>
+              <p className="truncate text-sm font-medium text-foreground">{user.username}</p>
+              <p className="truncate text-xs capitalize text-muted-foreground">{user.role}</p>
             </div>
           </div>
         </DropdownMenuLabel>
@@ -67,21 +61,21 @@ export function HeaderUserMenu({ user }: { user: User }) {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem asChild>
-          <Link href="/settings/profile" onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(workspace.username, "settings/profile")} onClick={() => setOpenMobile(false)}>
             <UserRoundIcon />
             Profile
           </Link>
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
-          <Link href="/settings/security" onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(workspace.username, "settings/security")} onClick={() => setOpenMobile(false)}>
             <ShieldCheckIcon />
             Security
           </Link>
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
-          <Link href="/settings" onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(workspace.username, "settings")} onClick={() => setOpenMobile(false)}>
             <SettingsIcon />
             Settings
           </Link>

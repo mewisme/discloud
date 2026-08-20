@@ -4,6 +4,7 @@ import { FolderOpenIcon, FolderUpIcon, Loader2Icon, StarIcon } from "lucide-reac
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { DateOnly } from "@/components/common/date-time"
 import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
 import { FileNodeVisual } from "@/components/files/file-node-visual"
@@ -12,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
-import { folderBrowserURL } from "@/lib/files/navigation"
+import { fileBrowserPath, folderBrowserURL } from "@/lib/files/navigation"
 import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
 
 type BrowserItemsProps = {
@@ -56,12 +57,13 @@ export function BrowserItems(props: BrowserItemsProps) {
 
 function NodeList(props: BrowserItemsProps & { parent?: Node }) {
   const router = useRouter()
+  const workspace = useWorkspace()
   const allSelected = props.nodes.length > 0 && props.nodes.every((node) => props.selected.has(node.id))
   const someSelected = props.nodes.some((node) => props.selected.has(node.id))
 
   function open(node: BrowserNode) {
     if (node.kind === "folder") props.onNavigate(node.id)
-    else router.push(`/files/file/${node.id}`)
+    else router.push(fileBrowserPath(workspace.username, node.id))
   }
 
   return (
@@ -85,7 +87,11 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
             <TableRow className="select-none">
               <TableCell />
               <TableCell>
-                <a className="flex items-center gap-2 font-medium hover:underline" href={folderBrowserURL(props.parent.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}>
+                <a
+                  className="flex items-center gap-2 font-medium hover:underline"
+                  href={folderBrowserURL(workspace.username, props.parent.isRoot ? undefined : props.parent.id, props.options)}
+                  onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}
+                >
                   <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
                     <FolderUpIcon className="size-4 text-muted-foreground" />
                   </div>
@@ -125,9 +131,17 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
                   <div className="flex min-w-0 items-center gap-2">
                     <FileNodeVisual node={node} className="size-9" iconClassName="size-4" />
                     {node.kind === "folder" ? (
-                      <a className="truncate font-medium hover:underline" href={folderBrowserURL(node.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}>{node.name}</a>
+                      <a
+                        className="truncate font-medium hover:underline"
+                        href={folderBrowserURL(workspace.username, node.id, props.options)}
+                        onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}
+                      >
+                        {node.name}
+                      </a>
                     ) : (
-                      <Link className="truncate font-medium hover:underline" href={`/files/file/${node.id}`}>{node.name}</Link>
+                      <Link className="truncate font-medium hover:underline" href={fileBrowserPath(workspace.username, node.id)}>
+                        {node.name}
+                      </Link>
                     )}
                     {node.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
                   </div>
@@ -149,10 +163,11 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
 
 function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
   const router = useRouter()
+  const workspace = useWorkspace()
 
   function open(node: BrowserNode) {
     if (node.kind === "folder") props.onNavigate(node.id)
-    else router.push(`/files/file/${node.id}`)
+    else router.push(fileBrowserPath(workspace.username, node.id))
   }
 
   return (
@@ -206,9 +221,17 @@ function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
             <div className="min-w-0 p-3">
               <div className="flex min-w-0 items-center gap-1.5">
                 {node.kind === "folder" ? (
-                  <a className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={folderBrowserURL(node.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}>{node.name}</a>
+                  <a
+                    className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline"
+                    href={folderBrowserURL(workspace.username, node.id, props.options)}
+                    onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}
+                  >
+                    {node.name}
+                  </a>
                 ) : (
-                  <Link className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={`/files/file/${node.id}`}>{node.name}</Link>
+                  <Link className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={fileBrowserPath(workspace.username, node.id)}>
+                    {node.name}
+                  </Link>
                 )}
                 {node.isFavorite && <StarIcon className="size-3 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
               </div>

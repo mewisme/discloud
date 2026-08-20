@@ -1,12 +1,10 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 
-import { AppShell } from "@/components/app/app-shell"
 import { UserConfigProvider } from "@/components/settings/user-config-context"
 import { UploadManager } from "@/components/uploads/upload-manager"
 import { UploadProvider } from "@/components/uploads/upload-provider"
-import type { CurrentUserUsage, UserConfig } from "@/lib/api/models"
+import type { UserConfig } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
 import { getCurrentUser } from "@/lib/auth/session"
 
@@ -16,18 +14,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!user) redirect("/login")
   if (user.mustChangePassword) redirect("/change-password")
 
-  const [usage, userConfig, cookieStore] = await Promise.all([
-    apiServerAuthJSON<CurrentUserUsage>("/api/v1/me/usage"),
-    apiServerAuthJSON<UserConfig>("/api/v1/me/config"),
-    cookies(),
-  ])
+  const config = await apiServerAuthJSON<UserConfig>("/me/config")
 
   return (
-    <UserConfigProvider initialConfig={userConfig}>
+    <UserConfigProvider initialConfig={config}>
       <UploadProvider>
-        <AppShell user={user} usage={usage} defaultSidebarOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
-          {children}
-        </AppShell>
+        {children}
         <UploadManager />
       </UploadProvider>
     </UserConfigProvider>

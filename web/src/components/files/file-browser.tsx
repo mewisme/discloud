@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
 import { toast } from "sonner"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { FileBrowserChrome } from "@/components/files/file-browser-chrome"
 import { BrowserItems } from "@/components/files/file-browser-items"
 import { MoveNodesDialog, TrashNodesDialog } from "@/components/files/node-actions"
@@ -15,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "@/components/uploads/upload-provider"
 import { FileUploadTarget } from "@/components/uploads/upload-target"
 import { apiJSON } from "@/lib/api/client"
-import type { Breadcrumbs, BrowserNode, CurrentUserRoot, FolderChildrenQuery, Node, NodePage } from "@/lib/api/models"
+import type { Breadcrumbs, BrowserNode, FolderChildrenQuery, Node, NodePage } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { type BrowserOptions, browserURL } from "@/lib/files/browser"
 import { setNodeFavorite } from "@/lib/files/favorite"
@@ -34,6 +35,7 @@ type HistoryMode = "push" | "replace" | "none"
 export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcrumbs, initialPage, options: initialOptions }: FileBrowserProps) {
   const router = useRouter()
   const { config } = useUserConfig()
+  const workspace = useWorkspace()
   const [folder, setFolder] = useState(initialFolder)
   const [breadcrumbs, setBreadcrumbs] = useState<readonly Node[]>(initialBreadcrumbs)
   const [nodes, setNodes] = useState<BrowserNode[]>(() => [...initialPage.nodes])
@@ -101,7 +103,8 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
       let folderId = targetFolderId
 
       if (!folderId) {
-        const root = await apiJSON<CurrentUserRoot>("/api/v1/me/root", { signal: controller.signal })
+        const root = breadcrumbs[0]
+        if (!root?.isRoot) throw new Error("Workspace root is missing")
         folderId = root.id
       }
 
@@ -124,7 +127,10 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
       setSelected(new Set())
 
       if (historyMode !== "none") {
-        const url = browserURL(folderBrowserPath(nextFolder.id), options)
+        const url = browserURL(
+          folderBrowserPath(workspace.username, nextFolder.isRoot ? undefined : nextFolder.id),
+          options,
+        )
         if (historyMode === "push") window.history.pushState(null, "", url)
         else window.history.replaceState(null, "", url)
       }
@@ -137,7 +143,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
         setTableLoading(false)
       }
     }
-  }, [options, router])
+  }, [breadcrumbs, options, router, workspace.username])
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || tableLoading) return
@@ -173,7 +179,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
   useEffect(() => {
     function popstate() {
-      const folderId = folderIdFromBrowserPath(window.location.pathname)
+      const folderId = folderIdFromBrowserPath(window.location.pathname, workspace.username)
       if (folderId === null || folderId === folder.id) return
       void navigateFolder(folderId, "none")
     }
