@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiJSON } from "@/lib/api/client"
 import type { AdminUser, CreateUserInput, QuotaReconciliationPage, ReconcileQuotaInput, ResetUserPasswordInput, SetUserQuotaInput, UpdateUserInput } from "@/lib/api/models"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
@@ -110,14 +110,17 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Role</FieldLabel>
+              <FieldLabel htmlFor="admin-create-role">Role</FieldLabel>
               <Select value={role} disabled={pending} onValueChange={(value) => setRole(value as AdminRole)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="admin-create-role" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectGroup>
+                    <SelectLabel>Role</SelectLabel>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
@@ -278,14 +281,17 @@ function EditAccountDialog({
           </Field>
 
           <Field>
-            <FieldLabel>Role</FieldLabel>
+            <FieldLabel htmlFor={`admin-role-${user.id}`}>Role</FieldLabel>
             <Select value={role} disabled={pending || self} onValueChange={(value) => setRole(value as AdminRole)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={`admin-role-${user.id}`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">User</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectGroup>
+                  <SelectLabel>Role</SelectLabel>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
             {self && <FieldDescription>Use another administrator account to change your own role.</FieldDescription>}

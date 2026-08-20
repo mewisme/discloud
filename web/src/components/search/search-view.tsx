@@ -8,13 +8,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DateTime } from "@/components/common/date-time"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
-import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort,searchURL } from "@/lib/search/options"
+import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort, searchURL } from "@/lib/search/options"
 
 export function SearchView() {
   const router = useRouter()
@@ -47,64 +47,94 @@ export function SearchView() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={options.kind} onValueChange={(value) => replaceOptions({ kind: value as SearchKind })}>
-          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-32" aria-label="Filter by type">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="file">Files</SelectItem>
-            <SelectItem value="folder">Folders</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Type</SelectLabel>
+              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="file">Files</SelectItem>
+              <SelectItem value="folder">Folders</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
         <Select value={options.category} onValueChange={(value) => replaceOptions({ category: value as SearchCategory })}>
-          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-36" aria-label="Filter by category">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            <SelectItem value="image">Images</SelectItem>
-            <SelectItem value="video">Videos</SelectItem>
-            <SelectItem value="audio">Audio</SelectItem>
-            <SelectItem value="document">Documents</SelectItem>
-            <SelectItem value="text">Text</SelectItem>
-            <SelectItem value="archive">Archives</SelectItem>
-            <SelectItem value="application">Applications</SelectItem>
-            <SelectItem value="binary">Binary</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Category</SelectLabel>
+              <SelectItem value="all">All categories</SelectItem>
+              <SelectItem value="image">Images</SelectItem>
+              <SelectItem value="video">Videos</SelectItem>
+              <SelectItem value="audio">Audio</SelectItem>
+              <SelectItem value="document">Documents</SelectItem>
+              <SelectItem value="text">Text</SelectItem>
+              <SelectItem value="archive">Archives</SelectItem>
+              <SelectItem value="application">Applications</SelectItem>
+              <SelectItem value="binary">Binary</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
         <Select value={options.favorite} onValueChange={(value) => replaceOptions({ favorite: value as SearchFlag })}>
-          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-36" aria-label="Filter by favorite status">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="any">Any favorite</SelectItem>
-            <SelectItem value="true">Favorites</SelectItem>
-            <SelectItem value="false">Not favorite</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Favorite status</SelectLabel>
+              <SelectItem value="any">Any favorite</SelectItem>
+              <SelectItem value="true">Favorites</SelectItem>
+              <SelectItem value="false">Not favorite</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
         <Select value={options.shared} onValueChange={(value) => replaceOptions({ shared: value as SearchFlag })}>
-          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-32" aria-label="Filter by sharing status">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="any">Any sharing</SelectItem>
-            <SelectItem value="true">Shared</SelectItem>
-            <SelectItem value="false">Not shared</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Sharing</SelectLabel>
+              <SelectItem value="any">Any sharing</SelectItem>
+              <SelectItem value="true">Shared</SelectItem>
+              <SelectItem value="false">Not shared</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
         <Select value={options.sort} onValueChange={(value) => changeSort(value as SearchSort)}>
-          <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-36" aria-label="Sort search results by">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            {options.q && <SelectItem value="relevance">Relevance</SelectItem>}
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="created">Created</SelectItem>
-            <SelectItem value="updated">Modified</SelectItem>
-            <SelectItem value="size">Size</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Sort by</SelectLabel>
+              {options.q && <SelectItem value="relevance">Relevance</SelectItem>}
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="created">Created</SelectItem>
+              <SelectItem value="updated">Modified</SelectItem>
+              <SelectItem value="size">Size</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
         <Select value={options.order} onValueChange={(value) => replaceOptions({ order: value as "asc" | "desc" })}>
-          <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" className="w-32" aria-label="Sort direction">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="asc">Ascending</SelectItem>
-            <SelectItem value="desc">Descending</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Direction</SelectLabel>
+              <SelectItem value="asc">Ascending</SelectItem>
+              <SelectItem value="desc">Descending</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 
@@ -170,6 +200,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
     }
 
     void load()
+
     return () => {
       controller.abort()
       moreController.current?.abort()
@@ -178,6 +209,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
+
     const controller = new AbortController()
     moreController.current?.abort()
     moreController.current = controller
@@ -226,6 +258,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
             <p className="font-medium">Search unavailable</p>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           </div>
+
           <Button size="sm" variant="outline" onClick={retry}>
             <RefreshCwIcon />
             Try again
@@ -241,7 +274,9 @@ function SearchResults({ options }: { options: SearchOptions }) {
         <div>
           <SearchIcon className="mx-auto mb-3 size-9 text-muted-foreground" />
           <p className="font-medium">{options.q ? "No matching items" : "No accessible items"}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{options.q ? "Try a different query or remove some filters." : "Files and folders will appear here when available."}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {options.q ? "Try a different query or remove some filters." : "Files and folders will appear here when available."}
+          </p>
         </div>
       </div>
     )
@@ -249,6 +284,10 @@ function SearchResults({ options }: { options: SearchOptions }) {
 
   return (
     <div className="space-y-4">
+      <p className="sr-only" role="status" aria-live="polite">
+        {results.length} result{results.length === 1 ? "" : "s"} loaded.
+      </p>
+
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="overflow-hidden rounded-xl border">
@@ -263,6 +302,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {results.map((result) => <SearchResultRow key={`${result.id}:${result.collectionId ?? ""}`} result={result} />)}
           </TableBody>
@@ -290,18 +330,41 @@ function SearchResultRow({ result }: { result: SearchResult }) {
       <TableCell>
         <div className="flex min-w-0 items-center gap-2">
           <ResultIcon result={result} />
-          {href ? <Link href={href} className="truncate font-medium hover:underline">{result.name}</Link> : <span className="truncate font-medium">{result.name}</span>}
-          {result.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" />}
+          {href ? (
+            <Link href={href} className="truncate font-medium hover:underline">
+              {result.name}
+            </Link>
+          ) : (
+            <span className="truncate font-medium">{result.name}</span>
+          )}
+          {result.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
         </div>
       </TableCell>
-      <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{result.kind === "folder" ? "Folder" : result.category || "File"}</TableCell>
+
+      <TableCell className="hidden capitalize text-muted-foreground md:table-cell">
+        {result.kind === "folder" ? "Folder" : result.category || "File"}
+      </TableCell>
+
       <TableCell className="hidden sm:table-cell">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {collectionOnly ? <><FileIcon className="size-3.5" />Collection</> : result.shared ? <><Share2Icon className="size-3.5" />Shared</> : result.isFavorite ? <><HeartIcon className="size-3.5" />Favorite</> : "Accessible"}
+          {collectionOnly
+            ? <><FileIcon className="size-3.5" />Collection</>
+            : result.shared
+              ? <><Share2Icon className="size-3.5" />Shared</>
+              : result.isFavorite
+                ? <><HeartIcon className="size-3.5" />Favorite</>
+                : "Accessible"}
         </div>
       </TableCell>
-      <TableCell className="hidden text-muted-foreground lg:table-cell">{result.size != null ? formatBytes(result.size) : "—"}</TableCell>
-      <TableCell className="hidden text-muted-foreground xl:table-cell"><DateTime value={result.updatedAt} /></TableCell>
+
+      <TableCell className="hidden text-muted-foreground lg:table-cell">
+        {result.size != null ? formatBytes(result.size) : "—"}
+      </TableCell>
+
+      <TableCell className="hidden text-muted-foreground xl:table-cell">
+        <DateTime value={result.updatedAt} />
+      </TableCell>
+
       <TableCell>
         {result.kind === "file" && (
           <Button size="icon-sm" variant="ghost" asChild>

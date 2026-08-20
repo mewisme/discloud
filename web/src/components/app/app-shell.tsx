@@ -1,22 +1,18 @@
 "use client"
 
-import { ActivityIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, SearchIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
+import { usePathname } from "next/navigation"
 import type { ComponentType, ReactNode } from "react"
-import { useState } from "react"
-import { toast } from "sonner"
 
 import { CommandPalette } from "@/components/app/command-palette"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
-import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
+import { HeaderUserMenu } from "@/components/app/header-user-menu"
+import { ModeToggle } from "@/components/app/mode-toggle"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
-import { apiJSON } from "@/lib/api/client"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 import { formatBytes, isActivePath } from "@/lib/helpers"
 
@@ -79,6 +75,7 @@ export function AppShell({
 
         <SidebarInset>
           <AppHeader user={user} />
+
           <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
             {children}
           </main>
@@ -99,6 +96,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
                 <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                   <CloudIcon className="size-4" />
                 </div>
+
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">DisCloud</span>
                   <span className="truncate text-xs text-muted-foreground">File storage</span>
@@ -112,6 +110,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+
           <SidebarGroupContent>
             <AppNav items={workspace} />
           </SidebarGroupContent>
@@ -120,6 +119,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
         {user.role === "admin" && (
           <SidebarGroup>
             <SidebarGroupLabel>Management</SidebarGroupLabel>
+
             <SidebarGroupContent>
               <AppNav items={management} />
             </SidebarGroupContent>
@@ -155,7 +155,11 @@ function AppNav({ items }: { items: NavItem[] }) {
                 </Link>
               </SidebarMenuButton>
             ) : (
-              <SidebarMenuButton aria-disabled className="cursor-not-allowed opacity-50" tooltip={`${item.title} · coming soon`}>
+              <SidebarMenuButton
+                aria-disabled
+                className="cursor-not-allowed opacity-50"
+                tooltip={`${item.title} · coming soon`}
+              >
                 <item.icon />
                 <span>{item.title}</span>
               </SidebarMenuButton>
@@ -176,131 +180,40 @@ function AppHeader({ user }: { user: User }) {
       <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger />
         <Separator orientation="vertical" className="h-5" />
-        <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">{title}</span>
+        <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">
+          {title}
+        </span>
       </div>
 
-      <div className="pointer-events-none fixed left-1/2 top-2 z-30 w-[min(28rem,calc(100vw-10rem))] -translate-x-1/2 sm:w-[min(28rem,calc(100vw-20rem))]">
+      <div className="pointer-events-none fixed left-1/2 top-2 z-30 w-[calc(100vw-10rem)] max-w-md -translate-x-1/2 sm:w-[min(28rem,calc(100vw-18rem))] lg:w-[min(32rem,calc(100vw-24rem))]">
         <div className="pointer-events-auto">
           <CommandPalette />
         </div>
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <ThemeMenu />
+        <ModeToggle />
         <HeaderUserMenu user={user} />
       </div>
     </header>
   )
 }
 
-function ThemeMenu() {
-  const { theme, setTheme } = useTheme()
-  const ThemeIcon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="Change theme" title="Theme">
-          <ThemeIcon />
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" sideOffset={8} className="w-40">
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
-          <DropdownMenuRadioItem value="system">
-            <MonitorIcon />
-            System
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="light">
-            <SunIcon />
-            Light
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <MoonIcon />
-            Dark
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function HeaderUserMenu({ user }: { user: User }) {
-  const router = useRouter()
-  const { setOpenMobile } = useSidebar()
-  const [pending, setPending] = useState(false)
-
-  async function logout() {
-    setPending(true)
-
-    try {
-      await apiJSON<void>("/auth/logout", { method: "POST" })
-      setOpenMobile(false)
-      router.replace("/login")
-      router.refresh()
-    } catch {
-      toast.error("Could not sign out")
-      setPending(false)
-    }
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={`Open ${user.username} menu`} title={user.username}>
-          <CurrentUserAvatar className="size-7" />
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" sideOffset={8} className="min-w-56">
-        <DropdownMenuLabel>
-          <div className="flex items-center gap-2">
-            <CurrentUserAvatar className="size-9" />
-            <div className="grid min-w-0 text-left text-sm leading-tight">
-              <span className="truncate font-medium text-foreground">{user.username}</span>
-              <span className="truncate text-xs capitalize text-muted-foreground">{user.role}</span>
-            </div>
-          </div>
-        </DropdownMenuLabel>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem asChild>
-          <Link href="/settings" onClick={() => setOpenMobile(false)}>
-            <SettingsIcon />
-            Settings
-          </Link>
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem
-          variant="destructive"
-          disabled={pending}
-          onSelect={(event) => {
-            event.preventDefault()
-            void logout()
-          }}
-        >
-          {pending ? <Loader2Icon className="animate-spin" /> : <LogOutIcon />}
-          {pending ? "Signing out…" : "Sign out"}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
 function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
   const committed = usage.usedBytes + usage.reservedBytes
-  const percent = usage.quotaBytes === null ? 0 : Math.min(100, usage.quotaBytes === 0 ? 100 : committed / usage.quotaBytes * 100)
+  const percent = usage.quotaBytes === null
+    ? 0
+    : Math.min(100, usage.quotaBytes === 0 ? 100 : committed / usage.quotaBytes * 100)
 
   return (
     <div className="mx-1 space-y-2 rounded-lg border bg-background p-2.5 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-medium">Storage</span>
-        {usage.quotaBytes !== null && <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>}
+        {usage.quotaBytes !== null && (
+          <span className="tabular-nums text-muted-foreground">
+            {Math.round(percent)}%
+          </span>
+        )}
       </div>
 
       <div className="truncate text-xs tabular-nums text-muted-foreground">

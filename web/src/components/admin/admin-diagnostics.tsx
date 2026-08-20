@@ -4,7 +4,7 @@ import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { type DiagnosticsDateRange,DiagnosticsDateRangePicker, DiagnosticsFilterBar } from "@/components/admin/diagnostics-filter-bar"
+import { type DiagnosticsDateRange, DiagnosticsDateRangePicker, DiagnosticsFilterBar } from "@/components/admin/diagnostics-filter-bar"
 import { DateTime } from "@/components/common/date-time"
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiJSON } from "@/lib/api/client"
@@ -297,18 +297,21 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
         onReset={resetFilters}
       >
         <Field className="gap-1">
-          <FieldLabel className="text-xs">Status</FieldLabel>
+          <FieldLabel htmlFor="job-status" className="text-xs">Status</FieldLabel>
           <Select value={status} onValueChange={(value) => setStatus(value as JobStatus | "all")}>
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger id="job-status" size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="queued">Queued</SelectItem>
-              <SelectItem value="running">Running</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-              <SelectItem value="dead">Dead</SelectItem>
+              <SelectGroup>
+                <SelectLabel>Job status</SelectLabel>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="queued">Queued</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="dead">Dead</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </Field>
@@ -452,19 +455,22 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
         onReset={resetFilters}
       >
         <Field className="gap-1">
-          <FieldLabel className="text-xs">Status</FieldLabel>
+          <FieldLabel htmlFor="upload-status" className="text-xs">Status</FieldLabel>
           <Select value={status} onValueChange={(value) => setStatus(value as UploadStatus | "all")}>
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger id="upload-status" size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="completing">Completing</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
+              <SelectGroup>
+                <SelectLabel>Upload status</SelectLabel>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="completing">Completing</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </Field>
