@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2Icon, MoreHorizontalIcon, MoveIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
+import { useHotkeys } from "react-hotkeys-hook"
 import { toast } from "sonner"
 import { FileBrowserChrome } from "@/components/files/file-browser-chrome"
 import { BrowserItems } from "@/components/files/file-browser-items"
@@ -16,7 +17,6 @@ import type { Breadcrumbs, BrowserNode, CurrentUserRoot, FolderChildrenQuery, No
 import { APIError } from "@/lib/api/types"
 import { browserURL, type BrowserOptions } from "@/lib/files/browser"
 import { folderBrowserPath, folderIdFromBrowserPath } from "@/lib/files/navigation"
-import { useHotkeys } from "react-hotkeys-hook"
 
 type FileBrowserProps = {
   folder: Node
@@ -53,6 +53,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
   const bulkCanFavorite = selectedNodes.some((node) => node.canFavorite && !node.isFavorite)
   const bulkCanUnfavorite = selectedNodes.some((node) => node.canFavorite && node.isFavorite)
   const hasBulkActions = bulkCanMove || bulkCanTrash || bulkCanFavorite || bulkCanUnfavorite
+  const browserShortcutsEnabled = !moveTargets && !trashTargets && !favoritePending && !tableLoading
   const currentPage: NodePage = { nodes, accessLevel, ...(nextCursor ? { nextCursor } : {}) }
 
   const reloadChildren = useCallback(async (targetOptions = options) => {
@@ -204,7 +205,18 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
     }
   }, [folder.id, reloadChildren, router])
 
-  useHotkeys("r", () => void reloadCurrent(), {}, [reloadCurrent])
+  useHotkeys("r", () => void reloadCurrent(), { enabled: browserShortcutsEnabled }, [browserShortcutsEnabled, reloadCurrent])
+  useHotkeys(["ctrl+a", "meta+a"], () => selectAll(true), {
+    enabled: browserShortcutsEnabled && nodes.length > 0,
+    preventDefault: true,
+  }, [browserShortcutsEnabled, nodes])
+  useHotkeys("esc", clearSelection, {
+    enabled: browserShortcutsEnabled && selectedNodes.length > 0,
+  }, [browserShortcutsEnabled, selectedNodes.length])
+  useHotkeys("delete", () => setTrashTargets([...selectedNodes]), {
+    enabled: browserShortcutsEnabled && bulkCanTrash,
+    preventDefault: true,
+  }, [browserShortcutsEnabled, bulkCanTrash, selectedNodes])
 
   function updateOptions(patch: Partial<BrowserOptions>) {
     const next = { ...options, ...patch }
@@ -235,6 +247,10 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
   function selectAll(value: boolean) {
     setSelected(value ? new Set(nodes.map((node) => node.id)) : new Set())
+  }
+
+  function clearSelection() {
+    setSelected(new Set())
   }
 
   function removeNodes(nodeIds: readonly string[]) {
@@ -303,6 +319,12 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
   return (
     <FileUploadTarget folderId={folder.id} disabled={accessLevel === "view"}>
       <div className={`mx-auto flex w-full max-w-7xl flex-col gap-5 ${selectedNodes.length > 0 ? "pb-28" : ""}`}>
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {selectedNodes.length === 0
+            ? "No items selected"
+            : `${selectedNodes.length} item${selectedNodes.length === 1 ? "" : "s"} selected`}
+        </p>
+
         <FileBrowserChrome
           folder={folder}
           breadcrumbs={breadcrumbs}
@@ -320,7 +342,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
           <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3">
             <div
               role="toolbar"
-              aria-label="Selected file actions"
+              aria-label={`${selectedNodes.length} selected item${selectedNodes.length === 1 ? "" : "s"} actions`}
               className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
             >
               <span className="whitespace-nowrap px-2 text-sm font-medium">
@@ -352,7 +374,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
                 )}
 
                 {bulkCanTrash && (
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={favoritePending} onClick={() => setTrashTargets(selectedNodes)}>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive focus-visible:text-destructive" disabled={favoritePending} onClick={() => setTrashTargets(selectedNodes)}>
                     <Trash2Icon />
                     Trash
                   </Button>
@@ -411,7 +433,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
                 disabled={favoritePending}
                 aria-label="Clear selection"
                 title="Clear selection"
-                onClick={() => setSelected(new Set())}
+                onClick={clearSelection}
               >
                 <XIcon />
               </Button>
