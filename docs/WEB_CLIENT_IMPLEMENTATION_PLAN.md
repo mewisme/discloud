@@ -327,6 +327,7 @@ reuse current resumable UploadProvider for each file
 - [x] Additional keyboard shortcuts and selection feedback.
 - [x] File Browser toolbar configuration: inline, bottom dock, right dock.
 - [x] Bottom browser dock remains below the independent multi-select toolbar.
+- [x] File Browser drag-and-drop feedback is viewport-bounded: the active drop overlay follows only the currently visible browser area instead of expanding with long file lists.
 - [x] Thumbnail retry/load hardening and bounded thumbnail load queue with tests.
 - [x] Preview carousel using the existing carousel/Embla stack.
 - [x] Only the current full preview is rendered; inactive slides remain lightweight.
