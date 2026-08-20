@@ -7,7 +7,9 @@ import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { CommandPalette } from "@/components/app/command-palette"
+import { CurrentUserProvider } from "@/components/app/current-user-context"
+import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
@@ -15,9 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { apiJSON } from "@/lib/api/client"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
-import { formatBytes, initials, isActivePath } from "@/lib/helpers"
-import { CurrentUserProvider } from "@/components/app/current-user-context"
-import { CommandPalette } from "@/components/app/command-palette"
+import { formatBytes, isActivePath } from "@/lib/helpers"
 
 type NavItem = {
   title: string
@@ -42,6 +42,7 @@ const management: NavItem[] = [
 ]
 
 const titles = [
+  ["/settings/profile", "Profile"],
   ["/settings/security", "Security"],
   ["/settings/common", "Common"],
   ["/settings", "Settings"],
@@ -199,9 +200,7 @@ function UserMenu({ user }: { user: User }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton size="lg" tooltip={user.username} className="border">
-          <Avatar className="size-8 rounded-full">
-            <AvatarFallback className="rounded-full">{initials(user.username)}</AvatarFallback>
-          </Avatar>
+          <CurrentUserAvatar className="size-8" />
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">{user.username}</span>
             <span className="truncate text-xs capitalize text-muted-foreground">{user.role}</span>
@@ -213,9 +212,7 @@ function UserMenu({ user }: { user: User }) {
       <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end" sideOffset={8} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex items-center gap-2">
-            <Avatar className="size-8 rounded-full">
-              <AvatarFallback className="rounded-full">{initials(user.username)}</AvatarFallback>
-            </Avatar>
+            <CurrentUserAvatar className="size-8" />
             <div className="grid text-left text-sm leading-tight">
               <span className="truncate font-medium text-foreground">{user.username}</span>
               <span className="truncate text-xs capitalize">{user.role}</span>

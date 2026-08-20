@@ -13,6 +13,7 @@ export type LoginResult = OperationJSON<"login", 200>
 export type MFAChallenge = Extract<LoginResult, { mfaRequired: true }>
 export type VerifyLoginMFAInput = OperationBody<"verifyLoginMFA">
 export type UpdateMeInput = OperationBody<"updateMe">
+export type AvatarInfo = OperationJSON<"updateMyAvatar", 200>
 export type ChangePasswordInput = OperationBody<"changePassword">
 export type CurrentUserUsage = OperationJSON<"getMyUsage", 200>
 export type UserConfig = OperationJSON<"getMyConfig", 200>

@@ -38,7 +38,10 @@ async function proxy(request: Request, { params }: RouteContext) {
   upstream.headers.set("accept-encoding", "identity")
 
   try {
-    return await fetch(upstream, { cache: "no-store" })
+    return await fetch(upstream, {
+      cache: "no-store",
+      redirect: "manual",
+    })
   } catch (reason) {
     console.error("Backend proxy request failed", {
       method: request.method,

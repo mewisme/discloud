@@ -2,7 +2,10 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, FolderUpIcon, Loader2Icon, StarIcon } from "lucide-react"
+import { FolderOpenIcon, FolderUpIcon, Loader2Icon, StarIcon } from "lucide-react"
+import { DateOnly } from "@/components/common/date-time"
+import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
+import { FileNodeVisual } from "@/components/files/file-node-visual"
 import { NodeActionsMenu } from "@/components/files/node-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,8 +13,6 @@ import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
 import { folderBrowserURL } from "@/lib/files/navigation"
 import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
-import { DateOnly } from "@/components/common/date-time"
-import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
 
 type BrowserItemsProps = {
   nodes: BrowserNode[]
@@ -82,12 +83,10 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
             <TableRow className="select-none">
               <TableCell />
               <TableCell>
-                <a
-                  className="flex items-center gap-2 font-medium hover:underline"
-                  href={folderBrowserURL(props.parent.id, props.options)}
-                  onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}
-                >
-                  <FolderUpIcon className="size-4 shrink-0 text-muted-foreground" />
+                <a className="flex items-center gap-2 font-medium hover:underline" href={folderBrowserURL(props.parent.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}>
+                  <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
+                    <FolderUpIcon className="size-4 text-muted-foreground" />
+                  </div>
                   <span>..</span>
                 </a>
               </TableCell>
@@ -122,7 +121,7 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
                 </TableCell>
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2">
-                    <NodeIcon node={node} />
+                    <FileNodeVisual node={node} className="size-9" iconClassName="size-4" />
                     {node.kind === "folder" ? (
                       <a className="truncate font-medium hover:underline" href={folderBrowserURL(node.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}>{node.name}</a>
                     ) : (
@@ -155,15 +154,15 @@ function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {props.parent && (
-        <button type="button" className="flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3 text-left transition-colors hover:bg-muted/50" onClick={() => props.onNavigate(props.parent!.id)}>
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-            <FolderUpIcon className="size-4" />
+        <button type="button" className="group min-w-0 overflow-hidden rounded-xl border bg-card text-left transition-colors hover:bg-muted/40" onClick={() => props.onNavigate(props.parent!.id)}>
+          <div className="grid aspect-[4/3] w-full place-items-center bg-muted/40">
+            <FolderUpIcon className="size-8 text-muted-foreground" />
           </div>
-          <div className="min-w-0">
-            <p className="font-medium">..</p>
-            <p className="text-xs text-muted-foreground">Parent folder</p>
+          <div className="p-3">
+            <p className="truncate text-sm font-medium">..</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">Parent folder</p>
           </div>
         </button>
       )}
@@ -181,55 +180,46 @@ function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
           onReload={props.onReload}
         >
           <div
-            className="group flex min-w-0 items-center gap-2 rounded-xl border bg-card p-2.5 transition-colors hover:bg-muted/40 data-[selected=true]:bg-muted/60"
+            className="group min-w-0 overflow-hidden rounded-xl border bg-card transition-[background-color,box-shadow] hover:bg-muted/20 data-[selected=true]:ring-2 data-[selected=true]:ring-primary/40"
             data-selected={props.selected.has(node.id)}
             onDoubleClick={(event) => {
               if (!isInteractiveTarget(event.target)) open(node)
             }}
           >
-            <Checkbox className="shrink-0" checked={props.selected.has(node.id)} aria-label={`Select ${node.name}`} onCheckedChange={(value) => props.onSelect(node.id, value === true)} />
-            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-              <NodeIcon node={node} className="size-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              {node.kind === "folder" ? (
-                <a className="block truncate text-sm font-medium hover:underline" href={folderBrowserURL(node.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}>{node.name}</a>
-              ) : (
-                <Link className="block truncate text-sm font-medium hover:underline" href={`/files/file/${node.id}`}>{node.name}</Link>
-              )}
-              <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                <span className="truncate">{node.kind === "file" && node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}</span>
-                {node.isFavorite && <StarIcon className="size-3 shrink-0 fill-current" aria-label="Favorite" />}
+            <div className="relative">
+              <FileNodeVisual node={node} className="aspect-[4/3] w-full rounded-none bg-muted/30" iconClassName="size-8" />
+
+              <Checkbox
+                className="absolute left-2 top-2 bg-background/90 shadow-sm"
+                checked={props.selected.has(node.id)}
+                aria-label={`Select ${node.name}`}
+                onCheckedChange={(value) => props.onSelect(node.id, value === true)}
+              />
+
+              <div className="absolute right-2 top-2 rounded-md bg-background/90 shadow-sm backdrop-blur">
+                <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
               </div>
             </div>
-            <div className="shrink-0 sm:opacity-60 sm:transition-opacity sm:group-hover:opacity-100">
-              <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
+
+            <div className="min-w-0 p-3">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {node.kind === "folder" ? (
+                  <a className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={folderBrowserURL(node.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}>{node.name}</a>
+                ) : (
+                  <Link className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={`/files/file/${node.id}`}>{node.name}</Link>
+                )}
+                {node.isFavorite && <StarIcon className="size-3 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
+              </div>
+
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {node.kind === "file" && node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}
+              </p>
             </div>
           </div>
         </FileNodeContextMenu>
       ))}
     </div>
   )
-}
-
-function NodeIcon({ node, className = "size-4 shrink-0" }: { node: BrowserNode; className?: string }) {
-  if (node.kind === "folder") return <FolderIcon className={className} />
-
-  switch (node.category) {
-    case "image":
-      return <FileImageIcon className={className} />
-    case "video":
-      return <FileVideoIcon className={className} />
-    case "audio":
-      return <FileAudioIcon className={className} />
-    case "document":
-    case "text":
-      return <FileTextIcon className={className} />
-    case "archive":
-      return <FileArchiveIcon className={className} />
-    default:
-      return <FileIcon className={className} />
-  }
 }
 
 function EmptyFolder() {

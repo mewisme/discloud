@@ -1,16 +1,37 @@
 "use client"
 
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import type { User } from "@/lib/api/models"
 
-const CurrentUserContext = createContext<User | null>(null)
+type CurrentUserContextValue = {
+  user: User
+  setUser: Dispatch<SetStateAction<User>>
+}
+
+const CurrentUserContext = createContext<CurrentUserContextValue | null>(null)
 
 export function CurrentUserProvider({ user, children }: { user: User; children: ReactNode }) {
-  return <CurrentUserContext.Provider value={user}>{children}</CurrentUserContext.Provider>
+  const [currentUser, setCurrentUser] = useState(user)
+
+  useEffect(() => {
+    setCurrentUser(user)
+  }, [user])
+
+  return (
+    <CurrentUserContext.Provider value={{ user: currentUser, setUser: setCurrentUser }}>
+      {children}
+    </CurrentUserContext.Provider>
+  )
 }
 
 export function useCurrentUser() {
-  const user = useContext(CurrentUserContext)
-  if (!user) throw new Error("CurrentUserProvider is missing")
-  return user
+  const context = useContext(CurrentUserContext)
+  if (!context) throw new Error("CurrentUserProvider is missing")
+  return context.user
+}
+
+export function useSetCurrentUser() {
+  const context = useContext(CurrentUserContext)
+  if (!context) throw new Error("CurrentUserProvider is missing")
+  return context.setUser
 }

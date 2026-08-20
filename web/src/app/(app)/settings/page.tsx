@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ChevronRightIcon, Settings2Icon, ShieldCheckIcon } from "lucide-react"
+import { ChevronRightIcon, Settings2Icon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
 export const metadata: Metadata = {
@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 }
 
 const settings = [
+  {
+    href: "/settings/profile",
+    title: "Profile",
+    description: "Manage your profile picture and account identity.",
+    icon: UserRoundIcon,
+  },
   {
     href: "/settings/common",
     title: "Common",
