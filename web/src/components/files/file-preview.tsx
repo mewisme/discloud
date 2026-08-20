@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { DownloadIcon, FileIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
+import { DownloadIcon, FileIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { apiRequest, apiURL } from "@/lib/api/client"
@@ -31,24 +31,24 @@ export function FilePreview({ file, collectionId, source: customSource }: { file
   switch (kind) {
     case "image":
       return (
-        <div className="relative min-h-80 overflow-hidden rounded-xl border bg-muted/20 sm:h-[65vh]">
+        <div className="relative min-h-80 overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
           <Image src={contentURL} alt={file.name} fill unoptimized sizes="(max-width: 768px) 100vw, 75vw" className="object-contain" />
         </div>
       )
     case "video":
       return (
         <div className="grid min-h-64 place-items-center overflow-hidden rounded-xl border bg-black">
-          <video src={contentURL} controls preload="metadata" className="max-h-[70vh] w-full" />
+          <video src={contentURL} controls preload="metadata" className="max-h-[75vh] w-full" />
         </div>
       )
     case "audio":
       return (
-        <div className="grid min-h-40 place-items-center rounded-xl border bg-muted/20 p-6">
+        <div className="grid min-h-48 place-items-center rounded-xl border bg-muted/20 p-6">
           <audio src={contentURL} controls preload="metadata" className="w-full max-w-2xl" />
         </div>
       )
     case "pdf":
-      return <iframe src={contentURL} title={file.name} className="h-[70vh] w-full rounded-xl border bg-background" />
+      return <iframe src={contentURL} title={file.name} className="h-[75vh] w-full rounded-xl border bg-background" />
     case "text":
       return <TextPreview file={file} source={source} />
     default:
@@ -60,13 +60,21 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(file.size > 0)
   const [error, setError] = useState<string>()
+  const [retryKey, setRetryKey] = useState(0)
   const truncated = file.size > textPreviewLimit
 
   useEffect(() => {
-    if (file.size === 0) return
+    if (file.size === 0) {
+      setText("")
+      setLoading(false)
+      setError(undefined)
+      return
+    }
 
     const controller = new AbortController()
     const end = Math.min(file.size, textPreviewLimit) - 1
+    setLoading(true)
+    setError(undefined)
 
     async function load() {
       try {
@@ -85,13 +93,13 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
 
     void load()
     return () => controller.abort()
-  }, [file.size, source.contentPath])
+  }, [file.size, retryKey, source.contentPath])
 
   if (loading) {
     return (
       <div className="grid min-h-72 place-items-center rounded-xl border">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2Icon className="size-4 animate-spin" />
+        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" aria-hidden />
           Loading preview…
         </div>
       </div>
@@ -103,20 +111,25 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
       <Alert variant="destructive">
         <TriangleAlertIcon />
         <AlertTitle>Preview unavailable</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
+        <AlertDescription className="space-y-3">
+          <p>{error}</p>
+          <Button size="sm" variant="outline" onClick={() => setRetryKey((current) => current + 1)}>
+            <RefreshCwIcon />
+            Try again
+          </Button>
+        </AlertDescription>
       </Alert>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="overflow-hidden rounded-xl border bg-card">
       {truncated && <div className="border-b bg-muted/50 px-4 py-2 text-xs text-muted-foreground">Showing the first 256 KiB.</div>}
-      <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap wrap-break-word p-4 font-mono text-xs leading-relaxed">{text || "Empty file"}</pre>
+      <pre className="max-h-[75vh] overflow-auto whitespace-pre-wrap wrap-break-word p-4 font-mono text-xs leading-relaxed">{text || "Empty file"}</pre>
     </div>
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
   return (
     <div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center">
@@ -124,7 +137,7 @@ function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FileP
         <FileIcon className="mx-auto size-10 text-muted-foreground" />
         <div>
           <p className="font-medium">Preview unavailable</p>
-          <p className="text-sm text-muted-foreground">This file type is not previewed in the browser.</p>
+          <p className="text-sm text-muted-foreground">{file.name} cannot be previewed in the browser.</p>
         </div>
         <Button asChild>
           <a href={apiURL(source.downloadPath)}>

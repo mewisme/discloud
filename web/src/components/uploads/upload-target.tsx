@@ -1,10 +1,11 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { createContext, useContext } from "react"
+import { createContext, useContext, useEffect } from "react"
 import { CloudUploadIcon } from "lucide-react"
 import { useDropzone } from "react-dropzone"
 import { useUploads } from "@/components/uploads/upload-provider"
+import { FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
 
 type UploadTargetValue = {
   open: () => void
@@ -29,6 +30,14 @@ export function FileUploadTarget({
     noKeyboard: true,
     onDropAccepted: (files) => addFiles(folderId, files),
   })
+
+  useEffect(() => {
+    if (disabled) return
+
+    const handleUploadCommand = () => open()
+    window.addEventListener(FILE_BROWSER_UPLOAD_EVENT, handleUploadCommand)
+    return () => window.removeEventListener(FILE_BROWSER_UPLOAD_EVENT, handleUploadCommand)
+  }, [disabled, open])
 
   return (
     <UploadTargetContext.Provider value={{ open }}>

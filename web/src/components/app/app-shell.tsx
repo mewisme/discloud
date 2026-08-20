@@ -3,14 +3,13 @@
 import type { ComponentType, ReactNode } from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
@@ -18,6 +17,7 @@ import { apiJSON } from "@/lib/api/client"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 import { formatBytes, initials, isActivePath } from "@/lib/helpers"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
+import { CommandPalette } from "@/components/app/command-palette"
 
 type NavItem = {
   title: string
@@ -159,28 +159,16 @@ function AppNav({ items }: { items: NavItem[] }) {
 
 function AppHeader() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const title = titles.find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1] ?? "DisCloud"
-  const searchValue = pathname === "/search" ? searchParams.get("q") ?? "" : ""
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-full" />
       <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
-
-      <form action="/search" role="search" className="relative ml-auto w-full max-w-sm">
-        <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          key={searchValue}
-          name="q"
-          defaultValue={searchValue}
-          maxLength={256}
-          aria-label="Search files and folders"
-          placeholder="Search…"
-          className="h-8 pl-8"
-        />
-      </form>
+      <div className="ml-auto w-full max-w-sm">
+        <CommandPalette />
+      </div>
     </header>
   )
 }

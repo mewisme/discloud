@@ -14,6 +14,7 @@ import type { Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
 import { folderBrowserURL } from "@/lib/files/navigation"
 import { useCurrentUser } from "@/components/app/current-user-context"
+import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "@/lib/files/commands"
 
 export function FileBrowserChrome({
   folder,
@@ -65,7 +66,7 @@ export function FileBrowserChrome({
         </div>
 
         <div className="hidden items-center gap-2 sm:flex">
-          {editable && <CreateFolderDialog folder={folder} onReload={onReload} />}
+          {editable && <CreateFolderDialog folder={folder} onReload={onReload} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} />}
           {editable && uploadTarget && (
             <Button size="sm" variant="outline" onClick={uploadTarget.open}>
               <UploadIcon />

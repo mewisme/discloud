@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -29,10 +29,18 @@ const nameFormSchema = z.object({
 type NameValues = z.infer<typeof nameFormSchema>
 type Reload = () => Promise<void>
 
-export function CreateFolderDialog({ folder, onReload }: { folder: Node; onReload: Reload }) {
+export function CreateFolderDialog({ folder, onReload, openEvent }: { folder: Node; onReload: Reload; openEvent?: string }) {
   const [open, setOpen] = useState(false)
   const [formError, setFormError] = useState<string>()
   const form = useForm<NameValues>({ resolver: zodResolver(nameFormSchema), defaultValues: { name: "" } })
+
+  useEffect(() => {
+    if (!openEvent) return
+
+    const handleOpen = () => setOpen(true)
+    window.addEventListener(openEvent, handleOpen)
+    return () => window.removeEventListener(openEvent, handleOpen)
+  }, [openEvent])
 
   function changeOpen(next: boolean) {
     setOpen(next)
@@ -75,7 +83,7 @@ export function CreateFolderDialog({ folder, onReload }: { folder: Node; onReloa
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create folder</DialogTitle>
-          <DialogDescription>Create a folder inside {folder.isRoot ? "Files" : folder.name}.</DialogDescription>
+          <DialogDescription>Create a folder inside {folder.isRoot ? "your workspace" : folder.name}.</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
           {formError && <ErrorAlert message={formError} />}
