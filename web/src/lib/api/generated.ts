@@ -1320,6 +1320,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/workspaces/{username}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get a workspace by immutable username */
+        readonly get: operations["getWorkspace"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/healthz": {
         readonly parameters: {
             readonly query?: never;
@@ -4246,6 +4263,54 @@ export interface operations {
                 };
                 content: {
                     readonly "application/json": components["schemas"]["UserLookup"];
+                };
+            };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getWorkspace: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly username: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Workspace owner, root folder, and storage usage. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly owner: {
+                            /** Format: uuid */
+                            readonly id: string;
+                            /** @enum {string} */
+                            readonly role: "admin" | "user";
+                            readonly status: string;
+                            readonly username: string;
+                        };
+                        readonly root: {
+                            /** Format: uuid */
+                            readonly id: string;
+                            readonly name: string;
+                        };
+                        readonly usage: {
+                            /** Format: int64 */
+                            readonly availableBytes: number | null;
+                            readonly overQuota: boolean;
+                            /** Format: int64 */
+                            readonly quotaBytes: number | null;
+                            /** Format: int64 */
+                            readonly reservedBytes: number;
+                            /** Format: int64 */
+                            readonly usedBytes: number;
+                        };
+                    };
                 };
             };
             readonly default: components["responses"]["Problem"];

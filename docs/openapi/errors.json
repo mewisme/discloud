@@ -46,6 +46,7 @@
     "getMFAStatus":[401,500],
     "disableMFA":[400,401,403,409,500],
     "lookupUser":[400,401,404,500],
+    "getWorkspace":[401,403,404,500],
     "listUsers":[400,401,403,500],
     "createUser":[400,401,403,409,500],
     "getUser":[401,403,404,500],

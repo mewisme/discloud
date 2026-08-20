@@ -69,7 +69,7 @@ func TestConcurrentSetupOnlyOneWins(t *testing.T) {
 	for i := range 2 {
 		go func() {
 			<-start
-			id, err := service.Complete(ctx, fmt.Sprintf("admin-%d", i), "correct-horse-battery-staple")
+			id, err := service.Complete(ctx, fmt.Sprintf("Admin %d", i), fmt.Sprintf("admin-%d", i), "correct-horse-battery-staple")
 			results <- result{id: id, err: err}
 		}()
 	}
