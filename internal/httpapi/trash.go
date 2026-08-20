@@ -43,6 +43,20 @@ func registerTrashRoutes(mux *http.ServeMux, service *nodes.Service, authService
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	protected("DELETE /api/v1/files/{fileId}/permanent", func(w http.ResponseWriter, r *http.Request) {
+		if writeTrashError(w, r, service.PurgeKind(r.Context(), nodeActor(r), r.PathValue("fileId"), "file")) {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	protected("DELETE /api/v1/folders/{folderId}/permanent", func(w http.ResponseWriter, r *http.Request) {
+		if writeTrashError(w, r, service.PurgeKind(r.Context(), nodeActor(r), r.PathValue("folderId"), "folder")) {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	protected("POST /api/v1/files/{fileId}/restore", func(w http.ResponseWriter, r *http.Request) {
 		restoreNode(w, r, service, "file", r.PathValue("fileId"))
 	})
@@ -143,6 +157,8 @@ func writeTrashError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
 	case errors.Is(err, nodes.ErrNotDeleted):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "node is not in trash")
+	case errors.Is(err, nodes.ErrPurgeActiveUpload):
+		WriteProblem(w, r, http.StatusConflict, "Conflict", "active upload must finish or be cancelled before permanent deletion")
 	case errors.Is(err, nodes.ErrRestoreTarget):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "restore destination is unavailable")
 	case errors.Is(err, nodes.ErrQuotaExceeded):

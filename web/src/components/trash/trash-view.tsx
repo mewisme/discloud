@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { FileIcon, FolderIcon, Loader2Icon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { FileIcon, FolderIcon, Loader2Icon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
@@ -17,12 +18,14 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
   const [items, setItems] = useState<TrashItem[]>(() => [...initialPage.items])
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [loading, setLoading] = useState(false)
-  const [restoring, setRestoring] = useState<ReadonlySet<string>>(() => new Set())
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set())
+  const [deleteTarget, setDeleteTarget] = useState<TrashItem>()
+  const deleting = deleteTarget ? pending.has(deleteTarget.node.id) : false
 
-  function setRestorePending(id: string, pending: boolean) {
-    setRestoring((current) => {
+  function setItemPending(id: string, value: boolean) {
+    setPending((current) => {
       const next = new Set(current)
-      if (pending) next.add(id)
+      if (value) next.add(id)
       else next.delete(id)
       return next
     })
@@ -46,9 +49,8 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
 
   async function restore(item: TrashItem) {
     const id = item.node.id
-    if (restoring.has(id)) return
-
-    setRestorePending(id, true)
+    if (pending.has(id)) return
+    setItemPending(id, true)
 
     try {
       await apiJSON<Node>(restorePath(item), { method: "POST" })
@@ -58,7 +60,25 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not restore this item."))
     } finally {
-      setRestorePending(id, false)
+      setItemPending(id, false)
+    }
+  }
+
+  async function deleteForever(item: TrashItem) {
+    const id = item.node.id
+    if (pending.has(id)) return
+    setItemPending(id, true)
+
+    try {
+      await apiJSON<void>(permanentPath(item), { method: "DELETE" })
+      setItems((current) => current.filter((candidate) => candidate.node.id !== id))
+      setDeleteTarget(undefined)
+      toast.success(`${item.node.name} permanently deleted`)
+      router.refresh()
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not permanently delete this item."))
+    } finally {
+      setItemPending(id, false)
     }
   }
 
@@ -66,7 +86,7 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Trash</h1>
-        <p className="text-sm text-muted-foreground">Restore files and folders that were moved to trash.</p>
+        <p className="text-sm text-muted-foreground">Restore files and folders or permanently remove their DisCloud database records.</p>
       </div>
 
       {items.length === 0 && !nextCursor ? (
@@ -88,12 +108,12 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
                 <TableHead className="hidden w-24 sm:table-cell">Type</TableHead>
                 <TableHead className="hidden w-28 md:table-cell">Size</TableHead>
                 <TableHead className="hidden w-44 lg:table-cell">Deleted</TableHead>
-                <TableHead className="w-28" />
+                <TableHead className="w-56" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => {
-                const pending = restoring.has(item.node.id)
+                const itemPending = pending.has(item.node.id)
 
                 return (
                   <TableRow key={`${item.node.kind}:${item.node.id}`}>
@@ -110,10 +130,15 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
                     <TableCell className="hidden text-muted-foreground md:table-cell">{item.sizeBytes == null ? "—" : formatBytes(item.sizeBytes)}</TableCell>
                     <TableCell className="hidden text-muted-foreground lg:table-cell" title={item.deletedAt}>{formatDateTime(item.deletedAt)}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="outline" disabled={pending} onClick={() => void restore(item)}>
-                        {pending ? <Loader2Icon className="animate-spin" /> : <RotateCcwIcon />}
-                        Restore
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" disabled={itemPending} onClick={() => void restore(item)}>
+                          {itemPending ? <Loader2Icon className="animate-spin" /> : <RotateCcwIcon />}
+                          Restore
+                        </Button>
+                        <Button size="icon-sm" variant="destructive" disabled={itemPending} aria-label={`Delete ${item.node.name} forever`} title="Delete forever" onClick={() => setDeleteTarget(item)}>
+                          <Trash2Icon />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -131,6 +156,36 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
           )}
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => {
+        if (!open && !deleting) setDeleteTarget(undefined)
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <TriangleAlertIcon />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete {deleteTarget?.node.name} forever?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.node.kind === "folder"
+                ? "This permanently removes the folder, all of its children, and their DisCloud database records. This cannot be undone."
+                : "This permanently removes the file and its DisCloud database records. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            Discord messages and attachments are intentionally left untouched. Unreferenced chunk records are removed only from the DisCloud database.
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" disabled={!deleteTarget || deleting} onClick={() => deleteTarget && void deleteForever(deleteTarget)}>
+              {deleting && <Loader2Icon className="animate-spin" />}
+              Delete forever
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -138,4 +193,9 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
 function restorePath(item: TrashItem) {
   const id = encodeURIComponent(item.node.id)
   return item.node.kind === "folder" ? `/api/v1/folders/${id}/restore` : `/api/v1/files/${id}/restore`
+}
+
+function permanentPath(item: TrashItem) {
+  const id = encodeURIComponent(item.node.id)
+  return item.node.kind === "folder" ? `/api/v1/folders/${id}/permanent` : `/api/v1/files/${id}/permanent`
 }

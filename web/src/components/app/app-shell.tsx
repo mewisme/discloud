@@ -139,7 +139,7 @@ function AppHeader() {
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-4">
       <SidebarTrigger />
-      <Separator orientation="vertical" className="h-4" />
+      <Separator orientation="vertical" className="h-full" />
       <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
       <form action="/search" className="relative ml-auto w-full max-w-sm">
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -172,9 +172,9 @@ function UserMenu({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton size="lg" tooltip={user.username}>
-          <Avatar className="size-8 rounded-lg">
-            <AvatarFallback className="rounded-lg">{initials(user.username)}</AvatarFallback>
+        <SidebarMenuButton size="lg" tooltip={user.username} className="border">
+          <Avatar className="size-8 rounded-full">
+            <AvatarFallback className="rounded-full">{initials(user.username)}</AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">{user.username}</span>
@@ -186,8 +186,8 @@ function UserMenu({ user }: { user: User }) {
       <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end" sideOffset={8} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex items-center gap-2">
-            <Avatar className="size-8 rounded-lg">
-              <AvatarFallback className="rounded-lg">{initials(user.username)}</AvatarFallback>
+            <Avatar className="size-8 rounded-full">
+              <AvatarFallback className="rounded-full">{initials(user.username)}</AvatarFallback>
             </Avatar>
             <div className="grid text-left text-sm leading-tight">
               <span className="truncate font-medium text-foreground">{user.username}</span>
