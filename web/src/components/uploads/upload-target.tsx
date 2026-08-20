@@ -48,18 +48,14 @@ export function FileUploadTarget({
       const ready = isInsidePanel(event.clientX, event.clientY)
       setDropReady((current) => current === ready ? current : ready)
 
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = ready ? "copy" : "none"
-      }
+      if (event.dataTransfer) event.dataTransfer.dropEffect = ready ? "copy" : "none"
     },
     onDragLeave: () => {
       setDragOverlayActive(false)
       setDropReady(false)
     },
     onDrop: (acceptedFiles, _rejections, event) => {
-      const accepted =
-        !("dataTransfer" in event) ||
-        isInsidePanel(event.clientX, event.clientY)
+      const accepted = !("dataTransfer" in event) || isInsidePanel(event.clientX, event.clientY)
 
       setDragOverlayActive(false)
       setDropReady(false)
@@ -112,63 +108,52 @@ export function FileUploadTarget({
         {dragOverlayActive && typeof document !== "undefined" && createPortal(
           <div
             {...getRootProps({
-              className: "fixed inset-0 z-[100] grid place-items-center bg-background/65 p-6 backdrop-blur-sm animate-in fade-in duration-150",
+              className: "fixed inset-0 z-[100] bg-background/65 backdrop-blur-sm animate-in fade-in duration-150",
             })}
           >
             <div
               ref={panelRef}
               className={cn(
-                "relative isolate flex min-h-80 w-full max-w-3xl overflow-hidden rounded-3xl p-[2px] shadow-2xl transition-transform duration-200 ease-out sm:min-h-96",
-                dropReady && "scale-[1.015]",
+                "absolute left-1/2 top-1/2 flex min-h-80 w-[calc(100vw-3rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-3xl border-2 border-dashed bg-background/95 p-10 shadow-xl transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out sm:min-h-96 sm:p-14",
+                dropReady
+                  ? "scale-[1.025] border-primary bg-primary/5 shadow-2xl"
+                  : "border-primary/50",
               )}
             >
-              {dropReady ? (
-                <div className="absolute -inset-[70%] animate-spin bg-[conic-gradient(from_0deg,transparent_0deg,transparent_245deg,var(--primary)_290deg,var(--primary)_315deg,transparent_360deg)] [animation-duration:1.8s]" />
-              ) : (
-                <div className="absolute inset-0 rounded-3xl border-2 border-dashed border-primary/50" />
-              )}
-
               <div
-                className={cn(
-                  "relative z-10 flex w-full items-center justify-center rounded-[calc(1.5rem-2px)] bg-background/95 p-10 transition-colors duration-200 sm:p-14",
-                  dropReady && "bg-background/90",
-                )}
+                key={dropReady ? "ready" : "idle"}
+                className="animate-in fade-in zoom-in-95 duration-150"
               >
-                <div
-                  key={dropReady ? "ready" : "idle"}
-                  className="animate-in fade-in zoom-in-95 duration-200"
-                >
-                  <div className="space-y-5 text-center">
-                    <div
-                      className={cn(
-                        "mx-auto grid size-20 place-items-center rounded-full bg-muted transition-[transform,background-color] duration-200",
-                        dropReady && "scale-110 bg-primary/10",
-                      )}
-                    >
-                      <CloudUploadIcon
-                        className={cn(
-                          "size-10 text-muted-foreground transition-[transform,color] duration-200",
-                          dropReady && "-translate-y-1 scale-110 text-primary",
-                        )}
-                      />
-                    </div>
-
-                    {dropReady ? (
-                      <div className="space-y-2">
-                        <p className="text-2xl font-semibold">Release to upload</p>
-                        <p className="text-sm text-muted-foreground">
-                          Drop now to upload to this folder.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-2xl font-semibold">Move files into the drop zone</p>
-                        <p className="text-sm text-muted-foreground">
-                          Drag into the highlighted area in the center to upload.
-                        </p>
-                      </div>
+                <div className="space-y-5 text-center">
+                  <div
+                    className={cn(
+                      "mx-auto grid size-20 place-items-center rounded-full bg-muted transition-[transform,background-color] duration-200",
+                      dropReady && "scale-105 bg-primary/10",
                     )}
+                  >
+                    <CloudUploadIcon
+                      className={cn(
+                        "size-10 text-muted-foreground transition-[transform,color] duration-200",
+                        dropReady && "-translate-y-1 text-primary",
+                      )}
+                    />
                   </div>
+
+                  {dropReady ? (
+                    <div className="space-y-2">
+                      <p className="text-2xl font-semibold">Release to upload</p>
+                      <p className="text-sm text-muted-foreground">
+                        Drop now to upload to this folder.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-2xl font-semibold">Move files into the drop zone</p>
+                      <p className="text-sm text-muted-foreground">
+                        Drag into the highlighted area in the center to upload.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
