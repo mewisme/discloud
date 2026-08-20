@@ -72,9 +72,16 @@ func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, c
 		return
 	}
 
+	setFileCacheHeaders(w, download)
+	setFileValidatorHeaders(w, file)
+
+	if !download && fileNotModified(r, file) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	byteRange, err := requestedFileRange(r, file)
 	if errors.Is(err, files.ErrUnsatisfiableRange) {
-		setFileValidatorHeaders(w, file)
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.SizeBytes))
 		WriteProblem(w, r, http.StatusRequestedRangeNotSatisfiable, "Range Not Satisfiable", "requested byte range is outside the file")
@@ -148,6 +155,41 @@ func requestedFileRange(r *http.Request, file files.File) (*files.ByteRange, err
 	return files.ParseRange(value, file.SizeBytes)
 }
 
+func fileNotModified(r *http.Request, file files.File) bool {
+	if value := strings.TrimSpace(r.Header.Get("If-None-Match")); value != "" {
+		return ifNoneMatchMatches(value, fileETag(file))
+	}
+
+	value := strings.TrimSpace(r.Header.Get("If-Modified-Since"))
+	if value == "" || file.UpdatedAt.IsZero() {
+		return false
+	}
+
+	validator, err := http.ParseTime(value)
+	if err != nil {
+		return false
+	}
+	return !file.UpdatedAt.UTC().Truncate(time.Second).After(validator.UTC())
+}
+
+func ifNoneMatchMatches(value, etag string) bool {
+	if value == "*" {
+		return true
+	}
+	if etag == "" {
+		return false
+	}
+
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		item = strings.TrimPrefix(item, "W/")
+		if item == etag {
+			return true
+		}
+	}
+	return false
+}
+
 func ifRangeMatches(value string, file files.File) bool {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -172,8 +214,8 @@ func setFileHeaders(w http.ResponseWriter, file files.File, download bool, lengt
 	w.Header().Set("Content-Type", file.MIMEType)
 	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
 	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Cache-Control", "no-store, no-transform")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	setFileCacheHeaders(w, download)
 	setFileValidatorHeaders(w, file)
 
 	disposition := "attachment"
@@ -185,6 +227,14 @@ func setFileHeaders(w http.ResponseWriter, file files.File, download bool, lengt
 		value = disposition
 	}
 	w.Header().Set("Content-Disposition", value)
+}
+
+func setFileCacheHeaders(w http.ResponseWriter, download bool) {
+	if download {
+		w.Header().Set("Cache-Control", "no-store, no-transform")
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-cache, no-transform")
 }
 
 func setFileValidatorHeaders(w http.ResponseWriter, file files.File) {

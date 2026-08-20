@@ -118,7 +118,7 @@
     "Problem":{"description":"Problem details.","content":{"application/problem+json":{"schema":{"$ref":"#/schemas/Problem"}}}},
     "Metrics":{"description":"Prometheus-compatible metrics.","content":{"text/plain":{"schema":{"type":"string"}}}},
     "Zip":{"description":"ZIP archive.","content":{"application/zip":{"schema":{"type":"string","format":"binary"}}}},
-    "Binary":{"description":"File content. Supports full or single-range responses.","headers":{"Accept-Ranges":{"schema":{"type":"string"}},"Content-Range":{"schema":{"type":"string"}},"ETag":{"schema":{"type":"string"}}},"content":{"*/*":{"schema":{"type":"string","format":"binary"}}}},
+    "Binary":{"description":"File content. Supports full or single-range responses and private browser revalidation for preview content.","headers":{"Accept-Ranges":{"schema":{"type":"string"}},"Content-Range":{"schema":{"type":"string"}},"ETag":{"schema":{"type":"string"}},"Last-Modified":{"schema":{"type":"string"}},"Cache-Control":{"schema":{"type":"string"}}},"content":{"*/*":{"schema":{"type":"string","format":"binary"}}}},
     "User":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/User"}}}},
     "AvatarInfo":{"description":"Current avatar state after an update.","content":{"application/json":{"schema":{"$ref":"#/schemas/AvatarInfo"}}}},
     "UserConfig":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/UserConfig"}}}},

@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"testing"
 
@@ -28,6 +29,9 @@ func TestPurgeRemovesDatabaseStateWithoutTouchingSharedChunks(t *testing.T) {
 	outsideFileID := createTrashFile(t, ctx, pool, userID, rootID, "outside.bin", 10)
 	setTrashUsed(t, ctx, pool, userID, 30)
 
+	sharedDigest := sha256.Sum256([]byte("shared-chunk-" + userID))
+	uniqueDigest := sha256.Sum256([]byte("unique-chunk-" + userID))
+
 	var sharedChunkID, uniqueChunkID string
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO chunks (
@@ -36,12 +40,12 @@ func TestPurgeRemovesDatabaseStateWithoutTouchingSharedChunks(t *testing.T) {
 			status, committed_at
 		)
 		VALUES (
-			gen_random_bytes(32), 10,
-			$1, $2, $3,
+			$1, 10,
+			$2, $3, $4,
 			'ready', now()
 		)
 		RETURNING id::text
-	`, "shared-channel-"+userID, "shared-message-"+userID, "shared-attachment-"+userID).Scan(&sharedChunkID); err != nil {
+	`, sharedDigest[:], "shared-channel-"+userID, "shared-message-"+userID, "shared-attachment-"+userID).Scan(&sharedChunkID); err != nil {
 		t.Fatalf("create shared chunk: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `
@@ -51,12 +55,12 @@ func TestPurgeRemovesDatabaseStateWithoutTouchingSharedChunks(t *testing.T) {
 			status, committed_at
 		)
 		VALUES (
-			gen_random_bytes(32), 10,
-			$1, $2, $3,
+			$1, 10,
+			$2, $3, $4,
 			'ready', now()
 		)
 		RETURNING id::text
-	`, "unique-channel-"+userID, "unique-message-"+userID, "unique-attachment-"+userID).Scan(&uniqueChunkID); err != nil {
+	`, uniqueDigest[:], "unique-channel-"+userID, "unique-message-"+userID, "unique-attachment-"+userID).Scan(&uniqueChunkID); err != nil {
 		t.Fatalf("create unique chunk: %v", err)
 	}
 

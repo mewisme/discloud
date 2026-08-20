@@ -62,11 +62,88 @@ func TestSetFileHeadersForDownload(t *testing.T) {
 	if got := headers.Get("ETag"); got == "" {
 		t.Fatal("ETag is empty")
 	}
-	if got := headers.Get("Cache-Control"); !strings.Contains(got, "no-transform") {
-		t.Fatalf("Cache-Control = %q, want no-transform", got)
+	if got := headers.Get("Cache-Control"); got != "no-store, no-transform" {
+		t.Fatalf("Cache-Control = %q, want no-store, no-transform", got)
 	}
 	if got := headers.Get("Content-Disposition"); !strings.HasPrefix(got, "attachment") {
 		t.Fatalf("Content-Disposition = %q, want attachment", got)
+	}
+}
+
+func TestSetFileHeadersForPreview(t *testing.T) {
+	file := files.File{Name: "image.jpg", MIMEType: "image/jpeg"}
+
+	recorder := httptest.NewRecorder()
+	setFileHeaders(recorder, file, false, 1024)
+
+	headers := recorder.Header()
+	if got := headers.Get("Cache-Control"); got != "private, no-cache, no-transform" {
+		t.Fatalf("Cache-Control = %q, want private, no-cache, no-transform", got)
+	}
+	if got := headers.Get("Content-Disposition"); !strings.HasPrefix(got, "inline") {
+		t.Fatalf("Content-Disposition = %q, want inline", got)
+	}
+}
+
+func TestFileNotModified(t *testing.T) {
+	digest := make([]byte, 32)
+	for i := range digest {
+		digest[i] = byte(i + 1)
+	}
+	updatedAt := time.Date(2026, time.August, 20, 1, 2, 3, 500_000_000, time.UTC)
+	file := files.File{SHA256: digest, UpdatedAt: updatedAt}
+	etag := fileETag(file)
+
+	tests := []struct {
+		name            string
+		ifNoneMatch     string
+		ifModifiedSince string
+		want            bool
+	}{
+		{name: "no validators", want: false},
+		{name: "matching etag", ifNoneMatch: etag, want: true},
+		{name: "matching weak etag", ifNoneMatch: "W/" + etag, want: true},
+		{name: "matching etag in list", ifNoneMatch: `"other", W/` + etag, want: true},
+		{name: "wildcard", ifNoneMatch: "*", want: true},
+		{name: "different etag", ifNoneMatch: `"different"`, want: false},
+		{
+			name:            "if none match takes precedence",
+			ifNoneMatch:     `"different"`,
+			ifModifiedSince: updatedAt.Format(http.TimeFormat),
+			want:            false,
+		},
+		{
+			name:            "matching modified since",
+			ifModifiedSince: updatedAt.Truncate(time.Second).Format(http.TimeFormat),
+			want:            true,
+		},
+		{
+			name:            "newer modified since",
+			ifModifiedSince: updatedAt.Add(time.Minute).Format(http.TimeFormat),
+			want:            true,
+		},
+		{
+			name:            "older modified since",
+			ifModifiedSince: updatedAt.Add(-time.Minute).Format(http.TimeFormat),
+			want:            false,
+		},
+		{name: "invalid modified since", ifModifiedSince: "invalid", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/files/test/content", nil)
+			if test.ifNoneMatch != "" {
+				request.Header.Set("If-None-Match", test.ifNoneMatch)
+			}
+			if test.ifModifiedSince != "" {
+				request.Header.Set("If-Modified-Since", test.ifModifiedSince)
+			}
+
+			if got := fileNotModified(request, file); got != test.want {
+				t.Fatalf("fileNotModified() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 
