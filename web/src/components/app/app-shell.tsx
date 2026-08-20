@@ -30,7 +30,7 @@ const workspace: NavItem[] = [
   { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: false },
   { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: true },
   { title: "Shared", href: "/shared", icon: Share2Icon, enabled: true },
-  { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: false },
+  { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: true },
 ]
 
 const titles = [
@@ -38,6 +38,7 @@ const titles = [
   ["/collections", "Collections"],
   ["/shared", "Shared"],
   ["/search", "Search"],
+  ["/trash", "Trash"],
   ["/files", "Files"],
 ] as const
 

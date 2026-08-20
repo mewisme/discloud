@@ -2,13 +2,14 @@
 
 import { Fragment, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, TriangleAlertIcon } from "lucide-react"
+import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -117,6 +118,7 @@ export function NodeActionsMenu({
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [publicShareOpen, setPublicShareOpen] = useState(false)
   const [favoritePending, setFavoritePending] = useState(false)
   const editable = node.accessLevel !== "view"
@@ -173,6 +175,16 @@ export function NodeActionsMenu({
               {node.isFavorite ? "Remove from favorites" : "Add to favorites"}
             </DropdownMenuItem>
           )}
+
+          {editable && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setTrashOpen(true)}>
+                <Trash2Icon />
+                Move to trash
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -190,6 +202,8 @@ export function NodeActionsMenu({
           onMoved={onMoved}
         />
       )}
+
+      {trashOpen && <TrashNodeDialog node={node} open onOpenChange={setTrashOpen} onReload={onReload} />}
 
       {canPublicShare && (
         <PublicShareDialog
@@ -255,6 +269,69 @@ function RenameNodeDialog({ node, open, onOpenChange, onReload }: { node: Browse
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: BrowserNode; open: boolean; onOpenChange: (open: boolean) => void; onReload: Reload }) {
+  const router = useRouter()
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string>()
+
+  function changeOpen(next: boolean) {
+    if (pending) return
+    onOpenChange(next)
+    if (!next) setError(undefined)
+  }
+
+  async function trash() {
+    setPending(true)
+    setError(undefined)
+
+    try {
+      const id = encodeURIComponent(node.id)
+      const path = node.kind === "folder" ? `/api/v1/folders/${id}` : `/api/v1/files/${id}`
+      await apiJSON<void>(path, { method: "DELETE" })
+      onOpenChange(false)
+      toast.success(`${node.name} moved to trash`)
+      try {
+        await onReload()
+      } catch {
+        toast.error("Moved to trash, but the browser could not refresh")
+      }
+      router.refresh()
+    } catch (cause) {
+      setError(apiErrorMessage(cause, "Could not move this item to trash."))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={changeOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <Trash2Icon />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Move {node.name} to trash?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {node.kind === "folder"
+              ? "The folder and its contents will disappear from Files. You can restore the folder from Trash."
+              : "The file will disappear from Files. You can restore it from Trash."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {error && <ErrorAlert message={error} />}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <Button variant="destructive" disabled={pending} onClick={() => void trash()}>
+            {pending && <Loader2Icon className="animate-spin" />}
+            Move to trash
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
