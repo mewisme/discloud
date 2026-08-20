@@ -6,6 +6,7 @@ export type SearchOrder = "asc" | "desc"
 
 export type SearchOptions = {
   q: string
+  ownerId: string
   kind: SearchKind
   category: SearchCategory
   favorite: SearchFlag
@@ -16,6 +17,7 @@ export type SearchOptions = {
 
 export function parseSearchOptions(params: Pick<URLSearchParams, "get">): SearchOptions {
   const q = (params.get("q") ?? "").trim().slice(0, 256)
+  const ownerId = parseUUID(params.get("ownerId"))
   const kind = parseEnum(params.get("kind"), ["file", "folder"], "all")
   const category = parseEnum(params.get("category"), ["image", "video", "audio", "document", "text", "archive", "application", "binary", "other"], "all")
   const favorite = parseEnum(params.get("favorite"), ["true", "false"], "any")
@@ -24,7 +26,8 @@ export function parseSearchOptions(params: Pick<URLSearchParams, "get">): Search
   const rawSort = parseEnum(params.get("sort"), ["relevance", "name", "created", "updated", "size"], fallbackSort)
   const sort = !q && rawSort === "relevance" ? "updated" : rawSort
   const order = parseEnum(params.get("order"), ["asc", "desc"], defaultSearchOrder(sort))
-  return { q, kind, category, favorite, shared, sort, order }
+
+  return { q, ownerId, kind, category, favorite, shared, sort, order }
 }
 
 export function patchSearchOptions(current: SearchOptions, patch: Partial<SearchOptions>): SearchOptions {
@@ -46,6 +49,7 @@ export function searchURL(options: SearchOptions) {
   const q = options.q.trim()
 
   if (q) params.set("q", q)
+  if (options.ownerId) params.set("ownerId", options.ownerId)
   if (options.kind !== "all") params.set("kind", options.kind)
   if (options.category !== "all") params.set("category", options.category)
   if (options.favorite !== "any") params.set("favorite", options.favorite)
@@ -67,4 +71,9 @@ export function defaultSearchOrder(sort: SearchSort): SearchOrder {
 
 function parseEnum<const T extends string>(value: string | null, values: readonly T[], fallback: T): T {
   return value && values.includes(value as T) ? value as T : fallback
+}
+
+function parseUUID(value: string | null) {
+  const normalized = value?.trim().toLowerCase() ?? ""
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalized) ? normalized : ""
 }

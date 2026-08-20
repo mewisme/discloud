@@ -128,9 +128,9 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
             <Field>
               <FieldLabel htmlFor="admin-create-quota">Quota (GiB)</FieldLabel>
               <Input id="admin-create-quota" type="number" min="0" step="0.1" placeholder="Unlimited" value={quotaGiB} disabled={pending} onChange={(event) => setQuotaGiB(event.target.value)} />
-              <FieldDescription>Leave empty for unlimited storage.</FieldDescription>
             </Field>
           </div>
+          <FieldDescription>Leave empty for unlimited storage.</FieldDescription>
         </FieldGroup>
 
         <DialogFooter>

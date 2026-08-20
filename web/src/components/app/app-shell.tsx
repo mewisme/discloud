@@ -219,7 +219,7 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
       <div className="truncate text-xs tabular-nums text-muted-foreground">
         {formatBytes(usage.usedBytes)}
         {usage.reservedBytes > 0 && <span> (+{formatBytes(usage.reservedBytes)})</span>}
-        <span> / {usage.quotaBytes === null ? "∞" : formatBytes(usage.quotaBytes)}</span>
+        <span> / {usage.quotaBytes === null ? "Unlimited" : formatBytes(usage.quotaBytes)}</span>
       </div>
 
       {usage.quotaBytes !== null && <Progress value={percent} />}
