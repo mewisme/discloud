@@ -43,6 +43,7 @@ const management: NavItem[] = [
 
 const titles = [
   ["/settings/security", "Security"],
+  ["/settings", "Settings"],
   ["/admin/diagnostics", "Diagnostics"],
   ["/collections", "Collections"],
   ["/shared", "Shared"],
@@ -224,9 +225,9 @@ function UserMenu({ user }: { user: User }) {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem asChild>
-          <Link href="/settings/security" onClick={() => setOpenMobile(false)}>
+          <Link href="/settings" onClick={() => setOpenMobile(false)}>
             <SettingsIcon />
-            Security
+            Settings
           </Link>
         </DropdownMenuItem>
 

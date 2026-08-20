@@ -163,7 +163,7 @@ export function CommandPalette() {
               <CommandItem onSelect={() => navigate("/collections")}><LibraryIcon />Collections</CommandItem>
               <CommandItem onSelect={() => navigate("/shared")}><Share2Icon />Shared</CommandItem>
               <CommandItem onSelect={() => navigate("/trash")}><Trash2Icon />Trash</CommandItem>
-              <CommandItem onSelect={() => navigate("/settings/security")}><SettingsIcon />Security settings</CommandItem>
+              <CommandItem onSelect={() => navigate("/settings")}><SettingsIcon />Settings</CommandItem>
               {user.role === "admin" && <CommandItem onSelect={() => navigate("/admin")}><ShieldIcon />Admin</CommandItem>}
             </CommandGroup>
           </CommandList>
