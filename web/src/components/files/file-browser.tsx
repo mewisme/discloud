@@ -357,14 +357,16 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
         />
 
         {selectedNodes.length > 0 && (
-          <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3">
+          <div
+            className={cn(
+              "pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 transition-[bottom] duration-200 ease-out",
+              mergeHorizontalDocks && "sm:bottom-[calc(4.75rem+env(safe-area-inset-bottom))]",
+            )}
+          >
             <div
               role="toolbar"
               aria-label={`${selectedNodes.length} selected item${selectedNodes.length === 1 ? "" : "s"} actions`}
-              className={cn(
-                "pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150",
-                mergeHorizontalDocks ? "rounded-t-xl rounded-b-2xl" : "rounded-2xl",
-              )}
+              className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
             >
               <span className="whitespace-nowrap px-2 text-sm font-medium">
                 {selectedNodes.length} selected
@@ -395,7 +397,13 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
                 )}
 
                 {bulkCanTrash && (
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive focus-visible:text-destructive" disabled={favoritePending} onClick={() => setTrashTargets(selectedNodes)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive focus-visible:text-destructive"
+                    disabled={favoritePending}
+                    onClick={() => setTrashTargets(selectedNodes)}
+                  >
                     <Trash2Icon />
                     Trash
                   </Button>

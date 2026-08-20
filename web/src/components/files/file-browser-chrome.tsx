@@ -194,20 +194,8 @@ function DockedToolbar({
   }
 
   return (
-    <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 z-30 hidden justify-center px-3 transition-[bottom] duration-200 sm:flex",
-        selectionActive
-          ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
-          : "bottom-[calc(1rem+env(safe-area-inset-bottom))]",
-      )}
-    >
-      <div
-        className={cn(
-          "pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 border bg-background/95 p-2 shadow-xl backdrop-blur-md",
-          selectionActive ? "rounded-t-2xl rounded-b-xl" : "rounded-2xl",
-        )}
-      >
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 hidden justify-center px-3 sm:flex">
+      <div className="pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
         <HorizontalToolbar {...props} />
       </div>
     </div>
