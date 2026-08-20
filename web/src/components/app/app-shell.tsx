@@ -17,6 +17,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
 import { apiJSON } from "@/lib/api/client"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 import { formatBytes, initials, isActivePath } from "@/lib/helpers"
+import { CurrentUserProvider } from "@/components/app/current-user-context"
 
 type NavItem = {
   title: string
@@ -53,20 +54,15 @@ const titles = [
 
 export function AppShell({ children, user, usage, defaultSidebarOpen }: { children: ReactNode; user: User; usage: CurrentUserUsage; defaultSidebarOpen: boolean }) {
   return (
-    <SidebarProvider defaultOpen={defaultSidebarOpen}>
-      <Button asChild size="sm" variant="secondary" className="fixed left-3 top-3 z-50 -translate-y-20 shadow-lg transition-transform focus:translate-y-0">
-        <Link href="#main-content">Skip to content</Link>
-      </Button>
-
-      <AppSidebar user={user} usage={usage} />
-
-      <SidebarInset>
-        <AppHeader />
-        <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <CurrentUserProvider user={user}>
+      <SidebarProvider defaultOpen={defaultSidebarOpen}>
+        <AppSidebar user={user} usage={usage} />
+        <SidebarInset>
+          <AppHeader />
+          <div className="flex flex-1 flex-col p-4 sm:p-6">{children}</div>
+        </SidebarInset>
+      </SidebarProvider>
+    </CurrentUserProvider>
   )
 }
 

@@ -73,13 +73,17 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
         </TableHeader>
         <TableBody>
           {props.parent && (
-            <TableRow className="cursor-pointer select-none" onClick={() => props.onNavigate(props.parent!.id)}>
+            <TableRow className="select-none">
               <TableCell />
               <TableCell>
-                <div className="flex items-center gap-2 font-medium">
+                <a
+                  className="flex items-center gap-2 font-medium hover:underline"
+                  href={folderBrowserURL(props.parent.id, props.options)}
+                  onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}
+                >
                   <FolderUpIcon className="size-4 shrink-0 text-muted-foreground" />
                   <span>..</span>
-                </div>
+                </a>
               </TableCell>
               <TableCell className="hidden text-muted-foreground md:table-cell">Parent folder</TableCell>
               <TableCell className="hidden sm:table-cell" />

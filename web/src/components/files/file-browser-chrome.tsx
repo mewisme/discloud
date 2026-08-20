@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
 import { folderBrowserURL } from "@/lib/files/navigation"
+import { useCurrentUser } from "@/components/app/current-user-context"
 
 export function FileBrowserChrome({
   folder,
@@ -37,6 +38,7 @@ export function FileBrowserChrome({
   onReload: () => Promise<void>
   onOptionsChange: (patch: Partial<BrowserOptions>) => void
 }) {
+  const user = useCurrentUser()
   const uploadTarget = useUploadTarget()
   const [accessOpen, setAccessOpen] = useState(false)
   const [publicShareOpen, setPublicShareOpen] = useState(false)
@@ -44,7 +46,7 @@ export function FileBrowserChrome({
   const shareable = accessLevel === "full"
   const breadcrumbItems = breadcrumbs.map((item) => ({
     id: item.id,
-    label: item.isRoot ? "Files" : item.name,
+    label: item.isRoot ? `${user.username}'s workspace` : item.name,
     href: folderBrowserURL(item.id, options),
   }))
 
