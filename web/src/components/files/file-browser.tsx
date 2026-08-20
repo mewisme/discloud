@@ -18,6 +18,7 @@ import { apiJSON } from "@/lib/api/client"
 import type { Breadcrumbs, BrowserNode, CurrentUserRoot, FolderChildrenQuery, Node, NodePage } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { type BrowserOptions, browserURL } from "@/lib/files/browser"
+import { setNodeFavorite } from "@/lib/files/favorite"
 import { folderBrowserPath, folderIdFromBrowserPath } from "@/lib/files/navigation"
 import { cn } from "@/lib/utils"
 
@@ -279,7 +280,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
     setNodes((current) => current.map((item) => item.id === node.id ? { ...item, isFavorite: favorite } : item))
 
     try {
-      await apiJSON<Node>(`/api/v1/nodes/${node.id}/favorite`, { method: favorite ? "PUT" : "DELETE" })
+      await setNodeFavorite(node.id, favorite)
     } catch (error) {
       setNodes((current) => current.map((item) => item.id === node.id ? { ...item, isFavorite: node.isFavorite } : item))
       handleBrowserError(error, router, favorite ? "Could not add to favorites" : "Could not remove from favorites")
@@ -298,7 +299,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
     for (let index = 0; index < targets.length; index += 8) {
       const batch = targets.slice(index, index + 8)
-      const results = await Promise.allSettled(batch.map((node) => apiJSON<Node>(`/api/v1/nodes/${node.id}/favorite`, { method: favorite ? "PUT" : "DELETE" })))
+      const results = await Promise.allSettled(batch.map((node) => setNodeFavorite(node.id, favorite)))
 
       results.forEach((result, offset) => {
         if (result.status === "rejected") {

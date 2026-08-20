@@ -31,7 +31,7 @@ type NavItem = {
 const workspace: NavItem[] = [
   { title: "Files", href: "/files", icon: FolderIcon, enabled: true },
   { title: "Search", href: "/search", icon: SearchIcon, enabled: true },
-  { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: false },
+  { title: "Favorites", href: "/favorites", icon: HeartIcon, enabled: true },
   { title: "Collections", href: "/collections", icon: LibraryIcon, enabled: true },
   { title: "Shared", href: "/shared", icon: Share2Icon, enabled: true },
   { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: true },
@@ -49,6 +49,7 @@ const titles = [
   ["/settings", "Settings"],
   ["/admin/diagnostics", "Diagnostics"],
   ["/collections", "Collections"],
+  ["/favorites", "Favorites"],
   ["/shared", "Shared"],
   ["/search", "Search"],
   ["/trash", "Trash"],

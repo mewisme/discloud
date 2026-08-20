@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderIcon, FolderPlusIcon, LibraryIcon, Loader2Icon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, Trash2Icon, UploadIcon } from "lucide-react"
+import { FolderIcon, FolderPlusIcon, HeartIcon, LibraryIcon, Loader2Icon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, Trash2Icon, UploadIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -111,10 +111,16 @@ export function CommandPalette() {
         <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] sm:inline">Ctrl K</kbd>
       </Button>
 
-      <CommandDialog open={open} onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) close()
-      }} title="DisCloud command palette" description="Search files, open folders, navigate, or run workspace commands." className="sm:max-w-xl">
+      <CommandDialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) close()
+        }}
+        title="DisCloud command palette"
+        description="Search files, open folders, navigate, or run workspace commands."
+        className="sm:max-w-xl"
+      >
         <Command shouldFilter={false}>
           <CommandInput value={query} onValueChange={setQuery} placeholder="Search files, folders, or commands…" />
 
@@ -161,6 +167,7 @@ export function CommandPalette() {
 
             <CommandGroup heading="Navigate">
               <CommandItem onSelect={() => navigate("/files")}><FolderIcon />Files</CommandItem>
+              <CommandItem onSelect={() => navigate("/favorites")}><HeartIcon />Favorites</CommandItem>
               <CommandItem onSelect={() => navigate("/collections")}><LibraryIcon />Collections</CommandItem>
               <CommandItem onSelect={() => navigate("/shared")}><Share2Icon />Shared</CommandItem>
               <CommandItem onSelect={() => navigate("/trash")}><Trash2Icon />Trash</CommandItem>
