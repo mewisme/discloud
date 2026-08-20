@@ -1,25 +1,23 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CheckIcon, ClipboardIcon, DownloadIcon, KeyRoundIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, ShieldOffIcon, TriangleAlertIcon, XIcon } from "lucide-react"
-import { QRCodeSVG } from "qrcode.react"
+import { Loader2Icon, RefreshCwIcon, ShieldCheckIcon, ShieldOffIcon, TriangleAlertIcon } from "lucide-react"
 import { useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
-import { DateTime } from "@/components/common/date-time"
+import { MFAEnrollment } from "@/components/settings/security/mfa-enrollment"
+import { type MFAAction, MFAVerificationAction } from "@/components/settings/security/mfa-verification-action"
+import { RecoveryCodes } from "@/components/settings/security/recovery-codes"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { apiJSON } from "@/lib/api/client"
-import type { MFACodeInput, MFAEnrollment, RecoveryCodes } from "@/lib/api/models"
+import type { MFACodeInput, MFAEnrollment as MFAEnrollmentModel, RecoveryCodes as RecoveryCodesModel } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { type APIFormError,apiFormError } from "@/lib/helpers"
+import { type APIFormError, apiFormError } from "@/lib/helpers"
 
 const totpSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit authentication code"),
@@ -31,11 +29,10 @@ const verificationSchema = z.object({
 
 type TOTPValues = z.infer<typeof totpSchema>
 type VerificationValues = z.infer<typeof verificationSchema>
-type MFAAction = "regenerate" | "disable"
 
 export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }) {
   const [enabled, setEnabled] = useState(initialEnabled)
-  const [enrollment, setEnrollment] = useState<MFAEnrollment>()
+  const [enrollment, setEnrollment] = useState<MFAEnrollmentModel>()
   const [recoveryCodes, setRecoveryCodes] = useState<readonly string[]>()
   const [action, setAction] = useState<MFAAction>()
   const [starting, setStarting] = useState(false)
@@ -55,7 +52,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
     setRecoveryCodes(undefined)
 
     try {
-      const result = await apiJSON<MFAEnrollment>("/api/v1/me/mfa/totp/enroll", { method: "POST" })
+      const result = await apiJSON<MFAEnrollmentModel>("/api/v1/me/mfa/totp/enroll", { method: "POST" })
       setEnrollment(result)
       confirmForm.reset()
     } catch (error) {
@@ -76,7 +73,11 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
 
     try {
       const input: MFACodeInput = { code: values.code }
-      const result = await apiJSON<RecoveryCodes>("/api/v1/me/mfa/totp/confirm", { method: "POST", body: input })
+      const result = await apiJSON<RecoveryCodesModel>("/api/v1/me/mfa/totp/confirm", {
+        method: "POST",
+        body: input,
+      })
+
       setEnabled(true)
       setEnrollment(undefined)
       setRecoveryCodes(result.recoveryCodes)
@@ -97,7 +98,10 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
         }
 
         setEnrollment(undefined)
-        setFormError({ message: "The enrollment expired. Start setup again.", requestID: error.requestID })
+        setFormError({
+          message: "The enrollment expired. Start setup again.",
+          requestID: error.requestID,
+        })
         return
       }
 
@@ -107,17 +111,24 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
 
   async function submitAction(values: VerificationValues) {
     if (!action) return
+
     setFormError(undefined)
 
     try {
       const input: MFACodeInput = { code: values.code }
 
       if (action === "regenerate") {
-        const result = await apiJSON<RecoveryCodes>("/api/v1/me/mfa/recovery-codes/regenerate", { method: "POST", body: input })
+        const result = await apiJSON<RecoveryCodesModel>("/api/v1/me/mfa/recovery-codes/regenerate", {
+          method: "POST",
+          body: input,
+        })
         setRecoveryCodes(result.recoveryCodes)
         toast.success("Recovery codes regenerated")
       } else {
-        await apiJSON<void>("/api/v1/me/mfa/totp", { method: "DELETE", body: input })
+        await apiJSON<void>("/api/v1/me/mfa/totp", {
+          method: "DELETE",
+          body: input,
+        })
         setEnabled(false)
         setRecoveryCodes(undefined)
         toast.success("Two-factor authentication disabled")
@@ -137,7 +148,12 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
         return
       }
 
-      setFormError(apiFormError(error, action === "disable" ? "Could not disable two-factor authentication." : "Could not regenerate recovery codes."))
+      setFormError(apiFormError(
+        error,
+        action === "disable"
+          ? "Could not disable two-factor authentication."
+          : "Could not regenerate recovery codes.",
+      ))
     }
   }
 
@@ -166,7 +182,10 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
   function downloadRecoveryCodes() {
     if (!recoveryCodes?.length) return
 
-    const blob = new Blob([`DisCloud recovery codes\n\n${recoveryCodes.join("\n")}\n`], { type: "text/plain;charset=utf-8" })
+    const blob = new Blob(
+      [`DisCloud recovery codes\n\n${recoveryCodes.join("\n")}\n`],
+      { type: "text/plain;charset=utf-8" },
+    )
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
@@ -174,10 +193,6 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
     link.click()
     URL.revokeObjectURL(url)
   }
-
-  const secret = enrollment ? provisioningSecret(enrollment.provisioningUri) : ""
-  const confirmState = confirmForm.formState
-  const actionState = actionForm.formState
 
   return (
     <div className="space-y-4">
@@ -193,30 +208,12 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
       )}
 
       {recoveryCodes && (
-        <Alert>
-          <KeyRoundIcon />
-          <AlertTitle>Save your recovery codes now</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>Each code can be used once. DisCloud will not show this set again after you dismiss it.</p>
-            <div className="grid gap-1 rounded-lg border bg-muted/50 p-3 font-mono text-xs sm:grid-cols-2">
-              {recoveryCodes.map((code) => <code key={code}>{code}</code>)}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={copyRecoveryCodes}>
-                <ClipboardIcon />
-                Copy
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={downloadRecoveryCodes}>
-                <DownloadIcon />
-                Download
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setRecoveryCodes(undefined)}>
-                <CheckIcon />
-                I saved them
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
+        <RecoveryCodes
+          codes={recoveryCodes}
+          onCopy={() => void copyRecoveryCodes()}
+          onDownload={downloadRecoveryCodes}
+          onDismiss={() => setRecoveryCodes(undefined)}
+        />
       )}
 
       <Card>
@@ -229,14 +226,21 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
               </CardTitle>
               <CardDescription>Add an authenticator code after your password when signing in.</CardDescription>
             </div>
-            <Badge variant={enabled ? "default" : "secondary"}>{enabled ? "Enabled" : "Disabled"}</Badge>
+
+            <Badge variant={enabled ? "default" : "secondary"}>
+              {enabled ? "Enabled" : "Disabled"}
+            </Badge>
           </div>
         </CardHeader>
+
         <CardContent className="space-y-4">
           {!enabled && !enrollment && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Protect your account with a time-based one-time password authenticator.</p>
-              <Button disabled={starting} onClick={startEnrollment}>
+              <p className="text-sm text-muted-foreground">
+                Protect your account with a time-based one-time password authenticator.
+              </p>
+
+              <Button disabled={starting} onClick={() => void startEnrollment()}>
                 {starting ? <Loader2Icon className="animate-spin" /> : <ShieldCheckIcon />}
                 {starting ? "Starting setup…" : "Set up two-factor authentication"}
               </Button>
@@ -244,61 +248,27 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
           )}
 
           {!enabled && enrollment && (
-            <form className="space-y-5" onSubmit={confirmForm.handleSubmit(confirmEnrollment)}>
-              <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center">
-                <div className="w-fit rounded-xl border bg-white p-3">
-                  <QRCodeSVG value={enrollment.provisioningUri} size={176} level="M" />
-                </div>
-                <div className="space-y-2 text-sm">
-                  <p className="font-medium">Scan this QR code with your authenticator app.</p>
-                  <p className="text-muted-foreground">Setup expires <DateTime value={enrollment.expiresAt} /></p>
-                  {secret && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Manual setup key</p>
-                      <code className="block break-all rounded-lg bg-muted px-2.5 py-2 text-xs">{secret}</code>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Field data-invalid={!!confirmState.errors.code}>
-                <FieldLabel>Authentication code</FieldLabel>
-                <Controller
-                  control={confirmForm.control}
-                  name="code"
-                  render={({ field }) => (
-                    <InputOTP maxLength={6} inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={confirmState.isSubmitting} aria-invalid={!!confirmState.errors.code} value={field.value} onChange={field.onChange}>
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} />)}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  )}
-                />
-                <FieldDescription>Enter the 6-digit code generated by your authenticator.</FieldDescription>
-                <FieldError errors={[confirmState.errors.code]} />
-              </Field>
-
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" disabled={confirmState.isSubmitting}>
-                  {confirmState.isSubmitting && <Loader2Icon className="animate-spin" />}
-                  {confirmState.isSubmitting ? "Verifying…" : "Enable MFA"}
-                </Button>
-                <Button type="button" variant="outline" disabled={starting || confirmState.isSubmitting} onClick={startEnrollment}>
-                  {starting ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-                  Start over
-                </Button>
-              </div>
-            </form>
+            <MFAEnrollment
+              enrollment={enrollment}
+              form={confirmForm}
+              starting={starting}
+              onConfirm={confirmEnrollment}
+              onStartOver={startEnrollment}
+            />
           )}
 
           {enabled && !action && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Your account requires an authenticator or recovery code after password authentication.</p>
+              <p className="text-sm text-muted-foreground">
+                Your account requires an authenticator or recovery code after password authentication.
+              </p>
+
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => openAction("regenerate")}>
                   <RefreshCwIcon />
                   Regenerate recovery codes
                 </Button>
+
                 <Button variant="destructive" onClick={() => openAction("disable")}>
                   <ShieldOffIcon />
                   Disable MFA
@@ -308,47 +278,15 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
           )}
 
           {enabled && action && (
-            <form onSubmit={actionForm.handleSubmit(submitAction)}>
-              <FieldGroup>
-                <Alert variant={action === "disable" ? "destructive" : "default"}>
-                  {action === "disable" ? <ShieldOffIcon /> : <RefreshCwIcon />}
-                  <AlertTitle>{action === "disable" ? "Disable two-factor authentication" : "Generate new recovery codes"}</AlertTitle>
-                  <AlertDescription>
-                    {action === "disable"
-                      ? "This removes your authenticator and all recovery codes. Other active sessions will be revoked."
-                      : "Generating a new set invalidates every existing recovery code."}
-                  </AlertDescription>
-                </Alert>
-
-                <Field data-invalid={!!actionState.errors.code}>
-                  <FieldLabel htmlFor="verification-code">Authenticator or recovery code</FieldLabel>
-                  <Input id="verification-code" autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} autoFocus disabled={actionState.isSubmitting} aria-invalid={!!actionState.errors.code} {...actionForm.register("code")} />
-                  <FieldError errors={[actionState.errors.code]} />
-                </Field>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button type="submit" variant={action === "disable" ? "destructive" : "default"} disabled={actionState.isSubmitting}>
-                    {actionState.isSubmitting && <Loader2Icon className="animate-spin" />}
-                    {actionState.isSubmitting ? "Verifying…" : action === "disable" ? "Disable MFA" : "Generate codes"}
-                  </Button>
-                  <Button type="button" variant="outline" disabled={actionState.isSubmitting} onClick={closeAction}>
-                    <XIcon />
-                    Cancel
-                  </Button>
-                </div>
-              </FieldGroup>
-            </form>
+            <MFAVerificationAction
+              action={action}
+              form={actionForm}
+              onSubmit={submitAction}
+              onCancel={closeAction}
+            />
           )}
         </CardContent>
       </Card>
     </div>
   )
-}
-
-function provisioningSecret(uri: string) {
-  try {
-    return new URL(uri).searchParams.get("secret") ?? ""
-  } catch {
-    return ""
-  }
 }
