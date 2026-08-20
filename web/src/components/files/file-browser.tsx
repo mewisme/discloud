@@ -336,9 +336,9 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
         {nextCursor && <div ref={sentinelRef} className="h-px" aria-hidden />}
         {loadingMore && (
-          <div className="flex justify-center py-2 text-xs text-muted-foreground">
-            <Loader2Icon className="mr-2 size-3.5 animate-spin" />
-            Loading more…
+          <div role="status" aria-live="polite" className="flex justify-center py-2 text-xs text-muted-foreground">
+            <Loader2Icon className="mr-2 size-3.5 animate-spin" aria-hidden />
+            Loading more items…
           </div>
         )}
       </div>

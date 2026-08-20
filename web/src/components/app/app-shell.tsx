@@ -56,10 +56,17 @@ export function AppShell({ children, user, usage, defaultSidebarOpen }: { childr
   return (
     <CurrentUserProvider user={user}>
       <SidebarProvider defaultOpen={defaultSidebarOpen}>
+        <Button asChild size="sm" variant="secondary" className="fixed left-3 top-3 z-50 -translate-y-20 shadow-lg transition-transform focus:translate-y-0">
+          <Link href="#main-content">Skip to content</Link>
+        </Button>
+
         <AppSidebar user={user} usage={usage} />
+
         <SidebarInset>
           <AppHeader />
-          <div className="flex flex-1 flex-col p-4 sm:p-6">{children}</div>
+          <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
+            {children}
+          </main>
         </SidebarInset>
       </SidebarProvider>
     </CurrentUserProvider>

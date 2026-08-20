@@ -32,12 +32,12 @@ export function BrowserItems(props: BrowserItemsProps) {
   const empty = props.nodes.length === 0 && !parent
 
   return (
-    <div className="relative min-h-24">
+    <div className="relative min-h-24" aria-busy={props.loading}>
       {empty ? <EmptyFolder /> : props.options.view === "grid" ? <NodeGrid {...props} parent={parent} /> : <NodeList {...props} parent={parent} />}
       {props.loading && (
         <div className="absolute inset-0 z-10 grid min-h-24 place-items-center rounded-xl bg-background/70 backdrop-blur-[1px]">
-          <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
-            <Loader2Icon className="size-3.5 animate-spin" />
+          <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+            <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
             Loading folder…
           </div>
         </div>
