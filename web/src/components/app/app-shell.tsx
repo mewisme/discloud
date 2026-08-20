@@ -85,8 +85,8 @@ function AppSidebar({
   ]
 
   const managementItems: NavItem[] = [
-    { title: "Admin", href: workspacePath(workspace.username, "admin"), icon: ShieldIcon, enabled: true, exact: true },
-    { title: "Diagnostics", href: workspacePath(workspace.username, "admin/diagnostics"), icon: ActivityIcon, enabled: true },
+    { title: "Admin", href: workspacePath(user.username, "admin"), icon: ShieldIcon, enabled: true, exact: true },
+    { title: "Diagnostics", href: workspacePath(user.username, "admin/diagnostics"), icon: ActivityIcon, enabled: true },
   ]
 
   return (
@@ -95,14 +95,14 @@ function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip="DisCloud">
-              <Link href={workspacePath(workspace.username)}>
+              <Link href={workspacePath(user.username)}>
                 <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                   <CloudIcon className="size-4" />
                 </div>
 
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">DisCloud</span>
-                  <span className="truncate text-xs text-muted-foreground">@{workspace.username}</span>
+                  <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -116,6 +116,7 @@ function AppSidebar({
             <WorkspaceSwitcher />
           </SidebarGroupContent>
         </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>
             {workspace.username === user.username ? "Workspace" : `${workspace.name}'s workspace`}

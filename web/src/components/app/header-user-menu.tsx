@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { useWorkspace } from "@/components/app/workspace-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -17,7 +16,6 @@ import { workspacePath } from "@/lib/workspace/navigation"
 
 export function HeaderUserMenu({ user }: { user: User }) {
   const router = useRouter()
-  const workspace = useWorkspace()
   const { setOpenMobile } = useSidebar()
   const [pending, setPending] = useState(false)
 
@@ -59,21 +57,21 @@ export function HeaderUserMenu({ user }: { user: User }) {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem asChild>
-          <Link href={workspacePath(workspace.username, "settings/profile")} onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(user.username, "settings/profile")} onClick={() => setOpenMobile(false)}>
             <UserRoundIcon />
             Profile
           </Link>
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
-          <Link href={workspacePath(workspace.username, "settings/security")} onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(user.username, "settings/security")} onClick={() => setOpenMobile(false)}>
             <ShieldCheckIcon />
             Security
           </Link>
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
-          <Link href={workspacePath(workspace.username, "settings")} onClick={() => setOpenMobile(false)}>
+          <Link href={workspacePath(user.username, "settings")} onClick={() => setOpenMobile(false)}>
             <SettingsIcon />
             Settings
           </Link>

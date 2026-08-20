@@ -197,12 +197,12 @@ export function CommandPalette() {
                 <Trash2Icon />
                 Trash
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "settings"))}>
+              <CommandItem onSelect={() => navigate(workspacePath(user.username, "settings"))}>
                 <SettingsIcon />
                 Settings
               </CommandItem>
               {user.role === "admin" && (
-                <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "admin"))}>
+                <CommandItem onSelect={() => navigate(workspacePath(user.username, "admin"))}>
                   <ShieldIcon />
                   Admin
                 </CommandItem>

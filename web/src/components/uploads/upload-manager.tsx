@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 
-import { useWorkspace } from "@/components/app/workspace-context"
+import { useCurrentUser } from "@/components/app/current-user-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
@@ -16,12 +16,12 @@ import { workspacePath } from "@/lib/workspace/navigation"
 
 export function UploadManager() {
   const pathname = usePathname()
-  const workspace = useWorkspace()
+  const currentUser = useCurrentUser()
   const { tasks } = useUploads()
 
   if (!tasks.length) return null
 
-  const href = workspacePath(workspace.username, "uploads")
+  const href = workspacePath(currentUser.username, "uploads")
   if (pathname === href || pathname === `${href}/`) return null
 
   const active = tasks.filter(isActive).length
