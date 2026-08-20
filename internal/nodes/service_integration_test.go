@@ -135,6 +135,58 @@ func TestNodeTreeIntegration(t *testing.T) {
 		t.Fatalf("move conflict = %v", err)
 	}
 
+	empty, err := service.CreateFolder(ctx, user, rootID, "Empty")
+	if err != nil {
+		t.Fatalf("create empty folder: %v", err)
+	}
+
+	createTreeFile(t, ctx, pool, userID, a.ID, "direct.txt", 100)
+	createTreeFile(t, ctx, pool, userID, c.ID, "nested.txt", 250)
+	deletedFileID := createTreeFile(t, ctx, pool, userID, c.ID, "deleted.txt", 500)
+	rootFileID := createTreeFile(t, ctx, pool, userID, rootID, "root.bin", 200)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE nodes
+		SET deleted_at = now(),
+		    deleted_by = $1::uuid
+		WHERE id = $2::uuid
+	`, userID, deletedFileID); err != nil {
+		t.Fatalf("soft delete nested file: %v", err)
+	}
+
+	browserChildren, browserHasMore, _, err := service.ListBrowserChildren(ctx, user, rootID, BrowserListOptions{
+		Limit: 100,
+		Sort:  BrowserSortSize,
+		Order: BrowserOrderDesc,
+	})
+	if err != nil {
+		t.Fatalf("list browser children by size: %v", err)
+	}
+	if browserHasMore {
+		t.Fatal("unexpected additional browser children")
+	}
+
+	sizes := make(map[string]int64, len(browserChildren))
+	for _, child := range browserChildren {
+		if child.SizeBytes == nil {
+			t.Fatalf("browser child %q has no size", child.Name)
+		}
+		sizes[child.ID] = *child.SizeBytes
+	}
+
+	if got := sizes[a.ID]; got != 350 {
+		t.Fatalf("folder A size = %d, want 350", got)
+	}
+	if got := sizes[empty.ID]; got != 0 {
+		t.Fatalf("empty folder size = %d, want 0", got)
+	}
+	if got := sizes[rootFileID]; got != 200 {
+		t.Fatalf("root file size = %d, want 200", got)
+	}
+	if len(browserChildren) == 0 || browserChildren[0].ID != a.ID {
+		t.Fatalf("largest browser child = %+v, want folder A", browserChildren)
+	}
+
 	children, hasMore, err := service.ListChildren(ctx, user, rootID, 2, "", "")
 	if err != nil {
 		t.Fatalf("list children: %v", err)
@@ -188,4 +240,50 @@ func createTreeUser(
 	}
 
 	return userID, rootID
+}
+
+func createTreeFile(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	ownerID string,
+	parentID string,
+	name string,
+	size int64,
+) string {
+	t.Helper()
+
+	displayName, nameKey, err := NormalizeName(name)
+	if err != nil {
+		t.Fatalf("normalize file name %q: %v", name, err)
+	}
+
+	var fileID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO nodes (
+			kind,
+			owner_user_id,
+			parent_id,
+			name,
+			name_key,
+			created_by
+		)
+		VALUES ('file', $1::uuid, $2::uuid, $3, $4, $1::uuid)
+		RETURNING id::text
+	`, ownerID, parentID, displayName, nameKey).Scan(&fileID); err != nil {
+		t.Fatalf("create file node %q: %v", name, err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO files (
+			node_id,
+			size_bytes,
+			chunk_size_bytes
+		)
+		VALUES ($1::uuid, $2, 1024)
+	`, fileID, size); err != nil {
+		t.Fatalf("create file metadata %q: %v", name, err)
+	}
+
+	return fileID
 }

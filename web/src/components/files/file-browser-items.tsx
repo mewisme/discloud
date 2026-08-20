@@ -147,7 +147,7 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
                   </div>
                 </TableCell>
                 <TableCell className="hidden text-muted-foreground md:table-cell">{nodeType(node)}</TableCell>
-                <TableCell className="hidden text-muted-foreground sm:table-cell">{node.kind === "file" && node.size != null ? formatBytes(node.size) : "—"}</TableCell>
+                <TableCell className="hidden text-muted-foreground sm:table-cell">{node.size != null ? formatBytes(node.size) : "—"}</TableCell>
                 <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}><DateOnly value={node.updatedAt} /></TableCell>
                 <TableCell>
                   <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
@@ -237,7 +237,7 @@ function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
               </div>
 
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                {node.kind === "file" && node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}
+                {node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}
               </p>
             </div>
           </div>
