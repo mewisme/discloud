@@ -2,21 +2,21 @@
 
 > Standalone source-of-truth roadmap for the DisCloud web client.
 >
-> Corrected checkpoint: **2026-08-20**
+> Current checkpoint: **2026-08-21**
 >
 > Repository: `mewisme/discloud` · branch `main`
 >
-> Current formal phase: **Phase 17 — UX, accessibility & resilience**
+> Current formal phase: **Phase 18 — Testing, performance & web release stabilization**
 >
-> Final remaining formal phase: **Phase 18 — Testing, performance & web release stabilization**
+> Total: **19 phases, Phase 0 through Phase 18**.
 >
-> Total: **19 phases, numbered Phase 0 through Phase 18**.
+> Current posture: **Phase 0–17 implementation is complete. Phase 18 is now the only remaining formal phase before Web V1 can be declared release-ready.**
 
-## 1. Correction
+## 1. Roadmap numbering
 
-The previous generated version of this file was incorrect because it reconstructed phase numbers from commit history. The original project conversation explicitly defines **19 web phases**, numbered **0–18**. Implementation labels such as `14A/14B` and `16A/16B` are sub-batches inside their parent phase; they do not change the formal roadmap numbering.
+The formal web roadmap contains **19 phases**, numbered **0–18**. Historical labels such as `14A/14B` or `16A/16B` are implementation sub-batches inside their parent phase and do not change roadmap numbering.
 
-This corrected file is based on the exported conversation `ChatGPT-DisCloud new version-20260820-0721.md` plus the later current-conversation work through the present Phase 17 checkpoint.
+The current source includes substantial UX/product evolution after the original Phase 16 admin milestone. Those changes are recorded inside the relevant phase/checkpoint sections rather than inventing new formal phases.
 
 ## 2. Milestones and current status
 
@@ -25,412 +25,856 @@ This corrected file is based on the exported conversation `ChatGPT-DisCloud new 
 | MVP usable | Phase 0 → 10 | ✅ DONE |
 | Collaboration complete | Phase 11 → 15 | ✅ DONE |
 | Self-host management complete | Phase 16 | ✅ DONE |
-| Web V1 | Phase 17 → 18 | 🚧 IN PROGRESS |
+| UX/accessibility/resilience | Phase 17 | ✅ DONE |
+| Web V1 release stabilization | Phase 18 | 🚧 CURRENT |
 
 Current count:
 
-- **Phase 0–16:** complete.
-- **Phase 17:** current/in progress.
-- **Phase 18:** pending and is the final formal phase.
-- Counting the current unfinished phase, **2 phases remain to close Web V1**.
-- After Phase 17 closes, **1 formal phase remains**.
+- **Phase 0–17:** complete.
+- **Phase 18:** current and final formal phase.
+- **1 formal phase remains to close Web V1.**
+- Current implementation is feature-complete enough for release certification, but the final test/performance/accessibility/build evidence is not yet recorded as complete.
 
-## 3. Formal roadmap
+---
 
-### Phase 0 — Web architecture & conventions
+# 3. Formal roadmap
 
-**Status: ✅ DONE**
-
-- Freeze `web/src/` structure.
-- Define Server Component vs Client Component conventions.
-- Route groups for public/auth/app/admin.
-- Error/loading/not-found boundaries.
-- Naming, import rules and component ownership.
-- Reuse existing UI primitives before creating new components.
-- Do not add Redux/Zustand/TanStack Query without a real need.
-- Exit: later features do not invent independent architecture patterns.
-
-### Phase 1 — Environment & API foundation
+## Phase 0 — Web architecture & conventions
 
 **Status: ✅ DONE**
 
-- Server/browser environment strategy and API base URL.
-- Typed fetch wrapper with session cookies.
-- Parse `application/problem+json` into a unified `APIError`.
-- Timeout/AbortController support.
-- JSON/query/download/binary helpers.
-- Keep backend secrets server-only.
-- Exit: later API calls use one common client layer.
+- [x] Stable `web/src/` structure.
+- [x] Server Component vs Client Component conventions.
+- [x] Public/auth/app route groups and error/loading/not-found boundaries.
+- [x] Naming/import/component ownership rules.
+- [x] Shared primitive reuse before custom components.
+- [x] No unnecessary global state library.
 
-### Phase 2 — API contracts & client models
-
-**Status: ✅ DONE**
-
-- Generate/map OpenAPI schemas to TypeScript.
-- Setup/auth/user/node/file/upload/share/collection/search models.
-- Cursor pagination and `view | edit | full` permission models.
-- Problem/error mapping.
-- Do not invent client-only API response fields.
-- Exit: OpenAPI is the web client's contract source of truth.
-
-### Phase 3 — First-install setup
+## Phase 1 — Environment & API foundation
 
 **Status: ✅ DONE**
 
-- Setup status check and fresh-install redirect.
-- First-admin form and validation.
-- Concurrent setup conflict handling.
-- Initialized installations cannot run setup again.
-- Exit: a fresh deployment can bootstrap entirely through the web UI.
+- [x] Server/browser environment strategy.
+- [x] Typed fetch layer with cookie auth.
+- [x] Unified `APIError` from Problem Details.
+- [x] Timeout/AbortController support.
+- [x] JSON/query/download/binary helpers.
+- [x] Backend secrets remain server-only.
 
-### Phase 4 — Authentication & session
-
-**Status: ✅ DONE**
-
-- Login/logout.
-- Current session/current user bootstrap.
-- Protected routes and guest/auth redirects.
-- Disabled/expired session handling and app-wide 401 handling.
-- Cookie auth only; no localStorage/sessionStorage auth token.
-- Exit: refresh restores the correct authentication state.
-
-### Phase 5 — MFA
+## Phase 2 — API contracts & client models
 
 **Status: ✅ DONE**
 
-- MFA login challenge, TOTP and recovery-code login.
-- Enable MFA and QR/secret enrollment.
-- Verification and recovery-code UX.
-- Disable/regenerate flows when supported by backend.
-- Never persist MFA secrets/recovery codes in browser storage.
-- Exit: complete MFA lifecycle is usable from the web UI.
+- [x] OpenAPI-backed TypeScript models.
+- [x] Setup/auth/user/node/file/upload/share/collection/search/admin models.
+- [x] Cursor and ACL models.
+- [x] Problem/error mapping.
+- [x] API type drift check workflow.
+- [x] Client code does not invent backend response fields.
 
-### Phase 6 — Application shell
-
-**Status: ✅ DONE**
-
-- Main layout, sidebar, header and user menu.
-- System/light/dark theme.
-- Responsive/mobile navigation.
-- Files/Favorites/Collections/Shared/Trash/Admin navigation.
-- Quota/storage indicator and global toast/dialog system.
-- Exit: stable authenticated application shell.
-
-### Phase 7 — Folder navigation & file browser
+## Phase 3 — First-install setup
 
 **Status: ✅ DONE**
 
-- Root and nested-folder navigation.
-- Breadcrumbs, list/grid view, sorting and pagination.
-- File/folder icons, MIME/category and size/date formatting.
-- Empty/loading/error states.
-- Deep-linkable folder URL.
-- Exit: user can browse all accessible folder-tree content.
+- [x] Setup status and fresh-install redirect.
+- [x] First-admin form.
+- [x] Concurrent setup conflict handling.
+- [x] Initialized deployments cannot rerun setup.
+- [x] Setup now captures display name plus immutable username.
 
-### Phase 8 — Node operations
-
-**Status: ✅ DONE**
-
-- Create folder, rename and move.
-- Multi-select and batch actions when supported.
-- Favorite/unfavorite.
-- Permission-aware action menus.
-- Safe optimistic UI only where rollback is trivial.
-- Name-conflict and cross-owner restriction UX.
-- Exit: file manager is usable for everyday organization.
-
-### Phase 9 — Upload system
+## Phase 4 — Authentication & session
 
 **Status: ✅ DONE**
 
-- File picker and drag/drop.
-- Create upload sessions, client chunking and SHA-256.
-- Upload parts with bounded concurrency.
-- Per-file/aggregate progress.
-- Retry, cancel, resume and finalize.
-- Quota/conflict handling.
-- Upload manager survives route navigation.
-- Exit: small/large/multi-file upload is stable.
+- [x] Login/logout.
+- [x] Current user/session bootstrap.
+- [x] Guest/auth route protection.
+- [x] Disabled/expired session handling.
+- [x] App-wide 401 behavior.
+- [x] Cookie auth only; no browser-stored auth tokens.
+- [x] Login remains username-based after display-name changes.
 
-### Phase 10 — File viewing & downloads
-
-**Status: ✅ DONE**
-
-- File detail and direct download.
-- Content disposition and Range-aware media delivery.
-- Image/video/audio/text preview.
-- Unsupported-file fallback.
-- Folder ZIP download.
-- Metadata pending/ready/failed states.
-- Exit: user can consume or download every valid stored file.
-
-### Phase 11 — Search
+## Phase 5 — MFA
 
 **Status: ✅ DONE**
 
-- Global search with URL-synced query.
-- Type/category/folder/file filters and sorting.
-- Cursor pagination/infinite results.
-- Permission-aware results and result actions.
-- Debounce and cancel stale requests.
-- Exit: user can find content without manually browsing the folder tree.
+- [x] TOTP/recovery-code login challenge.
+- [x] Enrollment and QR/secret flow.
+- [x] Verification/recovery-code UX.
+- [x] Disable/regenerate flows.
+- [x] Sensitive MFA data is not persisted in browser storage.
 
-### Phase 12 — Collections
-
-**Status: ✅ DONE**
-
-- Collection list/create/rename/delete.
-- Collection detail and add/remove files.
-- Open collection-only accessible files.
-- Permission-aware operations.
-- Collection membership must not imply parent-folder access.
-- Exit: collections work as logical grouping separate from the folder tree.
-
-### Phase 13 — Sharing & ACL
+## Phase 6 — Application shell
 
 **Status: ✅ DONE**
 
-- Folder and collection permissions UI.
-- User lookup/select.
-- Grant/update/revoke `view | edit | full`.
-- Inheritance/effective-permission presentation.
-- Owner/admin distinctions.
-- Do not offer actions the backend will definitely reject.
-- Exit: collaboration can be configured entirely through the web UI.
+- [x] Main layout/sidebar/header/user menu.
+- [x] System/light/dark theme.
+- [x] Responsive/mobile navigation.
+- [x] Workspace and Management sidebar groups.
+- [x] Quota/storage indicator.
+- [x] Global toast/dialog infrastructure.
+- [x] Command palette.
+- [x] Workspace switcher for admin access to other users' workspaces.
 
-### Phase 14 — Public shares
-
-**Status: ✅ DONE**
-
-- Create public file/folder/collection links.
-- Copy/open/revoke/regenerate.
-- Anonymous public routes.
-- Public file download, folder browsing and collection rendering.
-- Revoked/not-found states.
-- Do not expose Discord locator/CDN internals.
-- Exit: public sharing works without an authenticated session.
-
-### Phase 15 — Trash & restore
+## Phase 7 — Folder navigation & file browser
 
 **Status: ✅ DONE**
 
-- Trash view and file/folder trash operations.
-- Quota update after trash.
-- Restore with destination/name conflict handling.
-- Quota failure and nested-trash semantics.
-- No Empty Trash/permanent-delete UX in V1.
-- Exit: complete soft-delete lifecycle is available in the web UI.
+- [x] Root/nested folder browsing.
+- [x] Breadcrumbs.
+- [x] List/grid view.
+- [x] Sorting and cursor/infinite loading.
+- [x] File/folder icons, type/category and size/date formatting.
+- [x] Deep-linkable folder routes.
+- [x] Parent `..` navigation and compact breadcrumbs.
+- [x] Folder size is displayed in list/grid using recursive backend subtree size.
+- [x] Size sorting works for both files and folders.
+- [x] Workspace root breadcrumb uses display name while URLs remain username-based.
 
-### Phase 16 — Account & admin console
+## Phase 8 — Node operations
 
 **Status: ✅ DONE**
 
-- Profile/security/password/MFA/quota usage.
-- Admin users list/create/role/enable-disable/password reset/quota.
-- Audit events, jobs and upload diagnostics.
-- Storage overview/reconciliation and useful metrics.
-- Admin navigation only for admins.
-- Exit: self-host instance can be managed without manual API calls.
+- [x] Create folder, rename and move.
+- [x] Multi-select and bulk actions.
+- [x] Favorite/unfavorite.
+- [x] Permission-aware menus and context menus.
+- [x] Conflict/cross-owner error handling.
+- [x] Keyboard selection/actions and double-click navigation.
 
-### Phase 17 — UX, accessibility & resilience
+## Phase 9 — Upload system
 
-**Status: 🚧 IN PROGRESS**
+**Status: ✅ DONE**
 
-- Keyboard navigation and focus management.
-- Accessible dialogs/forms.
-- Mobile/responsive file browser.
-- Skeleton/loading behavior without layout jumps.
-- Error recovery and offline/network-loss messaging.
-- Abort stale requests and prevent duplicate submit.
-- Large-list rendering review.
-- System/light/dark theme.
-- Official metadata/title/favicon and no Create Next App scaffold.
-- Exit: UI no longer feels like scaffold/dev tooling.
+- [x] File picker and drag/drop.
+- [x] Client chunking/SHA-256.
+- [x] Upload-session creation and bounded part concurrency.
+- [x] Retry/cancel/resume/finalize.
+- [x] Quota/conflict handling.
+- [x] Upload queue survives app navigation while `UploadProvider` remains mounted.
+- [x] Multi-file upload.
+- [x] Complete folder-tree upload with relative paths and merge semantics.
+- [x] Folder-tree collision handling distinguishes existing files from structural conflicts.
+- [x] React Dropzone paths beginning with benign `./` are accepted without weakening traversal protection.
+- [x] Upload manager moved from Sheet overlay to a full page for better visibility.
 
-### Phase 18 — Testing, performance & web release stabilization
+## Phase 10 — File viewing & downloads
 
-**Status: ⏳ PENDING**
+**Status: ✅ DONE**
 
-- Unit tests for API/error utilities.
-- Component tests for critical forms.
-- Integration flows for setup, login/MFA, browse, upload, download, ACL, collections, shares, trash/restore and admin.
-- Browser E2E for important happy paths.
-- `pnpm lint`, typecheck and production build.
-- Bundle and client-request-waterfall review.
-- Accessibility and responsive smoke testing.
-- CI release gate and final OpenAPI drift check.
-- Exit: web client is stable enough to be called Web V1.
+- [x] File details/download.
+- [x] Range-aware media delivery.
+- [x] Image/video/audio/text/PDF preview behavior where supported.
+- [x] Unsupported-file fallback.
+- [x] Folder ZIP download.
+- [x] Metadata pending/ready/failed states.
+- [x] Preview carousel and previous/next navigation.
+- [x] Bounded preview preloading and request dedupe.
 
-## 4. Checked implementation status through Phase 16
+## Phase 11 — Search
 
-The conversation progression and implementation history have already passed the exit point of every formal phase from 0 through 16:
+**Status: ✅ DONE**
 
-- [x] **Phase 0 — Web architecture & conventions**
-- [x] **Phase 1 — Environment & API foundation**
-- [x] **Phase 2 — API contracts & client models**
-- [x] **Phase 3 — First-install setup**
-- [x] **Phase 4 — Authentication & session**
-- [x] **Phase 5 — MFA**
-- [x] **Phase 6 — Application shell**
-- [x] **Phase 7 — Folder navigation & file browser**
-- [x] **Phase 8 — Node operations**
-- [x] **Phase 9 — Upload system**
-- [x] **Phase 10 — File viewing & downloads**
-- [x] **Phase 11 — Search**
-- [x] **Phase 12 — Collections**
-- [x] **Phase 13 — Sharing & ACL**
-- [x] **Phase 14 — Public shares** — implemented as sub-batches **14A authenticated share management** and **14B anonymous viewer**.
-- [x] **Phase 15 — Trash & restore**
-- [x] **Phase 16 — Account & admin console** — implemented as sub-batches **16A admin foundation** and **16B extended admin/diagnostics**.
+- [x] URL-synced global search.
+- [x] Type/category/folder/file filters.
+- [x] Sorting and cursor/infinite results.
+- [x] Permission-aware result actions.
+- [x] Debounced stale-request cancellation.
+- [x] Admin owner filtering for workspace-aware search contexts.
 
-### Important Phase 9 carry-over — resolved during Phase 17
+## Phase 12 — Collections
 
-The Web V1 folder-tree upload carry-over is implemented. Local relative paths are preserved, the backend batch-folder primitive is used to create or resolve nested folders, and each file is routed to its resolved destination folder.
+**Status: ✅ DONE**
 
-Folder uploads use merge semantics:
+- [x] Collection list/create/rename/delete.
+- [x] Collection detail and file membership.
+- [x] Collection-only accessible files.
+- [x] Permission-aware operations.
+- [x] Collection membership does not imply structural folder access.
 
-- Existing folders at the same relative path are reused rather than treated as failures.
-- Missing folders and subtrees are created.
-- Existing server-only children remain untouched.
-- Files already present at the same resolved path are skipped.
-- File-vs-folder structural collisions remain explicit conflicts rather than being silently skipped.
-- Existing resumable upload/chunk concurrency remains the file-transfer mechanism after folder resolution.
+## Phase 13 — Sharing & ACL
 
-The original Phase 9 exit criteria explicitly covered small/large/multi-file upload, and that phase is therefore considered closed. However, the broader product requirements also expect **complete local folder-tree upload**. The current web uploader still maps each selected `File` to one destination `folderId`; it does not yet preserve `webkitRelativePath`/relative paths and recreate the nested tree.
+**Status: ✅ DONE**
 
-Treat folder-tree upload as a **Web V1 carry-over/blocker** to close before Phase 18 is finished:
+- [x] Folder/collection permissions UI.
+- [x] User lookup/select.
+- [x] Grant/update/revoke `view | edit | full`.
+- [x] Effective/inherited permission presentation.
+- [x] Owner/admin distinctions.
+- [x] Access grants show display name with exact `@username` identity.
+- [x] Shared-item owners show display name plus exact username.
+
+## Phase 14 — Public shares
+
+**Status: ✅ DONE**
+
+- [x] Create/copy/open/revoke/regenerate public links.
+- [x] Anonymous routes.
+- [x] Public file download.
+- [x] Public folder browsing.
+- [x] Public collection rendering.
+- [x] Revoked/not-found states.
+- [x] Discord internals remain hidden.
+
+Implemented historically as sub-batches **14A authenticated share management** and **14B anonymous viewer**.
+
+## Phase 15 — Trash & restore
+
+**Status: ✅ DONE**
+
+- [x] Trash view.
+- [x] File/folder trash actions.
+- [x] Quota refresh after trash.
+- [x] Restore destination/name-conflict handling.
+- [x] Quota failure and nested-trash UX.
+- [x] No misleading physical-delete guarantee in normal V1 UX.
+
+## Phase 16 — Account & admin console
+
+**Status: ✅ DONE**
+
+- [x] Profile/security/password/MFA/account settings.
+- [x] Admin users list/create/edit/role/enable-disable.
+- [x] Temporary admin password create/reset flows.
+- [x] User-selected real password remains strong after mandatory change.
+- [x] Admin user avatars.
+- [x] Audit events.
+- [x] Jobs diagnostics.
+- [x] Upload diagnostics.
+- [x] Storage overview and quota reconciliation.
+- [x] Admin-only management navigation.
+- [x] Human identity presentation standardized to `name` + `@username` where relevant.
+- [x] Technical UUIDs retained for filtering/debug/correlation.
+
+Implemented historically as sub-batches **16A admin foundation** and **16B extended admin/diagnostics**.
+
+## Phase 17 — UX, accessibility & resilience
+
+**Status: ✅ DONE**
+
+Phase 17 is now considered closed. The explicit UX-hardening completion landed before the later workspace/identity polish, and subsequent changes continued to improve the same release candidate rather than reopening the phase.
+
+Completed areas include:
+
+- [x] keyboard navigation and file-browser hotkeys;
+- [x] focusable/accessible form controls and dialog primitives across critical flows;
+- [x] mobile/responsive file browser and shell;
+- [x] local loading states and route boundaries without normal full-page layout jumps;
+- [x] request abort/timeout/stale-request control;
+- [x] duplicate-submit protection on critical forms;
+- [x] bounded thumbnail and preview preload queues;
+- [x] large-list review with infinite loading and bounded queues; no virtualization added without evidence;
+- [x] SelectGroup/SelectLabel normalization across the hardened UI areas;
+- [x] command palette improvements;
+- [x] official metadata/title/favicon and scaffold cleanup;
+- [x] drag/drop overlay hardening and viewport-centered gated drop area;
+- [x] upload manager usability improvements;
+- [x] workspace-aware identity/navigation polish.
+
+## Phase 18 — Testing, performance & web release stabilization
+
+**Status: 🚧 CURRENT — FINAL FORMAL PHASE**
+
+Phase 18 is now the only formal phase left.
+
+The goal is **release certification**, not another broad feature-refactor phase.
+
+Primary work:
+
+- [ ] run/record complete unit/component/integration coverage;
+- [ ] run browser E2E/smoke for critical happy paths;
+- [ ] run API type drift verification;
+- [ ] run lint/typecheck/production build;
+- [ ] review bundle/client request waterfalls;
+- [ ] run responsive/accessibility smoke matrix;
+- [ ] verify upload persistence/resume/folder upload under representative conditions;
+- [ ] verify admin cross-workspace routing and identity behavior;
+- [ ] close or explicitly accept any failures found during release verification;
+- [ ] declare Web V1 only after the evidence set is clean.
+
+---
+
+# 4. Current implemented checkpoint through Phase 17
+
+## 4.1 Core product status
 
 ```text
-local folder picker / dropped folder
+Phase 0  ───────────────── Phase 16   ✅ complete
+Phase 17                              ✅ complete
+Phase 18                              🚧 current / final
+```
+
+At this checkpoint there is no planned feature phase after Phase 18.
+
+## 4.2 Recent implemented delta after the previous plan snapshot
+
+The previous plan snapshot was written before the following landed changes. These are now part of the current source-of-truth state.
+
+### UX hardening completion
+
+- [x] Phase 17 UX hardening completion.
+- [x] additional Select/label accessibility normalization.
+- [x] responsive header/control organization.
+- [x] favorites workspace completion.
+
+### Workspace-aware routing
+
+- [x] owner-scoped workspace contracts.
+- [x] `/{username}` becomes the canonical workspace route.
+- [x] nested workspace routes include folders/files/search/favorites/collections/shared/trash.
+- [x] app shell loads workspace owner/root/usage by username.
+- [x] normal users are limited to their own workspace.
+- [x] admins can load another user's workspace without impersonation.
+- [x] workspace context is separate from authenticated actor/current-user context.
+
+### Identity model
+
+- [x] mutable display `name`.
+- [x] immutable technical `username`.
+- [x] login stays username-based.
+- [x] exact routes/mentions remain username-based.
+- [x] workspace labels/breadcrumbs prefer display name.
+- [x] ACL/shared/admin identity surfaces use display name and retain `@username`.
+- [x] inaccessible-workspace message uses `@username` rather than pretending a display name is known.
+
+### Admin identity and credential UX
+
+- [x] admin create/edit surfaces use display name correctly.
+- [x] username is readonly technical identity in admin edit flows.
+- [x] admin user avatars are displayed where available.
+- [x] temporary admin create/reset passwords may be short temporary credentials.
+- [x] mandatory user-selected replacement password remains strong.
+- [x] audit actor identity is human-readable.
+- [x] user audit-resource identity is human-readable while UUID remains available.
+- [x] upload diagnostics show owner and actor `name · @username` plus technical UUIDs.
+- [x] quota reconciliation returns/presents `name + @username`, before/after counters and repaired/over-quota status.
+
+### Upload UX
+
+- [x] folder-tree upload merge semantics.
+- [x] existing-file skip behavior without overwriting.
+- [x] file-vs-folder collision stays explicit.
+- [x] Dropzone `./filename` normalization fix for single/multi-file upload.
+- [x] upload manager replaced Sheet UI with full-page queue view.
+- [x] floating Uploads control remains available while tasks exist.
+- [x] upload queue provider remains above route transitions so in-progress tasks survive navigation.
+
+### Folder size
+
+- [x] browser API returns recursive logical folder size.
+- [x] deleted descendants are excluded.
+- [x] empty folder can display `0 B`.
+- [x] list view displays folder size.
+- [x] grid view displays folder size.
+- [x] `sort=size` compares folder recursive size and file logical size consistently.
+
+### Admin workspace switcher
+
+- [x] admin directory-driven workspace selector mounted in app shell.
+- [x] active users can be searched by name/username/role.
+- [x] current workspace is marked.
+- [x] admin-view badge distinguishes another user's workspace.
+- [x] `Return to my workspace` action is available.
+- [x] unsafe resource-specific suffixes reset when changing workspace.
+- [x] workspace-level views can be preserved when switching owners.
+- [x] request lifecycle bug that aborted the admin user-directory fetch was fixed.
+
+### Actor-vs-workspace route bugfix
+
+The route ownership rule is now explicit and implemented:
+
+```text
+workspace-scoped routes
+→ use viewed workspace.username
+
+actor/account/management-scoped routes
+→ use authenticated user.username
+```
+
+This prevents an admin viewing `/mew` from accidentally navigating to `/mew/admin`, `/mew/settings` or `/mew/uploads` when those routes belong to the logged-in admin account.
+
+## 4.3 Recent landed commits represented by this checkpoint
+
+```text
+28becc3  feat(web): complete phase 17 ux hardening
+372d2d9  feat(web): add admin owner filtering to search
+79ea2df  feat(api): add owner-scoped workspace contracts
+0ae559b  feat(web): implement workspace-specific layouts and navigation
+914c7b7  feat(users): add display names and make usernames immutable
+913f386  feat(api): add workspace details endpoint
+c13dacb  feat(api, web): workspace display name integration
+119cbe7  feat(api, web): identity in access grants/shared items
+ddfe7b5  fix(web): display name in workspace breadcrumb
+3af3225  feat(admin): identity and temporary credentials
+64360d4  feat(admin): upload diagnostics identity
+d82faca  feat(admin): quota reconciliation reporting
+4e2a140  feat(admin): audit user-resource identity
+3daa0ff  fix(web): accept Dropzone relative upload paths
+d45a99c  refactor(web): move upload manager to page
+85991be  feat(nodes): recursive folder sizes
+d4f941a  feat(web): expose admin workspace switcher
+bdf686e  feat(web): improve admin workspace switching
+d673312  fix(web): separate actor and workspace routes
+```
+
+---
+
+# 5. Workspace and route ownership contract
+
+This section is a permanent web-client routing rule.
+
+## 5.1 Two identities exist at the same time
+
+For an admin browsing another user's workspace:
+
+```text
+authenticated actor/current user = dev
+viewed workspace owner           = mew
+```
+
+These values are intentionally different.
+
+Do not collapse them into a single `username` concept.
+
+## 5.2 Workspace-scoped routes
+
+Only the **Workspace** sidebar group follows the viewed workspace owner.
+
+```text
+Files        /{workspace.username}
+Search       /{workspace.username}/search
+Favorites    /{workspace.username}/favorites
+Collections  /{workspace.username}/collections
+Shared       /{workspace.username}/shared
+Trash        /{workspace.username}/trash
+```
+
+Folder/file deep links are also workspace-scoped:
+
+```text
+/{workspace.username}/folders/{folderId}
+/{workspace.username}/files/{fileId}
+```
+
+When switching workspace owners, resource-specific IDs from the previous workspace must not be reused.
+
+## 5.3 Actor/account/management-scoped routes
+
+Routes outside the Workspace sidebar group follow the authenticated actor/current user:
+
+```text
+DisCloud home   /{user.username}
+Admin           /{user.username}/admin
+Diagnostics     /{user.username}/admin/diagnostics
+Settings        /{user.username}/settings
+Profile         /{user.username}/settings/profile
+Security        /{user.username}/settings/security
+Common          /{user.username}/settings/common
+Uploads         /{user.username}/uploads
+```
+
+Example:
+
+```text
+login actor = dev
+viewed workspace = mew
+
+Files        → /mew
+Search       → /mew/search
+Admin        → /dev/admin
+Diagnostics  → /dev/admin/diagnostics
+Settings     → /dev/settings
+Uploads      → /dev/uploads
+```
+
+## 5.4 Workspace switching preservation rules
+
+Safe workspace-level views may be preserved:
+
+```text
+/search
+/favorites
+/shared
+/trash
+/collections  # collection detail collapses back to list
+```
+
+Unsafe/resource-specific or actor-specific routes reset to the selected workspace root:
+
+```text
+/folders/{id}
+/files/{id}
+/admin...
+/settings...
+/uploads...
+```
+
+This avoids carrying IDs or account-management context from one owner to another.
+
+---
+
+# 6. Identity presentation contract
+
+## 6.1 Username
+
+`username` is immutable technical identity.
+
+Use it for:
+
+- login;
+- canonical workspace routes;
+- exact `@username` references;
+- technical account identity;
+- disambiguation when display names collide.
+
+## 6.2 Display name
+
+`name` is mutable presentation identity.
+
+Use it as the primary human-readable label for:
+
+- workspace labels;
+- breadcrumbs;
+- admin user presentation;
+- ACL grant presentation;
+- shared owners;
+- audit actors/user resources;
+- upload diagnostic owner/actor presentation;
+- quota reconciliation rows.
+
+Recommended visual form where exact identity matters:
+
+```text
+Jane Doe
+@jane
+```
+
+or compactly:
+
+```text
+Jane Doe · @jane
+```
+
+## 6.3 Technical UUIDs
+
+UUIDs remain appropriate for:
+
+- filters;
+- diagnostics details;
+- correlation/debug data;
+- route resource IDs such as file/folder/collection IDs;
+- API payloads that already use IDs.
+
+Do not replace technical UUIDs with display strings in places where correlation is the purpose.
+
+---
+
+# 7. Upload behavior contract
+
+## 7.1 Queue ownership
+
+`UploadProvider` is app-level state and must survive navigation between workspace/account pages.
+
+The upload queue is client ephemeral state; it is not a server-persisted UI task list.
+
+## 7.2 Upload manager page
+
+The floating button links to the actor-scoped page:
+
+```text
+/{user.username}/uploads
+```
+
+The page presents:
+
+- Active / Failed / Complete / Total counters;
+- cancel selected/all;
+- retry selected/all failed;
+- clear completed;
+- file path when a relative folder path exists;
+- progress bytes/percentage;
+- visible error text.
+
+The old Sheet presentation is no longer the canonical upload-manager UX.
+
+## 7.3 Folder-tree upload
+
+```text
+local folder selection/drop
         ↓
-read relative paths
+normalize safe relative paths
         ↓
 create/resolve server folder tree
         ↓
-map relative directory → folderId
+relative directory → folderId
         ↓
-reuse current resumable UploadProvider for each file
+reuse resumable file upload pipeline
 ```
 
-## 5. Phase 17 — current detailed checkpoint
+Merge semantics:
 
-### 5.1 Original Phase 17 checklist
+- existing folders are reused;
+- missing folders are created;
+- existing server-only descendants stay untouched;
+- already-existing files can be skipped;
+- file/folder structural collisions remain errors;
+- leading Dropzone `./` is normalized once;
+- `..`, empty unsafe segments and NUL remain rejected.
 
-- [x] **Keyboard navigation** — File-browser hotkeys, keyboard selection/actions, parent navigation and command palette have been implemented.
-- [~] **Focus management** — Critical flows are improved, but an app-wide focus audit is still required before Phase 17 can be closed.
-- [~] **Accessible dialogs/forms** — Auth/settings/access dialogs use accessible primitives; final accessibility audit remains.
-- [x] **Mobile/responsive file browser** — Responsive browser, compact actions and dock behavior have been implemented.
-- [x] **Skeleton/loading behavior** — Route boundaries and local browser loading overlays avoid normal full-page layout jumps.
-- [x] **Error recovery** — Route error/not-found states, search recovery, upload errors and preview/thumbnail retry states exist.
-- [~] **Offline/network-loss messaging** — Request resilience exists, but explicit app-wide offline-state UX has not been formally closed.
-- [x] **Abort stale requests** — Search cancellation, request timeout/abort foundation and preload-window management are implemented.
-- [x] **Prevent accidental duplicate submit** — Setup/forms and queued-upload duplicate protections cover the main cases.
-- [~] **Large-list rendering review** — Infinite folder loading, bounded thumbnail queue and bounded preload queue are in place; final perf/virtualization decision belongs to the Phase 17/18 boundary.
-- [x] **Dark/light/system theme** — Completed from the foundation phases.
-- [x] **Application metadata/title + remove scaffold** — These Phase 17 bullets were pulled forward and completed in Phase 0.
+---
 
-### 5.2 Phase 17 refinement already completed
+# 8. Phase 18 — current detailed release checkpoint
 
-- [x] Client-side folder transitions with deep-link + browser Back/Forward support.
-- [x] Infinite folder scrolling, parent `..`, breadcrumb compaction and mobile actions.
-- [x] Double-click row/card navigation and compact grid redesign.
-- [x] Multi-select, bulk file-browser actions and context menus.
-- [x] Additional keyboard shortcuts and selection feedback.
-- [x] File Browser toolbar configuration: inline, bottom dock, right dock.
-- [x] Bottom browser dock remains below the independent multi-select toolbar.
-- [x] File Browser drag-and-drop feedback is viewport-bounded: the active drop overlay follows only the currently visible browser area instead of expanding with long file lists.
-- [x] Thumbnail retry/load hardening and bounded thumbnail load queue with tests.
-- [x] Preview carousel using the existing carousel/Embla stack.
-- [x] Only the current full preview is rendered; inactive slides remain lightweight.
-- [x] Previous/next preview navigation with route replacement.
-- [x] Auto-hide preview info with interaction/navigation reveal behavior.
-- [x] Common user settings for timezone, toolbar configuration and preview preload count.
-- [x] Preview preload count defaults to 3 and is user-selectable from 3–5.
-- [x] Sliding preload window: moving one item adds only the new tail item.
-- [x] Warm/warming dedupe and bounded speculative preload concurrency.
-- [x] Image full preload, video/audio metadata preload and PDF/text initial Range warm.
-- [x] LineNav for multi-section settings pages.
-- [x] SelectGroup + SelectLabel convention; SelectSeparator only between meaningful semantic groups.
-- [x] Command palette/navigation improvements.
-- [x] File Browser drag-and-drop feedback uses a full-AppShell viewport overlay with an explicitly viewport-centered gated drop zone and subtle active-state scaling.
-- [x] Advanced upload-manager UX: compact table, task multi-select, cancel selected/all, retry selected/all failed, clear finished tasks and active/error/skipped counters.
-- [x] Folder-tree upload preserves relative paths, merges existing directory structure, creates missing descendants and skips already-present files without overwriting.
+Phase 18 should be treated as **verification-first**. Do not start broad refactors just because the phase is named stabilization.
 
-### 5.3 Remaining Phase 17 backlog
+## 8.1 Required automated gate
 
-- [ ] Final app-wide focus-management pass, including focus restore after dialogs and keyboard order.
-- [ ] Final accessible-dialog/form and screen-reader announcement pass.
-- [ ] Explicit offline/network-loss messaging where it improves recovery.
-- [ ] Final large-list strategy review; add virtualization only if representative data proves it is needed.
-- [ ] Normalize remaining Select usages to SelectGroup/SelectLabel conventions.
+From `web/`:
 
-### 5.4 Phase 17 exit gate
+```bash
+pnpm api:types:check
+pnpm test
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+All five commands must pass on the release candidate.
+
+## 8.2 Required backend companion gate
+
+Although this is the web plan, release certification depends on a compatible backend candidate. At minimum run the backend test gate in the same checkpoint:
+
+```bash
+go test ./...
+```
+
+Race/fuzz/load/restore evidence remains tracked by the backend plan.
+
+## 8.3 Critical browser/integration flows
+
+### Setup/auth
+
+- [ ] fresh setup with name + username + password;
+- [ ] login by username;
+- [ ] MFA challenge/recovery flow;
+- [ ] display-name change does not change login username;
+- [ ] expired/disabled session behavior;
+- [ ] logout.
+
+### Account/admin temporary credentials
+
+- [ ] admin create user with a 1-character temporary password;
+- [ ] user is forced through real password change;
+- [ ] real/new password below 12 characters is rejected;
+- [ ] admin reset password with a 1-character temporary password;
+- [ ] subsequent login/change lifecycle works;
+- [ ] immutable username remains unchanged when display name is edited.
+
+### Workspace routing
+
+Using admin `dev` and user `mew` as an example:
+
+- [ ] login as `dev`;
+- [ ] workspace switcher lists active users;
+- [ ] select `mew` → route becomes `/mew`;
+- [ ] `Admin view` indicator appears;
+- [ ] Files/Search/Favorites/Collections/Shared/Trash use `/mew...`;
+- [ ] Admin → `/dev/admin`;
+- [ ] Diagnostics → `/dev/admin/diagnostics`;
+- [ ] Settings/Profile/Security → `/dev/...`;
+- [ ] Uploads → `/dev/uploads`;
+- [ ] DisCloud logo/home → `/dev`;
+- [ ] Return to my workspace → `/dev`;
+- [ ] normal user cannot switch to another user's workspace.
+
+### File browser
+
+- [ ] own workspace root/nested folders;
+- [ ] admin-viewed workspace root/nested folders;
+- [ ] browser Back/Forward;
+- [ ] breadcrumb root displays `${name}'s workspace` where applicable;
+- [ ] list/grid modes;
+- [ ] favorite/search actions;
+- [ ] recursive folder size visible;
+- [ ] empty folder displays `0 B`;
+- [ ] nested folder size includes recursive descendants;
+- [ ] trashed descendant does not count toward active folder size;
+- [ ] size sorting works across file + folder items.
+
+### Uploads
+
+- [ ] single-file picker upload;
+- [ ] multi-file picker upload;
+- [ ] drag/drop single file;
+- [ ] Dropzone path `./filename` succeeds;
+- [ ] folder picker upload;
+- [ ] nested dropped folder upload;
+- [ ] merge into existing folder tree;
+- [ ] existing file skip;
+- [ ] file-vs-folder collision error;
+- [ ] retry/cancel;
+- [ ] navigate away while large upload is active;
+- [ ] return to Uploads page and verify queue/progress did not reset.
+
+### Preview/download
+
+- [ ] normal download;
+- [ ] Range-backed preview;
+- [ ] image/video/audio/text/PDF supported flows;
+- [ ] preview next/previous navigation;
+- [ ] preload request count stays bounded;
+- [ ] folder ZIP.
+
+### ACL/shared/public
+
+- [ ] grant/update/revoke access;
+- [ ] identity displays `name` and `@username` correctly;
+- [ ] shared owner presentation;
+- [ ] public file/folder/collection share flows;
+- [ ] revoked/not-found public link behavior.
+
+### Trash/restore
+
+- [ ] trash file/folder;
+- [ ] quota refresh;
+- [ ] restore;
+- [ ] restore conflict flow;
+- [ ] restore quota failure behavior.
+
+### Admin console/diagnostics
+
+- [ ] admin user avatars;
+- [ ] user display names and immutable usernames;
+- [ ] audit actor identity;
+- [ ] audit user-resource identity;
+- [ ] non-user audit resources stay technical;
+- [ ] upload diagnostic owner identity;
+- [ ] upload diagnostic actor identity;
+- [ ] quota reconciliation result rows;
+- [ ] repaired/over-quota status;
+- [ ] Jobs diagnostics remain technical where human identity is not applicable.
+
+## 8.4 Accessibility smoke
+
+- [ ] keyboard-only navigation through shell and critical dialogs;
+- [ ] visible focus where expected;
+- [ ] dialog focus returns predictably;
+- [ ] form labels associate with controls;
+- [ ] status/error text is reachable to assistive technology;
+- [ ] command palette and workspace switcher are keyboard usable;
+- [ ] table/list actions have accessible names.
+
+## 8.5 Responsive matrix
+
+At minimum smoke:
 
 ```text
-[ ] critical workflows are keyboard usable
-[ ] focus behavior is consistent
-[ ] dialogs/forms pass final accessibility review
-[ ] responsive/mobile file browser is stable
-[ ] loading/error/offline states are coherent
-[ ] stale/duplicate requests are controlled
-[ ] large-list strategy is reviewed
-[ ] remaining carry-overs have explicit disposition
-[ ] UI no longer has scaffold/dev-tool feel
+mobile narrow
+mobile wide
+small tablet
+large tablet
+laptop
+wide desktop
 ```
 
-## 6. Phase 18 — final phase
+Critical targets:
 
-**Status: ⏳ PENDING AS A FORMAL PHASE**
+- sidebar open/collapsed/mobile overlay;
+- command palette header layout;
+- file browser list/grid;
+- bulk-selection toolbar;
+- upload page table horizontal overflow;
+- admin dialogs/tables;
+- workspace switcher popover.
 
-Some Phase 18 foundations were pulled forward (Vitest, utility tests, type drift checks, lint/typecheck/build discipline, route boundaries), but the formal stabilization phase is not closed.
+## 8.6 Performance/request review
 
-Planned release gate:
-- [ ] Unit tests for API/error/navigation/queue utilities.
-- [ ] Component tests for critical forms.
-- [ ] Integration coverage: setup, login/MFA, browse, upload, download, ACL, collections, shares, trash/restore and admin.
-- [ ] Browser E2E for important happy paths.
-- [ ] Representative folder/image-heavy performance test.
-- [ ] Preview carousel/preload request-waterfall test.
-- [ ] Upload concurrency/resume test.
-- [ ] Bundle review.
-- [ ] Client request-waterfall review.
-- [ ] Accessibility smoke test.
-- [ ] Responsive matrix.
-- [ ] Offline/network-failure smoke.
-- [ ] `pnpm test`.
-- [ ] `pnpm api:types:check`.
-- [ ] `pnpm lint`.
-- [ ] `pnpm typecheck`.
-- [ ] `pnpm build`.
-- [ ] CI release gate.
-- [ ] Final OpenAPI drift verification.
-- [ ] Web V1 release checklist.
+- [ ] representative image-heavy folder;
+- [ ] representative deep folder tree with recursive sizes;
+- [ ] infinite folder loading request pattern;
+- [ ] bounded thumbnail request concurrency;
+- [ ] bounded preview preload window;
+- [ ] no duplicate admin user-directory fetch loop;
+- [ ] no request abortion caused by state in an effect dependency loop;
+- [ ] upload queue does not restart on navigation;
+- [ ] bundle review finds no accidental large dependency regression.
 
-## 7. Cross-cutting rules
+## 8.7 Phase 18 exit gate
 
-### API/data
+```text
+[ ] OpenAPI generated types are in sync
+[ ] unit/component/integration tests pass
+[ ] lint passes
+[ ] typecheck passes
+[ ] production build passes
+[ ] critical browser smoke passes
+[ ] admin workspace route ownership passes
+[ ] upload single/multi/folder flows pass
+[ ] recursive folder-size behavior passes
+[ ] accessibility smoke passes
+[ ] responsive smoke passes
+[ ] request/performance review has no release blocker
+[ ] known failures are fixed or explicitly accepted
+[ ] Web V1 release checklist is signed off
+```
 
-- Backend OpenAPI remains the source of truth.
-- Do not invent client-only API/domain semantics.
-- Session cookies remain the canonical auth state.
-- Do not store authentication tokens in browser storage.
-- Reuse shared API helpers instead of scattering raw backend fetch calls.
+Only after this gate is clean should the plan state:
 
-### State
+> **Web V1 release-ready.**
 
-Prefer URL state for navigation/filter/sort/pagination, local React state for transient UI, and Context only for genuinely app-wide ephemeral state. Add a state library only when those are insufficient. Upload manager is an accepted app-level exception because uploads survive navigation.
+---
 
-### UI implementation priority
+# 9. Cross-cutting implementation rules
+
+## 9.1 API/data
+
+- Backend OpenAPI is the contract source of truth.
+- Do not invent web-only backend semantics.
+- Reuse shared API helpers instead of raw scattered fetches.
+- Session cookie is canonical auth state.
+- No auth tokens in localStorage/sessionStorage.
+
+## 9.2 Identity
+
+- `name` is presentation.
+- `username` is immutable technical identity.
+- Login and canonical workspace route use username.
+- Exact identity should remain available as `@username` when display name is shown.
+
+## 9.3 Actor vs workspace
+
+- `useCurrentUser()` represents authenticated actor/account context.
+- `useWorkspace()` represents the currently viewed workspace owner context.
+- Do not use `workspace.username` for account/management routes.
+- Do not use `user.username` for workspace navigation that intentionally follows the viewed owner.
+
+## 9.4 State
+
+Prefer:
+
+1. URL state for navigation/filter/sort/pagination;
+2. local React state for transient component state;
+3. Context for genuinely app-level ephemeral state.
+
+Upload queue remains an accepted app-level Context because uploads survive route navigation.
+
+## 9.5 UI implementation priority
 
 1. Existing shared DisCloud helper/component.
 2. Existing `web/src/components/ui` primitive.
 3. Official shadcn/ui component.
-4. Suitable configured registry component.
+4. Configured registry component.
 5. Mature dedicated library.
 6. Browser/React/Next native API.
 7. Minimal custom glue.
 
-### Select convention
+## 9.6 Shared helper rule
+
+When a helper with matching semantics already exists, import/reuse it. Do not create local duplicates unless semantics are genuinely different.
+
+## 9.7 Select convention
 
 ```tsx
 <SelectContent>
@@ -439,7 +883,6 @@ Prefer URL state for navigation/filter/sort/pagination, local React state for tr
     <SelectItem value="..." />
   </SelectGroup>
 
-  {/* only when there is another semantic group */}
   <SelectSeparator />
 
   <SelectGroup>
@@ -449,17 +892,45 @@ Prefer URL state for navigation/filter/sort/pagination, local React state for tr
 </SelectContent>
 ```
 
-## 8. Current answer
+Use `SelectSeparator` only when separating meaningful semantic groups.
+
+## 9.8 Request lifecycle
+
+- Abort stale requests intentionally.
+- Do not place a request's own presentation state in an effect dependency set if changing that state immediately triggers cleanup/abort.
+- Distinguish expected client aborts from true backend/network failures.
+- Prevent duplicate submits on mutation forms.
+
+---
+
+# 10. Current release answer
 
 ```text
-19 total web phases
+19 total formal web phases
+
 Phase 0  ─────────────── Phase 16   ✅ complete
-Phase 17                             🚧 current
-Phase 18                             ⏳ final
+Phase 17                             ✅ complete
+Phase 18                             🚧 current / final
 ```
 
-We are currently implementing **Phase 17**. There is **one formal phase after it, Phase 18**. Counting the unfinished current phase, **two phases remain to close Web V1**.
+The correct high-level statement is:
 
-## 9. Source/checkpoint note
+> **The DisCloud web client has completed formal implementation through Phase 17. All major workspace, identity, admin, upload and file-browser features discussed through the current checkpoint are implemented on `main`. Phase 18 is now the only remaining formal phase and should focus on release verification, performance/request review, accessibility/responsive smoke and final build/type/API-contract gates.**
 
-The formal 19-phase roadmap comes from the exported conversation at the point where the user asked to list all web phases. Later conversation confirms the milestone grouping: Phase 0–10 MVP, Phase 11–15 collaboration, Phase 16 self-host management, and Phase 17–18 Web V1. Current Phase 17 status additionally includes the post-export work in this conversation: browser hardening, thumbnail queue, hotkeys, preview carousel, LineNav/settings, configurable preview preload and sliding preload management.
+---
+
+# 11. Source/checkpoint note
+
+This file was updated from:
+
+- the existing `docs/WEB_CLIENT_IMPLEMENTATION_PLAN.md` on `main`;
+- the original formal 19-phase web roadmap;
+- current `main` commits through **2026-08-21**;
+- current source for workspace routing, app shell, workspace switcher, upload manager and file browser.
+
+Update this plan whenever:
+
+1. a Phase 18 gate is completed;
+2. a release-blocking bug is found/fixed;
+3. route ownership or identity invariants change;
+4. Web V1 is formally accepted and Phase 18 can be marked ✅ DONE.

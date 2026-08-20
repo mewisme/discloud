@@ -1,33 +1,35 @@
 # DisCloud Backend Implementation Plan
 
-> Rewritten implementation-aware source of truth.
+> Implementation-aware source of truth for the current backend.
 >
-> Snapshot: **2026-08-20**
+> Snapshot: **2026-08-21**
 >
 > Repository: `mewisme/discloud` · branch `main`
 >
 > Formal roadmap: **18 phases, Phase 0 through Phase 17**.
 >
-> Current backend posture: **feature implementation is complete through Phase 17 and the backend is treated as frozen for web-client development, but final release-verification evidence is not fully recorded**.
+> Current backend posture: **the formal feature roadmap is implemented through Phase 17 and the backend is the stable contract for the web client. Final release-verification evidence is still incomplete, while post-roadmap product evolution continues through backward-compatible API/domain refinements.**
 
-## 1. Purpose of this rewrite
+## 1. Purpose
 
-The original backend plan was written as a from-scratch implementation roadmap. The repository has since implemented the full formal roadmap, then continued receiving backend extensions required by the web client. This document rewrites the plan to reflect the code that exists now.
+This document is no longer a from-scratch implementation checklist. It records:
 
-It deliberately separates four different concepts:
+- formal Phase 0–17 implementation status;
+- release-verification evidence that is still required;
+- post-roadmap backend evolution added for the web client;
+- current identity/workspace invariants;
+- known gaps and intentional limitations;
+- the rules that future backend changes must preserve.
 
-- **formal phase implementation** — whether the code/harness described by the original phase exists;
-- **verification evidence** — whether representative race/fuzz/load/restore results were actually recorded and accepted;
-- **post-roadmap evolution** — backend features added while implementing the web client;
-- **known carry-overs/bugs** — issues still observable in the current source and therefore not hidden by a blanket `DONE` label.
+The implementation history after the original roadmap must not be converted into invented Phase 18/19 backend numbering. New capabilities remain **post-roadmap evolution** unless the roadmap is explicitly re-baselined.
 
 ## 2. Status legend
 
 - ✅ **IMPLEMENTED** — formal phase code/contract exists.
-- ⚠️ **IMPLEMENTED, VERIFICATION PENDING** — implementation/harness exists, but an explicit acceptance result is still missing.
-- 🧭 **POST-ROADMAP EVOLUTION** — added after the original Phase 0–17 roadmap.
-- 🐛 **KNOWN GAP** — confirmed issue or unresolved semantic gap in current source.
-- ℹ️ **LIMITATION** — intentional/known design boundary rather than a correctness bug.
+- ⚠️ **IMPLEMENTED, VERIFICATION PENDING** — code/harness exists, but acceptance evidence is not fully recorded.
+- 🧭 **POST-ROADMAP EVOLUTION** — product capability added after formal Phase 17 implementation.
+- 🐛 **KNOWN GAP** — confirmed correctness/operational issue still requiring a fix or explicit acceptance.
+- ℹ️ **LIMITATION** — intentional design boundary, not a correctness bug.
 
 ## 3. Executive status
 
@@ -47,69 +49,88 @@ It deliberately separates four different concepts:
 | 11 | Trash, Soft Delete & Restore | ✅ Implemented |
 | 12 | Collections & Collection ACL | ✅ Implemented |
 | 13 | Public Shares | ✅ Implemented |
-| 14 | Search, Filters & Favorites | ⚠️ Implemented; representative plan acceptance still needs recorded evidence |
+| 14 | Search, Filters & Favorites | ⚠️ Implemented; representative query-plan acceptance still needs recorded evidence |
 | 15 | MIME & Media Metadata | ✅ Implemented |
 | 16 | Operational Hardening | ✅ Implemented |
 | 17 | Backend Stabilization | ⚠️ Implementation/harness complete; final verification evidence incomplete |
 
 ### Backend freeze state
 
-The backend is currently used as the stable API/domain source of truth for the web client. New backend changes should therefore be limited to:
+The backend is the stable API/domain source of truth for the web client. New backend work should normally be limited to:
 
-1. correctness/security bugs;
-2. real API contract blockers discovered by the web client;
-3. explicitly approved product evolution;
-4. performance/operational fixes that preserve existing semantics.
+1. correctness/security fixes;
+2. real API blockers discovered by clients;
+3. explicitly approved backward-compatible product evolution;
+4. performance/operational fixes that preserve semantics.
 
-Breaking `/api/v1` changes should not be introduced casually. OpenAPI and generated web types must move together.
+Breaking `/api/v1` changes must not be introduced casually. OpenAPI and generated web types must move together.
 
 ---
 
 # 4. Current architecture baseline
 
-The current backend remains a **Go + PostgreSQL + Discord-backed general-purpose file-storage server**.
-
-Core architecture:
+DisCloud remains a **Go + PostgreSQL + Discord-backed general-purpose file-storage server**.
 
 ```text
-Web / future desktop clients
-            │
-            │ HTTP / session cookie
-            ▼
-      DisCloud Go API
-      ├─ setup/auth/MFA
-      ├─ users/admin/quota
-      ├─ nodes/folders/ACL
-      ├─ uploads/chunks
-      ├─ files/Range streaming
-      ├─ collections/shares
-      ├─ search/favorites
-      ├─ metadata/jobs
-      ├─ avatars/objects/thumbnails
-      ├─ settings
-      └─ diagnostics/metrics
-            │
-       ┌────┴─────┐
-       ▼          ▼
- PostgreSQL    Discord
- metadata      attachment blobs
+Web / future clients
+        │
+        │ HTTP + session cookie
+        ▼
+    DisCloud Go API
+    ├─ setup/auth/MFA
+    ├─ users/admin/quota
+    ├─ workspaces/identity
+    ├─ nodes/folders/ACL
+    ├─ uploads/chunks
+    ├─ files/Range streaming
+    ├─ collections/shares
+    ├─ search/favorites
+    ├─ metadata/jobs
+    ├─ avatars/objects/thumbnails
+    ├─ settings
+    └─ diagnostics/metrics
+        │
+   ┌────┴─────┐
+   ▼          ▼
+PostgreSQL   Discord
+metadata     attachment blobs
 ```
 
-Important invariants retained from the original design:
+## 4.1 Core invariants
 
-- PostgreSQL is the only canonical relational database backend.
-- UUIDv7 is used for application identifiers where schema defaults require generated IDs.
+- PostgreSQL is the canonical relational database.
+- UUIDv7 is used for application identifiers where schema defaults generate IDs.
 - `nodes` is the structural namespace for files/folders.
 - Session cookies are the normal browser authentication mechanism.
-- TOTP secrets are encrypted at rest; recovery codes are not stored plaintext.
-- Quota is based on logical active owned file bytes; unlimited quota is supported.
-- File bytes are stored as chunk references backed by Discord attachments.
-- Upload finalize must be idempotent.
-- Chunk dedupe is global and same-digest races are serialized.
-- Streaming does not buffer the whole file in memory.
-- ACL/public/collection access must not leak structural information outside authorized scope.
+- TOTP secrets are encrypted at rest; recovery codes are never stored plaintext.
+- Quota uses logical active owned file bytes; unlimited quota is supported.
+- Canonical file bytes are chunk references backed by Discord attachments.
+- Upload finalize is idempotent.
+- Same-digest races are serialized across dedupe-sensitive paths.
+- File streaming does not buffer the whole file in memory.
+- ACL/public/collection access must not leak unauthorized structural information.
 - Soft-deleted files keep committed blob references intact.
-- Derived metadata/jobs must not make canonical file storage unavailable when probes fail.
+- MIME/media metadata and thumbnails are derived state and must not make canonical file download unavailable when derivation fails.
+
+## 4.2 Identity invariants added after the original roadmap
+
+The current identity model is now explicit:
+
+```text
+username = immutable technical identity
+name     = mutable display identity
+```
+
+Rules:
+
+- login remains username-based;
+- workspace routing remains username-based;
+- exact identity references use `@username`;
+- display surfaces should prefer `name`, with `@username` available where disambiguation matters;
+- username is immutable through self-service and admin update flows;
+- setup/admin create require both `name` and `username`;
+- `name` is mutable and constrained to 1–100 characters;
+- changing a display name must never change login identity or workspace routes.
 
 ---
 
@@ -119,333 +140,393 @@ Important invariants retained from the original design:
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Initialize Go module, binary entrypoint, application boundary and repository ignore rules.
-- [x] Typed runtime configuration, environment loading and validation.
-- [x] Structured `slog` logging.
-- [x] PostgreSQL pool/connectivity.
-- [x] Migration runner and startup migration execution.
-- [x] HTTP router/server skeleton and graceful shutdown.
+- [x] Go module, application boundary and binary entrypoint.
+- [x] Typed runtime configuration and validation.
+- [x] Structured logging.
+- [x] PostgreSQL pool and startup migration execution.
+- [x] HTTP server/router and graceful shutdown.
 - [x] `/healthz` and PostgreSQL-backed `/readyz`.
-- [x] Base HTTP/server tests.
-- [x] Development PostgreSQL Compose.
-- [x] CI format/vet/test and production Docker foundation.
+- [x] CI/test/Docker development foundation.
 
 ## Phase 1 — Database Foundation & Shared Primitives
 
 **Status: ✅ IMPLEMENTED**
 
 - [x] PostgreSQL extensions and UUIDv7 foundation.
-- [x] PostgreSQL transaction helper and integration tests.
-- [x] RFC-style Problem Details model and HTTP helpers.
-- [x] Request ID middleware/context.
-- [x] Cursor encode/decode primitive with tests/fuzzing.
-- [x] `users` and base `nodes` schema with root-node invariants.
-- [x] Audit-event schema/repository.
-- [x] Jobs schema and PostgreSQL job claim primitive.
-- [x] Migration-from-empty integration test.
+- [x] Transaction helpers and integration coverage.
+- [x] Problem Details HTTP model.
+- [x] Request IDs.
+- [x] Cursor primitives and fuzz/tests.
+- [x] `users`, `nodes`, audit and jobs foundation.
+- [x] Migration-from-empty verification harness.
 
 ## Phase 2 — Setup, Password Authentication & Sessions
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] User domain/repository primitives.
-- [x] Argon2id password hashing and tests.
-- [x] Session schema, secure token generation/hashing and repository.
-- [x] Setup-status service and atomic first-admin setup.
-- [x] Concurrent setup protection/integration test.
-- [x] `GET /api/v1/setup/status` and `POST /api/v1/setup`.
-- [x] Login/logout and session-cookie handling.
-- [x] Authentication middleware and `GET /api/v1/auth/me`.
+- [x] Argon2id password hashing.
+- [x] First-admin setup and concurrent setup protection.
+- [x] Login/logout/session cookies.
+- [x] `GET /api/v1/auth/me`.
 - [x] Session listing/revocation.
-- [x] Username/password update and revoke-other-sessions.
-- [x] Disabled-user authentication enforcement.
-- [x] Full auth HTTP integration suite.
+- [x] Password change and revoke-other-sessions.
+- [x] Disabled-user enforcement.
+
+**Current post-roadmap identity refinement:** usernames are immutable; self-service account identity updates modify `name`, not `username`.
 
 ## Phase 3 — Optional TOTP MFA
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] MFA schema and encryption master-key configuration.
-- [x] Encrypted TOTP secrets with tests.
-- [x] Pending enrollment, enrollment start/confirm and TOTP verification.
-- [x] Recovery-code generation, hashing, regeneration and one-time login.
-- [x] MFA login challenge.
+- [x] Encrypted TOTP secrets.
+- [x] Enrollment start/confirm.
+- [x] Recovery codes and MFA login challenge.
 - [x] Disable own MFA and admin MFA reset.
-- [x] Concurrency/security integration tests.
+- [x] Concurrency/security coverage.
 
 ## Phase 4 — Admin User Management & Quota
 
 **Status: ✅ IMPLEMENTED**
 
 - [x] Admin authorization primitive.
-- [x] Create-user transaction with automatic root folder.
-- [x] Admin create/list/detail user APIs.
-- [x] Disable user + revoke sessions and re-enable user.
+- [x] User create transaction with root folder.
+- [x] List/detail/update/disable/enable APIs.
 - [x] Admin password reset.
-- [x] Quota domain model and locking primitives.
-- [x] Admin quota updates and storage usage endpoint.
-- [x] Unlimited and finite quota tests.
+- [x] Finite/unlimited quota management.
+- [x] Storage usage APIs and reconciliation foundation.
+
+**Current credential refinement:**
+
+- admin create/reset password is a **temporary credential** and only requires at least 1 Unicode character;
+- temporary credentials set/retain the must-change-password lifecycle;
+- the user's real/new password continues to require at least 12 characters;
+- temporary-password validation is intentionally separate from normal password-strength validation.
 
 ## Phase 5 — Node Tree: Folder, Rename & Move
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Node domain model.
-- [x] Unicode filename/folder-name normalization and tests.
-- [x] Active sibling uniqueness constraint.
-- [x] Create-folder repository/service/API.
-- [x] Folder child listing and breadcrumbs.
-- [x] Rename and move file/folder.
-- [x] Folder-cycle detection and root protection.
-- [x] Cross-owner restrictions and admin ownership-transfer transaction.
-- [x] Concurrent name/move integration tests.
+- [x] Node model and Unicode name normalization.
+- [x] Active sibling uniqueness.
+- [x] Create folder/list children/breadcrumbs.
+- [x] Rename/move.
+- [x] Cycle/root/cross-owner protection.
+- [x] Admin ownership transfer.
+- [x] Concurrency regression coverage.
 
 ## Phase 6 — Folder ACL
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] `folder_permissions` schema.
-- [x] Permission levels `view < edit < full` and ordering helpers.
-- [x] Ancestor ACL resolution and authorization service.
-- [x] Owner/admin overrides.
-- [x] Folder grant create/update/delete/list.
-- [x] Permission-aware node detail and child listing.
-- [x] Permission audit events.
-- [x] ACL matrix and authorization-leakage tests.
+- [x] Folder permissions schema.
+- [x] `view < edit < full` resolution.
+- [x] Inherited ACL resolution and owner/admin overrides.
+- [x] Grant CRUD/list.
+- [x] Permission-aware node browsing.
+- [x] ACL audit and leakage tests.
 
 ## Phase 7 — Discord BlobStore & Chunks
 
 **Status: ✅ IMPLEMENTED**
 
 - [x] `BlobStore` abstraction.
-- [x] Discord storage configuration and multi-bot/channel model.
-- [x] Discord HTTP client foundation.
-- [x] Chunk schema/repository.
-- [x] Discord chunk upload and streaming download.
-- [x] Chunk Range reads.
-- [x] Discord upstream 429/retry handling and storage error classification.
-- [x] Fake BlobStore and unit tests.
-- [x] Optional live Discord integration harness.
+- [x] Discord storage configuration and client.
+- [x] Chunk repository and attachment upload/read.
+- [x] Range support.
+- [x] 429/retry/error classification.
+- [x] Fake store and optional live integration harness.
 
 ## Phase 8 — Upload Sessions, Resumability & Deduplication
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] `files`, `file_chunks` and upload-session schema.
-- [x] Upload state machine and quota reservation transaction.
-- [x] Create/status/resume upload APIs.
-- [x] Stream incoming parts while hashing and verify expected SHA-256.
-- [x] Chunk dedupe lookup and same-digest concurrency coordination.
-- [x] Register parts and idempotent part retry.
-- [x] Completion validation and atomic logical-file finalize.
-- [x] Reserved → used quota transition.
-- [x] Cancel/expire abandoned sessions and release reservations.
-- [x] Upload concurrency/integration tests.
+- [x] Upload sessions/parts/files/file-chunks schema.
+- [x] Quota reservation.
+- [x] Resume/status APIs.
+- [x] Stream + hash incoming parts.
+- [x] Chunk dedupe and same-digest concurrency coordination.
+- [x] Idempotent retry/finalize.
+- [x] Reservation-to-used quota transition.
+- [x] Cancel/expiry cleanup.
 
 ## Phase 9 — File Streaming & HTTP Range
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] File metadata query/service and endpoint.
-- [x] Ordered file-chunk traversal.
-- [x] Full reconstruction stream and full content endpoint.
-- [x] Download disposition behavior.
-- [x] Single byte-range parser with tests/fuzz targets.
-- [x] Map byte ranges to chunks and cross-chunk Range streaming.
+- [x] File metadata service/API.
+- [x] Ordered chunk traversal.
+- [x] Full stream and download disposition.
+- [x] Single-range parser and cross-chunk mapping.
 - [x] ETag/content headers and unsatisfiable Range handling.
-- [x] Request cancellation propagation.
-- [x] Large-file streaming integration tests.
+- [x] Cancellation propagation.
 
 ## Phase 10 — Folder Upload & Folder Download
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Folder-tree/batch-create contract.
-- [x] Batch folder validation and creation transaction.
-- [x] Folder tree integration with upload sessions.
-- [x] Archive path sanitizer and fuzz tests.
-- [x] Recursive ZIP tree walker and streaming ZIP writer.
-- [x] Folder download endpoint.
-- [x] Nested-folder archive integration tests.
-- [x] Multi-selection archive/download support where exposed.
+- [x] Batch folder-tree creation contract.
+- [x] Merge-safe folder resolution.
+- [x] Folder upload integration with upload sessions.
+- [x] Archive path sanitizer and fuzzing.
+- [x] Recursive ZIP streaming.
+- [x] Folder download and multi-selection archive support.
 
-**Current note:** backend folder-tree primitives are present and merge-safe for Web V1 folder upload orchestration. Batch folder creation idempotently resolves an existing folder at the same parent/name and returns `created: false`, allowing missing descendants to continue being created. Upload-session creation also distinguishes an already-existing file from a structural folder/name collision so the web client can skip existing files without masking incompatible node kinds.
+Current merge semantics support the web client's complete folder-tree upload flow:
+
+- existing folders are reused;
+- missing descendants are created;
+- already-existing files can be classified separately from structural file-vs-folder conflicts;
+- existing server-only children are not overwritten.
 
 ## Phase 11 — Trash, Soft Delete & Restore
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Direct/effective deletion query model.
-- [x] Logical byte calculation for trash operations.
-- [x] Trash file/folder transactions and immediate quota release.
+- [x] Direct/effective deletion model.
+- [x] Logical byte accounting.
+- [x] Trash and immediate quota release.
 - [x] Trash listing.
-- [x] Restore validation and file/folder restore.
-- [x] Restore-to alternate destination and rename-on-conflict flow.
-- [x] Restore quota consume/reservation checks.
-- [x] Nested direct-delete semantics.
-- [x] Committed chunks preserved through soft delete.
-- [x] Trash/restore concurrency tests.
+- [x] Restore, alternate destination and rename-on-conflict.
+- [x] Restore quota checks.
+- [x] Nested delete semantics.
+- [x] Committed chunks preserved during soft delete.
 
-**Baseline deviation:** the original Phase 11 explicitly prohibited permanent deletion. Current code later added an explicit database-only `Purge` path. That feature is documented under Post-roadmap evolution rather than retroactively changing the original Phase 11 contract.
+A later database-only `Purge` path is post-roadmap evolution and does not change the original soft-delete Phase 11 baseline.
 
 ## Phase 12 — Collections & Collection ACL
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Collections schema/domain/repository.
-- [x] Create/update/trash/restore collection.
-- [x] Collection-item add/remove.
-- [x] Collection permission schema/resolution and grant CRUD.
-- [x] View file through collection authorization.
-- [x] Prevent structural permission escalation.
-- [x] Retain membership for soft-deleted files.
-- [x] Collection ACL tests.
+- [x] Collection CRUD/trash/restore.
+- [x] Collection membership.
+- [x] Collection grant CRUD/resolution.
+- [x] Collection-only file authorization without structural escalation.
 
 ## Phase 13 — Public Shares
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Public-share schema and high-entropy share IDs.
-- [x] Share ID tests/fuzzing.
-- [x] Generic share service.
-- [x] Create/revoke file, folder and collection shares.
-- [x] Public share resolver.
-- [x] Public file metadata/content.
-- [x] Public folder browsing/download.
-- [x] Public collection browsing.
-- [x] Prevent traversal outside shared subtree.
-- [x] Revoke shares when resources enter Trash.
-- [x] Restore must not reactivate old share IDs.
-- [x] Public-share integration tests.
+- [x] High-entropy public share IDs.
+- [x] File/folder/collection shares.
+- [x] Anonymous resolver and content/browser endpoints.
+- [x] Shared subtree confinement.
+- [x] Revocation on trash.
+- [x] Restore does not reactivate old public IDs.
 
 ## Phase 14 — Search, Filters & Favorites
 
 **Status: ⚠️ IMPLEMENTED — representative search-plan acceptance evidence remains a release gate**
 
-- [x] Trigram/name search indexes and fuzzy search.
-- [x] Permission-aware search repository.
+- [x] Trigram/fuzzy search.
+- [x] Permission-aware search.
 - [x] Stable cursor pagination.
-- [x] Kind/MIME/category, size/date and ownership/state filters.
+- [x] Kind/MIME/category/size/date/owner/state filters.
 - [x] Folder/collection/favorite/shared filters.
-- [x] Sorting by relevance/name/date/size.
-- [x] Favorite mutation/filtering.
-- [x] Search leakage tests and HTTP contract tests.
+- [x] Relevance/name/date/size sorting.
+- [x] Favorite mutations.
+- [x] Search leakage and HTTP contract tests.
 - [x] Representative EXPLAIN/benchmark harness.
+- [x] Admin owner filtering required by workspace-aware management flows.
 
-### Phase 14 verification still required
+Remaining evidence:
 
-- [x] Exact-query EXPLAIN harness exists.
-- [x] Representative benchmark harness exists.
-- [ ] Run/record a representative query plan on the target PostgreSQL environment.
-- [ ] Accept or tune the plan based on the captured baseline.
+- [ ] Record a representative query plan on the target PostgreSQL environment.
+- [ ] Accept or tune the plan against a recorded baseline.
 
 ## Phase 15 — MIME & Media Metadata
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] MIME/media metadata fields.
-- [x] Content-first MIME detection with extension/MIME-hint fallback.
-- [x] MIME → category classification and tests.
-- [x] Metadata probe abstraction.
-- [x] Async `file.metadata` jobs.
-- [x] PNG/JPEG/GIF image dimensions.
+- [x] MIME/category fields and content-first detection.
+- [x] Async metadata jobs.
+- [x] Common image dimensions.
 - [x] Metadata status/error persistence.
-- [x] Expose metadata through file APIs.
-- [x] Probe failures never break upload/download.
-- [x] Optional richer video/audio and image-format probing.
+- [x] Metadata exposed through file APIs.
+- [x] Probe failures do not break canonical file access.
 
-### Optional enrichment still not required for the core Phase 15 exit
+Optional enrichment remains non-blocking:
 
-- [ ] Rich WebP/AVIF dimension probing if needed.
-- [ ] Optional `ffprobe` adapter for duration/codec/bitrate.
-- [ ] Additional media-derived metadata only when product value justifies runtime/dependency cost.
+- [ ] richer WebP/AVIF dimensions if product value requires it;
+- [ ] optional `ffprobe` duration/codec/bitrate adapter.
 
 ## Phase 16 — Operational Hardening
 
 **Status: ✅ IMPLEMENTED**
 
-- [x] Audit query API and admin storage overview.
-- [x] Quota reconciliation query/job.
-- [x] Abandoned upload cleanup.
+- [x] Audit query API and storage overview.
+- [x] Quota reconciliation.
+- [x] Abandoned-upload cleanup.
 - [x] Safe uncommitted orphan-chunk cleanup.
-- [x] Job retry/dead lifecycle, leases and stale-job recovery.
+- [x] Job retries/dead lifecycle/leases/stale recovery.
 - [x] Worker lifecycle.
-- [x] Prometheus-compatible metrics and trace hooks.
-- [x] Security headers and final configuration validation.
-- [x] Extended readiness checks.
-- [x] PostgreSQL backup/restore operations documentation.
+- [x] Metrics and trace hooks.
+- [x] Security headers/config validation/readiness checks.
+- [x] Backup/restore operations documentation.
 
 ## Phase 17 — Backend Stabilization
 
 **Status: ⚠️ IMPLEMENTED — stabilization harness exists; final verification evidence remains**
 
-- [x] Inventory all HTTP routes.
-- [x] Finalize OpenAPI schemas/routes and validate API examples.
-- [x] Per-operation error/status catalog and HTTP contract guards.
-- [x] Range, filename/path, cursor/share-ID and other critical fuzz targets.
-- [x] High-risk concurrency regression suite.
-- [x] Upload/Range/folder/ACL/search/trash load/performance harnesses.
-- [x] Migration sequence/forward-only/destructive-change review guards.
-- [x] DB constraints/index review.
-- [x] Threat-model/security review and CSRF/session hardening.
-- [x] Backend/operations/security documentation review.
-- [x] Release checklist.
-- [x] Freeze `/api/v1` as the web-client contract.
-
-### Phase 17 implementation coverage
-
-- [x] OpenAPI contract and route drift guard.
-- [x] Validated API examples and error/status catalog.
-- [x] Fuzz boundaries.
+- [x] HTTP route inventory.
+- [x] OpenAPI finalization and examples.
+- [x] Per-operation error/status catalog.
+- [x] Critical fuzz targets.
 - [x] High-risk concurrency suite.
+- [x] Upload/Range/folder/ACL/search/trash load/performance harnesses.
 - [x] Migration sequence/forward-only/destructive-change guards.
-- [x] CSRF same-origin hardening and session/cookie review.
-- [x] Threat-model baseline.
-- [x] Load/performance harness covering all planned workloads.
-- [x] Operations/security documentation.
-- [x] Release checklist.
+- [x] Constraint/index review.
+- [x] CSRF/session/security review.
+- [x] Operations/security docs and release checklist.
+- [x] `/api/v1` frozen as the web-client contract baseline.
 
-### Phase 17 verification evidence still not recorded as complete
+Still not recorded as complete:
 
-- [ ] Actual full race-suite result.
-- [ ] Actual extended fuzz-run result.
-- [ ] Accepted representative Phase 14 search plan.
-- [ ] Recorded/accepted load baseline.
-- [ ] Completed PostgreSQL restore rehearsal with representative Discord-backed downloads.
+- [ ] full race-suite result;
+- [ ] extended fuzz-run result;
+- [ ] accepted representative Phase 14 search plan;
+- [ ] recorded/accepted load baseline;
+- [ ] PostgreSQL restore rehearsal with representative Discord-backed downloads.
 
 ---
 
 # 6. Post-roadmap backend evolution
 
-These capabilities were added **after the original Phase 0–17 roadmap** while the web client was being implemented. They are part of the current backend and therefore belong in the source-of-truth plan even though they are not new formal numbered phases.
-
 ## 6.1 Web-enabling API refinements
 
-- 🧭 Current-user usage/quota read support for the authenticated app shell.
-- 🧭 MFA-status exposure needed by account/security UI.
-- 🧭 Exact active-user lookup used by ACL assignment UI without exposing a browsable user directory to normal users.
-- 🧭 Folder child-listing contract refinements for sorting/pagination/browser UX.
-- 🧭 OpenAPI error catalog kept in sync with newly added operations.
-- 🧭 Upload conflict classification distinguishes an already-existing file from a structural name/type conflict for merge-safe folder upload orchestration; the HTTP status remains `409`, so the existing OpenAPI operation/status contract is preserved.
+Implemented after the original Phase 17 feature freeze:
 
-## 6.2 Direct objects, avatars and thumbnail infrastructure
+- 🧭 current-user usage/quota read support;
+- 🧭 MFA-status exposure for account/security UI;
+- 🧭 exact active-user lookup for ACL assignment without a normal-user browsable directory;
+- 🧭 richer folder-browser sorting/pagination contracts;
+- 🧭 upload conflict classification separating an already-existing file from a structural name/type collision while preserving HTTP `409`;
+- 🧭 owner-scoped search/workspace contracts used by admin workspace views;
+- 🧭 OpenAPI error/status catalog updates kept synchronized with all added operations.
 
-- 🧭 `internal/objects` provides direct object-storage infrastructure separate from canonical file nodes.
-- 🧭 Upload-lease support was added for direct object writes.
-- 🧭 `internal/avatars` and avatar HTTP endpoints provide upload/read/delete behavior for user profile images.
-- 🧭 `internal/thumbnails` provides derived thumbnail infrastructure.
-- 🧭 Attachment URL + expiration data is retained on successful Discord object uploads so already-known CDN URLs can be reused.
-- 🧭 Attachment URL resolution is concurrency-bounded to prevent request herds against Discord message lookup.
+## 6.2 Display names and immutable usernames
 
-## 6.3 HTTP/cache delivery hardening
+Landed identity model:
 
-- 🧭 File/binary delivery gained cache and validation headers, including `Cache-Control`/`Last-Modified` support where applicable.
-- 🧭 Existing ETag/Range semantics remain part of the content-delivery contract.
-- 🧭 Thumbnail/content paths should prefer known attachment URLs and avoid unnecessary Discord API lookup round-trips.
+- 🧭 users expose mutable `name` plus immutable `username`;
+- 🧭 setup requires `name`, `username`, password;
+- 🧭 admin create requires `name`, `username`, temporary password;
+- 🧭 self update modifies `name`, not username;
+- 🧭 admin update modifies `name`/role, not username;
+- 🧭 user lookup responses include both `name` and `username`;
+- 🧭 OpenAPI/generated web types were updated with the same identity model.
 
-## 6.4 User settings persistence
+This is now a permanent API/domain invariant. Do not reintroduce username rename semantics without an explicit migration/product decision.
 
-The backend now persists user configuration used by the web client. Current common settings include at least:
+## 6.3 Workspace contract
+
+The backend now exposes:
+
+```text
+GET /api/v1/workspaces/{username}
+```
+
+Current semantics:
+
+- a normal user can load only their own workspace;
+- an admin can load another existing user's workspace;
+- the route returns owner identity (`id`, `username`, `name`, `role`, `status`), root information and usage/quota information;
+- workspace identity is routed by immutable username;
+- authenticated actor identity remains separate from workspace owner identity.
+
+Conceptually:
+
+```text
+actor/session user ≠ workspace owner
+```
+
+This distinction must remain explicit in authorization, auditing and future workspace-aware operations.
+
+## 6.4 ACL/shared identity enrichment
+
+- 🧭 access-grant responses include display `name` plus exact `username`;
+- 🧭 shared-item responses include owner display name in addition to owner username/ID;
+- 🧭 these fields allow the web client to present human-readable identity without replacing the technical identity needed for exact routing/mentions.
+
+## 6.5 Admin user identity, avatars and temporary credentials
+
+- 🧭 `AdminUser` includes display name, `hasAvatar` and `avatarRevision`;
+- 🧭 admin user avatar read endpoint is available;
+- 🧭 admin create/reset uses the separate temporary-password validation path;
+- 🧭 temporary passwords may be one Unicode character or longer;
+- 🧭 user-selected real passwords still require at least 12 characters;
+- 🧭 admin lifecycle integration tests cover identity and temporary-credential behavior.
+
+## 6.6 Admin diagnostics identity enrichment
+
+### Upload diagnostics
+
+Upload diagnostics now expose both technical IDs and human identity for both sides of the operation:
+
+```text
+actorUserId / actorUsername / actorName
+ownerUserId / ownerUsername / ownerName
+```
+
+Technical UUID filters remain supported for diagnostics and auditing.
+
+### Quota reconciliation
+
+Quota reconciliation results now include:
+
+```text
+userId / username / name
+quota and before/after used/reserved counters
+changed / overQuota
+```
+
+Results are presentation-friendly while retaining UUID identity for technical correlation.
+
+### Audit events
+
+Audit events now expose:
+
+- actor `name` + `username` when the actor is a user;
+- resource `name` + `username` when `resource_type = 'user'`;
+- technical resource UUID for correlation;
+- non-user resources remain technical rather than inventing human identity.
+
+## 6.7 Recursive folder size in browser listings
+
+Folder browser child responses now use a recursive subtree aggregate:
+
+```text
+folder size = SUM(size_bytes of active descendant files)
+```
+
+Semantics:
+
+- file size remains the logical file `size_bytes`;
+- folder size includes files in all nested descendant folders;
+- deleted descendants are excluded;
+- empty folders report `0`;
+- `sort=size` uses the same recursive aggregate rather than treating folders as zero;
+- the implementation uses a recursive CTE instead of client-side aggregation or N+1 queries.
+
+Because this was added after the earlier release-performance checkpoint, representative large-tree browser-size performance should be included in final release verification.
+
+## 6.8 Direct objects, avatars and thumbnails
+
+- 🧭 `internal/objects` provides direct object infrastructure separate from canonical file nodes.
+- 🧭 upload leases protect direct object writes.
+- 🧭 `internal/avatars` implements user avatar upload/read/delete.
+- 🧭 `internal/thumbnails` implements derived thumbnail storage.
+- 🧭 known Discord attachment URLs/expiry can be reused instead of resolving every request through Discord message lookup.
+- 🧭 attachment resolution is concurrency-bounded.
+
+## 6.9 HTTP/cache delivery hardening
+
+- 🧭 content delivery includes cache/validation headers where applicable;
+- 🧭 ETag/Range semantics remain part of the canonical file contract;
+- 🧭 thumbnail/object paths should prefer known attachment URLs and tolerate URL expiry/re-resolution.
+
+## 6.10 User settings persistence
+
+Current common configuration includes at least:
 
 ```text
 common
@@ -457,32 +538,47 @@ common
    └─ preloadNext: 3..5
 ```
 
-Settings changes must remain backward-compatible: clients that update one common setting must not silently reset unrelated settings.
+Partial settings updates must not silently reset unrelated configuration.
 
-## 6.5 Database-only permanent purge
+## 6.11 Database-only permanent purge
 
-The original roadmap used soft delete only. Current source later added `nodes.Service.Purge` for an explicitly deleted node/subtree.
+Current `nodes.Service.Purge` semantics:
 
-Current purge semantics:
-
-- owner or admin only;
+- owner/admin only;
 - target must already be directly deleted;
-- root node cannot be purged;
+- root cannot be purged;
 - active upload references block purge;
-- related upload rows, shares, collection membership and folder grants are removed;
+- related upload/share/collection/grant relations are removed;
 - file/chunk relational references are deleted transactionally;
-- a chunk row is deleted only if no other file/upload reference remains;
-- **physical Discord attachment deletion is not performed by this purge path** (`discordDeleted=false` in audit metadata).
+- a chunk row is deleted only when no other file/upload reference remains;
+- physical Discord attachment deletion is not performed by this path.
 
-Therefore this is a **database-only permanent delete**, not a full physical erasure guarantee.
+This is database-level permanent deletion, **not** a physical-erasure guarantee.
+
+## 6.12 Recent landed checkpoint delta
+
+The main implementation delta since the previous plan snapshot includes:
+
+```text
+79ea2df  feat(api): owner-scoped workspace contracts
+b98a172  feat(api): classify existing file upload conflicts
+914c7b7  feat(users): display names + immutable usernames
+913f386  feat(api): workspace details endpoint
+c13dacb  feat(api, web): workspace display name details
+119cbe7  feat(api, web): display names in access grants/shared items
+3af3225  feat(admin): user identity + temporary credentials
+64360d4  feat(admin): upload diagnostic actor/owner identity
+d82faca  feat(admin): quota reconciliation identity/reporting
+40d4eb6  fix(auth): temporary-password/account regression fixes
+4e2a140  feat(admin): audit user-resource identity
+85991be  feat(nodes): recursive folder sizes in browser listings
+```
 
 ---
 
 # 7. Known current gaps and limitations
 
 ## 7.1 🐛 Restored file can retain permanently skipped metadata
-
-Current restore logic restores the node, quota and audit event, but does not enqueue a new `file.metadata` job.
 
 Problem scenario:
 
@@ -491,73 +587,62 @@ upload
   ↓
 trash before metadata worker finishes
   ↓
-metadata worker observes inactive file
-  ↓
-metadata_status = skipped
+metadata worker marks inactive file skipped
   ↓
 restore
   ↓
-no re-enqueue
-  ↓
-file can remain skipped indefinitely
+no metadata re-enqueue
 ```
 
-Required fix:
+Required disposition:
 
-- [ ] On restore, identify restored file(s) that require metadata processing.
-- [ ] Enqueue `file.metadata` after/within a transaction-safe restore workflow.
-- [ ] Handle recursive folder restore without creating duplicate jobs.
-- [ ] Add regression coverage for `upload → trash → metadata skip → restore → metadata ready`.
+- [ ] identify restored files requiring metadata work;
+- [ ] enqueue `file.metadata` safely during/after restore;
+- [ ] avoid duplicate jobs for recursive folder restore;
+- [ ] add regression coverage for `upload → trash → skipped → restore → ready`.
 
 ## 7.2 🐛 Terminal retry log can say “scheduled for retry” after a job becomes dead
 
-`jobs.Worker.runJob()` currently calls `Retry(...)` and then always logs `job scheduled for retry`. If `Retry` transitions the final attempt to `dead`, the persisted state is correct but the operational log is misleading.
+Persisted state is correct, but the terminal attempt can produce misleading operational logging.
 
-Required fix:
+Required disposition:
 
-- [ ] Make retry completion expose the resulting state or otherwise distinguish retry vs dead.
-- [ ] Log terminal dead state accurately.
-- [ ] Add regression coverage around the last allowed attempt.
+- [ ] expose/determine resulting retry state;
+- [ ] log final dead state accurately;
+- [ ] add last-attempt regression coverage.
 
 ## 7.3 ℹ️ Truly unregistered Discord orphans are invisible to DB GC
 
-Normal orphan GC can safely remove registered-but-uncommitted chunks. A Discord attachment uploaded successfully **before the process dies prior to DB registration** has no locator in PostgreSQL, so a database-driven sweeper cannot discover it.
+An attachment uploaded to Discord before process death but before DB registration has no PostgreSQL locator. Normal DB-driven GC cannot discover it.
 
 Current disposition:
 
 - keep normal GC database-driven and safe;
-- do not scan the entire Discord channel during ordinary lifecycle;
-- add a separate maintenance/reconciliation tool only if real deployments show meaningful accumulation.
+- do not scan entire Discord channels during normal lifecycle;
+- add a separate reconciliation/maintenance tool only if deployments show meaningful accumulation.
 
 ## 7.4 ℹ️ Purge is not physical Discord erasure
 
-Database-only purge intentionally removes relational ownership/references but leaves the Discord attachment itself untouched. Before advertising any “secure/permanent physical delete” semantics, define and test a remote-erasure strategy.
+Do not advertise secure physical deletion until a Discord attachment erasure strategy is explicitly implemented and tested.
 
 ## 7.5 ⚠️ Release verification is incomplete as an evidence set
 
-The backend has the test/harness code, but this plan must not claim release readiness until the following are run and recorded:
-
-- [ ] full `go test -race ./...`;
-- [ ] high-risk concurrency suite with repeated scheduler-sensitive runs;
-- [ ] extended fuzz session with no unresolved corpus findings;
-- [ ] representative search EXPLAIN/benchmark accepted;
-- [ ] opt-in load suite baseline recorded;
-- [ ] PostgreSQL restore rehearsal completed;
-- [ ] representative restored Discord-backed full + Range downloads verified.
+The implementation/harness exists, but the project should not claim fully release-verified backend status until the remaining evidence is recorded.
 
 ---
 
-# 8. Backend release verification gate
+# 8. Backend release-verification gate
 
 ## 8.1 Normal quality gate
 
 ```bash
 gofmt -w .
 go vet ./...
+go test ./...
 go test -race ./...
 ```
 
-For CI/release, formatting should be checked without modifying the tree.
+CI/release should check formatting without mutating the tree.
 
 ## 8.2 Scheduler-sensitive concurrency
 
@@ -567,7 +652,7 @@ go test -race -count=10 -run Concurrent ./internal/nodes/...
 go test -race -count=10 -run Concurrent ./internal/uploads/...
 ```
 
-## 8.3 Representative search
+## 8.3 Representative search acceptance
 
 ```bash
 DISCLOUD_TEST_DATABASE_DSN='postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable' \
@@ -580,7 +665,7 @@ DISCLOUD_SEARCH_BENCH_N=25000 \
 go test -run '^$' -bench BenchmarkSearchRepresentative -benchtime=10x ./internal/search
 ```
 
-Do not set a hard latency threshold until a representative deployment baseline is recorded.
+Do not invent a hard latency threshold before a representative deployment baseline exists.
 
 ## 8.4 Opt-in load suite
 
@@ -590,112 +675,130 @@ DISCLOUD_RUN_LOAD_TESTS=1 \
 go test -run '^TestLoad' -count=1 -v ./internal/uploads/... ./internal/nodes/... ./internal/folders/...
 ```
 
-The load suite should record workload size/concurrency, machine/DB context and observed results so future releases can compare against a real baseline.
+Record workload size/concurrency, machine/DB context and observed results.
 
-## 8.5 PostgreSQL restore rehearsal
+## 8.5 New representative browser-folder-size check
 
-A backup is not considered verified until it has been restored to a separate empty database and the restored application has been exercised.
+Because recursive folder sizing landed after the earlier performance checkpoint:
 
-Minimum checklist:
+- [ ] create a representative deep/wide folder hierarchy;
+- [ ] capture EXPLAIN/ANALYZE for browser listing sorted by name and by size;
+- [ ] verify deleted descendants are excluded;
+- [ ] verify `sort=size` pagination remains stable;
+- [ ] record whether recursive CTE performance is acceptable at target scale.
 
-- [ ] restore completes successfully;
+This is a release-performance verification item, not a reason to change the current API contract prematurely.
+
+## 8.6 PostgreSQL restore rehearsal
+
+Minimum acceptance:
+
+- [ ] restore into a separate empty database;
 - [ ] application starts and `/readyz` succeeds;
-- [ ] administrator login works;
+- [ ] admin login works;
 - [ ] MFA secrets decrypt using the original master key;
-- [ ] root folders, ACLs and collections load correctly;
+- [ ] root folders/workspaces/ACLs/collections load correctly;
 - [ ] normal full download works;
 - [ ] Range download works;
 - [ ] folder ZIP works;
 - [ ] public share works;
 - [ ] quota/admin diagnostics are sane;
-- [ ] representative Discord-backed attachments still exist and can be read.
+- [ ] representative Discord-backed attachments are readable.
 
 ---
 
 # 9. Rules for future backend changes
 
-## API contract
+## 9.1 API contract
 
-- `/api/v1` is the web-client contract and should remain backward-compatible.
-- Any route/request/response/error change must update OpenAPI in the same change.
-- Web generated API types must be regenerated/check-verified when the contract changes.
-- New endpoints need explicit authentication/authorization and CSRF semantics.
+- `/api/v1` remains backward-compatible.
+- Route/request/response/error changes update OpenAPI in the same change.
+- Generated web API types must be regenerated or drift-checked when contracts change.
+- Every new endpoint requires explicit authentication/authorization and CSRF semantics.
 
-## Database migrations
+## 9.2 Identity and workspace
 
-- Migrations are forward-only and append-only.
-- Never rewrite a migration that may already be deployed.
-- Migration numbers remain sequential.
+- `username` is immutable technical identity.
+- `name` is mutable display identity.
+- Login and workspace routes remain username-based.
+- Admin cross-workspace access does not impersonate the workspace owner.
+- Actor/session identity and workspace-owner identity must remain separate in authorization, diagnostics and audit records.
+- Human-facing API responses may add display names, but must not remove exact technical IDs/usernames required for correlation.
+
+## 9.3 Database migrations
+
+- Forward-only and append-only.
+- Never rewrite a deployed migration.
+- Keep migration numbers sequential.
 - Destructive DDL requires explicit review and regression coverage.
 
-## Concurrency/invariants
+## 9.4 Concurrency/invariants
 
-- Preserve owner-tree serialization for operations that mutate structural/quota state.
+- Preserve owner-tree serialization for structural/quota mutations.
 - Preserve same-digest serialization across dedupe/upload/GC paths.
-- Upload finalize must remain idempotent.
-- A successful retry/replay must not duplicate quota transitions, audit events, metadata jobs or file-chunk mappings.
+- Upload finalize stays idempotent.
+- Retry/replay must not duplicate quota transitions, audit events, metadata jobs or chunk mappings.
 
-## Storage safety
+## 9.5 Storage safety
 
 - Canonical committed file chunks are never normal orphan-GC candidates.
-- Soft delete must not physically delete committed Discord data.
-- Object/thumbnail/avatar derived storage must remain separate from canonical file-node semantics.
-- Cache URLs are accelerators, not canonical locators; code must tolerate expiry and re-resolution.
+- Soft delete does not physically delete committed Discord data.
+- Object/thumbnail/avatar derived storage remains separate from canonical file-node semantics.
+- Cached Discord URLs are accelerators, not canonical locators.
 
-## Derived data
+## 9.6 Derived data
 
-- MIME/media metadata and thumbnails are derived state.
-- Probe/thumbnail failure must not make canonical file storage/download unavailable.
-- Restore flows must repair/re-enqueue derived state when necessary.
+- MIME/media metadata and thumbnails are derived.
+- Derived-data failure must not block canonical storage/download.
+- Restore flows should repair or re-enqueue derived state when required.
 
-## Observability
+## 9.7 Observability
 
-- Keep metric label cardinality bounded.
-- Use route patterns rather than raw resource IDs in access metrics/log dimensions.
+- Keep metric labels bounded.
+- Prefer route patterns over raw IDs in metric dimensions.
 - Never log passwords, session tokens, TOTP secrets, recovery-code plaintext, encryption keys, Discord bot tokens or DB credentials.
 
 ---
 
 # 10. Current backend implementation map
 
-Current `internal/` domains include:
-
 ```text
-acl
-adminops
-adminusers
-app
-audit
-auth
-avatars                # post-roadmap
-blobstore
-chunks
-collections
-config
-cursor
-discordstore
-encryption
-files
-folders
-httpapi
-jobs
-logging
-media
-mfa
-nodes
-objects                # post-roadmap
-observability
-orphangc
-postgres
-search
-settings               # post-roadmap
-setup
-shares
-thumbnails             # post-roadmap
-uploads
+internal/
+├─ acl
+├─ adminops
+├─ adminusers
+├─ app
+├─ audit
+├─ auth
+├─ avatars                # post-roadmap
+├─ blobstore
+├─ chunks
+├─ collections
+├─ config
+├─ cursor
+├─ discordstore
+├─ encryption
+├─ files
+├─ folders
+├─ httpapi
+├─ jobs
+├─ logging
+├─ media
+├─ mfa
+├─ nodes
+├─ objects                # post-roadmap
+├─ observability
+├─ orphangc
+├─ postgres
+├─ search
+├─ settings               # post-roadmap
+├─ setup
+├─ shares
+├─ thumbnails             # post-roadmap
+└─ uploads
 ```
 
-This map is intentionally included because it shows how the implemented backend has grown beyond the original formal phase list without needing to invent Phase 18/19 backend numbering.
+The map intentionally shows growth beyond the formal Phase 0–17 roadmap without inventing new backend phase numbers.
 
 ---
 
@@ -710,31 +813,43 @@ Phase 15                           ✅ implemented; richer media probes optional
 Phase 16                           ✅ implemented
 Phase 17                           ⚠️ implementation/harness complete; final verification evidence pending
 
-Post-roadmap backend evolution
-avatars / objects / leases / thumbnails / cache validators / user settings / purge
-                                 🧭 implemented after formal freeze
+Major post-roadmap evolution
 
-Known current gaps
+identity: display name + immutable username
+workspace endpoint + owner-scoped contracts
+admin temporary credentials + avatars
+ACL/shared identity enrichment
+upload diagnostics actor/owner identity
+quota reconciliation identity/reporting
+audit actor + user-resource identity
+recursive folder browser sizes
+objects / thumbnails / settings / purge
+                                 🧭 implemented
+
+Known gaps
 metadata re-enqueue on restore     🐛
 terminal retry logging semantics  🐛
 unregistered Discord orphan scan  ℹ️ limitation
 physical Discord delete on purge  ℹ️ not provided
 ```
 
-The correct high-level statement today is:
+The correct high-level statement is:
 
-> **The formal backend feature roadmap is implemented through Phase 17 and is stable enough to serve as the web-client contract, but the project should not call the backend fully release-verified until the remaining race/fuzz/search/load/restore evidence is recorded and the two known correctness/operational gaps above are resolved or explicitly accepted.**
+> **The DisCloud backend is feature-complete through formal Phase 17 and currently supports the web client's identity/workspace/admin/browser requirements. It should not yet be called fully release-verified until the remaining race/fuzz/search/load/restore evidence, recursive folder-size performance check, and known-gap dispositions are completed.**
 
 ---
 
-# 12. Sources used for this checkpoint
+# 12. Source/checkpoint note
 
-This rewrite was derived from:
+This checkpoint was updated from:
 
-- the original 18-phase backend roadmap in the exported project conversation;
-- the original `docs/BACKEND_IMPLEMENTATION_PLAN.md` on `main`;
-- the Phase 14–17 implementation/status checkpoints from the conversation;
-- the current `main` source tree and recent backend commits as of 2026-08-20;
-- current-source confirmation of `nodes.Restore`, `nodes.Purge` and `jobs.Worker` behavior.
+- the existing `docs/BACKEND_IMPLEMENTATION_PLAN.md` on `main`;
+- the original 18-phase backend roadmap and established Phase 14–17 verification requirements;
+- current `main` source and commits through **2026-08-21**;
+- current workspace authorization, recursive browser sizing, admin diagnostics, quota reconciliation and authentication/password implementations.
 
-Update this file whenever a remaining backend verification gate is completed, a known gap is fixed, or a post-roadmap extension changes the API/data contract.
+Update this file whenever:
+
+1. a remaining release-verification gate is completed;
+2. a known gap is fixed or explicitly accepted;
+3. a post-roadmap backend extension changes an API/data/identity invariant.
