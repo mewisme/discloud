@@ -91,9 +91,6 @@ func (s *Service) Create(ctx context.Context, actorUserID string, input CreateIn
 	if err := auth.ValidateTemporaryPassword(input.Password); err != nil {
 		return User{}, err
 	}
-	if err := auth.ValidatePassword(input.Password); err != nil {
-		return User{}, err
-	}
 
 	role := input.Role
 	if role == "" {

@@ -122,11 +122,11 @@ func TestAccountAndSessionsIntegration(t *testing.T) {
 		t.Fatalf("current session after password change: %v", err)
 	}
 
-	if _, err := service.Login(ctx, "Alice Renamed", oldPassword, "", ""); !errors.Is(err, ErrInvalidCredentials) {
+	if _, err := service.Login(ctx, "alice", oldPassword, "", ""); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("old password login = %v", err)
 	}
 
-	third, err := service.Login(ctx, "Alice Renamed", newPassword, "", "")
+	third, err := service.Login(ctx, "alice", newPassword, "", "")
 	if err != nil {
 		t.Fatalf("new password login: %v", err)
 	}
