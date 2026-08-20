@@ -75,7 +75,7 @@ export function CreateFolderDialog({ folder, onReload, openEvent }: { folder: No
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button>
           <FolderPlusIcon />
           New folder
         </Button>

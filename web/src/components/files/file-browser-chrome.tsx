@@ -9,12 +9,14 @@ import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { useUploadTarget } from "@/components/uploads/upload-target"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
 import { folderBrowserURL } from "@/lib/files/navigation"
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "@/lib/files/commands"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { useHotkeys } from "react-hotkeys-hook"
 
 export function FileBrowserChrome({
   folder,
@@ -55,6 +57,12 @@ export function FileBrowserChrome({
     onOptionsChange({ sort, order: sort === "name" ? "asc" : "desc" })
   }
 
+  useHotkeys(["alt+u"], () => {
+    if (editable && uploadTarget) {
+      uploadTarget.open()
+    }
+  }, {}, [editable, uploadTarget])
+
   return (
     <>
       <CompactBreadcrumbs items={breadcrumbItems} onNavigate={(item) => onNavigate(item.id)} />
@@ -68,13 +76,17 @@ export function FileBrowserChrome({
         <div className="hidden items-center gap-2 sm:flex">
           {editable && <CreateFolderDialog folder={folder} onReload={onReload} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} />}
           {editable && uploadTarget && (
-            <Button size="sm" variant="outline" onClick={uploadTarget.open}>
+            <Button variant="outline" onClick={uploadTarget.open}>
               <UploadIcon />
               Upload
+              <KbdGroup><Kbd>Alt + U</Kbd></KbdGroup>
             </Button>
           )}
-          <Button size="icon-sm" variant="outline" disabled={reloading} aria-label="Reload folder" onClick={() => void onReload()}>
+          <Button variant="outline" disabled={reloading} aria-label="Reload folder" onClick={() => void onReload()}>
             <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
+            <KbdGroup>
+              <Kbd>R</Kbd>
+            </KbdGroup>
           </Button>
           <DesktopControls options={options} onChange={onOptionsChange} onSortChange={changeSort} />
           <FolderActionsMenu folder={folder} options={options} canShare={shareable} onAccess={() => setAccessOpen(true)} onPublicShare={() => setPublicShareOpen(true)} />
@@ -105,17 +117,20 @@ function DesktopControls({ options, onChange, onSortChange }: { options: Browser
   return (
     <>
       <Select value={options.sort} onValueChange={(value) => onSortChange(value as BrowserSort)}>
-        <SelectTrigger size="sm" className="w-30">
+        <SelectTrigger className="w-30">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="name">Name</SelectItem>
-          <SelectItem value="updated">Modified</SelectItem>
-          <SelectItem value="size">Size</SelectItem>
+          <SelectGroup>
+            <SelectLabel>Sort by</SelectLabel>
+            <SelectItem value="name">Name</SelectItem>
+            <SelectItem value="updated">Modified</SelectItem>
+            <SelectItem value="size">Size</SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
 
-      <Button size="icon-sm" variant="outline" aria-label={options.order === "asc" ? "Sort descending" : "Sort ascending"} onClick={() => onChange({ order: options.order === "asc" ? "desc" : "asc" })}>
+      <Button size="icon" variant="outline" aria-label={options.order === "asc" ? "Sort descending" : "Sort ascending"} onClick={() => onChange({ order: options.order === "asc" ? "desc" : "asc" })}>
         {options.order === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />}
       </Button>
 
@@ -155,7 +170,7 @@ function FolderActionsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="icon-sm" variant="outline" aria-label="Folder actions">
+        <Button size="icon" variant="outline" aria-label="Folder actions">
           <MoreHorizontalIcon />
         </Button>
       </DropdownMenuTrigger>

@@ -16,6 +16,7 @@ import type { Breadcrumbs, BrowserNode, CurrentUserRoot, FolderChildrenQuery, No
 import { APIError } from "@/lib/api/types"
 import { browserURL, type BrowserOptions } from "@/lib/files/browser"
 import { folderBrowserPath, folderIdFromBrowserPath } from "@/lib/files/navigation"
+import { useHotkeys } from "react-hotkeys-hook"
 
 type FileBrowserProps = {
   folder: Node
@@ -202,6 +203,8 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
       window.removeEventListener(UPLOAD_COMPLETED_EVENT, completed)
     }
   }, [folder.id, reloadChildren, router])
+
+  useHotkeys("r", () => void reloadCurrent(), {}, [reloadCurrent])
 
   function updateOptions(patch: Partial<BrowserOptions>) {
     const next = { ...options, ...patch }
