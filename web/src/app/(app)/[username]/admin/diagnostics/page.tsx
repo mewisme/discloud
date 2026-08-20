@@ -4,14 +4,21 @@ import { redirect } from "next/navigation"
 import { AdminDiagnostics } from "@/components/admin/admin-diagnostics"
 import type { AuditPage, AuditQuery, JobPage, JobsQuery, UploadDiagnosticPage, UploadDiagnosticsQuery, User } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export const metadata: Metadata = {
   title: "Diagnostics",
 }
 
-export default async function AdminDiagnosticsPage() {
+export default async function AdminDiagnosticsPage({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}) {
+  const { username } = await params
   const user = await apiServerAuthJSON<User>("/auth/me")
-  if (user.role !== "admin") redirect("/files")
+
+  if (user.role !== "admin") redirect(workspacePath(username))
 
   const auditQuery = { limit: 25 } satisfies AuditQuery
   const jobsQuery = { limit: 25 } satisfies JobsQuery

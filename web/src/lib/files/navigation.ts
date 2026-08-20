@@ -1,15 +1,10 @@
 import { type BrowserOptions, browserURL } from "@/lib/files/browser"
+import { workspaceCollectionFilePath, workspaceCollectionPath, workspaceFilePath, workspaceFolderPath, workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
 
-export function workspacePath(username: string, suffix?: string) {
-  const root = `/${encodeURIComponent(username)}`
-  const rest = suffix?.replace(/^\/+|\/+$/g, "")
-  return rest ? `${root}/${rest}` : root
-}
+export { workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
 
 export function folderBrowserPath(username: string, folderId?: string) {
-  return folderId
-    ? workspacePath(username, `folders/${encodeURIComponent(folderId)}`)
-    : workspacePath(username)
+  return folderId ? workspaceFolderPath(username, folderId) : workspacePath(username)
 }
 
 export function folderBrowserURL(username: string, folderId: string | undefined, options: BrowserOptions) {
@@ -17,27 +12,15 @@ export function folderBrowserURL(username: string, folderId: string | undefined,
 }
 
 export function fileBrowserPath(username: string, fileId: string) {
-  return workspacePath(username, `files/${encodeURIComponent(fileId)}`)
+  return workspaceFilePath(username, fileId)
 }
 
 export function collectionPath(username: string, collectionId?: string) {
-  return collectionId
-    ? workspacePath(username, `collections/${encodeURIComponent(collectionId)}`)
-    : workspacePath(username, "collections")
+  return workspaceCollectionPath(username, collectionId)
 }
 
 export function collectionFilePath(username: string, collectionId: string, fileId: string) {
-  return workspacePath(
-    username,
-    `collections/${encodeURIComponent(collectionId)}/files/${encodeURIComponent(fileId)}`,
-  )
-}
-
-export function workspaceRelativePath(pathname: string, username: string) {
-  const root = workspacePath(username)
-  if (pathname === root || pathname === `${root}/`) return "/"
-  if (!pathname.startsWith(`${root}/`)) return null
-  return pathname.slice(root.length)
+  return workspaceCollectionFilePath(username, collectionId, fileId)
 }
 
 export function folderIdFromBrowserPath(pathname: string, username: string) {

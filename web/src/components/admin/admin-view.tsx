@@ -1,10 +1,12 @@
 "use client"
 
 import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, ShieldCheckIcon, UserRoundIcon, UsersIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { CreateUserDialog, ReconcileQuotaDialog, UserActions } from "@/components/admin/admin-user-dialogs"
+import { useWorkspace } from "@/components/app/workspace-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiJSON } from "@/lib/api/client"
 import type { AdminUser, AdminUsers, ListUsersQuery, StorageOverview } from "@/lib/api/models"
 import { apiErrorMessage, formatBytes, formatNumber } from "@/lib/helpers"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 const pageSize = 50
 
@@ -25,6 +28,9 @@ export function AdminView({
   initialStorage: StorageOverview
   currentUserId: string
 }) {
+  const router = useRouter()
+  const workspace = useWorkspace()
+
   const [users, setUsers] = useState<AdminUser[]>(() => [...initialUsers.users])
   const [total, setTotal] = useState(initialUsers.total)
   const [offset, setOffset] = useState(initialUsers.offset)
@@ -67,6 +73,14 @@ export function AdminView({
   function userUpdated(updated: AdminUser) {
     setUsers((current) => current.map((user) => user.id === updated.id ? updated : user))
     void reloadStorage()
+
+    if (updated.id === workspace.id && updated.username !== workspace.username) {
+      router.replace(workspacePath(updated.username, "admin"))
+      router.refresh()
+      return
+    }
+
+    if (updated.id === currentUserId) router.refresh()
   }
 
   const previousDisabled = offset === 0 || loading

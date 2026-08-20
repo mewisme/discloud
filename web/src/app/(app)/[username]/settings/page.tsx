@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -10,26 +11,32 @@ export const metadata: Metadata = {
 
 const settings = [
   {
-    href: "/settings/profile",
+    suffix: "settings/profile",
     title: "Profile",
     description: "Manage your profile picture and account identity.",
     icon: UserRoundIcon,
   },
   {
-    href: "/settings/common",
+    suffix: "settings/common",
     title: "Common",
     description: "Manage time zone and general display preferences.",
     icon: Settings2Icon,
   },
   {
-    href: "/settings/security",
+    suffix: "settings/security",
     title: "Security",
     description: "Manage password, two-factor authentication and recovery options.",
     icon: ShieldCheckIcon,
   },
-]
+] as const
 
-export default function SettingsPage() {
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}) {
+  const { username } = await params
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
@@ -39,9 +46,12 @@ export default function SettingsPage() {
 
       <div className="grid gap-3">
         {settings.map((item) => (
-          <Card key={item.href} className="p-0">
+          <Card key={item.suffix} className="p-0">
             <CardContent className="p-0">
-              <Link href={item.href} className="flex items-center gap-4 rounded-xl p-4 transition-colors hover:bg-muted/50">
+              <Link
+                href={workspacePath(username, item.suffix)}
+                className="flex items-center gap-4 rounded-xl p-4 transition-colors hover:bg-muted/50"
+              >
                 <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted">
                   <item.icon className="size-5" />
                 </div>

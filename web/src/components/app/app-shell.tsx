@@ -15,8 +15,8 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
-import { workspacePath, workspaceRelativePath } from "@/lib/files/navigation"
 import { formatBytes, isActivePath } from "@/lib/helpers"
+import { workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
 
 type NavItem = {
   title: string

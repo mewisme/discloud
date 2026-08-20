@@ -1,4 +1,4 @@
-import { workspacePath } from "@/lib/files/navigation"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export type SearchKind = "all" | "file" | "folder"
 export type SearchCategory = "all" | "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other"

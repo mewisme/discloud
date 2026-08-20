@@ -27,7 +27,7 @@ export default function AppError({ reset }: { error: Error & { digest?: string }
           </Button>
 
           <Button asChild variant="outline">
-            <Link href="/files">Back to files</Link>
+            <Link href="/">Back to workspace</Link>
           </Button>
         </div>
       </div>

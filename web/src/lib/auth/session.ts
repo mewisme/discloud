@@ -3,7 +3,7 @@ import "server-only"
 import type { User } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
-import { workspacePath } from "@/lib/files/navigation"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export async function getCurrentUser(): Promise<User | null> {
   try {

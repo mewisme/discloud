@@ -16,7 +16,8 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { apiJSON } from "@/lib/api/client"
 import type { ChangePasswordInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { type APIFormError,apiFormError } from "@/lib/helpers"
+import { type APIFormError, apiFormError } from "@/lib/helpers"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
@@ -29,7 +30,7 @@ const passwordSchema = z.object({
 
 type PasswordValues = z.infer<typeof passwordSchema>
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ username }: { username: string }) {
   const router = useRouter()
   const [formError, setFormError] = useState<APIFormError>()
   const form = useForm<PasswordValues>({
@@ -41,10 +42,18 @@ export function ChangePasswordForm() {
     setFormError(undefined)
 
     try {
-      const input: ChangePasswordInput = { currentPassword: values.currentPassword, newPassword: values.newPassword }
-      await apiJSON<void>("/api/v1/me/password", { method: "PUT", body: input })
+      const input: ChangePasswordInput = {
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      }
+
+      await apiJSON<void>("/api/v1/me/password", {
+        method: "PUT",
+        body: input,
+      })
+
       toast.success("Password changed")
-      router.replace("/files")
+      router.replace(workspacePath(username))
       router.refresh()
     } catch (error) {
       handleError(error)
@@ -80,6 +89,7 @@ export function ChangePasswordForm() {
         <CardTitle>Change your password</CardTitle>
         <CardDescription>You must choose a new password before continuing.</CardDescription>
       </CardHeader>
+
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FieldGroup>

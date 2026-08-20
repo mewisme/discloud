@@ -66,10 +66,10 @@ export function WorkspaceSwitcher() {
     }
 
     const relative = workspaceRelativePath(pathname, workspace.username)
-    let suffix = relative ?? ""
+    let suffix = relative ?? "/"
 
-    if (suffix.startsWith("folders/") || suffix.startsWith("files/")) suffix = ""
-    else if (suffix.startsWith("collections/") && suffix !== "collections") suffix = "collections"
+    if (suffix.startsWith("/folders/") || suffix.startsWith("/files/")) suffix = "/"
+    else if (suffix.startsWith("/collections/") && suffix !== "/collections") suffix = "/collections"
 
     const path = workspacePath(username, suffix)
     const preserveQuery = suffix === relative && searchParams.size > 0
@@ -100,9 +100,11 @@ export function WorkspaceSwitcher() {
           <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </Button>
       </PopoverTrigger>
+
       <PopoverContent side="right" align="start" sideOffset={8} className="w-72 p-0">
         <Command>
           <CommandInput placeholder="Search workspaces…" />
+
           <CommandList>
             {loading && (
               <CommandItem disabled>
@@ -110,24 +112,37 @@ export function WorkspaceSwitcher() {
                 Loading workspaces…
               </CommandItem>
             )}
+
             {error && (
               <div className="space-y-2 p-3">
                 <p className="text-sm text-destructive">{error}</p>
-                <Button size="sm" variant="outline" className="w-full" onClick={() => {
-                  setLoaded(false)
-                  setError(undefined)
-                }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setLoaded(false)
+                    setError(undefined)
+                  }}
+                >
                   <RefreshCwIcon />
                   Try again
                 </Button>
               </div>
             )}
+
             {!loading && !error && <CommandEmpty>No workspace found.</CommandEmpty>}
+
             {!error && (
               <CommandGroup heading="Workspaces">
                 {users.map((user) => (
-                  <CommandItem key={user.id} value={`${user.username} ${user.role}`} onSelect={() => select(user.username)}>
+                  <CommandItem
+                    key={user.id}
+                    value={`${user.username} ${user.role}`}
+                    onSelect={() => select(user.username)}
+                  >
                     <CheckIcon className={cn("size-4", user.id === workspace.id ? "opacity-100" : "opacity-0")} />
+
                     <div className="min-w-0 flex-1">
                       <p className="truncate">{user.username}</p>
                       <p className="text-xs capitalize text-muted-foreground">{user.role}</p>

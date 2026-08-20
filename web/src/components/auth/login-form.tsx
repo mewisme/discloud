@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { LoginInput, LoginResult, MFAChallenge, User, VerifyLoginMFAInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { type APIFormError,apiFormError } from "@/lib/helpers"
+import { type APIFormError, apiFormError } from "@/lib/helpers"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 const loginSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
@@ -82,7 +83,7 @@ export function LoginForm() {
 
   function completeLogin(user: User) {
     toast.success("Signed in")
-    router.replace(user.mustChangePassword ? "/change-password" : "/files")
+    router.replace(user.mustChangePassword ? "/change-password" : workspacePath(user.username))
     router.refresh()
   }
 

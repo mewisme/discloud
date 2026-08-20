@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useSidebar } from "@/components/ui/sidebar"
 import { apiJSON } from "@/lib/api/client"
 import type { User } from "@/lib/api/models"
-import { workspacePath } from "@/lib/files/navigation"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export function HeaderUserMenu({ user }: { user: User }) {
   const router = useRouter()
