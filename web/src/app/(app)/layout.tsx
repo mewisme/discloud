@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 
 import { UserConfigProvider } from "@/components/settings/user-config-context"
-import { UploadManager } from "@/components/uploads/upload-manager"
 import { UploadProvider } from "@/components/uploads/upload-provider"
 import type { UserConfig } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
@@ -20,7 +19,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <UserConfigProvider initialConfig={config}>
       <UploadProvider>
         {children}
-        <UploadManager />
       </UploadProvider>
     </UserConfigProvider>
   )

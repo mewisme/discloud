@@ -1,21 +1,50 @@
 "use client"
 
 import { CircleCheckIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useState } from "react"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { type UploadTask, useUploads } from "@/components/uploads/upload-provider"
 import { formatBytes } from "@/lib/helpers"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export function UploadManager() {
-  const { tasks, retry, cancel, remove } = useUploads()
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
+  const pathname = usePathname()
+  const workspace = useWorkspace()
+  const { tasks } = useUploads()
 
   if (!tasks.length) return null
+
+  const href = workspacePath(workspace.username, "uploads")
+  if (pathname === href || pathname === `${href}/`) return null
+
+  const active = tasks.filter(isActive).length
+  const failed = tasks.filter((task) => task.status === "error").length
+
+  return (
+    <Button asChild className="fixed bottom-4 right-4 z-40 shadow-lg">
+      <Link href={href}>
+        {active > 0 ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
+        Uploads
+        {(active > 0 || failed > 0) && (
+          <span className="text-xs opacity-80">
+            ({active} active{failed > 0 ? ` · ${failed} failed` : ""})
+          </span>
+        )}
+      </Link>
+    </Button>
+  )
+}
+
+export function UploadManagerPage() {
+  const { tasks, retry, cancel, remove } = useUploads()
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
 
   const active = tasks.filter(isActive).length
   const failed = tasks.filter((task) => task.status === "error")
@@ -69,81 +98,107 @@ export function UploadManager() {
   }
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button className="fixed bottom-4 right-4 z-40 shadow-lg">
-          {active > 0 ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
-          Uploads
-          {(active > 0 || failed.length > 0) && (
-            <span className="text-xs opacity-80">
-              ({active} active{failed.length > 0 ? ` · ${failed.length} failed` : ""})
-            </span>
-          )}
-        </Button>
-      </SheetTrigger>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Uploads</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Monitor uploads, retry failures, cancel active transfers, and review progress.
+          Uploads continue while you navigate around DisCloud.
+        </p>
+      </div>
 
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
-        <SheetHeader className="border-b px-4 py-4">
-          <SheetTitle>Uploads ({active} active · {failed.length} failed)</SheetTitle>
-          <SheetDescription>Uploads continue while you navigate around DisCloud.</SheetDescription>
-        </SheetHeader>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <UploadMetric label="Active" value={active} />
+        <UploadMetric label="Failed" value={failed.length} />
+        <UploadMetric label="Complete" value={completed.length} />
+        <UploadMetric label="Total" value={tasks.length} />
+      </div>
 
-        <div className="flex flex-wrap gap-2 border-b px-4 py-3">
-          <Button size="sm" variant="outline" disabled={!selectedCancellable.length} onClick={() => void cancelMany(selectedCancellable)}>
-            <XIcon />
-            Cancel selected
-          </Button>
-          <Button size="sm" variant="outline" disabled={!selectedFailed.length} onClick={() => retryMany(selectedFailed)}>
-            <RefreshCwIcon />
-            Retry selected
-          </Button>
-          <Button size="sm" variant="ghost" disabled={!failed.length} onClick={() => retryMany(failed)}>
-            Retry all failed
-          </Button>
-          <Button size="sm" variant="ghost" disabled={!cancellable.length} onClick={() => void cancelMany(cancellable)}>
-            Cancel all
-          </Button>
-          <Button size="sm" variant="ghost" disabled={!completed.length} onClick={clearCompleted}>
-            <Trash2Icon />
-            Clear completed
-          </Button>
+      {!tasks.length ? (
+        <div className="grid min-h-80 place-items-center rounded-xl border border-dashed p-8 text-center">
+          <div className="space-y-3">
+            <UploadIcon className="mx-auto size-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">No uploads yet</p>
+              <p className="text-sm text-muted-foreground">
+                Start an upload from Files and its progress will appear here.
+              </p>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border">
+          <div className="flex flex-wrap gap-2 border-b p-3">
+            <Button size="sm" variant="outline" disabled={!selectedCancellable.length} onClick={() => void cancelMany(selectedCancellable)}>
+              <XIcon />
+              Cancel selected
+            </Button>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                    aria-label="Select all uploads"
-                    onCheckedChange={(value) => selectAll(value === true)}
+            <Button size="sm" variant="outline" disabled={!selectedFailed.length} onClick={() => retryMany(selectedFailed)}>
+              <RefreshCwIcon />
+              Retry selected
+            </Button>
+
+            <Button size="sm" variant="ghost" disabled={!failed.length} onClick={() => retryMany(failed)}>
+              Retry all failed
+            </Button>
+
+            <Button size="sm" variant="ghost" disabled={!cancellable.length} onClick={() => void cancelMany(cancellable)}>
+              Cancel all
+            </Button>
+
+            <Button size="sm" variant="ghost" disabled={!completed.length} onClick={clearCompleted}>
+              <Trash2Icon />
+              Clear completed
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      aria-label="Select all uploads"
+                      onCheckedChange={(value) => selectAll(value === true)}
+                    />
+                  </TableHead>
+                  <TableHead>File</TableHead>
+                  <TableHead className="hidden w-32 sm:table-cell">Status</TableHead>
+                  <TableHead className="hidden w-56 md:table-cell">Progress</TableHead>
+                  <TableHead className="hidden w-32 lg:table-cell">Size</TableHead>
+                  <TableHead className="w-28" />
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {[...tasks].reverse().map((task) => (
+                  <UploadRow
+                    key={task.id}
+                    task={task}
+                    selected={selected.has(task.id)}
+                    onSelect={select}
+                    onRetry={retry}
+                    onCancel={cancel}
+                    onRemove={removeTask}
                   />
-                </TableHead>
-                <TableHead>File</TableHead>
-                <TableHead className="hidden w-28 sm:table-cell">Status</TableHead>
-                <TableHead className="hidden w-44 md:table-cell">Progress</TableHead>
-                <TableHead className="w-28" />
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {[...tasks].reverse().map((task) => (
-                <UploadRow
-                  key={task.id}
-                  task={task}
-                  selected={selected.has(task.id)}
-                  onSelect={select}
-                  onRetry={retry}
-                  onCancel={cancel}
-                  onRemove={removeTask}
-                />
-              ))}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+    </div>
+  )
+}
+
+function UploadMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+    </div>
   )
 }
 
@@ -182,23 +237,42 @@ function UploadRow({
               : isActive(task)
                 ? <Loader2Icon className="size-4 shrink-0 animate-spin" />
                 : <UploadIcon className="size-4 shrink-0" />}
+
             <span className="truncate font-medium">{task.file.name}</span>
           </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {formatBytes(task.uploadedBytes)} / {formatBytes(task.file.size)}
-            <span className="sm:hidden"> · {statusLabel(task)}</span>
+
+          {task.relativePath && task.relativePath !== task.file.name && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{task.relativePath}</p>
+          )}
+
+          <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">
+            {statusLabel(task)} · {formatBytes(task.uploadedBytes)} / {formatBytes(task.file.size)}
           </p>
-          {task.error && <p role="alert" className="mt-1 wrap-break-word text-xs text-destructive">{task.error}</p>}
+
+          {task.error && (
+            <p role="alert" className="mt-1 wrap-break-word text-xs text-destructive">
+              {task.error}
+            </p>
+          )}
         </div>
       </TableCell>
 
-      <TableCell className="hidden text-muted-foreground sm:table-cell">{statusLabel(task)}</TableCell>
+      <TableCell className="hidden text-muted-foreground sm:table-cell">
+        {statusLabel(task)}
+      </TableCell>
 
       <TableCell className="hidden md:table-cell">
         <div className="space-y-1">
           <Progress value={percent} className="h-1.5" />
-          <p className="text-right text-xs tabular-nums text-muted-foreground">{Math.round(percent)}%</p>
+          <div className="flex justify-between gap-3 text-xs tabular-nums text-muted-foreground">
+            <span>{formatBytes(task.uploadedBytes)} / {formatBytes(task.file.size)}</span>
+            <span>{Math.round(percent)}%</span>
+          </div>
         </div>
+      </TableCell>
+
+      <TableCell className="hidden tabular-nums text-muted-foreground lg:table-cell">
+        {formatBytes(task.file.size)}
       </TableCell>
 
       <TableCell>
@@ -208,11 +282,13 @@ function UploadRow({
               <RefreshCwIcon />
             </Button>
           )}
+
           {canCancel && (
             <Button size="icon-sm" variant="ghost" disabled={task.status === "cancelling"} aria-label={`Cancel ${task.file.name}`} title="Cancel" onClick={() => void onCancel(task.id)}>
               <XIcon />
             </Button>
           )}
+
           {canRemove && (
             <Button size="icon-sm" variant="ghost" aria-label={`Dismiss ${task.file.name}`} title="Dismiss" onClick={() => onRemove(task.id)}>
               <Trash2Icon />

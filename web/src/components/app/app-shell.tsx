@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { UploadManager } from "@/components/uploads/upload-manager"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 import { formatBytes, isActivePath } from "@/lib/helpers"
 import { workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
@@ -56,6 +57,8 @@ export function AppShell({
               {children}
             </main>
           </SidebarInset>
+
+          <UploadManager />
         </SidebarProvider>
       </WorkspaceProvider>
     </CurrentUserProvider>
@@ -214,6 +217,7 @@ function QuotaUsage({
         <span className="min-w-0 truncate font-medium">
           {showOwner ? `@${username} storage` : "Storage"}
         </span>
+
         {usage.quotaBytes !== null && (
           <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>
         )}
@@ -236,6 +240,7 @@ function routeTitle(pathname: string, username: string) {
   if (!path) return "DisCloud"
   if (path === "/" || path.startsWith("/folders/")) return "Files"
   if (path.startsWith("/files/")) return "File"
+  if (path.startsWith("/uploads")) return "Uploads"
   if (path.startsWith("/admin/diagnostics")) return "Diagnostics"
   if (path === "/admin" || path.startsWith("/admin/")) return "Admin"
   if (path.startsWith("/settings/profile")) return "Profile"
