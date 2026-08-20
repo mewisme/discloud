@@ -20,6 +20,10 @@ const gib = 1024 ** 3
 type UserAction = "account" | "quota" | "password" | "status" | null
 type AdminRole = AdminUser["role"]
 
+function adminUserLabel(user: Pick<AdminUser, "name" | "username">) {
+  return `${user.name} (@${user.username})`
+}
+
 export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -179,7 +183,7 @@ export function UserActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${user.username}`}>
+          <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${adminUserLabel(user)}`}>
             <MoreHorizontalIcon />
           </Button>
         </DropdownMenuTrigger>
@@ -289,7 +293,7 @@ function EditAccountDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit account</DialogTitle>
-          <DialogDescription>Update the display name and role for @{user.username}. Username is permanent.</DialogDescription>
+          <DialogDescription>Update the display name and role for {adminUserLabel(user)}. Username is permanent.</DialogDescription>
         </DialogHeader>
 
         <FieldGroup>
@@ -385,7 +389,11 @@ function QuotaDialog({
       const updated = await getAdminUser(user.id)
       onUpdated(updated)
       onOpenChange(false)
-      toast.success(updated.storageQuotaBytes === null ? "Storage quota removed" : `Storage quota set to ${formatBytes(updated.storageQuotaBytes)}`)
+      toast.success(
+        updated.storageQuotaBytes === null
+          ? `Storage quota removed for ${adminUserLabel(updated)}`
+          : `Storage quota for ${adminUserLabel(updated)} set to ${formatBytes(updated.storageQuotaBytes)}`,
+      )
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not update storage quota."))
     } finally {
@@ -399,7 +407,7 @@ function QuotaDialog({
         <DialogHeader>
           <DialogTitle>Storage quota</DialogTitle>
           <DialogDescription>
-            {user.username} currently uses {formatBytes(user.storageUsedBytes)}
+            {adminUserLabel(user)} currently uses {formatBytes(user.storageUsedBytes)}
             {user.storageReservedBytes > 0 ? ` with ${formatBytes(user.storageReservedBytes)} reserved.` : "."}
           </DialogDescription>
         </DialogHeader>
@@ -467,7 +475,7 @@ function ResetPasswordDialog({
       onUpdated(await getAdminUser(user.id))
       onOpenChange(false)
       setPassword("")
-      toast.success("Password reset. Existing sessions were revoked.")
+      toast.success(`Password reset for ${adminUserLabel(user)}. Existing sessions were revoked.`)
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not reset this password."))
     } finally {
@@ -481,7 +489,7 @@ function ResetPasswordDialog({
         <DialogHeader>
           <DialogTitle>Reset password</DialogTitle>
           <DialogDescription>
-            Set a temporary password for {user.username}. Existing sessions will be revoked and the user must change the password after signing in.
+            Set a temporary password for {adminUserLabel(user)}. Existing sessions will be revoked and the user must change the password after signing in.
           </DialogDescription>
         </DialogHeader>
 
@@ -524,7 +532,7 @@ function AccountStatusDialog({
       await apiJSON<void>(`/admin/users/${encodeURIComponent(user.id)}/${enable ? "enable" : "disable"}`, { method: "POST" })
       onUpdated(await getAdminUser(user.id))
       onOpenChange(false)
-      toast.success(`${user.username} ${enable ? "enabled" : "disabled"}`)
+      toast.success(`${adminUserLabel(user)} ${enable ? "enabled" : "disabled"}`)
     } catch (error) {
       toast.error(apiErrorMessage(error, `Could not ${enable ? "enable" : "disable"} this user.`))
     } finally {
@@ -538,7 +546,7 @@ function AccountStatusDialog({
     }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{enable ? "Enable" : "Disable"} {user.username}?</AlertDialogTitle>
+          <AlertDialogTitle>{enable ? "Enable" : "Disable"} {adminUserLabel(user)}?</AlertDialogTitle>
           <AlertDialogDescription>
             {enable
               ? "This account will be allowed to sign in and use DisCloud again."
