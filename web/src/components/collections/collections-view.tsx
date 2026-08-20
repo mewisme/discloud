@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { useWorkspace } from "@/components/app/workspace-context"
 import { DateOnly } from "@/components/common/date-time"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { Collection, CollectionPage, CollectionsQuery, CreateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { collectionPath } from "@/lib/files/navigation"
 import { apiErrorMessage } from "@/lib/helpers"
 
 const formSchema = z.object({
@@ -29,6 +31,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 export function CollectionsView({ initialPage }: { initialPage: CollectionPage }) {
+  const workspace = useWorkspace()
   const [collections, setCollections] = useState<Collection[]>(() => [...initialPage.collections])
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -42,7 +45,12 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
     setLoadingMore(true)
 
     try {
-      const query = { limit: 50, cursor: nextCursor } satisfies CollectionsQuery
+      const query = {
+        ownerId: workspace.id,
+        limit: 50,
+        cursor: nextCursor,
+      } satisfies CollectionsQuery
+
       const page = await apiJSON<CollectionPage>("/api/v1/collections", { query })
       setCollections((current) => [...current, ...page.collections])
       setNextCursor(page.nextCursor)
@@ -58,8 +66,11 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Collections</h1>
-          <p className="text-sm text-muted-foreground">Group files without changing their folder structure.</p>
+          <p className="text-sm text-muted-foreground">
+            Collections owned by @{workspace.username}.
+          </p>
         </div>
+
         <CreateCollectionDialog onCreated={created} />
       </div>
 
@@ -69,25 +80,42 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
             <FolderHeartIcon className="mx-auto size-10 text-muted-foreground" />
             <div>
               <p className="font-medium">No collections yet</p>
-              <p className="text-sm text-muted-foreground">Create one to group related files.</p>
+              <p className="text-sm text-muted-foreground">
+                Create one to group related files.
+              </p>
             </div>
           </div>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {collections.map((collection) => (
-            <Link key={collection.id} href={`/collections/${collection.id}`} className="group">
+            <Link
+              key={collection.id}
+              href={collectionPath(workspace.username, collection.id)}
+              className="group"
+            >
               <Card className="h-full transition-colors group-hover:bg-muted/40">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <CardTitle className="truncate text-base">{collection.name}</CardTitle>
-                      <CardDescription className="mt-1 line-clamp-2">{collection.description || "No description"}</CardDescription>
+                      <CardTitle className="truncate text-base">
+                        {collection.name}
+                      </CardTitle>
+
+                      <CardDescription className="mt-1 line-clamp-2">
+                        {collection.description || "No description"}
+                      </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="capitalize">{collection.accessLevel}</Badge>
+
+                    <Badge variant="secondary" className="capitalize">
+                      {collection.accessLevel}
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">Updated <DateOnly value={collection.updatedAt} /></CardContent>
+
+                <CardContent className="text-xs text-muted-foreground">
+                  Updated <DateOnly value={collection.updatedAt} />
+                </CardContent>
               </Card>
             </Link>
           ))}
@@ -96,7 +124,11 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
 
       {nextCursor && (
         <div className="flex justify-center">
-          <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
+          <Button
+            variant="outline"
+            disabled={loadingMore}
+            onClick={() => void loadMore()}
+          >
             {loadingMore && <Loader2Icon className="animate-spin" />}
             {loadingMore ? "Loading…" : "Load more"}
           </Button>
@@ -106,9 +138,15 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
   )
 }
 
-function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collection) => void }) {
+function CreateCollectionDialog({
+  onCreated,
+}: {
+  onCreated: (collection: Collection) => void
+}) {
+  const workspace = useWorkspace()
   const [open, setOpen] = useState(false)
   const [formError, setFormError] = useState<string>()
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: "", description: "" },
@@ -116,6 +154,7 @@ function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collect
 
   function changeOpen(next: boolean) {
     setOpen(next)
+
     if (!next) {
       form.reset()
       setFormError(undefined)
@@ -128,17 +167,30 @@ function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collect
     try {
       const input: CreateCollectionInput = {
         name: values.name,
-        ...(values.description.trim() ? { description: values.description.trim() } : {}),
+        ownerUserId: workspace.id,
+        ...(values.description.trim()
+          ? { description: values.description.trim() }
+          : {}),
       }
-      const collection = await apiJSON<Collection>("/api/v1/collections", { method: "POST", body: input })
+
+      const collection = await apiJSON<Collection>("/api/v1/collections", {
+        method: "POST",
+        body: input,
+      })
+
       onCreated(collection)
       changeOpen(false)
       toast.success("Collection created")
     } catch (error) {
       if (error instanceof APIError && [400, 409].includes(error.status)) {
-        form.setError("name", { message: error.message }, { shouldFocus: true })
+        form.setError(
+          "name",
+          { message: error.message },
+          { shouldFocus: true },
+        )
         return
       }
+
       setFormError(apiErrorMessage(error, "Could not create collection"))
     }
   }
@@ -151,26 +203,59 @@ function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collect
           New collection
         </Button>
       </DialogTrigger>
+
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create collection</DialogTitle>
-          <DialogDescription>Collections group files without moving them.</DialogDescription>
+          <DialogDescription>
+            Create this collection for @{workspace.username}.
+          </DialogDescription>
         </DialogHeader>
+
         <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && (
+            <p role="alert" className="text-sm text-destructive">
+              {formError}
+            </p>
+          )}
+
           <Field data-invalid={!!form.formState.errors.name}>
             <FieldLabel htmlFor="collection-name">Name</FieldLabel>
-            <Input id="collection-name" autoFocus disabled={form.formState.isSubmitting} aria-invalid={!!form.formState.errors.name} {...form.register("name")} />
+            <Input
+              id="collection-name"
+              autoFocus
+              disabled={form.formState.isSubmitting}
+              aria-invalid={!!form.formState.errors.name}
+              {...form.register("name")}
+            />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
+
           <Field>
-            <FieldLabel htmlFor="collection-description">Description</FieldLabel>
-            <Textarea id="collection-description" disabled={form.formState.isSubmitting} {...form.register("description")} />
+            <FieldLabel htmlFor="collection-description">
+              Description
+            </FieldLabel>
+            <Textarea
+              id="collection-description"
+              disabled={form.formState.isSubmitting}
+              {...form.register("description")}
+            />
           </Field>
+
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={form.formState.isSubmitting} onClick={() => changeOpen(false)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={form.formState.isSubmitting}
+              onClick={() => changeOpen(false)}
+            >
+              Cancel
+            </Button>
+
             <Button type="submit" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting && <Loader2Icon className="animate-spin" />}
+              {form.formState.isSubmitting && (
+                <Loader2Icon className="animate-spin" />
+              )}
               Create
             </Button>
           </DialogFooter>

@@ -8,24 +8,39 @@ import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
+import { collectionPath } from "@/lib/files/navigation"
 import { formatBytes } from "@/lib/helpers"
 
 export function CollectionFileDetail({
+  username,
   collection,
   item,
   items,
 }: {
+  username: string
   collection: Collection
   item: CollectionItem
   items: readonly CollectionItem[]
 }) {
-  const collectionHref = `/collections/${encodeURIComponent(collection.id)}`
+  const collectionHref = collectionPath(username, collection.id)
   const previewFile = toPreviewFile(item)
   const previewFiles = items.map(toPreviewFile)
+
   const breadcrumbItems = [
-    { id: "collections", label: "Collections", href: "/collections" },
-    { id: `collection:${collection.id}`, label: collection.name, href: collectionHref },
-    { id: `file:${item.fileId}`, label: item.name },
+    {
+      id: "collections",
+      label: "Collections",
+      href: collectionPath(username),
+    },
+    {
+      id: `collection:${collection.id}`,
+      label: collection.name,
+      href: collectionHref,
+    },
+    {
+      id: `file:${item.fileId}`,
+      label: item.name,
+    },
   ]
 
   return (
@@ -36,9 +51,14 @@ export function CollectionFileDetail({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FileIcon className="size-5 shrink-0" />
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{item.name}</h1>
+            <h1 className="truncate text-2xl font-semibold tracking-tight">
+              {item.name}
+            </h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{formatBytes(item.size)} · {item.mimeType}</p>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatBytes(item.size)} · {item.mimeType}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -62,7 +82,7 @@ export function CollectionFileDetail({
         currentFile={previewFile}
         files={previewFiles}
         collectionId={collection.id}
-        routeBase={`/collections/${encodeURIComponent(collection.id)}/files`}
+        routeBase={`${collectionHref}/files`}
       />
 
       <Card>
@@ -77,7 +97,18 @@ export function CollectionFileDetail({
           <Detail label="Added" value={<DateTime value={item.addedAt} />} />
           <Detail label="Created" value={<DateTime value={item.createdAt} />} />
           <Detail label="Modified" value={<DateTime value={item.updatedAt} />} />
-          {item.sha256 && <Detail className="sm:col-span-2 lg:col-span-3" label="SHA-256" value={<code className="break-all font-mono text-xs">{item.sha256}</code>} />}
+
+          {item.sha256 && (
+            <Detail
+              className="sm:col-span-2 lg:col-span-3"
+              label="SHA-256"
+              value={
+                <code className="break-all font-mono text-xs">
+                  {item.sha256}
+                </code>
+              }
+            />
+          )}
         </CardContent>
       </Card>
     </div>
@@ -94,7 +125,15 @@ function toPreviewFile(item: CollectionItem): PreviewCarouselFile {
   }
 }
 
-function Detail({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
+function Detail({
+  label,
+  value,
+  className,
+}: {
+  label: string
+  value: ReactNode
+  className?: string
+}) {
   return (
     <div className={className}>
       <div className="text-xs text-muted-foreground">{label}</div>

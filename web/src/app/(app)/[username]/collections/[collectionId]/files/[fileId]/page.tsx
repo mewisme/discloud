@@ -10,12 +10,21 @@ export const metadata: Metadata = {
   title: "File",
 }
 
-export default async function CollectionFilePage({ params }: { params: Promise<{ collectionId: string; fileId: string }> }) {
-  const { collectionId, fileId } = await params
+export default async function CollectionFilePage({
+  params,
+}: {
+  params: Promise<{
+    username: string
+    collectionId: string
+    fileId: string
+  }>
+}) {
+  const { username, collectionId, fileId } = await params
   const data = await loadCollectionFile(collectionId, fileId)
 
   return (
     <CollectionFileDetail
+      username={username}
       collection={data.collection}
       item={data.item}
       items={data.items.items}
@@ -23,19 +32,35 @@ export default async function CollectionFilePage({ params }: { params: Promise<{
   )
 }
 
-async function loadCollectionFile(collectionId: string, fileId: string) {
+async function loadCollectionFile(
+  collectionId: string,
+  fileId: string,
+) {
   try {
     const [collection, items] = await Promise.all([
-      apiServerAuthJSON<Collection>(`/api/v1/collections/${collectionId}`),
-      apiServerAuthJSON<CollectionItems>(`/api/v1/collections/${collectionId}/items`),
+      apiServerAuthJSON<Collection>(
+        `/api/v1/collections/${collectionId}`,
+      ),
+      apiServerAuthJSON<CollectionItems>(
+        `/api/v1/collections/${collectionId}/items`,
+      ),
     ])
 
-    const item = items.items.find((candidate) => candidate.fileId === fileId)
+    const item = items.items.find(
+      (candidate) => candidate.fileId === fileId,
+    )
+
     if (!item) notFound()
 
     return { collection, item, items }
   } catch (error) {
-    if (error instanceof APIError && [403, 404].includes(error.status)) notFound()
+    if (
+      error instanceof APIError
+      && [403, 404].includes(error.status)
+    ) {
+      notFound()
+    }
+
     throw error
   }
 }
