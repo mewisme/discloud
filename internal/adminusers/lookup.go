@@ -20,6 +20,7 @@ func (s *Service) GetByUsername(ctx context.Context, username string) (User, err
 		SELECT
 			id::text,
 			username::text,
+			name,
 			role,
 			status,
 			storage_quota_bytes,
@@ -34,6 +35,7 @@ func (s *Service) GetByUsername(ctx context.Context, username string) (User, err
 	`, username).Scan(
 		&user.ID,
 		&user.Username,
+		&user.Name,
 		&user.Role,
 		&user.Status,
 		&user.StorageQuotaBytes,

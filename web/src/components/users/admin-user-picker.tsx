@@ -120,15 +120,15 @@ export function AdminUserPicker({
                   return (
                     <CommandItem
                       key={user.id}
-                      value={`${user.username} ${user.role} ${user.status} ${user.id}`}
+                      value={`${user.name} ${user.username} ${user.role} ${user.status} ${user.id}`}
                       disabled={disabled}
                       onSelect={() => select(user)}
                     >
                       <CheckIcon className={cn("size-4", value === user.id ? "opacity-100" : "opacity-0")} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate">{user.username}</p>
-                        <p className="truncate text-xs capitalize text-muted-foreground">
-                          {user.role} · {user.status}
+                        <p className="truncate">{user.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          @{user.username} · <span className="capitalize">{user.role}</span> · <span className="capitalize">{user.status}</span>
                         </p>
                       </div>
                     </CommandItem>

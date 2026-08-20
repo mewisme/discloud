@@ -138,14 +138,14 @@ export function WorkspaceSwitcher() {
                 {users.map((user) => (
                   <CommandItem
                     key={user.id}
-                    value={`${user.username} ${user.role}`}
+                    value={`${user.name} ${user.username} ${user.role}`}
                     onSelect={() => select(user.username)}
                   >
                     <CheckIcon className={cn("size-4", user.id === workspace.id ? "opacity-100" : "opacity-0")} />
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate">{user.username}</p>
-                      <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
+                      <p className="truncate">{user.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{user.username} · <span className="capitalize">{user.role}</span></p>
                     </div>
                   </CommandItem>
                 ))}

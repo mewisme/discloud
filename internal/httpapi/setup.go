@@ -12,6 +12,7 @@ import (
 const setupBodyLimit = 16 << 10
 
 type setupRequest struct {
+	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -37,9 +38,9 @@ func registerSetupRoutes(mux *http.ServeMux, service *setup.Service) {
 			return
 		}
 
-		userID, err := service.Complete(r.Context(), input.Username, input.Password)
+		userID, err := service.Complete(r.Context(), input.Name, input.Username, input.Password)
 		switch {
-		case errors.Is(err, auth.ErrInvalidUsername), errors.Is(err, auth.ErrWeakPassword):
+		case errors.Is(err, auth.ErrInvalidName), errors.Is(err, auth.ErrInvalidUsername), errors.Is(err, auth.ErrWeakPassword):
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", err.Error())
 			return
 		case errors.Is(err, setup.ErrAlreadySetup):

@@ -21,6 +21,7 @@ var (
 type User struct {
 	ID                 string
 	Username           string
+	Name               string
 	Role               string
 	MustChangePassword bool
 	HasAvatar          bool
@@ -66,6 +67,7 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 		SELECT
 			id::text,
 			username::text,
+			name,
 			role,
 			status,
 			password_hash,
@@ -77,6 +79,7 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 	`, username).Scan(
 		&user.ID,
 		&user.Username,
+		&user.Name,
 		&user.Role,
 		&status,
 		&passwordHash,
@@ -139,6 +142,7 @@ func (s *Service) CompleteMFA(ctx context.Context, challengeToken, code, userAge
 		SELECT
 			id::text,
 			username::text,
+			name,
 			role,
 			must_change_password,
 			avatar_object_id IS NOT NULL,
@@ -148,6 +152,7 @@ func (s *Service) CompleteMFA(ctx context.Context, challengeToken, code, userAge
 	`, userID).Scan(
 		&user.ID,
 		&user.Username,
+		&user.Name,
 		&user.Role,
 		&user.MustChangePassword,
 		&user.HasAvatar,
@@ -178,11 +183,7 @@ func (s *Service) createSession(ctx context.Context, user User, userAgent, ipAdd
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
-	return &LoginResult{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		User:      user,
-	}, nil
+	return &LoginResult{Token: token, ExpiresAt: expiresAt, User: user}, nil
 }
 
 func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, error) {
@@ -198,6 +199,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 			s.id::text,
 			u.id::text,
 			u.username::text,
+			u.name,
 			u.role,
 			u.must_change_password,
 			u.avatar_object_id IS NOT NULL,
@@ -212,6 +214,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 		&principal.SessionID,
 		&principal.User.ID,
 		&principal.User.Username,
+		&principal.User.Name,
 		&principal.User.Role,
 		&principal.User.MustChangePassword,
 		&principal.User.HasAvatar,
@@ -241,6 +244,5 @@ func (s *Service) RevokeToken(ctx context.Context, token string) error {
 	`, tokenHash[:]); err != nil {
 		return fmt.Errorf("revoke session: %w", err)
 	}
-
 	return nil
 }

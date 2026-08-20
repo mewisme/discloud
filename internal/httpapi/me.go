@@ -13,7 +13,7 @@ import (
 const accountBodyLimit = 16 << 10
 
 type updateMeRequest struct {
-	Username string `json:"username"`
+	Name string `json:"name"`
 }
 
 type changePasswordRequest struct {
@@ -52,12 +52,10 @@ func registerMeRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Auth
 			return
 		}
 
-		user, err := service.UpdateUsername(r.Context(), currentPrincipal(r.Context()).User.ID, input.Username)
+		user, err := service.UpdateName(r.Context(), currentPrincipal(r.Context()).User.ID, input.Name)
 		switch {
-		case errors.Is(err, auth.ErrInvalidUsername):
+		case errors.Is(err, auth.ErrInvalidName):
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", err.Error())
-		case errors.Is(err, auth.ErrUsernameTaken):
-			WriteProblem(w, r, http.StatusConflict, "Conflict", "username already exists")
 		case err != nil:
 			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not update account")
 		default:

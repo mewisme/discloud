@@ -32,8 +32,13 @@ func (s *Service) Required(ctx context.Context) (bool, error) {
 	return required, nil
 }
 
-func (s *Service) Complete(ctx context.Context, username, password string) (string, error) {
-	username, err := auth.NormalizeUsername(username)
+func (s *Service) Complete(ctx context.Context, name, username, password string) (string, error) {
+	name, err := auth.NormalizeName(name)
+	if err != nil {
+		return "", err
+	}
+
+	username, err = auth.NormalizeUsername(username)
 	if err != nil {
 		return "", err
 	}
@@ -61,10 +66,10 @@ func (s *Service) Complete(ctx context.Context, username, password string) (stri
 		}
 
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO users (username, password_hash, role)
-			VALUES ($1, $2, 'admin')
+			INSERT INTO users (name, username, password_hash, role)
+			VALUES ($1, $2, $3, 'admin')
 			RETURNING id::text
-		`, username, passwordHash).Scan(&userID); err != nil {
+		`, name, username, passwordHash).Scan(&userID); err != nil {
 			return fmt.Errorf("create admin: %w", err)
 		}
 

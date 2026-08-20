@@ -30,6 +30,7 @@ type Service struct {
 type User struct {
 	ID                   string
 	Username             string
+	Name                 string
 	Role                 string
 	Status               string
 	StorageQuotaBytes    *int64
@@ -42,6 +43,7 @@ type User struct {
 }
 
 type CreateInput struct {
+	Name              string
 	Username          string
 	Password          string
 	Role              string
@@ -49,8 +51,8 @@ type CreateInput struct {
 }
 
 type UpdateInput struct {
-	Username *string
-	Role     *string
+	Name *string
+	Role *string
 }
 
 type ListResult struct {
@@ -276,17 +278,17 @@ func (s *Service) List(ctx context.Context, limit, offset int) (ListResult, erro
 }
 
 func (s *Service) Update(ctx context.Context, actorUserID, userID string, input UpdateInput) (User, error) {
-	if input.Username == nil && input.Role == nil {
+	if input.Name == nil && input.Role == nil {
 		return User{}, ErrNoChanges
 	}
 
-	var username *string
-	if input.Username != nil {
-		value, err := auth.NormalizeUsername(*input.Username)
+	var name *string
+	if input.Name != nil {
+		value, err := auth.NormalizeName(*input.Name)
 		if err != nil {
 			return User{}, err
 		}
-		username = &value
+		name = &value
 	}
 
 	if input.Role != nil && !validRole(*input.Role) {
@@ -297,13 +299,14 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 	err := postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
 			UPDATE users
-			SET username = COALESCE($2, username),
+			SET name = COALESCE($2, name),
 			    role = COALESCE($3, role),
 			    updated_at = now()
 			WHERE id::text = $1
 			RETURNING
 				id::text,
 				username::text,
+				name,
 				role,
 				status,
 				storage_quota_bytes,
@@ -313,9 +316,10 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 				created_at,
 				updated_at,
 				disabled_at
-		`, userID, username, input.Role).Scan(
+		`, userID, name, input.Role).Scan(
 			&user.ID,
 			&user.Username,
+			&user.Name,
 			&user.Role,
 			&user.Status,
 			&user.StorageQuotaBytes,
@@ -342,12 +346,8 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 		})
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
-			return User{}, ErrUsernameTaken
-		}
 		return User{}, err
 	}
-
 	return user, nil
 }
 

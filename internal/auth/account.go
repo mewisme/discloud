@@ -7,13 +7,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mewisme/discloud/internal/postgres"
 )
 
 var (
-	ErrUsernameTaken   = errors.New("username already exists")
 	ErrCurrentPassword = errors.New("current password is incorrect")
 	ErrPasswordChanged = errors.New("password changed concurrently")
 	ErrSessionNotFound = errors.New("session not found")
@@ -43,6 +41,7 @@ func (s *Service) Usage(ctx context.Context, userID string) (Usage, error) {
 	`, userID).Scan(&usage.QuotaBytes, &usage.UsedBytes, &usage.ReservedBytes); err != nil {
 		return Usage{}, fmt.Errorf("get usage: %w", err)
 	}
+
 	if usage.QuotaBytes != nil {
 		available := *usage.QuotaBytes - usage.UsedBytes - usage.ReservedBytes
 		if available < 0 {
@@ -109,8 +108,8 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, userID, currentSessio
 	return nil
 }
 
-func (s *Service) UpdateUsername(ctx context.Context, userID, username string) (User, error) {
-	username, err := NormalizeUsername(username)
+func (s *Service) UpdateName(ctx context.Context, userID, name string) (User, error) {
+	name, err := NormalizeName(name)
 	if err != nil {
 		return User{}, err
 	}
@@ -118,32 +117,29 @@ func (s *Service) UpdateUsername(ctx context.Context, userID, username string) (
 	var user User
 	err = s.pool.QueryRow(ctx, `
 		UPDATE users
-		SET username = $2, updated_at = now()
+		SET name = $2, updated_at = now()
 		WHERE id = $1
 		RETURNING
 			id::text,
 			username::text,
+			name,
 			role,
 			must_change_password,
 			avatar_object_id IS NOT NULL,
 			avatar_revision
-	`, userID, username).Scan(
+	`, userID, name).Scan(
 		&user.ID,
 		&user.Username,
+		&user.Name,
 		&user.Role,
 		&user.MustChangePassword,
 		&user.HasAvatar,
 		&user.AvatarRevision,
 	)
-	if err == nil {
-		return user, nil
+	if err != nil {
+		return User{}, fmt.Errorf("update name: %w", err)
 	}
-
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return User{}, ErrUsernameTaken
-	}
-	return User{}, fmt.Errorf("update username: %w", err)
+	return user, nil
 }
 
 func (s *Service) ChangePassword(ctx context.Context, userID, currentSessionID, currentPassword, newPassword string) error {

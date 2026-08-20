@@ -14,6 +14,7 @@ var ErrUserLookupNotFound = errors.New("user not found")
 type UserLookup struct {
 	ID       string
 	Username string
+	Name     string
 }
 
 func (s *Service) LookupActiveUser(ctx context.Context, username string) (UserLookup, error) {
@@ -24,11 +25,11 @@ func (s *Service) LookupActiveUser(ctx context.Context, username string) (UserLo
 
 	var user UserLookup
 	err := s.pool.QueryRow(ctx, `
-		SELECT id::text, username::text
+		SELECT id::text, username::text, name
 		FROM users
 		WHERE username = $1
 		  AND status = 'active'
-	`, username).Scan(&user.ID, &user.Username)
+	`, username).Scan(&user.ID, &user.Username, &user.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserLookup{}, ErrUserLookupNotFound
 	}

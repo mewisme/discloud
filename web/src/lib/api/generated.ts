@@ -1391,6 +1391,7 @@ export type components = {
             /** Format: uuid */
             readonly id: string;
             readonly mustChangePassword: boolean;
+            readonly name: string;
             /** @enum {string} */
             readonly role: "admin" | "user";
             readonly status: string;
@@ -1839,6 +1840,7 @@ export type components = {
             /** Format: uuid */
             readonly id: string;
             readonly mustChangePassword: boolean;
+            readonly name: string;
             /** @enum {string} */
             readonly role: "admin" | "user";
             readonly username: string;
@@ -1855,6 +1857,7 @@ export type components = {
         readonly UserLookup: {
             /** Format: uuid */
             readonly id: string;
+            readonly name: string;
             readonly username: string;
         };
     };
@@ -2464,6 +2467,7 @@ export type components = {
         readonly AdminCreateUser: {
             readonly content: {
                 readonly "application/json": {
+                    readonly name: string;
                     /** Format: password */
                     readonly password: string;
                     /** @enum {string} */
@@ -2493,9 +2497,9 @@ export type components = {
         readonly AdminUpdateUser: {
             readonly content: {
                 readonly "application/json": {
+                    readonly name?: string;
                     /** @enum {string} */
                     readonly role?: "admin" | "user";
-                    readonly username?: string;
                 };
             };
         };
@@ -2635,6 +2639,7 @@ export type components = {
         readonly Setup: {
             readonly content: {
                 readonly "application/json": {
+                    readonly name: string;
                     /** Format: password */
                     readonly password: string;
                     readonly username: string;
@@ -2671,7 +2676,7 @@ export type components = {
         readonly UpdateMe: {
             readonly content: {
                 readonly "application/json": {
-                    readonly username: string;
+                    readonly name: string;
                 };
             };
         };

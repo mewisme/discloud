@@ -76,6 +76,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	quota := int64(1024)
 
 	user, err := service.Create(ctx, adminID, CreateInput{
+		Name:              "Alice Example",
 		Username:          "alice",
 		Password:          "correct-horse-battery-staple",
 		StorageQuotaBytes: &quota,
@@ -111,10 +112,23 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	}
 
 	if _, err := service.Create(ctx, adminID, CreateInput{
+		Name:     "Another Alice",
 		Username: "Alice",
 		Password: "another-correct-password",
 	}); !errors.Is(err, ErrUsernameTaken) {
 		t.Fatalf("duplicate username = %v", err)
+	}
+
+	updatedName := "Alice Updated"
+	updated, err := service.Update(ctx, adminID, user.ID, UpdateInput{Name: &updatedName})
+	if err != nil {
+		t.Fatalf("update user: %v", err)
+	}
+	if updated.Name != "Alice Updated" {
+		t.Fatalf("name = %q, want Alice Updated", updated.Name)
+	}
+	if updated.Username != "alice" {
+		t.Fatalf("username = %q, want alice", updated.Username)
 	}
 
 	if _, err := pool.Exec(ctx, `

@@ -8,6 +8,7 @@
       "request": {
         "contentType": "application/json",
         "body": {
+          "name": "Administrator",
           "username": "admin",
           "password": "Example-Only-Password-123!"
         }
@@ -27,6 +28,7 @@
         "contentType": "application/json",
         "body": {
           "username": "alice",
+          "name": "Alice Example",
           "password": "Example-Only-Password-123!"
         }
       },

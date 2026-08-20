@@ -5,7 +5,7 @@ import type { AdminUser, AdminUsers, ListUsersQuery } from "@/lib/api/models"
 
 const pageSize = 100
 
-export type AdminDirectoryUser = Pick<AdminUser, "id" | "username" | "role" | "status">
+export type AdminDirectoryUser = Pick<AdminUser, "id" | "username" | "name" | "role" | "status">
 
 export async function listAdminUserDirectory(signal?: AbortSignal): Promise<AdminDirectoryUser[]> {
   const users = new Map<string, AdminDirectoryUser>()
@@ -19,6 +19,7 @@ export async function listAdminUserDirectory(signal?: AbortSignal): Promise<Admi
       users.set(user.id, {
         id: user.id,
         username: user.username,
+        name: user.name,
         role: user.role,
         status: user.status,
       })
@@ -28,5 +29,5 @@ export async function listAdminUserDirectory(signal?: AbortSignal): Promise<Admi
     offset = page.offset + page.users.length
   }
 
-  return [...users.values()].sort((left, right) => left.username.localeCompare(right.username))
+  return [...users.values()].sort((left, right) => left.name.localeCompare(right.name) || left.username.localeCompare(right.username))
 }

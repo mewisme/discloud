@@ -29,6 +29,7 @@ type mfaVerifyRequest struct {
 type userResponse struct {
 	ID                 string `json:"id"`
 	Username           string `json:"username"`
+	Name               string `json:"name"`
 	Role               string `json:"role"`
 	MustChangePassword bool   `json:"mustChangePassword"`
 	HasAvatar          bool   `json:"hasAvatar"`
@@ -160,6 +161,7 @@ func writeUser(w http.ResponseWriter, user auth.User) {
 	_ = json.NewEncoder(w).Encode(userResponse{
 		ID:                 user.ID,
 		Username:           user.Username,
+		Name:               user.Name,
 		Role:               user.Role,
 		MustChangePassword: user.MustChangePassword,
 		HasAvatar:          user.HasAvatar,

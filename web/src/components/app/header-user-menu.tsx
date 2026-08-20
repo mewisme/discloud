@@ -38,11 +38,9 @@ export function HeaderUserMenu({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 gap-2 rounded-lg px-1.5 sm:pr-2" aria-label={`Open ${user.username} menu`}>
+        <Button variant="ghost" className="h-8 gap-2 rounded-lg px-1.5 sm:pr-2" aria-label={`Open ${user.name} menu`}>
           <CurrentUserAvatar className="size-6" />
-          <span className="hidden max-w-32 truncate text-sm font-medium lg:inline">
-            {user.username}
-          </span>
+          <span className="hidden max-w-32 truncate text-sm font-medium lg:inline">{user.name}</span>
           <ChevronDownIcon className="hidden size-3.5 text-muted-foreground lg:block" />
         </Button>
       </DropdownMenuTrigger>
@@ -52,8 +50,8 @@ export function HeaderUserMenu({ user }: { user: User }) {
           <div className="flex items-center gap-3 py-1">
             <CurrentUserAvatar className="size-10" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">{user.username}</p>
-              <p className="truncate text-xs capitalize text-muted-foreground">{user.role}</p>
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">@{user.username} · <span className="capitalize">{user.role}</span></p>
             </div>
           </div>
         </DropdownMenuLabel>

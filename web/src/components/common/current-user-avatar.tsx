@@ -9,14 +9,12 @@ import { initials } from "@/lib/helpers"
 
 export function CurrentUserAvatar(props: Omit<ComponentProps<typeof Avatar>, "children">) {
   const user = useCurrentUser()
-  const src = user.hasAvatar
-    ? apiURL("/me/avatar", { revision: user.avatarRevision })
-    : undefined
+  const src = user.hasAvatar ? apiURL("/me/avatar", { revision: user.avatarRevision }) : undefined
 
   return (
     <Avatar {...props}>
       {src && <AvatarImage key={src} src={src} alt="" />}
-      <AvatarFallback>{initials(user.username)}</AvatarFallback>
+      <AvatarFallback>{initials(user.name || user.username)}</AvatarFallback>
     </Avatar>
   )
 }

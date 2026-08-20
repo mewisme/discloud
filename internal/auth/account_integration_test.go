@@ -67,8 +67,8 @@ func TestAccountAndSessionsIntegration(t *testing.T) {
 
 	var userID string
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (username, password_hash)
-		VALUES ('alice', $1)
+		INSERT INTO users (name, username, password_hash)
+		VALUES ('Alice Example', 'alice', $1)
 		RETURNING id::text
 	`, hash).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
@@ -99,12 +99,15 @@ func TestAccountAndSessionsIntegration(t *testing.T) {
 		t.Fatalf("sessions = %d, want 2", len(sessions))
 	}
 
-	user, err := service.UpdateUsername(ctx, userID, "  Alice Renamed  ")
+	user, err := service.UpdateName(ctx, userID, "  Alice Updated  ")
 	if err != nil {
-		t.Fatalf("update username: %v", err)
+		t.Fatalf("update name: %v", err)
 	}
-	if user.Username != "Alice Renamed" {
-		t.Fatalf("username = %q, want %q", user.Username, "Alice Renamed")
+	if user.Name != "Alice Updated" {
+		t.Fatalf("name = %q, want %q", user.Name, "Alice Updated")
+	}
+	if user.Username != "alice" {
+		t.Fatalf("username = %q, want alice", user.Username)
 	}
 
 	if err := service.ChangePassword(ctx, userID, current.SessionID, oldPassword, newPassword); err != nil {

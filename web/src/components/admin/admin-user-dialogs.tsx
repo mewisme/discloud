@@ -22,6 +22,7 @@ type AdminRole = AdminUser["role"]
 
 export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
+  const [name, setName] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [role, setRole] = useState<AdminRole>("user")
@@ -30,6 +31,7 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
   function reset() {
     setUsername("")
+    setName("")
     setPassword("")
     setRole("user")
     setQuotaGiB("")
@@ -42,11 +44,19 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
   }
 
   async function create() {
-    const name = username.trim()
-    if (!name) {
+    const displayName = name.trim()
+    const accountUsername = username.trim()
+
+    if (!displayName) {
+      toast.error("Name is required")
+      return
+    }
+
+    if (!accountUsername) {
       toast.error("Username is required")
       return
     }
+
     if (!password) {
       toast.error("Password is required")
       return
@@ -64,7 +74,8 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
     try {
       const input = {
-        username: name,
+        name: displayName,
+        username: accountUsername,
         password,
         role,
         ...(quota === undefined ? {} : { storageQuotaBytes: quota }),
@@ -73,7 +84,7 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
       await apiJSON<AdminUser>("/admin/users", { method: "POST", body: input })
       setOpen(false)
       reset()
-      toast.success(`${name} created`)
+      toast.success(`${displayName} created`)
       await onCreated()
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not create user."))
@@ -99,8 +110,14 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
         <FieldGroup>
           <Field>
+            <FieldLabel htmlFor="admin-create-name">Name</FieldLabel>
+            <Input id="admin-create-name" autoFocus maxLength={100} value={name} disabled={pending} onChange={(event) => setName(event.target.value)} />
+            <FieldDescription>Display name shown throughout DisCloud.</FieldDescription>
+          </Field>
+
+          <Field>
             <FieldLabel htmlFor="admin-create-username">Username</FieldLabel>
-            <Input id="admin-create-username" autoFocus value={username} disabled={pending} onChange={(event) => setUsername(event.target.value)} />
+            <Input id="admin-create-username" value={username} disabled={pending} onChange={(event) => setUsername(event.target.value)} />
           </Field>
 
           <Field>
@@ -219,28 +236,28 @@ function EditAccountDialog({
   onOpenChange: (open: boolean) => void
   onUpdated: (user: AdminUser) => void
 }) {
-  const [username, setUsername] = useState(user.username)
+  const [name, setName] = useState(user.name)
   const [role, setRole] = useState<AdminRole>(user.role)
   const [pending, setPending] = useState(false)
 
   function handleOpenChange(next: boolean) {
     if (pending) return
     if (next) {
-      setUsername(user.username)
+      setName(user.name)
       setRole(user.role)
     }
     onOpenChange(next)
   }
 
   async function save() {
-    const name = username.trim()
-    if (!name) {
-      toast.error("Username is required")
+    const displayName = name.trim()
+    if (!displayName) {
+      toast.error("Name is required")
       return
     }
 
     const input = {
-      ...(name !== user.username ? { username: name } : {}),
+      ...(displayName !== user.name ? { name: displayName } : {}),
       ...(!self && role !== user.role ? { role } : {}),
     } satisfies UpdateUserInput
 
@@ -271,13 +288,19 @@ function EditAccountDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit account</DialogTitle>
-          <DialogDescription>Update the username and role for {user.username}.</DialogDescription>
+          <DialogDescription>Update the display name and role for @{user.username}. Username is permanent.</DialogDescription>
         </DialogHeader>
 
         <FieldGroup>
           <Field>
+            <FieldLabel htmlFor={`admin-name-${user.id}`}>Name</FieldLabel>
+            <Input id={`admin-name-${user.id}`} autoFocus maxLength={100} value={name} disabled={pending} onChange={(event) => setName(event.target.value)} />
+          </Field>
+
+          <Field>
             <FieldLabel htmlFor={`admin-username-${user.id}`}>Username</FieldLabel>
-            <Input id={`admin-username-${user.id}`} autoFocus value={username} disabled={pending} onChange={(event) => setUsername(event.target.value)} />
+            <Input id={`admin-username-${user.id}`} value={user.username} disabled readOnly />
+            <FieldDescription>Username is immutable because it identifies the account and workspace route.</FieldDescription>
           </Field>
 
           <Field>

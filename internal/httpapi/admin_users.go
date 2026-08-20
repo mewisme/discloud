@@ -12,6 +12,7 @@ import (
 )
 
 type adminCreateUserRequest struct {
+	Name              string `json:"name"`
 	Username          string `json:"username"`
 	Password          string `json:"password"`
 	Role              string `json:"role"`
@@ -19,8 +20,8 @@ type adminCreateUserRequest struct {
 }
 
 type adminUpdateUserRequest struct {
-	Username *string `json:"username"`
-	Role     *string `json:"role"`
+	Name *string `json:"name"`
+	Role *string `json:"role"`
 }
 
 type adminResetPasswordRequest struct {
@@ -34,6 +35,7 @@ type adminQuotaRequest struct {
 type adminUserResponse struct {
 	ID                   string `json:"id"`
 	Username             string `json:"username"`
+	Name                 string `json:"name"`
 	Role                 string `json:"role"`
 	Status               string `json:"status"`
 	StorageQuotaBytes    *int64 `json:"storageQuotaBytes"`
@@ -96,6 +98,7 @@ func registerAdminUserRoutes(mux *http.ServeMux, service *adminusers.Service, au
 
 		principal := currentPrincipal(r.Context())
 		user, err := service.Create(r.Context(), principal.User.ID, adminusers.CreateInput{
+			Name:              input.Name,
 			Username:          input.Username,
 			Password:          input.Password,
 			Role:              input.Role,
@@ -133,8 +136,8 @@ func registerAdminUserRoutes(mux *http.ServeMux, service *adminusers.Service, au
 			principal.User.ID,
 			r.PathValue("userId"),
 			adminusers.UpdateInput{
-				Username: input.Username,
-				Role:     input.Role,
+				Name: input.Name,
+				Role: input.Role,
 			},
 		)
 		if writeAdminUserError(w, r, err, "could not update user") {
@@ -253,7 +256,8 @@ func writeAdminUserError(w http.ResponseWriter, r *http.Request, err error, inte
 		WriteProblem(w, r, http.StatusNotFound, "Not Found", "user not found")
 	case errors.Is(err, adminusers.ErrUsernameTaken):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "username already exists")
-	case errors.Is(err, auth.ErrInvalidUsername),
+	case errors.Is(err, auth.ErrInvalidName),
+		errors.Is(err, auth.ErrInvalidUsername),
 		errors.Is(err, auth.ErrWeakPassword),
 		errors.Is(err, adminusers.ErrInvalidRole),
 		errors.Is(err, adminusers.ErrInvalidQuota),
@@ -270,6 +274,7 @@ func adminUserJSON(user adminusers.User) adminUserResponse {
 	return adminUserResponse{
 		ID:                   user.ID,
 		Username:             user.Username,
+		Name:                 user.Name,
 		Role:                 user.Role,
 		Status:               user.Status,
 		StorageQuotaBytes:    user.StorageQuotaBytes,

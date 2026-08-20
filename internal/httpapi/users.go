@@ -13,6 +13,7 @@ import (
 type userLookupResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
+	Name     string `json:"name"`
 }
 
 func registerUserLookupRoute(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
@@ -35,6 +36,6 @@ func registerUserLookupRoute(mux *http.ServeMux, service *auth.Service, cfg conf
 
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(userLookupResponse{ID: user.ID, Username: user.Username})
+		_ = json.NewEncoder(w).Encode(userLookupResponse{ID: user.ID, Username: user.Username, Name: user.Name})
 	})))
 }

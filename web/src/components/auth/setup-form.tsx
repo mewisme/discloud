@@ -17,9 +17,10 @@ import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { SetupInput, SetupResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { type APIFormError,apiFormError } from "@/lib/helpers"
+import { type APIFormError, apiFormError } from "@/lib/helpers"
 
 const setupSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be at most 100 characters"),
   username: z.string().trim().min(1, "Username is required"),
   password: z.string().refine((value) => Array.from(value).length >= 12, "Password must be at least 12 characters"),
   confirmPassword: z.string(),
@@ -35,14 +36,14 @@ export function SetupForm() {
   const [formError, setFormError] = useState<APIFormError>()
   const form = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),
-    defaultValues: { username: "", password: "", confirmPassword: "" },
+    defaultValues: { name: "", username: "", password: "", confirmPassword: "" },
   })
 
   async function onSubmit(values: SetupFormValues) {
     setFormError(undefined)
 
     try {
-      const input: SetupInput = { username: values.username, password: values.password }
+      const input: SetupInput = { name: values.name, username: values.username, password: values.password }
       await apiJSON<SetupResult>("/api/v1/setup", { method: "POST", body: input })
       toast.success("Administrator created")
       router.replace("/login")
@@ -65,12 +66,19 @@ export function SetupForm() {
       return
     }
 
-    if (error.status === 400 && error.message.toLowerCase().includes("username")) {
+    const message = error.message.toLowerCase()
+
+    if (error.status === 400 && message.includes("username")) {
       form.setError("username", { message: error.message }, { shouldFocus: true })
       return
     }
 
-    if (error.status === 400 && error.message.toLowerCase().includes("password")) {
+    if (error.status === 400 && message.includes("name")) {
+      form.setError("name", { message: error.message }, { shouldFocus: true })
+      return
+    }
+
+    if (error.status === 400 && message.includes("password")) {
       form.setError("password", { message: error.message }, { shouldFocus: true })
       return
     }
@@ -100,9 +108,17 @@ export function SetupForm() {
               </Alert>
             )}
 
+            <Field data-invalid={!!errors.name}>
+              <FieldLabel htmlFor="name">Name</FieldLabel>
+              <Input id="name" autoComplete="name" autoFocus disabled={isSubmitting} aria-invalid={!!errors.name} {...form.register("name")} />
+              <FieldDescription>Your display name. You can change this later.</FieldDescription>
+              <FieldError errors={[errors.name]} />
+            </Field>
+
             <Field data-invalid={!!errors.username}>
               <FieldLabel htmlFor="username">Username</FieldLabel>
-              <Input id="username" autoComplete="username" autoFocus disabled={isSubmitting} aria-invalid={!!errors.username} {...form.register("username")} />
+              <Input id="username" autoComplete="username" disabled={isSubmitting} aria-invalid={!!errors.username} {...form.register("username")} />
+              <FieldDescription>Used to sign in and in workspace URLs. Username cannot be changed later.</FieldDescription>
               <FieldError errors={[errors.username]} />
             </Field>
 
