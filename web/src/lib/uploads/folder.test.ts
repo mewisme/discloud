@@ -36,9 +36,35 @@ describe("buildFolderUploadTree", () => {
     ])
   })
 
+  it("accepts react-dropzone paths for single and multi-file uploads", () => {
+    const single = buildFolderUploadTree([
+      pathFile("single.txt", "./single.txt"),
+    ])
+
+    expect(single.folderPaths).toEqual([])
+    expect(single.entries.map((entry) => entry.relativePath)).toEqual([
+      "single.txt",
+    ])
+
+    const multiple = buildFolderUploadTree([
+      pathFile("a.txt", "./a.txt"),
+      pathFile("b.txt", "./b.txt"),
+    ])
+
+    expect(multiple.folderPaths).toEqual([])
+    expect(multiple.entries.map((entry) => entry.relativePath)).toEqual([
+      "a.txt",
+      "b.txt",
+    ])
+  })
+
   it("rejects parent traversal", () => {
     expect(() => buildFolderUploadTree([
       pathFile("evil.txt", "/Photos/../evil.txt"),
+    ])).toThrow("Unsafe upload path")
+
+    expect(() => buildFolderUploadTree([
+      pathFile("evil.txt", "./../evil.txt"),
     ])).toThrow("Unsafe upload path")
   })
 })

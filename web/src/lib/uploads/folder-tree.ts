@@ -32,7 +32,9 @@ export function buildFolderUploadTree(files: readonly File[]) {
 function buildEntry(file: File): FolderUploadEntry {
   const pathAware = file as PathAwareFile
   const source = file.webkitRelativePath || pathAware.path || file.name
-  const normalized = source.replaceAll("\\", "/").replace(/^\/+/, "")
+  let normalized = source.replaceAll("\\", "/").replace(/^\/+/, "")
+  if (normalized.startsWith("./")) normalized = normalized.slice(2)
+
   const rawSegments = normalized.split("/")
 
   if (rawSegments.some((segment) => !segment || segment === "." || segment === ".." || segment.includes("\0"))) {
