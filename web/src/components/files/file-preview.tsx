@@ -32,7 +32,7 @@ export function FilePreview({ file, collectionId, source: customSource }: { file
     case "image":
       return (
         <div className="relative min-h-80 overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
-          <Image src={contentURL} alt={file.name} fill unoptimized sizes="(max-width: 768px) 100vw, 75vw" className="object-contain" />
+          <Image src={contentURL} alt={file.name} fill unoptimized sizes="(max-width: 768px) 100vw, 75vw" loading="eager" className="object-contain" />
         </div>
       )
     case "video":

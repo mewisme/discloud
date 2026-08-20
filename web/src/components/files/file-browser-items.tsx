@@ -78,9 +78,10 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
             <TableHead className="w-10" />
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {props.parent && (
-            <TableRow className="select-none" onContextMenu={(event) => event.preventDefault()}>
+            <TableRow className="select-none">
               <TableCell />
               <TableCell>
                 <a className="flex items-center gap-2 font-medium hover:underline" href={folderBrowserURL(props.parent.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}>
@@ -154,7 +155,7 @@ function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {props.parent && (
         <button type="button" className="group min-w-0 overflow-hidden rounded-xl border bg-card text-left transition-colors hover:bg-muted/40" onClick={() => props.onNavigate(props.parent!.id)}>
           <div className="grid aspect-[4/3] w-full place-items-center bg-muted/40">

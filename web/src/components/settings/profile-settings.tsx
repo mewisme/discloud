@@ -92,7 +92,7 @@ export function ProfileSettings() {
       </CardHeader>
 
       <CardContent className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
           <CurrentUserAvatar className="size-24 text-xl" />
 
           <div className="min-w-0 flex-1">
@@ -117,14 +117,14 @@ export function ProfileSettings() {
           }}
         />
 
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={pending} onClick={() => inputRef.current?.click()}>
+        <div className="grid gap-2 sm:flex">
+          <Button className="w-full sm:w-auto" disabled={pending} onClick={() => inputRef.current?.click()}>
             {uploading ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
             {user.hasAvatar ? "Change avatar" : "Upload avatar"}
           </Button>
 
           {user.hasAvatar && (
-            <Button variant="outline" disabled={pending} onClick={() => void removeAvatar()}>
+            <Button className="w-full sm:w-auto" variant="outline" disabled={pending} onClick={() => void removeAvatar()}>
               {removing ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
               Remove
             </Button>
