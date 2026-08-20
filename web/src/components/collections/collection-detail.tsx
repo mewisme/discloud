@@ -20,7 +20,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { AddCollectionItemInput, Collection, CollectionItem, CollectionItems, SearchPage, SearchQuery, SearchResult, UpdateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { apiErrorMessage, formatBytes, formatDate } from "@/lib/helpers"
+import { apiErrorMessage, formatBytes } from "@/lib/helpers"
+import { DateOnly } from "@/components/common/date-time"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -143,7 +144,7 @@ export function CollectionDetail({ initialCollection, initialItems }: { initialC
                   </TableCell>
                   <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{item.category || "File"}</TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">{formatBytes(item.size)}</TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">{formatDate(item.addedAt)}</TableCell>
+                  <TableCell className="hidden text-muted-foreground lg:table-cell"><DateOnly value={item.addedAt} /></TableCell>
                   <TableCell>
                     <div className="flex justify-end">
                       <Button size="icon-sm" variant="ghost" asChild>

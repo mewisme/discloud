@@ -5,7 +5,8 @@ import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
-import { formatBytes, formatDateTime } from "@/lib/helpers"
+import { formatBytes } from "@/lib/helpers"
+import { DateTime } from "@/components/common/date-time"
 
 export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
   const collectionHref = `/collections/${encodeURIComponent(collection.id)}`
@@ -59,9 +60,9 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
           <Detail label="Type" value={item.category} />
           <Detail label="MIME type" value={item.mimeType} />
           <Detail label="Size" value={formatBytes(item.size)} />
-          <Detail label="Added" value={formatDateTime(item.addedAt)} />
-          <Detail label="Created" value={formatDateTime(item.createdAt)} />
-          <Detail label="Modified" value={formatDateTime(item.updatedAt)} />
+          <Detail label="Added" value={<DateTime value={item.addedAt} />} />
+          <Detail label="Created" value={<DateTime value={item.createdAt} />} />
+          <Detail label="Modified" value={<DateTime value={item.updatedAt} />} />
           {item.sha256 && <Detail className="sm:col-span-2 lg:col-span-3" label="SHA-256" value={<code className="break-all font-mono text-xs">{item.sha256}</code>} />}
         </CardContent>
       </Card>

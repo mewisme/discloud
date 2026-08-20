@@ -17,7 +17,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { apiJSON } from "@/lib/api/client"
 import type { MFACodeInput, MFAEnrollment, RecoveryCodes } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { apiFormError, formatDateTime, type APIFormError } from "@/lib/helpers"
+import { apiFormError, type APIFormError } from "@/lib/helpers"
+import { DateTime } from "@/components/common/date-time"
 
 const totpSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit authentication code"),
@@ -249,7 +250,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
                 </div>
                 <div className="space-y-2 text-sm">
                   <p className="font-medium">Scan this QR code with your authenticator app.</p>
-                  <p className="text-muted-foreground">Setup expires {formatDateTime(enrollment.expiresAt)}.</p>
+                  <p className="text-muted-foreground">Setup expires <DateTime value={enrollment.expiresAt} /></p>
                   {secret && (
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Manual setup key</p>

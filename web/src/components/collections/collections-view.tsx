@@ -17,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { Collection, CollectionPage, CollectionsQuery, CreateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { apiErrorMessage, formatDate } from "@/lib/helpers"
+import { apiErrorMessage } from "@/lib/helpers"
+import { DateOnly } from "@/components/common/date-time"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -85,7 +86,7 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
                     <Badge variant="secondary" className="capitalize">{collection.accessLevel}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">Updated {formatDate(collection.updatedAt)}</CardContent>
+                <CardContent className="text-xs text-muted-foreground">Updated <DateOnly value={collection.updatedAt} /></CardContent>
               </Card>
             </Link>
           ))}

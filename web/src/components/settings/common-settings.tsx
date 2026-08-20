@@ -12,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage, formatDateTime } from "@/lib/helpers"
-import { cn } from "@/lib/utils"
 
 export function CommonSettings() {
   const router = useRouter()
@@ -92,7 +91,6 @@ export function CommonSettings() {
                       }}
                     >
                       <span className="truncate">{item}</span>
-                      <CheckIcon className={cn("ml-auto", item === timezone ? "opacity-100" : "opacity-0")} />
                     </CommandItem>
                   ))}
                 </CommandList>

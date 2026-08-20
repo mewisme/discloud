@@ -42,7 +42,6 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
     if (!open) return
 
     const controller = new AbortController()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError(undefined)
 

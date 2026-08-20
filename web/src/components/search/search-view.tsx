@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { apiErrorMessage, formatBytes, formatDateTime } from "@/lib/helpers"
+import { apiErrorMessage, formatBytes } from "@/lib/helpers"
+import { DateTime } from "@/components/common/date-time"
 import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, searchURL, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort } from "@/lib/search/options"
 
 export function SearchView() {
@@ -299,7 +300,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
         </div>
       </TableCell>
       <TableCell className="hidden text-muted-foreground lg:table-cell">{result.size != null ? formatBytes(result.size) : "—"}</TableCell>
-      <TableCell className="hidden text-muted-foreground xl:table-cell">{formatDateTime(result.updatedAt)}</TableCell>
+      <TableCell className="hidden text-muted-foreground xl:table-cell"><DateTime value={result.updatedAt} /></TableCell>
       <TableCell>
         {result.kind === "file" && (
           <Button size="icon-sm" variant="ghost" asChild>

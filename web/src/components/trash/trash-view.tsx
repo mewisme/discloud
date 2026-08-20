@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
 import type { Node, TrashItem, TrashPage, TrashQuery } from "@/lib/api/models"
-import { apiErrorMessage, formatBytes, formatDateTime } from "@/lib/helpers"
+import { apiErrorMessage, formatBytes } from "@/lib/helpers"
+import { DateOnly, DateTime } from "@/components/common/date-time"
 
 const pageSize = 50
 
@@ -128,7 +129,7 @@ export function TrashView({ initialPage, ownerId }: { initialPage: TrashPage; ow
                     </TableCell>
                     <TableCell className="hidden capitalize text-muted-foreground sm:table-cell">{item.node.kind}</TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">{item.sizeBytes == null ? "—" : formatBytes(item.sizeBytes)}</TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell" title={item.deletedAt}>{formatDateTime(item.deletedAt)}</TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell" title={item.deletedAt}><DateOnly value={item.deletedAt} /></TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button size="sm" variant="outline" disabled={itemPending} onClick={() => void restore(item)}>

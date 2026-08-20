@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
 import { folderBrowserURL } from "@/lib/files/navigation"
-import { formatBytes, formatDate, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
+import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
+import { DateOnly } from "@/components/common/date-time"
 
 type BrowserItemsProps = {
   nodes: BrowserNode[]
@@ -112,7 +113,7 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
               </TableCell>
               <TableCell className="hidden text-muted-foreground md:table-cell">{nodeType(node)}</TableCell>
               <TableCell className="hidden text-muted-foreground sm:table-cell">{node.kind === "file" && node.size != null ? formatBytes(node.size) : "—"}</TableCell>
-              <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}>{formatDate(node.updatedAt)}</TableCell>
+              <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}><DateOnly value={node.updatedAt} /></TableCell>
               <TableCell>
                 <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
               </TableCell>

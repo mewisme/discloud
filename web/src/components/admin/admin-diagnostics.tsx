@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { AlertCircleIcon, BracesIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { DiagnosticsDateRangePicker, DiagnosticsFilterBar, type DiagnosticsDateRange } from "@/components/admin/diagnostics-filter-bar"
+import { DateTime } from "@/components/common/date-time"
+import { useUserConfig } from "@/components/settings/user-config-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -14,7 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiJSON } from "@/lib/api/client"
 import type { AuditEvent, AuditPage, AuditQuery, JobDiagnostic, JobPage, JobsQuery, UploadDiagnostic, UploadDiagnosticPage, UploadDiagnosticsQuery } from "@/lib/api/models"
-import { apiErrorMessage, formatBytes, formatDateTime, formatNumber } from "@/lib/helpers"
+import { apiErrorMessage, formatBytes, formatNumber } from "@/lib/helpers"
+import { endOfDayISO, startOfDayISO } from "@/lib/timezone"
 
 const pageSize = 25
 type JobStatus = NonNullable<JobsQuery["status"]>
@@ -60,6 +63,7 @@ export function AdminDiagnostics({
 }
 
 function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
+  const { timezone } = useUserConfig()
   const [events, setEvents] = useState<AuditEvent[]>(() => [...initialPage.events])
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [action, setAction] = useState("")
@@ -79,8 +83,8 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
       ...(resourceType.trim() ? { resourceType: resourceType.trim() } : {}),
       ...(resourceId.trim() ? { resourceId: resourceId.trim() } : {}),
       ...(dateRange?.from ? {
-        from: startOfLocalDayISO(dateRange.from),
-        to: endOfLocalDayISO(dateRange.to ?? dateRange.from),
+        from: startOfDayISO(dateRange.from, timezone),
+        to: endOfDayISO(dateRange.to ?? dateRange.from, timezone),
       } : {}),
     } satisfies AuditQuery
   }
@@ -193,7 +197,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
           <TableBody>
             {events.map((event) => (
               <TableRow key={event.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground"><DateTime value={event.createdAt} /></TableCell>
                 <TableCell><Badge variant="outline" className="font-mono font-normal">{event.action}</Badge></TableCell>
                 <TableCell className="hidden max-w-48 truncate font-mono text-xs text-muted-foreground lg:table-cell">{event.actorUserId ?? "system"}</TableCell>
                 <TableCell className="hidden md:table-cell">
@@ -326,11 +330,11 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
           <TableBody>
             {jobs.map((job) => (
               <TableRow key={job.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(job.updatedAt)}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground"><DateTime value={job.updatedAt} /></TableCell>
                 <TableCell className="font-mono text-xs">{job.type}</TableCell>
                 <TableCell><StatusBadge status={job.status} /></TableCell>
                 <TableCell className="hidden tabular-nums md:table-cell">{job.attempts} / {job.maxAttempts}</TableCell>
-                <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">{formatDateTime(job.runAt)}</TableCell>
+                <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell"><DateTime value={job.runAt} /></TableCell>
                 <TableCell>
                   <JSONDialog
                     title={job.type}
@@ -488,7 +492,7 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
           <TableBody>
             {uploads.map((upload) => (
               <TableRow key={upload.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(upload.updatedAt)}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground"><DateTime value={upload.updatedAt} /></TableCell>
                 <TableCell>
                   <div className="max-w-64">
                     <div className="truncate font-medium">{upload.name}</div>
@@ -578,8 +582,8 @@ function InfiniteScrollSentinel({
   return (
     <div ref={sentinelRef} className="flex min-h-10 items-center justify-center border-t">
       {loading && (
-        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-          <Loader2Icon className="size-3.5 animate-spin" />
+        <div role="status" aria-live="polite" className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
           Loading more…
         </div>
       )}
@@ -619,16 +623,4 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </Badge>
   )
-}
-
-function startOfLocalDayISO(date: Date) {
-  const value = new Date(date)
-  value.setHours(0, 0, 0, 0)
-  return value.toISOString()
-}
-
-function endOfLocalDayISO(date: Date) {
-  const value = new Date(date)
-  value.setHours(23, 59, 59, 999)
-  return value.toISOString()
 }
