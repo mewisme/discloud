@@ -26,15 +26,16 @@ export function FileUploadTarget({
 }) {
   const { addFiles } = useUploads()
   const [dragOverlayActive, setDragOverlayActive] = useState(false)
-  const { getRootProps, getInputProps, open, rootRef } = useDropzone({
+  const { getRootProps, getInputProps, open } = useDropzone({
     disabled,
     multiple: true,
     noClick: true,
     noKeyboard: true,
-    onDropAccepted: (files) => {
-      setDragOverlayActive(false)
-      addFiles(folderId, files)
-    },
+    onDragEnter: () => setDragOverlayActive(true),
+    onDragOver: () => setDragOverlayActive(true),
+    onDragLeave: () => setDragOverlayActive(false),
+    onDrop: () => setDragOverlayActive(false),
+    onDropAccepted: (files) => addFiles(folderId, files),
   })
 
   useEffect(() => {
@@ -46,54 +47,8 @@ export function FileUploadTarget({
   }, [disabled, open])
 
   useEffect(() => {
-    if (disabled) {
-      setDragOverlayActive(false)
-      return
-    }
-
-    const updateDragOverlay = (event: DragEvent) => {
-      const root = rootRef.current
-      const draggingFiles = event.dataTransfer?.types.includes("Files") ?? false
-
-      if (!root || !draggingFiles) {
-        setDragOverlayActive(false)
-        return
-      }
-
-      const rect = root.getBoundingClientRect()
-      const inside =
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom
-
-      setDragOverlayActive((current) => current === inside ? current : inside)
-    }
-
-    const clearDragOverlay = () => setDragOverlayActive(false)
-
-    const handleDragLeave = (event: DragEvent) => {
-      const outsideViewport =
-        event.clientX <= 0 ||
-        event.clientY <= 0 ||
-        event.clientX >= window.innerWidth ||
-        event.clientY >= window.innerHeight
-
-      if (outsideViewport) clearDragOverlay()
-    }
-
-    window.addEventListener("dragover", updateDragOverlay, true)
-    window.addEventListener("dragleave", handleDragLeave, true)
-    window.addEventListener("drop", clearDragOverlay, true)
-    window.addEventListener("dragend", clearDragOverlay, true)
-
-    return () => {
-      window.removeEventListener("dragover", updateDragOverlay, true)
-      window.removeEventListener("dragleave", handleDragLeave, true)
-      window.removeEventListener("drop", clearDragOverlay, true)
-      window.removeEventListener("dragend", clearDragOverlay, true)
-    }
-  }, [disabled, rootRef])
+    if (disabled) setDragOverlayActive(false)
+  }, [disabled])
 
   return (
     <UploadTargetContext.Provider value={{ open }}>
