@@ -11,6 +11,7 @@ import (
 	"math"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mewisme/discloud/internal/blobstore"
@@ -121,7 +122,9 @@ func (s *Store) putAttachmentWithBot(ctx context.Context, botUserID, filename st
 	}
 
 	return blobstore.PutResult{
-		BotUserID: bot.UserID,
+		BotUserID:              bot.UserID,
+		AttachmentURL:          strings.TrimSpace(attachment.URL),
+		AttachmentURLExpiresAt: attachmentURLExpiry(attachment.URL),
 		Location: blobstore.Location{
 			DiscordChannelID:    message.ChannelID,
 			DiscordMessageID:    message.ID,

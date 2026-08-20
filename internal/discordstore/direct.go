@@ -76,7 +76,7 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 			return "", time.Time{}, classifyError("", err)
 		}
 
-		bot, err := s.scheduler.Next(excluded)
+		bot, release, err := s.scheduler.Acquire(ctx, excluded)
 		if err != nil {
 			if lastErr != nil {
 				return "", time.Time{}, lastErr
@@ -89,9 +89,11 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 		if err != nil {
 			classified := classifyError(bot.UserID, err)
 			s.applyCooldown(bot.UserID, classified)
+			release()
 			lastErr = classified
 			continue
 		}
+		release()
 
 		for _, attachment := range message.Attachments {
 			if attachment.ID == location.DiscordAttachmentID && strings.TrimSpace(attachment.URL) != "" {

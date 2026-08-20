@@ -109,26 +109,35 @@ func (s *Service) Put(ctx context.Context, kind, filename, mimeType string, src 
 	object.Filename = filename
 	object.Location = put.Location
 	object.UploadedByBotUserID = put.BotUserID
-
+	var cachedURL any
+	var cachedExpiresAt any
+	if rawURL := strings.TrimSpace(put.AttachmentURL); rawURL != "" && !put.AttachmentURLExpiresAt.IsZero() {
+		cachedURL = rawURL
+		cachedExpiresAt = put.AttachmentURLExpiresAt.UTC()
+	}
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO storage_objects (
-			kind,
-			sha256,
-			size_bytes,
-			mime_type,
-			filename,
-			discord_channel_id,
-			discord_message_id,
-			discord_attachment_id,
-			uploaded_by_bot_user_id
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id::text, created_at
-	`, kind, digest[:], size, mimeType, filename,
+	INSERT INTO storage_objects (
+		kind,
+		sha256,
+		size_bytes,
+		mime_type,
+		filename,
+		discord_channel_id,
+		discord_message_id,
+		discord_attachment_id,
+		uploaded_by_bot_user_id,
+		cached_cdn_url,
+		cached_cdn_url_expires_at
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	RETURNING id::text, created_at
+`, kind, digest[:], size, mimeType, filename,
 		put.Location.DiscordChannelID,
 		put.Location.DiscordMessageID,
 		put.Location.DiscordAttachmentID,
 		put.BotUserID,
+		cachedURL,
+		cachedExpiresAt,
 	).Scan(&object.ID, &object.CreatedAt)
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

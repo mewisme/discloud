@@ -21,8 +21,10 @@ type Location struct {
 type ChunkLocation = Location
 
 type PutResult struct {
-	Location  Location
-	BotUserID string
+	Location               Location
+	BotUserID              string
+	AttachmentURL          string
+	AttachmentURLExpiresAt time.Time
 }
 
 type ClassifiedError interface {
