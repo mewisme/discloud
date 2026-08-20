@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mewisme/discloud/internal/auth"
 	"github.com/mewisme/discloud/internal/blobstore"
@@ -71,8 +72,10 @@ func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, c
 		return
 	}
 
-	byteRange, err := files.ParseRange(r.Header.Get("Range"), file.SizeBytes)
+	byteRange, err := requestedFileRange(r, file)
 	if errors.Is(err, files.ErrUnsatisfiableRange) {
+		setFileValidatorHeaders(w, file)
+		w.Header().Set("Accept-Ranges", "bytes")
 		w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.SizeBytes))
 		WriteProblem(w, r, http.StatusRequestedRangeNotSatisfiable, "Range Not Satisfiable", "requested byte range is outside the file")
 		return
@@ -91,21 +94,23 @@ func serveFile(w http.ResponseWriter, r *http.Request, service *files.Service, c
 		start, length, status = byteRange.Start, byteRange.Length(), http.StatusPartialContent
 	}
 
+	setFileHeaders(w, file, download, length)
+	if byteRange != nil {
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", byteRange.Start, byteRange.End, file.SizeBytes))
+	}
+
+	if r.Method == http.MethodHead || length == 0 {
+		w.WriteHeader(status)
+		return
+	}
+
 	_, reader, err := openFileForRequest(r, service, collectionService, fileID, collectionID, start, length)
 	if writeFileContextError(w, r, err) {
 		return
 	}
 	defer reader.Close()
 
-	setFileHeaders(w, file, download, length)
-	if byteRange != nil {
-		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", byteRange.Start, byteRange.End, file.SizeBytes))
-	}
-
 	w.WriteHeader(status)
-	if r.Method == http.MethodHead || length == 0 {
-		return
-	}
 	_, _ = io.Copy(w, reader)
 }
 
@@ -135,15 +140,41 @@ func openFileForRequest(r *http.Request, service *files.Service, collectionServi
 	return service.OpenStored(r.Context(), fileID, start, length)
 }
 
+func requestedFileRange(r *http.Request, file files.File) (*files.ByteRange, error) {
+	value := r.Header.Get("Range")
+	if value != "" && !ifRangeMatches(r.Header.Get("If-Range"), file) {
+		value = ""
+	}
+	return files.ParseRange(value, file.SizeBytes)
+}
+
+func ifRangeMatches(value string, file files.File) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return true
+	}
+	if strings.HasPrefix(value, "W/") {
+		return false
+	}
+	if strings.HasPrefix(value, "\"") {
+		etag := fileETag(file)
+		return etag != "" && value == etag
+	}
+
+	validator, err := http.ParseTime(value)
+	if err != nil || file.UpdatedAt.IsZero() {
+		return false
+	}
+	return !file.UpdatedAt.UTC().Truncate(time.Second).After(validator.UTC())
+}
+
 func setFileHeaders(w http.ResponseWriter, file files.File, download bool, length int64) {
 	w.Header().Set("Content-Type", file.MIMEType)
 	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
 	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Cache-Control", "no-store, no-transform")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-
-	if len(file.SHA256) == 32 {
-		w.Header().Set("ETag", `"`+hex.EncodeToString(file.SHA256)+`"`)
-	}
+	setFileValidatorHeaders(w, file)
 
 	disposition := "attachment"
 	if !download && safeInlineMIME(file.MIMEType) {
@@ -154,6 +185,22 @@ func setFileHeaders(w http.ResponseWriter, file files.File, download bool, lengt
 		value = disposition
 	}
 	w.Header().Set("Content-Disposition", value)
+}
+
+func setFileValidatorHeaders(w http.ResponseWriter, file files.File) {
+	if etag := fileETag(file); etag != "" {
+		w.Header().Set("ETag", etag)
+	}
+	if !file.UpdatedAt.IsZero() {
+		w.Header().Set("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
+	}
+}
+
+func fileETag(file files.File) string {
+	if len(file.SHA256) != 32 {
+		return ""
+	}
+	return `"` + hex.EncodeToString(file.SHA256) + `"`
 }
 
 func safeInlineMIME(value string) bool {

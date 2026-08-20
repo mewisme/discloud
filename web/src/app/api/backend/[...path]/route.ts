@@ -11,6 +11,7 @@ const strippedHeaders = [
   "origin",
   "referer",
   "content-length",
+  "accept-encoding",
   "forwarded",
   "x-forwarded-for",
   "x-forwarded-host",
@@ -34,6 +35,7 @@ async function proxy(request: Request, { params }: RouteContext) {
 
   const upstream = new Request(target, request)
   for (const header of strippedHeaders) upstream.headers.delete(header)
+  upstream.headers.set("accept-encoding", "identity")
 
   try {
     return await fetch(upstream, { cache: "no-store" })
