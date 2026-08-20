@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
+import { AlertCircleIcon, BracesIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
+import { DiagnosticsDateRangePicker, DiagnosticsFilterBar, type DiagnosticsDateRange } from "@/components/admin/diagnostics-filter-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -65,24 +66,31 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
   const [actorUserId, setActorUserId] = useState("")
   const [resourceType, setResourceType] = useState("")
   const [resourceId, setResourceId] = useState("")
+  const [dateRange, setDateRange] = useState<DiagnosticsDateRange>()
+  const [appliedQuery, setAppliedQuery] = useState<AuditQuery>({ limit: pageSize })
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
 
-  async function load(cursor?: string, append = false) {
+  function currentQuery() {
+    return {
+      limit: pageSize,
+      ...(action.trim() ? { action: action.trim() } : {}),
+      ...(actorUserId.trim() ? { actorUserId: actorUserId.trim() } : {}),
+      ...(resourceType.trim() ? { resourceType: resourceType.trim() } : {}),
+      ...(resourceId.trim() ? { resourceId: resourceId.trim() } : {}),
+      ...(dateRange?.from ? {
+        from: startOfLocalDayISO(dateRange.from),
+        to: endOfLocalDayISO(dateRange.to ?? dateRange.from),
+      } : {}),
+    } satisfies AuditQuery
+  }
+
+  async function load(query: AuditQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
 
     try {
-      const query = {
-        limit: pageSize,
-        ...(cursor ? { cursor } : {}),
-        ...(action.trim() ? { action: action.trim() } : {}),
-        ...(actorUserId.trim() ? { actorUserId: actorUserId.trim() } : {}),
-        ...(resourceType.trim() ? { resourceType: resourceType.trim() } : {}),
-        ...(resourceId.trim() ? { resourceId: resourceId.trim() } : {}),
-      } satisfies AuditQuery
-
       const page = await apiJSON<AuditPage>("/admin/audit", { query })
       setEvents((current) => append ? [...current, ...page.events] : [...page.events])
       setNextCursor(page.nextCursor)
@@ -94,36 +102,81 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
     }
   }
 
+  function applyFilters() {
+    const query = currentQuery()
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  function resetFilters() {
+    setAction("")
+    setActorUserId("")
+    setResourceType("")
+    setResourceId("")
+    setDateRange(undefined)
+
+    const query = { limit: pageSize } satisfies AuditQuery
+    setAppliedQuery(query)
+    void load(query)
+  }
+
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Field>
-          <FieldLabel htmlFor="audit-action">Action</FieldLabel>
-          <Input id="audit-action" placeholder="user.update" value={action} onChange={(event) => setAction(event.target.value)} />
+      <DiagnosticsFilterBar
+        className="sm:grid-cols-2 xl:grid-cols-5"
+        loading={loading}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      >
+        <Field className="gap-1">
+          <FieldLabel htmlFor="audit-action" className="text-xs">Action</FieldLabel>
+          <Input
+            id="audit-action"
+            className="h-8"
+            placeholder="user.update"
+            value={action}
+            onChange={(event) => setAction(event.target.value)}
+          />
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="audit-actor">Actor user ID</FieldLabel>
-          <Input id="audit-actor" placeholder="UUID" value={actorUserId} onChange={(event) => setActorUserId(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="audit-actor" className="text-xs">Actor</FieldLabel>
+          <Input
+            id="audit-actor"
+            className="h-8"
+            placeholder="User UUID"
+            value={actorUserId}
+            onChange={(event) => setActorUserId(event.target.value)}
+          />
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="audit-resource-type">Resource type</FieldLabel>
-          <Input id="audit-resource-type" placeholder="user" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="audit-resource-type" className="text-xs">Resource type</FieldLabel>
+          <Input
+            id="audit-resource-type"
+            className="h-8"
+            placeholder="user"
+            value={resourceType}
+            onChange={(event) => setResourceType(event.target.value)}
+          />
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="audit-resource-id">Resource ID</FieldLabel>
-          <Input id="audit-resource-id" placeholder="UUID" value={resourceId} onChange={(event) => setResourceId(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="audit-resource-id" className="text-xs">Resource</FieldLabel>
+          <Input
+            id="audit-resource-id"
+            className="h-8"
+            placeholder="Resource UUID"
+            value={resourceId}
+            onChange={(event) => setResourceId(event.target.value)}
+          />
         </Field>
-      </div>
 
-      <div className="flex justify-end">
-        <Button variant="outline" disabled={loading} onClick={() => void load()}>
-          {loading ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-          Apply filters
-        </Button>
-      </div>
+        <Field className="gap-1">
+          <FieldLabel className="text-xs">Date range</FieldLabel>
+          <DiagnosticsDateRangePicker value={dateRange} onChange={setDateRange} />
+        </Field>
+      </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
         <Table>
@@ -161,7 +214,11 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
           </TableBody>
         </Table>
 
-        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel
+          loading={loading}
+          hasMore={!!nextCursor}
+          onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+        />
       </div>
     </div>
   )
@@ -170,24 +227,26 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
 function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
   const [jobs, setJobs] = useState<JobDiagnostic[]>(() => [...initialPage.jobs])
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
+  const [appliedQuery, setAppliedQuery] = useState<JobsQuery>({ limit: pageSize })
   const [status, setStatus] = useState<JobStatus | "all">("all")
   const [type, setType] = useState("")
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
 
-  async function load(cursor?: string, append = false) {
+  function currentQuery() {
+    return {
+      limit: pageSize,
+      ...(status !== "all" ? { status } : {}),
+      ...(type.trim() ? { type: type.trim() } : {}),
+    } satisfies JobsQuery
+  }
+
+  async function load(query: JobsQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
 
     try {
-      const query = {
-        limit: pageSize,
-        ...(cursor ? { cursor } : {}),
-        ...(status !== "all" ? { status } : {}),
-        ...(type.trim() ? { type: type.trim() } : {}),
-      } satisfies JobsQuery
-
       const page = await apiJSON<JobPage>("/admin/jobs", { query })
       setJobs((current) => append ? [...current, ...page.jobs] : [...page.jobs])
       setNextCursor(page.nextCursor)
@@ -199,13 +258,33 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
     }
   }
 
+  function applyFilters() {
+    const query = currentQuery()
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  function resetFilters() {
+    setStatus("all")
+    setType("")
+
+    const query = { limit: pageSize } satisfies JobsQuery
+    setAppliedQuery(query)
+    void load(query)
+  }
+
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field>
-          <FieldLabel>Status</FieldLabel>
+      <DiagnosticsFilterBar
+        className="sm:grid-cols-2"
+        loading={loading}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      >
+        <Field className="gap-1">
+          <FieldLabel className="text-xs">Status</FieldLabel>
           <Select value={status} onValueChange={(value) => setStatus(value as JobStatus | "all")}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -219,18 +298,17 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
           </Select>
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="job-type">Job type</FieldLabel>
-          <Input id="job-type" placeholder="metadata.extract" value={type} onChange={(event) => setType(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="job-type" className="text-xs">Job type</FieldLabel>
+          <Input
+            id="job-type"
+            className="h-8"
+            placeholder="metadata.extract"
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+          />
         </Field>
-      </div>
-
-      <div className="flex justify-end">
-        <Button variant="outline" disabled={loading} onClick={() => void load()}>
-          {loading ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-          Apply filters
-        </Button>
-      </div>
+      </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
         <Table>
@@ -282,7 +360,11 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
           </TableBody>
         </Table>
 
-        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel
+          loading={loading}
+          hasMore={!!nextCursor}
+          onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+        />
       </div>
     </div>
   )
@@ -294,23 +376,25 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
   const [status, setStatus] = useState<UploadStatus | "all">("all")
   const [ownerUserId, setOwnerUserId] = useState("")
   const [actorUserId, setActorUserId] = useState("")
+  const [appliedQuery, setAppliedQuery] = useState<UploadDiagnosticsQuery>({ limit: pageSize })
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
 
-  async function load(cursor?: string, append = false) {
+  function currentQuery() {
+    return {
+      limit: pageSize,
+      ...(status !== "all" ? { status } : {}),
+      ...(ownerUserId.trim() ? { ownerUserId: ownerUserId.trim() } : {}),
+      ...(actorUserId.trim() ? { actorUserId: actorUserId.trim() } : {}),
+    } satisfies UploadDiagnosticsQuery
+  }
+
+  async function load(query: UploadDiagnosticsQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
 
     try {
-      const query = {
-        limit: pageSize,
-        ...(cursor ? { cursor } : {}),
-        ...(status !== "all" ? { status } : {}),
-        ...(ownerUserId.trim() ? { ownerUserId: ownerUserId.trim() } : {}),
-        ...(actorUserId.trim() ? { actorUserId: actorUserId.trim() } : {}),
-      } satisfies UploadDiagnosticsQuery
-
       const page = await apiJSON<UploadDiagnosticPage>("/admin/uploads", { query })
       setUploads((current) => append ? [...current, ...page.uploads] : [...page.uploads])
       setNextCursor(page.nextCursor)
@@ -322,13 +406,34 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
     }
   }
 
+  function applyFilters() {
+    const query = currentQuery()
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  function resetFilters() {
+    setStatus("all")
+    setOwnerUserId("")
+    setActorUserId("")
+
+    const query = { limit: pageSize } satisfies UploadDiagnosticsQuery
+    setAppliedQuery(query)
+    void load(query)
+  }
+
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-3">
-        <Field>
-          <FieldLabel>Status</FieldLabel>
+      <DiagnosticsFilterBar
+        className="sm:grid-cols-3"
+        loading={loading}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      >
+        <Field className="gap-1">
+          <FieldLabel className="text-xs">Status</FieldLabel>
           <Select value={status} onValueChange={(value) => setStatus(value as UploadStatus | "all")}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -343,23 +448,28 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
           </Select>
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="upload-owner">Owner user ID</FieldLabel>
-          <Input id="upload-owner" placeholder="UUID" value={ownerUserId} onChange={(event) => setOwnerUserId(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="upload-owner" className="text-xs">Owner</FieldLabel>
+          <Input
+            id="upload-owner"
+            className="h-8"
+            placeholder="User UUID"
+            value={ownerUserId}
+            onChange={(event) => setOwnerUserId(event.target.value)}
+          />
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="upload-actor">Actor user ID</FieldLabel>
-          <Input id="upload-actor" placeholder="UUID" value={actorUserId} onChange={(event) => setActorUserId(event.target.value)} />
+        <Field className="gap-1">
+          <FieldLabel htmlFor="upload-actor" className="text-xs">Actor</FieldLabel>
+          <Input
+            id="upload-actor"
+            className="h-8"
+            placeholder="User UUID"
+            value={actorUserId}
+            onChange={(event) => setActorUserId(event.target.value)}
+          />
         </Field>
-      </div>
-
-      <div className="flex justify-end">
-        <Button variant="outline" disabled={loading} onClick={() => void load()}>
-          {loading ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-          Apply filters
-        </Button>
-      </div>
+      </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
         <Table>
@@ -424,7 +534,11 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
           </TableBody>
         </Table>
 
-        <InfiniteScrollSentinel loading={loading} hasMore={!!nextCursor} onLoad={() => void load(nextCursor, true)} />
+        <InfiniteScrollSentinel
+          loading={loading}
+          hasMore={!!nextCursor}
+          onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+        />
       </div>
     </div>
   )
@@ -505,4 +619,16 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </Badge>
   )
+}
+
+function startOfLocalDayISO(date: Date) {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  return value.toISOString()
+}
+
+function endOfLocalDayISO(date: Date) {
+  const value = new Date(date)
+  value.setHours(23, 59, 59, 999)
+  return value.toISOString()
 }
