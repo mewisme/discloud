@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { apiJSON } from "@/lib/api/client"
 import type { AdminUser, CreateUserInput, QuotaReconciliationPage, ReconcileQuotaInput, ResetUserPasswordInput, SetUserQuotaInput, UpdateUserInput } from "@/lib/api/models"
@@ -121,7 +122,6 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
             <Field>
               <FieldLabel htmlFor="admin-create-quota">Quota (GiB)</FieldLabel>
               <Input id="admin-create-quota" type="number" min="0" step="10" placeholder="Unlimited" value={quotaGiB} disabled={pending} onChange={(event) => setQuotaGiB(event.target.value)} />
-              <FieldDescription>Leave empty for unlimited storage.</FieldDescription>
             </Field>
           </div>
         </FieldGroup>
@@ -304,7 +304,7 @@ export function ManageUserDialog({
           <DialogDescription>Update account access, storage quota, and authentication settings.</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+        <ScrollArea className="max-h-[70vh] space-y-6 pr-1">
           <section className="space-y-4">
             <div>
               <h3 className="text-sm font-semibold">Account</h3>
@@ -415,7 +415,7 @@ export function ManageUserDialog({
 
             {self && <p className="text-xs text-muted-foreground">The current administrator account cannot be disabled here.</p>}
           </section>
-        </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>Close</Button>
