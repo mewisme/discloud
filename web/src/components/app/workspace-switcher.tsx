@@ -1,13 +1,14 @@
 "use client"
 
-import { CheckIcon, ChevronsUpDownIcon, FolderRootIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, FolderRootIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { useWorkspace } from "@/components/app/workspace-context"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useSidebar } from "@/components/ui/sidebar"
 import { APIError } from "@/lib/api/types"
@@ -29,6 +30,7 @@ export function WorkspaceSwitcher() {
   const [loaded, setLoaded] = useState(false)
   const [reloadVersion, setReloadVersion] = useState(0)
   const [error, setError] = useState<string>()
+  const viewingOtherWorkspace = currentUser.role === "admin" && workspace.username !== currentUser.username
 
   useEffect(() => {
     if (!open || loaded || currentUser.role !== "admin") return
@@ -66,11 +68,7 @@ export function WorkspaceSwitcher() {
     }
 
     const relative = workspaceRelativePath(pathname, workspace.username)
-    let suffix = relative ?? "/"
-
-    if (suffix.startsWith("/folders/") || suffix.startsWith("/files/")) suffix = "/"
-    else if (suffix.startsWith("/collections/") && suffix !== "/collections") suffix = "/collections"
-
+    const suffix = switchableWorkspaceSuffix(relative)
     const path = workspacePath(username, suffix)
     const preserveQuery = suffix === relative && searchParams.size > 0
     const href = preserveQuery ? `${path}?${searchParams.toString()}` : path
@@ -78,6 +76,12 @@ export function WorkspaceSwitcher() {
     setOpen(false)
     setOpenMobile(false)
     router.push(href)
+  }
+
+  function returnToMyWorkspace() {
+    setOpen(false)
+    setOpenMobile(false)
+    router.push(workspacePath(currentUser.username))
   }
 
   function retry() {
@@ -88,9 +92,12 @@ export function WorkspaceSwitcher() {
 
   if (currentUser.role !== "admin") {
     return (
-      <div className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm group-data-[collapsible=icon]:justify-center">
+      <div className="flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
         <FolderRootIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate group-data-[collapsible=icon]:hidden">{workspace.name}</span>
+        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <p className="truncate text-sm font-medium">{workspace.name}</p>
+          <p className="truncate text-xs text-muted-foreground">@{workspace.username}</p>
+        </div>
       </div>
     )
   }
@@ -98,11 +105,21 @@ export function WorkspaceSwitcher() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className="h-9 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center">
+        <Button variant="ghost" className="h-auto min-h-11 w-full justify-start gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
           <FolderRootIcon className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
-            {workspace.name}
-          </span>
+
+          <div className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-medium">{workspace.name}</span>
+              {viewingOtherWorkspace && (
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
+                  Admin view
+                </Badge>
+              )}
+            </div>
+            <span className="block truncate text-xs font-normal text-muted-foreground">@{workspace.username}</span>
+          </div>
+
           <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </Button>
       </PopoverTrigger>
@@ -112,6 +129,25 @@ export function WorkspaceSwitcher() {
           <CommandInput placeholder="Search workspaces…" />
 
           <CommandList>
+            {viewingOtherWorkspace && (
+              <>
+                <CommandGroup heading="Admin">
+                  <CommandItem value={`return my workspace ${currentUser.name} ${currentUser.username}`} onSelect={returnToMyWorkspace}>
+                    <ArrowLeftIcon />
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">Return to my workspace</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {currentUser.name} · @{currentUser.username}
+                      </p>
+                    </div>
+                  </CommandItem>
+                </CommandGroup>
+
+                <CommandSeparator />
+              </>
+            )}
+
             {loading && (
               <CommandItem disabled>
                 <Loader2Icon className="animate-spin" />
@@ -156,4 +192,11 @@ export function WorkspaceSwitcher() {
       </PopoverContent>
     </Popover>
   )
+}
+
+function switchableWorkspaceSuffix(relative: string | null) {
+  if (!relative || relative === "/") return "/"
+  if (relative === "/search" || relative === "/favorites" || relative === "/shared" || relative === "/trash") return relative
+  if (relative === "/collections" || relative.startsWith("/collections/")) return "/collections"
+  return "/"
 }
