@@ -199,19 +199,32 @@ export function NodeActionsMenu({
       {renameOpen && <RenameNodeDialog node={node} open onOpenChange={setRenameOpen} onReload={onReload} />}
 
       {moveOpen && (
-        <MoveNodeDialog
-          node={node}
+        <MoveNodesDialog
+          nodes={[node]}
           folder={folder}
           breadcrumbs={breadcrumbs}
           initialPage={page}
           options={options}
           open
           onOpenChange={setMoveOpen}
-          onMoved={onMoved}
+          onMoved={(nodeIds) => nodeIds.forEach(onMoved)}
         />
       )}
 
-      {trashOpen && <TrashNodeDialog node={node} open onOpenChange={setTrashOpen} onReload={onReload} />}
+      {trashOpen && (
+        <TrashNodesDialog
+          nodes={[node]}
+          open
+          onOpenChange={setTrashOpen}
+          onTrashed={async () => {
+            try {
+              await onReload()
+            } catch {
+              toast.error("Moved to trash, but the browser could not refresh")
+            }
+          }}
+        />
+      )}
 
       {canPublicShare && (
         <PublicShareDialog
@@ -280,10 +293,22 @@ function RenameNodeDialog({ node, open, onOpenChange, onReload }: { node: Browse
   )
 }
 
-function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: BrowserNode; open: boolean; onOpenChange: (open: boolean) => void; onReload: Reload }) {
+export function TrashNodesDialog({
+  nodes,
+  open,
+  onOpenChange,
+  onTrashed,
+}: {
+  nodes: readonly BrowserNode[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onTrashed: (nodeIds: readonly string[]) => void | Promise<void>
+}) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+  const count = nodes.length
+  const single = count === 1 ? nodes[0] : undefined
 
   function changeOpen(next: boolean) {
     if (pending) return
@@ -292,23 +317,39 @@ function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: Browser
   }
 
   async function trash() {
+    if (!nodes.length || pending) return
+
+    const targets = [...nodes]
     setPending(true)
     setError(undefined)
 
     try {
-      const id = encodeURIComponent(node.id)
-      const path = node.kind === "folder" ? `/api/v1/folders/${id}` : `/api/v1/files/${id}`
-      await apiJSON<void>(path, { method: "DELETE" })
-      onOpenChange(false)
-      toast.success(`${node.name} moved to trash`)
-      try {
-        await onReload()
-      } catch {
-        toast.error("Moved to trash, but the browser could not refresh")
+      const { successful, errors } = await runNodeOperations(targets, (node) => {
+        const id = encodeURIComponent(node.id)
+        const path = node.kind === "folder" ? `/api/v1/folders/${id}` : `/api/v1/files/${id}`
+        return apiJSON<void>(path, { method: "DELETE" })
+      })
+
+      if (successful.length) await onTrashed(successful)
+
+      if (errors.some((cause) => cause instanceof APIError && cause.status === 401)) {
+        router.replace("/login")
+        router.refresh()
+        return
       }
+
+      if (errors.length) {
+        setError(
+          errors.length === 1
+            ? apiErrorMessage(errors[0], "Could not move this item to trash.")
+            : `${errors.length} of ${targets.length} items could not be moved to trash.`,
+        )
+        return
+      }
+
+      onOpenChange(false)
+      toast.success(single ? `${single.name} moved to trash` : `${targets.length} items moved to trash`)
       router.refresh()
-    } catch (cause) {
-      setError(apiErrorMessage(cause, "Could not move this item to trash."))
     } finally {
       setPending(false)
     }
@@ -321,11 +362,15 @@ function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: Browser
           <AlertDialogMedia>
             <Trash2Icon />
           </AlertDialogMedia>
-          <AlertDialogTitle>Move {node.name} to trash?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {single ? `Move ${single.name} to trash?` : `Move ${count} items to trash?`}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {node.kind === "folder"
+            {single?.kind === "folder"
               ? "The folder and its contents will disappear from Files. You can restore the folder from Trash."
-              : "The file will disappear from Files. You can restore it from Trash."}
+              : single
+                ? "The file will disappear from Files. You can restore it from Trash."
+                : "The selected items will disappear from Files. Selected folders include their contents. You can restore them from Trash."}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -333,9 +378,9 @@ function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: Browser
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <Button variant="destructive" disabled={pending} onClick={() => void trash()}>
+          <Button variant="destructive" disabled={!nodes.length || pending} onClick={() => void trash()}>
             {pending && <Loader2Icon className="animate-spin" />}
-            Move to trash
+            {single ? "Move to trash" : `Move ${count} items to trash`}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -343,8 +388,8 @@ function TrashNodeDialog({ node, open, onOpenChange, onReload }: { node: Browser
   )
 }
 
-function MoveNodeDialog({
-  node,
+export function MoveNodesDialog({
+  nodes,
   folder,
   breadcrumbs,
   initialPage,
@@ -353,14 +398,14 @@ function MoveNodeDialog({
   onOpenChange,
   onMoved,
 }: {
-  node: BrowserNode
+  nodes: readonly BrowserNode[]
   folder: Node
   breadcrumbs: readonly Node[]
   initialPage: NodePage
   options: BrowserOptions
   open: boolean
   onOpenChange: (open: boolean) => void
-  onMoved: (nodeId: string) => void
+  onMoved: (nodeIds: readonly string[]) => void
 }) {
   const router = useRouter()
   const [path, setPath] = useState<Node[]>(() => [...breadcrumbs])
@@ -371,8 +416,17 @@ function MoveNodeDialog({
   const [moving, setMoving] = useState(false)
   const [error, setError] = useState<string>()
   const current = path[path.length - 1] ?? folder
-  const folders = page.nodes.filter((item) => item.kind === "folder" && item.id !== node.id && item.ownerUserId === node.ownerUserId)
-  const canMoveHere = page.accessLevel !== "view" && current.ownerUserId === node.ownerUserId && current.id !== node.id && current.id !== node.parentId
+  const ownerUserId = nodes[0]?.ownerUserId
+  const selectedIds = new Set(nodes.map((node) => node.id))
+  const sameOwner = !!ownerUserId && nodes.every((node) => node.ownerUserId === ownerUserId)
+  const editable = nodes.length > 0 && nodes.every((node) => node.accessLevel !== "view")
+  const folders = page.nodes.filter((item) => item.kind === "folder" && !selectedIds.has(item.id) && item.ownerUserId === ownerUserId)
+  const canMoveHere = editable
+    && sameOwner
+    && page.accessLevel !== "view"
+    && current.ownerUserId === ownerUserId
+    && nodes.every((node) => current.id !== node.id && current.id !== node.parentId)
+  const single = nodes.length === 1 ? nodes[0] : undefined
 
   async function navigate(target: Node, pathIndex?: number) {
     if (loading) return
@@ -392,6 +446,7 @@ function MoveNodeDialog({
         router.refresh()
         return
       }
+
       setError(apiErrorMessage(cause, "Could not open this folder."))
     } finally {
       setLoading(false)
@@ -405,7 +460,11 @@ function MoveNodeDialog({
     try {
       const query = { limit: 100, sort, order, cursor: page.nextCursor } satisfies FolderChildrenQuery
       const next = await apiJSON<NodePage>(`/api/v1/folders/${current.id}/children`, { query })
-      setPage((currentPage) => ({ ...next, nodes: [...currentPage.nodes, ...next.nodes] }))
+
+      setPage((currentPage) => ({
+        ...next,
+        nodes: appendUniqueNodes(currentPage.nodes, next.nodes),
+      }))
     } catch (cause) {
       setError(apiErrorMessage(cause, "Could not load more folders."))
     } finally {
@@ -415,32 +474,49 @@ function MoveNodeDialog({
 
   async function move() {
     if (!canMoveHere || moving) return
+
+    const targets = [...nodes]
     setMoving(true)
     setError(undefined)
 
     try {
       const input: UpdateNodeInput = { parentId: current.id }
-      await apiJSON<Node>(`/api/v1/nodes/${node.id}`, { method: "PATCH", body: input })
-      onMoved(node.id)
-      onOpenChange(false)
-      toast.success(`${node.name} moved`)
-    } catch (cause) {
-      if (cause instanceof APIError && cause.status === 401) {
+      const { successful, errors } = await runNodeOperations(
+        targets,
+        (node) => apiJSON<Node>(`/api/v1/nodes/${node.id}`, { method: "PATCH", body: input }),
+      )
+
+      if (successful.length) onMoved(successful)
+
+      if (errors.some((cause) => cause instanceof APIError && cause.status === 401)) {
         router.replace("/login")
         router.refresh()
         return
       }
-      setError(apiErrorMessage(cause, "Could not move this item."))
+
+      if (errors.length) {
+        setError(
+          errors.length === 1
+            ? apiErrorMessage(errors[0], "Could not move this item.")
+            : `${errors.length} of ${targets.length} items could not be moved.`,
+        )
+        return
+      }
+
+      onOpenChange(false)
+      toast.success(single ? `${single.name} moved` : `${targets.length} items moved`)
     } finally {
       setMoving(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => {
+      if (!moving) onOpenChange(next)
+    }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Move {node.name}</DialogTitle>
+          <DialogTitle>{single ? `Move ${single.name}` : `Move ${nodes.length} items`}</DialogTitle>
           <DialogDescription>Choose another folder in the same ownership domain.</DialogDescription>
         </DialogHeader>
 
@@ -450,6 +526,7 @@ function MoveNodeDialog({
           <BreadcrumbList>
             {path.map((item, index) => {
               const active = index === path.length - 1
+
               return (
                 <Fragment key={item.id}>
                   {index > 0 && <BreadcrumbSeparator />}
@@ -458,7 +535,9 @@ function MoveNodeDialog({
                       <BreadcrumbPage>{item.isRoot ? "Files" : item.name}</BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink asChild>
-                        <button type="button" disabled={loading} onClick={() => void navigate(item, index)}>{item.isRoot ? "Files" : item.name}</button>
+                        <button type="button" disabled={loading || moving} onClick={() => void navigate(item, index)}>
+                          {item.isRoot ? "Files" : item.name}
+                        </button>
                       </BreadcrumbLink>
                     )}
                   </BreadcrumbItem>
@@ -478,7 +557,7 @@ function MoveNodeDialog({
             <div className="grid h-28 place-items-center text-sm text-muted-foreground">No child folders here.</div>
           ) : (
             folders.map((item) => (
-              <Button key={item.id} type="button" variant="ghost" className="w-full justify-start" disabled={loading} onClick={() => void navigate(item)}>
+              <Button key={item.id} type="button" variant="ghost" className="w-full justify-start" disabled={loading || moving} onClick={() => void navigate(item)}>
                 <FolderIcon />
                 <span className="truncate">{item.name}</span>
                 <ChevronRightIcon className="ml-auto" />
@@ -487,7 +566,7 @@ function MoveNodeDialog({
           )}
 
           {page.nextCursor && (
-            <Button type="button" variant="ghost" className="w-full" disabled={loading} onClick={() => void loadMore()}>
+            <Button type="button" variant="ghost" className="w-full" disabled={loading || moving} onClick={() => void loadMore()}>
               {loading && <Loader2Icon className="animate-spin" />}
               Load more
             </Button>
@@ -496,7 +575,15 @@ function MoveNodeDialog({
 
         {!canMoveHere && (
           <p className="text-xs text-muted-foreground">
-            {current.id === node.parentId ? "This item is already in this folder." : page.accessLevel === "view" ? "You only have view access to this folder." : "This folder cannot be used as the destination."}
+            {!sameOwner
+              ? "All selected items must belong to the same owner."
+              : !editable
+                ? "You do not have permission to move every selected item."
+                : nodes.some((node) => node.parentId === current.id)
+                  ? "The selected items are already in this folder."
+                  : page.accessLevel === "view"
+                    ? "You only have view access to this folder."
+                    : "This folder cannot be used as the destination."}
           </p>
         )}
 
@@ -504,12 +591,37 @@ function MoveNodeDialog({
           <Button type="button" variant="outline" disabled={moving} onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="button" disabled={!canMoveHere || moving} onClick={() => void move()}>
             {moving && <Loader2Icon className="animate-spin" />}
-            Move here
+            {single ? "Move here" : `Move ${nodes.length} items here`}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
+}
+
+async function runNodeOperations(
+  nodes: readonly BrowserNode[],
+  operation: (node: BrowserNode) => Promise<unknown>,
+) {
+  const successful: string[] = []
+  const errors: unknown[] = []
+
+  for (let index = 0; index < nodes.length; index += 8) {
+    const batch = nodes.slice(index, index + 8)
+    const results = await Promise.allSettled(batch.map(operation))
+
+    results.forEach((result, offset) => {
+      if (result.status === "fulfilled") successful.push(batch[offset].id)
+      else errors.push(result.reason)
+    })
+  }
+
+  return { successful, errors }
+}
+
+function appendUniqueNodes(current: readonly BrowserNode[], incoming: readonly BrowserNode[]) {
+  const ids = new Set(current.map((node) => node.id))
+  return [...current, ...incoming.filter((node) => !ids.has(node.id))]
 }
 
 function ErrorAlert({ message }: { message: string }) {
