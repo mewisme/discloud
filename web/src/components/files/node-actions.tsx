@@ -240,7 +240,7 @@ export function NodeActionsMenu({
   )
 }
 
-function RenameNodeDialog({ node, open, onOpenChange, onReload }: { node: BrowserNode; open: boolean; onOpenChange: (open: boolean) => void; onReload: Reload }) {
+export function RenameNodeDialog({ node, open, onOpenChange, onReload }: { node: BrowserNode; open: boolean; onOpenChange: (open: boolean) => void; onReload: Reload }) {
   const [formError, setFormError] = useState<string>()
   const form = useForm<NameValues>({ resolver: zodResolver(nameFormSchema), defaultValues: { name: node.name } })
 

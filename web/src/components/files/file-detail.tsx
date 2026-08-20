@@ -38,11 +38,6 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{file.name}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span>{formatBytes(file.size)}</span>
-                <span aria-hidden>·</span>
-                <span className="truncate">{file.mimeType}</span>
-              </div>
             </div>
           </div>
         </div>

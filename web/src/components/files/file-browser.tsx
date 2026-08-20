@@ -38,8 +38,8 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
   const [tableLoading, setTableLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [favoritePending, setFavoritePending] = useState(false)
-  const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
-  const [bulkTrashOpen, setBulkTrashOpen] = useState(false)
+  const [moveTargets, setMoveTargets] = useState<BrowserNode[]>()
+  const [trashTargets, setTrashTargets] = useState<BrowserNode[]>()
   const mainController = useRef<AbortController | null>(null)
   const moreController = useRef<AbortController | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -259,8 +259,8 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
     }
   }
 
-  async function setSelectedFavorite(favorite: boolean) {
-    const targets = selectedNodes.filter((node) => node.canFavorite && node.isFavorite !== favorite)
+  async function setNodesFavorite(source: readonly BrowserNode[], favorite: boolean) {
+    const targets = source.filter((node) => node.canFavorite && node.isFavorite !== favorite)
     if (!targets.length || favoritePending) return
 
     setFavoritePending(true)
@@ -299,7 +299,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
   return (
     <FileUploadTarget folderId={folder.id} disabled={accessLevel === "view"}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <div className={`mx-auto flex w-full max-w-7xl flex-col gap-5 ${selectedNodes.length > 0 ? "pb-28" : ""}`}>
         <FileBrowserChrome
           folder={folder}
           breadcrumbs={breadcrumbs}
@@ -314,107 +314,130 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
         />
 
         {selectedNodes.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-            <span className="mr-auto whitespace-nowrap text-sm font-medium">{selectedNodes.length} selected</span>
+          <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3">
+            <div
+              role="toolbar"
+              aria-label="Selected file actions"
+              className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+            >
+              <span className="whitespace-nowrap px-2 text-sm font-medium">
+                {selectedNodes.length} selected
+              </span>
 
-            <div className="hidden flex-wrap items-center gap-2 sm:flex">
-              {bulkCanMove && (
-                <Button size="sm" variant="outline" disabled={favoritePending} onClick={() => setBulkMoveOpen(true)}>
-                  <MoveIcon />
-                  Move
-                </Button>
-              )}
+              <div className="hidden h-5 w-px bg-border sm:block" />
 
-              {bulkCanFavorite && (
-                <Button size="sm" variant="outline" disabled={favoritePending} onClick={() => void setSelectedFavorite(true)}>
-                  {favoritePending ? <Loader2Icon className="animate-spin" /> : <StarIcon />}
-                  Favorite
-                </Button>
-              )}
-
-              {bulkCanUnfavorite && (
-                <Button size="sm" variant="outline" disabled={favoritePending} onClick={() => void setSelectedFavorite(false)}>
-                  {favoritePending ? <Loader2Icon className="animate-spin" /> : <StarOffIcon />}
-                  Unfavorite
-                </Button>
-              )}
-
-              {bulkCanTrash && (
-                <Button size="sm" variant="destructive" disabled={favoritePending} onClick={() => setBulkTrashOpen(true)}>
-                  <Trash2Icon />
-                  Trash
-                </Button>
-              )}
-            </div>
-
-            {hasBulkActions && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="sm:hidden" disabled={favoritePending}>
-                    <MoreHorizontalIcon />
-                    Actions
+              <div className="hidden items-center gap-1 sm:flex">
+                {bulkCanMove && (
+                  <Button size="sm" variant="ghost" disabled={favoritePending} onClick={() => setMoveTargets(selectedNodes)}>
+                    <MoveIcon />
+                    Move
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {bulkCanMove && (
-                    <DropdownMenuItem onSelect={() => setBulkMoveOpen(true)}>
-                      <MoveIcon />
-                      Move
-                    </DropdownMenuItem>
-                  )}
+                )}
 
-                  {bulkCanFavorite && (
-                    <DropdownMenuItem onSelect={() => void setSelectedFavorite(true)}>
-                      <StarIcon />
-                      Add to favorites
-                    </DropdownMenuItem>
-                  )}
+                {bulkCanFavorite && (
+                  <Button size="sm" variant="ghost" disabled={favoritePending} onClick={() => void setNodesFavorite(selectedNodes, true)}>
+                    {favoritePending ? <Loader2Icon className="animate-spin" /> : <StarIcon />}
+                    Favorite
+                  </Button>
+                )}
 
-                  {bulkCanUnfavorite && (
-                    <DropdownMenuItem onSelect={() => void setSelectedFavorite(false)}>
-                      <StarOffIcon />
-                      Remove from favorites
-                    </DropdownMenuItem>
-                  )}
+                {bulkCanUnfavorite && (
+                  <Button size="sm" variant="ghost" disabled={favoritePending} onClick={() => void setNodesFavorite(selectedNodes, false)}>
+                    {favoritePending ? <Loader2Icon className="animate-spin" /> : <StarOffIcon />}
+                    Unfavorite
+                  </Button>
+                )}
 
-                  {bulkCanTrash && (
-                    <>
-                      {(bulkCanMove || bulkCanFavorite || bulkCanUnfavorite) && <DropdownMenuSeparator />}
-                      <DropdownMenuItem variant="destructive" onSelect={() => setBulkTrashOpen(true)}>
-                        <Trash2Icon />
-                        Move to trash
+                {bulkCanTrash && (
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={favoritePending} onClick={() => setTrashTargets(selectedNodes)}>
+                    <Trash2Icon />
+                    Trash
+                  </Button>
+                )}
+              </div>
+
+              {hasBulkActions && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="ghost" className="sm:hidden" disabled={favoritePending}>
+                      <MoreHorizontalIcon />
+                      Actions
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent align="end">
+                    {bulkCanMove && (
+                      <DropdownMenuItem onSelect={() => setMoveTargets(selectedNodes)}>
+                        <MoveIcon />
+                        Move
                       </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                    )}
 
-            <Button size="sm" variant="ghost" disabled={favoritePending} onClick={() => setSelected(new Set())}>
-              <XIcon />
-              <span className="hidden sm:inline">Clear</span>
-            </Button>
+                    {bulkCanFavorite && (
+                      <DropdownMenuItem onSelect={() => void setNodesFavorite(selectedNodes, true)}>
+                        <StarIcon />
+                        Add to favorites
+                      </DropdownMenuItem>
+                    )}
+
+                    {bulkCanUnfavorite && (
+                      <DropdownMenuItem onSelect={() => void setNodesFavorite(selectedNodes, false)}>
+                        <StarOffIcon />
+                        Remove from favorites
+                      </DropdownMenuItem>
+                    )}
+
+                    {bulkCanTrash && (
+                      <>
+                        {(bulkCanMove || bulkCanFavorite || bulkCanUnfavorite) && <DropdownMenuSeparator />}
+                        <DropdownMenuItem variant="destructive" onSelect={() => setTrashTargets(selectedNodes)}>
+                          <Trash2Icon />
+                          Move to trash
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              <div className="h-5 w-px bg-border" />
+
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                disabled={favoritePending}
+                aria-label="Clear selection"
+                title="Clear selection"
+                onClick={() => setSelected(new Set())}
+              >
+                <XIcon />
+              </Button>
+            </div>
           </div>
         )}
 
-        {bulkMoveOpen && (
+        {moveTargets && (
           <MoveNodesDialog
-            nodes={selectedNodes}
+            nodes={moveTargets}
             folder={folder}
             breadcrumbs={breadcrumbs}
             initialPage={currentPage}
             options={options}
             open
-            onOpenChange={setBulkMoveOpen}
+            onOpenChange={(open) => {
+              if (!open) setMoveTargets(undefined)
+            }}
             onMoved={removeNodes}
           />
         )}
 
-        {bulkTrashOpen && (
+        {trashTargets && (
           <TrashNodesDialog
-            nodes={selectedNodes}
+            nodes={trashTargets}
             open
-            onOpenChange={setBulkTrashOpen}
+            onOpenChange={(open) => {
+              if (!open) setTrashTargets(undefined)
+            }}
             onTrashed={removeNodes}
           />
         )}
@@ -427,9 +450,13 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
           options={options}
           selected={selected}
           loading={tableLoading}
+          favoritePending={favoritePending}
           onNavigate={(folderId) => void navigateFolder(folderId)}
           onSelect={select}
           onSelectAll={selectAll}
+          onMoveTargets={(targets) => setMoveTargets([...targets])}
+          onTrashTargets={(targets) => setTrashTargets([...targets])}
+          onFavoriteTargets={setNodesFavorite}
           onFavorite={setFavorite}
           onMoved={moved}
           onReload={reloadChildren}
