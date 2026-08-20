@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { type UploadTask,useUploads } from "@/components/uploads/upload-provider"
+import { type UploadTask, useUploads } from "@/components/uploads/upload-provider"
 import { formatBytes } from "@/lib/helpers"
 
 export function UploadManager() {
@@ -18,6 +18,8 @@ export function UploadManager() {
   if (!tasks.length) return null
 
   const active = tasks.filter(isActive).length
+  const skipped = tasks.filter((task) => task.status === "skipped")
+  const finished = tasks.filter((task) => task.status === "completed" || task.status === "skipped")
   const failed = tasks.filter((task) => task.status === "error")
   const completed = tasks.filter((task) => task.status === "completed")
   const cancellable = tasks.filter(canCancelTask)
@@ -233,7 +235,10 @@ function canCancelTask(task: UploadTask) {
 }
 
 function canRemoveTask(task: UploadTask) {
-  return task.status === "completed" || task.status === "cancelled" || task.status === "error" && !task.sessionId
+  return task.status === "completed"
+    || task.status === "skipped"
+    || task.status === "cancelled"
+    || task.status === "error" && !task.sessionId
 }
 
 function statusLabel(task: UploadTask) {
@@ -245,6 +250,7 @@ function statusLabel(task: UploadTask) {
     case "completed": return "Complete"
     case "cancelling": return "Cancelling"
     case "cancelled": return "Cancelled"
+    case "skipped": return "Skipped"
     default: return "Failed"
   }
 }

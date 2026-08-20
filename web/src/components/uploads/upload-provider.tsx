@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { apiJSON } from "@/lib/api/client"
 import { APIError } from "@/lib/api/types"
+import { isFileAlreadyExistsError, type PlannedUploadFile, planUploadFiles } from "@/lib/uploads/folder"
 import { uploadFile, withUploadSlot } from "@/lib/uploads/upload"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
@@ -15,12 +16,14 @@ export type UploadCompletedDetail = {
   folderId: string
 }
 
-export type UploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "error" | "cancelling" | "cancelled"
+export type UploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "skipped" | "error" | "cancelling" | "cancelled"
 
 export type UploadTask = {
   id: string
   file: File
   folderId: string
+  relativePath?: string
+  skipExisting?: boolean
   sessionId?: string
   status: UploadTaskStatus
   uploadedBytes: number
@@ -91,6 +94,11 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const current = taskById(task.id)
       if (current?.status === "cancelling" || current?.status === "cancelled") return
 
+      if (task.skipExisting && isFileAlreadyExistsError(error)) {
+        patchTask(task.id, { status: "skipped", uploadedBytes: 0, error: undefined })
+        return
+      }
+
       if (error instanceof APIError && error.status === 401) {
         router.replace("/login")
         router.refresh()
@@ -104,13 +112,34 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
   function addFiles(folderId: string, files: readonly File[]) {
     if (!files.length) return
+    void prepareFiles(folderId, files)
+  }
 
-    const known = new Set(tasksRef.current.filter((task) => task.status !== "completed" && task.status !== "cancelled").map((task) => `${task.folderId}\0${task.file.name}`))
+  async function prepareFiles(folderId: string, files: readonly File[]) {
+    try {
+      const plan = await planUploadFiles(folderId, files)
+      if (plan.createdFolders > 0) notifyCompleted(folderId)
+      enqueueFiles(plan.files)
+    } catch (error) {
+      if (error instanceof APIError && error.status === 401) {
+        router.replace("/login")
+        router.refresh()
+      }
+      toast.error(uploadErrorMessage(error))
+    }
+  }
+
+  function enqueueFiles(files: readonly PlannedUploadFile[]) {
+    const known = new Set(
+      tasksRef.current
+        .filter((task) => !["completed", "cancelled", "skipped"].includes(task.status))
+        .map((task) => `${task.folderId}\0${task.file.name}`),
+    )
     const additions: UploadTask[] = []
     let skipped = 0
 
-    for (const file of files) {
-      const key = `${folderId}\0${file.name}`
+    for (const planned of files) {
+      const key = `${planned.folderId}\0${planned.file.name}`
       if (known.has(key)) {
         skipped++
         continue
@@ -119,8 +148,10 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       known.add(key)
       additions.push({
         id: crypto.randomUUID(),
-        file,
-        folderId,
+        file: planned.file,
+        folderId: planned.folderId,
+        ...(planned.relativePath !== planned.file.name ? { relativePath: planned.relativePath } : {}),
+        ...(planned.skipExisting ? { skipExisting: true } : {}),
         status: "queued",
         uploadedBytes: 0,
       })
@@ -158,7 +189,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       patchTask(taskId, { status: "cancelled" })
       return
     }
-    if (!task.sessionId || task.status === "completed" || task.status === "cancelled" || task.status === "finalizing") return
+    if (!task.sessionId || task.status === "completed" || task.status === "skipped" || task.status === "cancelled" || task.status === "finalizing") return
 
     patchTask(taskId, { status: "cancelling", error: undefined })
     controllers.current.get(taskId)?.abort(new DOMException("Upload cancelled", "AbortError"))
@@ -179,7 +210,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   function remove(taskId: string) {
     const task = taskById(taskId)
     if (!task) return
-    if (task.status !== "completed" && task.status !== "cancelled" && !(task.status === "error" && !task.sessionId)) return
+    if (!["completed", "skipped", "cancelled"].includes(task.status) && !(task.status === "error" && !task.sessionId)) return
 
     const next = tasksRef.current.filter((item) => item.id !== taskId)
     tasksRef.current = next

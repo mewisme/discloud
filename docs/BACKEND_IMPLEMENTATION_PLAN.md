@@ -269,7 +269,7 @@ Important invariants retained from the original design:
 - [x] Nested-folder archive integration tests.
 - [x] Multi-selection archive/download support where exposed.
 
-**Current note:** backend folder-tree primitives are present, including batch folder creation and recursive folder download. The remaining folder-upload gap discussed during web development is a **web-client orchestration gap**, not absence of the backend Phase 10 foundation.
+**Current note:** backend folder-tree primitives are present and merge-safe for Web V1 folder upload orchestration. Batch folder creation idempotently resolves an existing folder at the same parent/name and returns `created: false`, allowing missing descendants to continue being created. Upload-session creation also distinguishes an already-existing file from a structural folder/name collision so the web client can skip existing files without masking incompatible node kinds.
 
 ## Phase 11 — Trash, Soft Delete & Restore
 
@@ -426,6 +426,7 @@ These capabilities were added **after the original Phase 0–17 roadmap** while 
 - 🧭 Exact active-user lookup used by ACL assignment UI without exposing a browsable user directory to normal users.
 - 🧭 Folder child-listing contract refinements for sorting/pagination/browser UX.
 - 🧭 OpenAPI error catalog kept in sync with newly added operations.
+- 🧭 Upload conflict classification distinguishes an already-existing file from a structural name/type conflict for merge-safe folder upload orchestration; the HTTP status remains `409`, so the existing OpenAPI operation/status contract is preserved.
 
 ## 6.2 Direct objects, avatars and thumbnail infrastructure
 

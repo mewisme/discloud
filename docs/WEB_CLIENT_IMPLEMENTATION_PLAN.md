@@ -283,7 +283,18 @@ The conversation progression and implementation history have already passed the 
 - [x] **Phase 15 — Trash & restore**
 - [x] **Phase 16 — Account & admin console** — implemented as sub-batches **16A admin foundation** and **16B extended admin/diagnostics**.
 
-### Important Phase 9 carry-over
+### Important Phase 9 carry-over — resolved during Phase 17
+
+The Web V1 folder-tree upload carry-over is implemented. Local relative paths are preserved, the backend batch-folder primitive is used to create or resolve nested folders, and each file is routed to its resolved destination folder.
+
+Folder uploads use merge semantics:
+
+- Existing folders at the same relative path are reused rather than treated as failures.
+- Missing folders and subtrees are created.
+- Existing server-only children remain untouched.
+- Files already present at the same resolved path are skipped.
+- File-vs-folder structural collisions remain explicit conflicts rather than being silently skipped.
+- Existing resumable upload/chunk concurrency remains the file-transfer mechanism after folder resolution.
 
 The original Phase 9 exit criteria explicitly covered small/large/multi-file upload, and that phase is therefore considered closed. However, the broader product requirements also expect **complete local folder-tree upload**. The current web uploader still maps each selected `File` to one destination `folderId`; it does not yet preserve `webkitRelativePath`/relative paths and recreate the nested tree.
 
@@ -341,16 +352,17 @@ reuse current resumable UploadProvider for each file
 - [x] LineNav for multi-section settings pages.
 - [x] SelectGroup + SelectLabel convention; SelectSeparator only between meaningful semantic groups.
 - [x] Command palette/navigation improvements.
+- [x] File Browser drag-and-drop feedback uses a full-AppShell viewport overlay with an explicitly viewport-centered gated drop zone and subtle active-state scaling.
+- [x] Advanced upload-manager UX: compact table, task multi-select, cancel selected/all, retry selected/all failed, clear finished tasks and active/error/skipped counters.
+- [x] Folder-tree upload preserves relative paths, merges existing directory structure, creates missing descendants and skips already-present files without overwriting.
 
 ### 5.3 Remaining Phase 17 backlog
 
-- [ ] Advanced upload-manager UX: compact list/table, task multi-select, Cancel selected/all, Retry failed/selected/all where sensible, Clear completed and concise active/error counters.
 - [ ] Final app-wide focus-management pass, including focus restore after dialogs and keyboard order.
 - [ ] Final accessible-dialog/form and screen-reader announcement pass.
 - [ ] Explicit offline/network-loss messaging where it improves recovery.
 - [ ] Final large-list strategy review; add virtualization only if representative data proves it is needed.
 - [ ] Normalize remaining Select usages to SelectGroup/SelectLabel conventions.
-- [ ] Resolve the folder-tree upload carry-over or explicitly move it into the Phase 18 Web V1 release-blocker checklist.
 
 ### 5.4 Phase 17 exit gate
 

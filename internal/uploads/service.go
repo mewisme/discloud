@@ -174,20 +174,23 @@ func (s *Service) Create(
 			return err
 		}
 
-		var conflict bool
-		if err := tx.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1
-				FROM nodes
-				WHERE parent_id::text = $1
-				  AND name_key = $2
-				  AND deleted_at IS NULL
-			)
-		`, input.ParentFolderID, nameKey).Scan(&conflict); err != nil {
-			return fmt.Errorf("check upload name conflict: %w", err)
-		}
-		if conflict {
+		var existingKind string
+		conflictErr := tx.QueryRow(ctx, `
+			SELECT kind
+			FROM nodes
+			WHERE parent_id::text = $1
+			  AND name_key = $2
+			  AND deleted_at IS NULL
+			LIMIT 1
+		`, input.ParentFolderID, nameKey).Scan(&existingKind)
+		if conflictErr == nil {
+			if existingKind == "file" {
+				return ErrFileAlreadyExists
+			}
 			return ErrNameConflict
+		}
+		if !errors.Is(conflictErr, pgx.ErrNoRows) {
+			return fmt.Errorf("check upload name conflict: %w", conflictErr)
 		}
 
 		var (
