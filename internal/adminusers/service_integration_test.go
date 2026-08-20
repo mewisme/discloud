@@ -65,8 +65,8 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 
 	var adminID string
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (username, password_hash, role)
-		VALUES ('admin', $1, 'admin')
+		INSERT INTO users (username, name, password_hash, role)
+		VALUES ('admin', 'Admin', $1, 'admin')
 		RETURNING id::text
 	`, adminHash).Scan(&adminID); err != nil {
 		t.Fatalf("create admin: %v", err)
@@ -78,18 +78,103 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	user, err := service.Create(ctx, adminID, CreateInput{
 		Name:              "Alice Example",
 		Username:          "alice",
-		Password:          "correct-horse-battery-staple",
+		Password:          "x",
 		StorageQuotaBytes: &quota,
 	})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
+	if user.Name != "Alice Example" {
+		t.Fatalf("name = %q, want Alice Example", user.Name)
+	}
+	if user.Username != "alice" {
+		t.Fatalf("username = %q, want alice", user.Username)
+	}
 	if user.Role != "user" {
 		t.Fatalf("role = %q, want user", user.Role)
 	}
 	if !user.MustChangePassword {
 		t.Fatal("admin-created user should change password")
+	}
+	if user.HasAvatar {
+		t.Fatal("new user unexpectedly has avatar")
+	}
+	if user.AvatarRevision != 0 {
+		t.Fatalf("avatar revision = %d, want 0", user.AvatarRevision)
+	}
+
+	createdPasswordHash := ""
+	if err := pool.QueryRow(ctx, `
+		SELECT password_hash
+		FROM users
+		WHERE id::text = $1
+	`, user.ID).Scan(&createdPasswordHash); err != nil {
+		t.Fatalf("read created password hash: %v", err)
+	}
+
+	match, err := auth.VerifyPassword("x", createdPasswordHash)
+	if err != nil {
+		t.Fatalf("verify created temporary password: %v", err)
+	}
+	if !match {
+		t.Fatal("created temporary password did not match")
+	}
+
+	if _, err := service.Create(ctx, adminID, CreateInput{
+		Name:     "Empty Password",
+		Username: "empty-password",
+		Password: "",
+	}); !errors.Is(err, auth.ErrInvalidTemporaryPassword) {
+		t.Fatalf("empty temporary password = %v, want ErrInvalidTemporaryPassword", err)
+	}
+
+	got, err := service.Get(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if got.Name != "Alice Example" {
+		t.Fatalf("get name = %q, want Alice Example", got.Name)
+	}
+	if got.Username != "alice" {
+		t.Fatalf("get username = %q, want alice", got.Username)
+	}
+	if got.HasAvatar {
+		t.Fatal("get user unexpectedly has avatar")
+	}
+	if got.AvatarRevision != 0 {
+		t.Fatalf("get avatar revision = %d, want 0", got.AvatarRevision)
+	}
+
+	listed, err := service.List(ctx, 50, 0)
+	if err != nil {
+		t.Fatalf("list users: %v", err)
+	}
+	if listed.Total != 2 {
+		t.Fatalf("total users = %d, want 2", listed.Total)
+	}
+
+	var listedUser *User
+	for i := range listed.Users {
+		if listed.Users[i].ID == user.ID {
+			listedUser = &listed.Users[i]
+			break
+		}
+	}
+	if listedUser == nil {
+		t.Fatal("created user not found in user list")
+	}
+	if listedUser.Name != "Alice Example" {
+		t.Fatalf("listed name = %q, want Alice Example", listedUser.Name)
+	}
+	if listedUser.Username != "alice" {
+		t.Fatalf("listed username = %q, want alice", listedUser.Username)
+	}
+	if listedUser.HasAvatar {
+		t.Fatal("listed user unexpectedly has avatar")
+	}
+	if listedUser.AvatarRevision != 0 {
+		t.Fatalf("listed avatar revision = %d, want 0", listedUser.AvatarRevision)
 	}
 
 	root, err := service.Root(ctx, user.ID)
@@ -114,9 +199,9 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	if _, err := service.Create(ctx, adminID, CreateInput{
 		Name:     "Another Alice",
 		Username: "Alice",
-		Password: "another-correct-password",
+		Password: "x",
 	}); !errors.Is(err, ErrUsernameTaken) {
-		t.Fatalf("duplicate username = %v", err)
+		t.Fatalf("duplicate username = %v, want ErrUsernameTaken", err)
 	}
 
 	updatedName := "Alice Updated"
@@ -129,6 +214,12 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	}
 	if updated.Username != "alice" {
 		t.Fatalf("username = %q, want alice", updated.Username)
+	}
+	if updated.HasAvatar {
+		t.Fatal("updated user unexpectedly has avatar")
+	}
+	if updated.AvatarRevision != 0 {
+		t.Fatalf("updated avatar revision = %d, want 0", updated.AvatarRevision)
 	}
 
 	if _, err := pool.Exec(ctx, `
@@ -171,20 +262,33 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 		t.Fatalf("unlimited usage = %+v", usage)
 	}
 
-	if err := service.ResetPassword(ctx, adminID, user.ID, "new-correct-horse-password"); err != nil {
+	if err := service.ResetPassword(ctx, adminID, user.ID, ""); !errors.Is(err, auth.ErrInvalidTemporaryPassword) {
+		t.Fatalf("empty reset password = %v, want ErrInvalidTemporaryPassword", err)
+	}
+
+	if err := service.ResetPassword(ctx, adminID, user.ID, "z"); err != nil {
 		t.Fatalf("reset password: %v", err)
 	}
 
+	var resetPasswordHash string
 	var mustChange bool
 	if err := pool.QueryRow(ctx, `
-		SELECT must_change_password
+		SELECT password_hash, must_change_password
 		FROM users
 		WHERE id::text = $1
-	`, user.ID).Scan(&mustChange); err != nil {
-		t.Fatalf("read must_change_password: %v", err)
+	`, user.ID).Scan(&resetPasswordHash, &mustChange); err != nil {
+		t.Fatalf("read reset password state: %v", err)
 	}
 	if !mustChange {
 		t.Fatal("must_change_password is false after admin reset")
+	}
+
+	match, err = auth.VerifyPassword("z", resetPasswordHash)
+	if err != nil {
+		t.Fatalf("verify reset temporary password: %v", err)
+	}
+	if !match {
+		t.Fatal("reset temporary password did not match")
 	}
 
 	var auditCount int
