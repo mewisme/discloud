@@ -1,6 +1,6 @@
 "use client"
 
-import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -12,7 +12,7 @@ import { CommandPalette } from "@/components/app/command-palette"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
@@ -57,7 +57,17 @@ const titles = [
   ["/files", "Files"],
 ] as const
 
-export function AppShell({ children, user, usage, defaultSidebarOpen }: { children: ReactNode; user: User; usage: CurrentUserUsage; defaultSidebarOpen: boolean }) {
+export function AppShell({
+  children,
+  user,
+  usage,
+  defaultSidebarOpen,
+}: {
+  children: ReactNode
+  user: User
+  usage: CurrentUserUsage
+  defaultSidebarOpen: boolean
+}) {
   return (
     <CurrentUserProvider user={user}>
       <SidebarProvider defaultOpen={defaultSidebarOpen}>
@@ -68,7 +78,7 @@ export function AppShell({ children, user, usage, defaultSidebarOpen }: { childr
         <AppSidebar user={user} usage={usage} />
 
         <SidebarInset>
-          <AppHeader />
+          <AppHeader user={user} />
           <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
             {children}
           </main>
@@ -119,11 +129,6 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
 
       <SidebarFooter>
         <QuotaUsage usage={usage} />
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <UserMenu user={user} />
-          </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarFooter>
 
       <SidebarRail />
@@ -162,26 +167,69 @@ function AppNav({ items }: { items: NavItem[] }) {
   )
 }
 
-function AppHeader() {
+function AppHeader({ user }: { user: User }) {
   const pathname = usePathname()
   const title = titles.find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1] ?? "DisCloud"
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75">
-      <SidebarTrigger />
-      <Separator orientation="vertical" className="h-full" />
-      <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
-      <div className="ml-auto w-full max-w-sm">
-        <CommandPalette />
+      <div className="flex min-w-0 items-center gap-2">
+        <SidebarTrigger />
+        <Separator orientation="vertical" className="h-5" />
+        <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">{title}</span>
+      </div>
+
+      <div className="pointer-events-none fixed left-1/2 top-2 z-30 w-[min(28rem,calc(100vw-10rem))] -translate-x-1/2 sm:w-[min(28rem,calc(100vw-20rem))]">
+        <div className="pointer-events-auto">
+          <CommandPalette />
+        </div>
+      </div>
+
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <ThemeMenu />
+        <HeaderUserMenu user={user} />
       </div>
     </header>
   )
 }
 
-function UserMenu({ user }: { user: User }) {
-  const router = useRouter()
+function ThemeMenu() {
   const { theme, setTheme } = useTheme()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const ThemeIcon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="Change theme" title="Theme">
+          <ThemeIcon />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" sideOffset={8} className="w-40">
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+          <DropdownMenuRadioItem value="system">
+            <MonitorIcon />
+            System
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">
+            <SunIcon />
+            Light
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <MoonIcon />
+            Dark
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function HeaderUserMenu({ user }: { user: User }) {
+  const router = useRouter()
+  const { setOpenMobile } = useSidebar()
   const [pending, setPending] = useState(false)
 
   async function logout() {
@@ -201,23 +249,18 @@ function UserMenu({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton size="lg" tooltip={user.username} className="border">
-          <CurrentUserAvatar className="size-8" />
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-medium">{user.username}</span>
-            <span className="truncate text-xs capitalize text-muted-foreground">{user.role}</span>
-          </div>
-          <ChevronsUpDownIcon className="ml-auto" />
-        </SidebarMenuButton>
+        <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={`Open ${user.username} menu`} title={user.username}>
+          <CurrentUserAvatar className="size-7" />
+        </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end" sideOffset={8} className="min-w-56">
+      <DropdownMenuContent align="end" sideOffset={8} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex items-center gap-2">
-            <CurrentUserAvatar className="size-8" />
-            <div className="grid text-left text-sm leading-tight">
+            <CurrentUserAvatar className="size-9" />
+            <div className="grid min-w-0 text-left text-sm leading-tight">
               <span className="truncate font-medium text-foreground">{user.username}</span>
-              <span className="truncate text-xs capitalize">{user.role}</span>
+              <span className="truncate text-xs capitalize text-muted-foreground">{user.role}</span>
             </div>
           </div>
         </DropdownMenuLabel>
@@ -231,35 +274,16 @@ function UserMenu({ user }: { user: User }) {
           </Link>
         </DropdownMenuItem>
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            {theme === "dark" ? <MoonIcon /> : theme === "light" ? <SunIcon /> : <MonitorIcon />}
-            Theme
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-              <DropdownMenuRadioItem value="system">
-                <MonitorIcon />
-                System
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="light">
-                <SunIcon />
-                Light
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">
-                <MoonIcon />
-                Dark
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem variant="destructive" disabled={pending} onSelect={(event) => {
-          event.preventDefault()
-          void logout()
-        }}>
+        <DropdownMenuItem
+          variant="destructive"
+          disabled={pending}
+          onSelect={(event) => {
+            event.preventDefault()
+            void logout()
+          }}
+        >
           {pending ? <Loader2Icon className="animate-spin" /> : <LogOutIcon />}
           {pending ? "Signing out…" : "Sign out"}
         </DropdownMenuItem>
