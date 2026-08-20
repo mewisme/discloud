@@ -35,17 +35,19 @@ type AuditQuery struct {
 }
 
 type AuditEvent struct {
-	ID            string          `json:"id"`
-	ActorUserID   string          `json:"actorUserId,omitempty"`
-	ActorUsername string          `json:"actorUsername,omitempty"`
-	ActorName     string          `json:"actorName,omitempty"`
-	Action        string          `json:"action"`
-	ResourceType  string          `json:"resourceType,omitempty"`
-	ResourceID    string          `json:"resourceId,omitempty"`
-	RequestID     string          `json:"requestId,omitempty"`
-	IPAddress     string          `json:"ipAddress,omitempty"`
-	Metadata      json.RawMessage `json:"metadata"`
-	CreatedAt     time.Time       `json:"createdAt"`
+	ID               string          `json:"id"`
+	ActorUserID      string          `json:"actorUserId,omitempty"`
+	ActorUsername    string          `json:"actorUsername,omitempty"`
+	ActorName        string          `json:"actorName,omitempty"`
+	Action           string          `json:"action"`
+	ResourceType     string          `json:"resourceType,omitempty"`
+	ResourceID       string          `json:"resourceId,omitempty"`
+	ResourceUsername string          `json:"resourceUsername,omitempty"`
+	ResourceName     string          `json:"resourceName,omitempty"`
+	RequestID        string          `json:"requestId,omitempty"`
+	IPAddress        string          `json:"ipAddress,omitempty"`
+	Metadata         json.RawMessage `json:"metadata"`
+	CreatedAt        time.Time       `json:"createdAt"`
 }
 
 type JobQuery struct {

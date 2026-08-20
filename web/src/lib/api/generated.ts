@@ -1472,7 +1472,9 @@ export type components = {
             readonly requestId?: string;
             /** Format: uuid */
             readonly resourceId?: string;
+            readonly resourceName?: string;
             readonly resourceType?: string;
+            readonly resourceUsername?: string;
         };
         readonly AvatarInfo: {
             /** Format: int64 */

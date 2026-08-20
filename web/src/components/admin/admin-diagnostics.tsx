@@ -221,7 +221,17 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
                 <TableCell className="hidden md:table-cell">
                   <div className="max-w-64">
                     <div className="text-sm">{event.resourceType || "—"}</div>
-                    {event.resourceId && <div className="truncate font-mono text-xs text-muted-foreground">{event.resourceId}</div>}
+                    {event.resourceName || event.resourceUsername ? (
+                      <>
+                        <div className="truncate text-sm">{event.resourceName || `@${event.resourceUsername}`}</div>
+                        {event.resourceName && event.resourceUsername && (
+                          <div className="truncate text-xs text-muted-foreground">@{event.resourceUsername}</div>
+                        )}
+                        {event.resourceId && <div className="truncate font-mono text-[11px] text-muted-foreground">{event.resourceId}</div>}
+                      </>
+                    ) : event.resourceId ? (
+                      <div className="truncate font-mono text-xs text-muted-foreground">{event.resourceId}</div>
+                    ) : null}
                   </div>
                 </TableCell>
                 <TableCell><JSONDialog title={event.action} description="Audit event metadata" value={event.metadata} /></TableCell>

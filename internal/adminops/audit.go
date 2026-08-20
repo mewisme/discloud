@@ -20,12 +20,17 @@ func (s *Service) ListAudit(ctx context.Context, query AuditQuery) ([]AuditEvent
 			ae.action,
 			COALESCE(ae.resource_type, ''),
 			COALESCE(ae.resource_id::text, ''),
+			COALESCE(resource_user.username::text, ''),
+			COALESCE(resource_user.name, ''),
 			COALESCE(ae.request_id, ''),
 			COALESCE(ae.ip_address::text, ''),
 			ae.metadata,
 			ae.created_at
 		FROM audit_events ae
 		LEFT JOIN users actor ON actor.id = ae.actor_user_id
+		LEFT JOIN users resource_user
+		  ON ae.resource_type = 'user'
+		 AND resource_user.id = ae.resource_id
 		WHERE ($1 = '' OR ae.actor_user_id = NULLIF($1, '')::uuid)
 		  AND ($2 = '' OR ae.action = $2)
 		  AND ($3 = '' OR ae.resource_type = $3)
@@ -59,6 +64,8 @@ func (s *Service) ListAudit(ctx context.Context, query AuditQuery) ([]AuditEvent
 			&item.Action,
 			&item.ResourceType,
 			&item.ResourceID,
+			&item.ResourceUsername,
+			&item.ResourceName,
 			&item.RequestID,
 			&item.IPAddress,
 			&item.Metadata,
