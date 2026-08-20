@@ -1945,12 +1945,14 @@ export type components = {
                 };
             };
         };
-        /** @description File content. Supports full or single-range responses. */
+        /** @description File content. Supports full or single-range responses and private browser revalidation for preview content. */
         readonly Binary: {
             headers: {
                 readonly "Accept-Ranges"?: string;
+                readonly "Cache-Control"?: string;
                 readonly "Content-Range"?: string;
                 readonly ETag?: string;
+                readonly "Last-Modified"?: string;
                 readonly [name: string]: unknown;
             };
             content: {
