@@ -5,7 +5,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
-import { FilePreview } from "@/components/files/file-preview"
+import { FilePreviewCarousel, type PreviewCarouselFile } from "@/components/files/file-preview-carousel"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { File, Node } from "@/lib/api/models"
 import { formatBytes, formatDuration, formatNumber } from "@/lib/helpers"
 
-export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: readonly Node[] }) {
+export function FileDetail({
+  file,
+  breadcrumbs,
+  previewFiles,
+}: {
+  file: File
+  breadcrumbs: readonly Node[]
+  previewFiles: readonly PreviewCarouselFile[]
+}) {
   const user = useCurrentUser()
   const parent = breadcrumbs[breadcrumbs.length - 1]
   const parentHref = parent?.isRoot ? "/files" : parent ? `/files/${encodeURIComponent(parent.id)}` : "/files"
@@ -50,6 +58,7 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
               Parent folder
             </Link>
           </Button>
+
           <Button size="sm" asChild>
             <a href={`/api/backend/api/v1/files/${encodeURIComponent(file.id)}/download`}>
               <DownloadIcon />
@@ -77,7 +86,11 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <section className="min-w-0" aria-label="File preview">
-          <FilePreview file={file} />
+          <FilePreviewCarousel
+            currentFile={file}
+            files={previewFiles}
+            routeBase="/files/file"
+          />
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-16">
@@ -88,6 +101,7 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
                 File information
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4 text-sm">
               <InfoRow label="Type" value={<span className="capitalize">{file.category || "File"}</span>} />
               <InfoRow label="MIME type" value={file.mimeType} />
@@ -103,6 +117,7 @@ export function FileDetail({ file, breadcrumbs }: { file: File; breadcrumbs: rea
               <CardHeader>
                 <CardTitle className="text-base">Technical details</CardTitle>
               </CardHeader>
+
               <CardContent className="space-y-4 text-sm">
                 {file.width != null && file.height != null && <InfoRow label="Dimensions" value={`${file.width} × ${file.height}`} />}
                 {file.durationMs != null && <InfoRow label="Duration" value={formatDuration(file.durationMs)} />}

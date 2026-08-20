@@ -1,23 +1,27 @@
 import { DownloadIcon, FileIcon, LibraryIcon } from "lucide-react"
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { DateTime } from "@/components/common/date-time"
-import { FilePreview } from "@/components/files/file-preview"
+import { FilePreviewCarousel, type PreviewCarouselFile } from "@/components/files/file-preview-carousel"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
 import { formatBytes } from "@/lib/helpers"
 
-export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
+export function CollectionFileDetail({
+  collection,
+  item,
+  items,
+}: {
+  collection: Collection
+  item: CollectionItem
+  items: readonly CollectionItem[]
+}) {
   const collectionHref = `/collections/${encodeURIComponent(collection.id)}`
-  const previewFile = {
-    id: item.fileId,
-    name: item.name,
-    size: item.size,
-    mimeType: item.mimeType,
-    category: item.category,
-  }
+  const previewFile = toPreviewFile(item)
+  const previewFiles = items.map(toPreviewFile)
   const breadcrumbItems = [
     { id: "collections", label: "Collections", href: "/collections" },
     { id: `collection:${collection.id}`, label: collection.name, href: collectionHref },
@@ -27,6 +31,7 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <CompactBreadcrumbs items={breadcrumbItems} />
+
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -35,6 +40,7 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{formatBytes(item.size)} · {item.mimeType}</p>
         </div>
+
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href={collectionHref}>
@@ -42,6 +48,7 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
               Collection
             </Link>
           </Button>
+
           <Button asChild>
             <a href={downloadURL(collection.id, item.fileId)}>
               <DownloadIcon />
@@ -51,12 +58,18 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
         </div>
       </div>
 
-      <FilePreview file={previewFile} collectionId={collection.id} />
+      <FilePreviewCarousel
+        currentFile={previewFile}
+        files={previewFiles}
+        collectionId={collection.id}
+        routeBase={`/collections/${encodeURIComponent(collection.id)}/files`}
+      />
 
       <Card>
         <CardHeader>
           <CardTitle>File details</CardTitle>
         </CardHeader>
+
         <CardContent className="grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Detail label="Type" value={item.category} />
           <Detail label="MIME type" value={item.mimeType} />
@@ -71,7 +84,17 @@ export function CollectionFileDetail({ collection, item }: { collection: Collect
   )
 }
 
-function Detail({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+function toPreviewFile(item: CollectionItem): PreviewCarouselFile {
+  return {
+    id: item.fileId,
+    name: item.name,
+    size: item.size,
+    mimeType: item.mimeType,
+    category: item.category,
+  }
+}
+
+function Detail({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
   return (
     <div className={className}>
       <div className="text-xs text-muted-foreground">{label}</div>
