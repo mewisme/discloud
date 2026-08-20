@@ -31,6 +31,8 @@ type userResponse struct {
 	Username           string `json:"username"`
 	Role               string `json:"role"`
 	MustChangePassword bool   `json:"mustChangePassword"`
+	HasAvatar          bool   `json:"hasAvatar"`
+	AvatarRevision     int64  `json:"avatarRevision"`
 }
 
 type mfaRequiredResponse struct {
@@ -160,6 +162,8 @@ func writeUser(w http.ResponseWriter, user auth.User) {
 		Username:           user.Username,
 		Role:               user.Role,
 		MustChangePassword: user.MustChangePassword,
+		HasAvatar:          user.HasAvatar,
+		AvatarRevision:     user.AvatarRevision,
 	})
 }
 

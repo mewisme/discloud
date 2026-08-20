@@ -9,6 +9,7 @@ import (
 	"github.com/mewisme/discloud/internal/adminops"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
+	"github.com/mewisme/discloud/internal/avatars"
 	"github.com/mewisme/discloud/internal/collections"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/files"
@@ -19,6 +20,7 @@ import (
 	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
+	"github.com/mewisme/discloud/internal/thumbnails"
 	"github.com/mewisme/discloud/internal/uploads"
 )
 
@@ -26,6 +28,7 @@ type RouterDependencies struct {
 	Ready        func(context.Context) error
 	Setup        *setup.Service
 	Auth         *auth.Service
+	Avatars      *avatars.Service
 	AdminUsers   *adminusers.Service
 	AdminOps     *adminops.Service
 	Metrics      *observability.Metrics
@@ -35,6 +38,7 @@ type RouterDependencies struct {
 	PartUploader *uploads.PartUploader
 	Finalizer    *uploads.Finalizer
 	Files        *files.Service
+	Thumbnails   *thumbnails.Service
 	Folders      *folders.Service
 	Collections  *collections.Service
 	Shares       *shares.Service
@@ -67,6 +71,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 		registerAuthRoutes(mux, deps.Auth, authConfig)
 		registerUserLookupRoute(mux, deps.Auth, authConfig)
 	}
+	if deps.Avatars != nil && deps.Auth != nil {
+		registerAvatarRoutes(mux, deps.Avatars, deps.Auth, authConfig)
+	}
 	if deps.AdminUsers != nil && deps.Auth != nil {
 		registerAdminUserRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
 	}
@@ -97,6 +104,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Files != nil && deps.Auth != nil {
 		registerFileRoutes(mux, deps.Files, deps.Collections, deps.Auth, authConfig)
+	}
+	if deps.Thumbnails != nil && deps.Files != nil && deps.Auth != nil {
+		registerThumbnailRoutes(mux, deps.Thumbnails, deps.Files, deps.Collections, deps.Auth, authConfig)
 	}
 	if deps.Folders != nil && deps.Auth != nil {
 		registerFolderDownloadRoutes(mux, deps.Folders, deps.Auth, authConfig)

@@ -73,6 +73,7 @@ func (s *Scheduler) Acquire(ctx context.Context, excludedBotUserIDs []string) (B
 
 		now := s.now()
 		eligible := 0
+		busyEligible := false
 		var earliestCooldown time.Time
 
 		for i := 0; i < len(s.bots); i++ {
@@ -81,10 +82,14 @@ func (s *Scheduler) Acquire(ctx context.Context, excludedBotUserIDs []string) (B
 			if _, skip := excluded[bot.UserID]; skip {
 				continue
 			}
+
 			eligible++
+
 			if s.busy[bot.UserID] {
+				busyEligible = true
 				continue
 			}
+
 			if until, cooling := s.cooldown[bot.UserID]; cooling {
 				if now.Before(until) {
 					if earliestCooldown.IsZero() || until.Before(earliestCooldown) {
@@ -97,6 +102,7 @@ func (s *Scheduler) Acquire(ctx context.Context, excludedBotUserIDs []string) (B
 
 			s.busy[bot.UserID] = true
 			s.next = (index + 1) % len(s.bots)
+
 			var once sync.Once
 			release := func() {
 				once.Do(func() {
@@ -106,11 +112,12 @@ func (s *Scheduler) Acquire(ctx context.Context, excludedBotUserIDs []string) (B
 					s.mu.Unlock()
 				})
 			}
+
 			s.mu.Unlock()
 			return bot, release, nil
 		}
 
-		if eligible == 0 {
+		if eligible == 0 || !busyEligible {
 			s.mu.Unlock()
 			return Bot{}, nil, blobstore.ErrNoUsableBot
 		}

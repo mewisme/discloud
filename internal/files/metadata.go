@@ -15,7 +15,11 @@ import (
 	"path"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	_ "golang.org/x/image/webp"
+
 	"github.com/mewisme/discloud/internal/jobs"
+	"github.com/mewisme/discloud/internal/postgres"
 )
 
 const sniffBytes = 512
@@ -164,30 +168,50 @@ func (p *MetadataProcessor) finish(ctx context.Context, fileID string, outcome m
 		return fmt.Errorf("encode file metadata: %w", err)
 	}
 
-	tag, err := p.service.pool.Exec(ctx, `
-		UPDATE files
-		SET mime_type = $2,
-		    extension = NULLIF($3, ''),
-		    category = $4,
-		    width = $5,
-		    height = $6,
-		    duration_ms = NULL,
-		    bitrate_bps = NULL,
-		    codec = NULL,
-		    metadata = $7::jsonb,
-		    metadata_status = $8,
-		    metadata_error = NULLIF($9, ''),
-		    updated_at = now()
-		WHERE node_id = $1::uuid
-	`, fileID, outcome.MIMEType, outcome.Extension, outcome.Category,
-		outcome.Width, outcome.Height, metadata, outcome.Status, outcome.Error)
-	if err != nil {
-		return fmt.Errorf("update file metadata: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return postgres.InTx(ctx, p.service.pool, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `
+			UPDATE files
+			SET mime_type = $2,
+			    extension = NULLIF($3, ''),
+			    category = $4,
+			    width = $5,
+			    height = $6,
+			    duration_ms = NULL,
+			    bitrate_bps = NULL,
+			    codec = NULL,
+			    metadata = $7::jsonb,
+			    metadata_status = $8,
+			    metadata_error = NULLIF($9, ''),
+			    updated_at = now()
+			WHERE node_id = $1::uuid
+		`, fileID, outcome.MIMEType, outcome.Extension, outcome.Category,
+			outcome.Width, outcome.Height, metadata, outcome.Status, outcome.Error)
+		if err != nil {
+			return fmt.Errorf("update file metadata: %w", err)
+		}
+		if tag.RowsAffected() != 1 {
+			return ErrNotFound
+		}
+
+		if outcome.Status != "ready" || (outcome.Category != "image" && outcome.Category != "video") {
+			return nil
+		}
+
+		if _, err := tx.Exec(ctx, `
+			WITH thumbnail AS (
+				INSERT INTO file_thumbnails (file_id, variant, status)
+				VALUES ($1::uuid, 'grid', 'pending')
+				ON CONFLICT (file_id, variant) DO NOTHING
+				RETURNING file_id
+			)
+			INSERT INTO jobs (type, payload)
+			SELECT 'file.thumbnail', jsonb_build_object('fileId', file_id::text)
+			FROM thumbnail
+		`, fileID); err != nil {
+			return fmt.Errorf("enqueue file thumbnail job: %w", err)
+		}
+		return nil
+	})
 }
 
 func canonicalMIME(prefix []byte, extension, hint string) string {

@@ -37,12 +37,13 @@ type nodeResponse struct {
 
 type folderChildResponse struct {
 	nodeResponse
-	Size        *int64 `json:"size,omitempty"`
-	MIMEType    string `json:"mimeType,omitempty"`
-	Extension   string `json:"extension,omitempty"`
-	Category    string `json:"category,omitempty"`
-	AccessLevel string `json:"accessLevel"`
-	CanFavorite bool   `json:"canFavorite"`
+	Size            *int64 `json:"size,omitempty"`
+	MIMEType        string `json:"mimeType,omitempty"`
+	Extension       string `json:"extension,omitempty"`
+	Category        string `json:"category,omitempty"`
+	ThumbnailStatus string `json:"thumbnailStatus,omitempty"`
+	AccessLevel     string `json:"accessLevel"`
+	CanFavorite     bool   `json:"canFavorite"`
 }
 
 func registerNodeRoutes(mux *http.ServeMux, service *nodes.Service, authService *auth.Service, cfg config.AuthConfig) {
@@ -211,13 +212,14 @@ func nodeJSON(node nodes.Node) nodeResponse {
 
 func folderChildJSON(node nodes.BrowserNode) folderChildResponse {
 	return folderChildResponse{
-		nodeResponse: nodeJSON(node.Node),
-		Size:         node.SizeBytes,
-		MIMEType:     node.MIMEType,
-		Extension:    node.Extension,
-		Category:     node.Category,
-		AccessLevel:  node.AccessLevel.String(),
-		CanFavorite:  node.CanFavorite,
+		nodeResponse:    nodeJSON(node.Node),
+		Size:            node.SizeBytes,
+		MIMEType:        node.MIMEType,
+		Extension:       node.Extension,
+		Category:        node.Category,
+		ThumbnailStatus: node.ThumbnailStatus,
+		AccessLevel:     node.AccessLevel.String(),
+		CanFavorite:     node.CanFavorite,
 	}
 }
 

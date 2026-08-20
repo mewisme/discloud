@@ -37,7 +37,7 @@ func TestChunkRange(t *testing.T) {
 	}
 }
 
-func TestWriteChunkMultipartRejectsWrongSize(t *testing.T) {
+func TestWriteAttachmentMultipartRejectsWrongSize(t *testing.T) {
 	data := []byte("hello")
 	hash := sha256.Sum256(data)
 
@@ -45,12 +45,13 @@ func TestWriteChunkMultipartRejectsWrongSize(t *testing.T) {
 	multipartWriter := multipart.NewWriter(writer)
 	result := make(chan chunkBodyResult, 1)
 
-	go writeChunkMultipart(
+	go writeAttachmentMultipart(
 		writer,
 		multipartWriter,
 		bytes.NewReader(data),
 		int64(len(data)+1),
 		hash,
+		"test.chunk",
 		result,
 	)
 
@@ -62,7 +63,7 @@ func TestWriteChunkMultipartRejectsWrongSize(t *testing.T) {
 	}
 }
 
-func TestWriteChunkMultipartRejectsWrongHash(t *testing.T) {
+func TestWriteAttachmentMultipartRejectsWrongHash(t *testing.T) {
 	data := []byte("hello")
 	wrongHash := sha256.Sum256([]byte("wrong"))
 
@@ -70,12 +71,13 @@ func TestWriteChunkMultipartRejectsWrongHash(t *testing.T) {
 	multipartWriter := multipart.NewWriter(writer)
 	result := make(chan chunkBodyResult, 1)
 
-	go writeChunkMultipart(
+	go writeAttachmentMultipart(
 		writer,
 		multipartWriter,
 		bytes.NewReader(data),
 		int64(len(data)),
 		wrongHash,
+		"test.chunk",
 		result,
 	)
 

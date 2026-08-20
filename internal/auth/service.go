@@ -23,6 +23,8 @@ type User struct {
 	Username           string
 	Role               string
 	MustChangePassword bool
+	HasAvatar          bool
+	AvatarRevision     int64
 }
 
 type LoginResult struct {
@@ -61,10 +63,27 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 	var user User
 	var passwordHash, status string
 	err := s.pool.QueryRow(ctx, `
-		SELECT id::text, username::text, role, status, password_hash, must_change_password
+		SELECT
+			id::text,
+			username::text,
+			role,
+			status,
+			password_hash,
+			must_change_password,
+			avatar_object_id IS NOT NULL,
+			avatar_revision
 		FROM users
 		WHERE username = $1
-	`, username).Scan(&user.ID, &user.Username, &user.Role, &status, &passwordHash, &user.MustChangePassword)
+	`, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Role,
+		&status,
+		&passwordHash,
+		&user.MustChangePassword,
+		&user.HasAvatar,
+		&user.AvatarRevision,
+	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		if _, hashErr := HashPassword(password); hashErr != nil {
@@ -117,10 +136,23 @@ func (s *Service) CompleteMFA(ctx context.Context, challengeToken, code, userAge
 
 	var user User
 	err = s.pool.QueryRow(ctx, `
-		SELECT id::text, username::text, role, must_change_password
+		SELECT
+			id::text,
+			username::text,
+			role,
+			must_change_password,
+			avatar_object_id IS NOT NULL,
+			avatar_revision
 		FROM users
 		WHERE id = $1 AND status = 'active'
-	`, userID).Scan(&user.ID, &user.Username, &user.Role, &user.MustChangePassword)
+	`, userID).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Role,
+		&user.MustChangePassword,
+		&user.HasAvatar,
+		&user.AvatarRevision,
+	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUnauthenticated
@@ -162,7 +194,14 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 	var principal Principal
 
 	err := s.pool.QueryRow(ctx, `
-		SELECT s.id::text, u.id::text, u.username::text, u.role, u.must_change_password
+		SELECT
+			s.id::text,
+			u.id::text,
+			u.username::text,
+			u.role,
+			u.must_change_password,
+			u.avatar_object_id IS NOT NULL,
+			u.avatar_revision
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1
@@ -175,6 +214,8 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 		&principal.User.Username,
 		&principal.User.Role,
 		&principal.User.MustChangePassword,
+		&principal.User.HasAvatar,
+		&principal.User.AvatarRevision,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {

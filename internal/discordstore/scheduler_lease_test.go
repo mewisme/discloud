@@ -2,8 +2,11 @@ package discordstore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/mewisme/discloud/internal/blobstore"
 )
 
 func TestSchedulerAcquireSkipsBusyBots(t *testing.T) {
@@ -62,5 +65,21 @@ func TestSchedulerAcquireWaitsForRelease(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("Acquire did not resume after release")
+	}
+}
+
+func TestSchedulerAcquireDoesNotWaitForCooldown(t *testing.T) {
+	scheduler := NewScheduler([]Bot{{UserID: "1"}})
+	scheduler.Cooldown("1", 250*time.Millisecond)
+
+	start := time.Now()
+	_, _, err := scheduler.Acquire(context.Background(), nil)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, blobstore.ErrNoUsableBot) {
+		t.Fatalf("Acquire() error = %v, want ErrNoUsableBot", err)
+	}
+	if elapsed >= 100*time.Millisecond {
+		t.Fatalf("Acquire() waited %s for cooldown", elapsed)
 	}
 }

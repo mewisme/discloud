@@ -37,12 +37,13 @@ type BrowserListOptions struct {
 
 type BrowserNode struct {
 	Node
-	SizeBytes   *int64
-	MIMEType    string
-	Extension   string
-	Category    string
-	AccessLevel acl.Level
-	CanFavorite bool
+	SizeBytes       *int64
+	MIMEType        string
+	Extension       string
+	Category        string
+	ThumbnailStatus string
+	AccessLevel     acl.Level
+	CanFavorite     bool
 }
 
 func (s *Service) Root(ctx context.Context, actor Actor) (Node, error) {
@@ -117,9 +118,13 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			COALESCE(f.mime_type, ''),
 			COALESCE(f.extension, ''),
 			COALESCE(f.category, ''),
+			COALESCE(ft.status, ''),
 			COALESCE(fp.level, '')
 		FROM nodes n
 		LEFT JOIN files f ON f.node_id = n.id
+		LEFT JOIN file_thumbnails ft
+		  ON ft.file_id = n.id
+		 AND ft.variant = 'grid'
 		LEFT JOIN folder_permissions fp
 		  ON fp.folder_id = n.id
 		 AND fp.user_id = $3::uuid
@@ -178,6 +183,7 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			&item.MIMEType,
 			&item.Extension,
 			&item.Category,
+			&item.ThumbnailStatus,
 			&directLevel,
 		); err != nil {
 			return nil, false, acl.None, fmt.Errorf("scan browser child: %w", err)

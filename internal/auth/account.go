@@ -120,8 +120,21 @@ func (s *Service) UpdateUsername(ctx context.Context, userID, username string) (
 		UPDATE users
 		SET username = $2, updated_at = now()
 		WHERE id = $1
-		RETURNING id::text, username::text, role, must_change_password
-	`, userID, username).Scan(&user.ID, &user.Username, &user.Role, &user.MustChangePassword)
+		RETURNING
+			id::text,
+			username::text,
+			role,
+			must_change_password,
+			avatar_object_id IS NOT NULL,
+			avatar_revision
+	`, userID, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Role,
+		&user.MustChangePassword,
+		&user.HasAvatar,
+		&user.AvatarRevision,
+	)
 	if err == nil {
 		return user, nil
 	}

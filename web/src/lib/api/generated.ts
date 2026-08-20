@@ -533,6 +533,22 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/files/{fileId}/thumbnail": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getFileThumbnail"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/folders": {
         readonly parameters: {
             readonly query?: never;
@@ -707,6 +723,22 @@ export type paths = {
         readonly options?: never;
         readonly head?: never;
         readonly patch: operations["updateMe"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/me/avatar": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getMyAvatar"];
+        readonly put: operations["updateMyAvatar"];
+        readonly post?: never;
+        readonly delete: operations["deleteMyAvatar"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
         readonly trace?: never;
     };
     readonly "/api/v1/me/config": {
@@ -1402,6 +1434,11 @@ export type components = {
             readonly resourceId?: string;
             readonly resourceType?: string;
         };
+        readonly AvatarInfo: {
+            /** Format: int64 */
+            readonly avatarRevision: number;
+            readonly hasAvatar: boolean;
+        };
         readonly Collection: {
             /** @enum {string} */
             readonly accessLevel: "view" | "edit" | "full";
@@ -1494,6 +1531,8 @@ export type components = {
             readonly mimeType?: string;
             /** Format: int64 */
             readonly size?: number;
+            /** @enum {string} */
+            readonly thumbnailStatus?: "pending" | "ready" | "failed" | "skipped";
         };
         readonly JobDiagnostic: {
             readonly attempts: number;
@@ -1784,6 +1823,9 @@ export type components = {
             readonly status: "open" | "completing" | "completed" | "cancelled" | "expired" | "failed";
         };
         readonly User: {
+            /** Format: int64 */
+            readonly avatarRevision: number;
+            readonly hasAvatar: boolean;
             /** Format: uuid */
             readonly id: string;
             readonly mustChangePassword: boolean;
@@ -1876,6 +1918,15 @@ export type components = {
                     readonly events: readonly components["schemas"]["AuditEvent"][];
                     readonly nextCursor?: string;
                 };
+            };
+        };
+        /** @description Current avatar state after an update. */
+        readonly AvatarInfo: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["AvatarInfo"];
             };
         };
         /** @description Successful response. */
@@ -2101,6 +2152,17 @@ export type components = {
                     readonly nodes: readonly components["schemas"]["FolderChild"][];
                 };
             };
+        };
+        /** @description Temporary redirect to a signed Discord CDN attachment URL. */
+        readonly ObjectRedirect: {
+            headers: {
+                /** @description Client cache policy for the media redirect. */
+                readonly "Cache-Control"?: string;
+                /** @description Signed Discord CDN attachment URL. */
+                readonly Location?: string;
+                readonly [name: string]: unknown;
+            };
+            content?: never;
         };
         /** @description Problem details. */
         readonly Problem: {
@@ -2421,6 +2483,16 @@ export type components = {
                     readonly role?: "admin" | "user";
                     readonly username?: string;
                 };
+            };
+        };
+        /** @description Raw image body. Maximum input size is 10 MiB. */
+        readonly AvatarUpload: {
+            readonly content: {
+                readonly "application/octet-stream": string;
+                readonly "image/gif": string;
+                readonly "image/jpeg": string;
+                readonly "image/png": string;
+                readonly "image/webp": string;
             };
         };
         readonly BatchFolders: {
@@ -3264,6 +3336,24 @@ export interface operations {
             readonly default: components["responses"]["Problem"];
         };
     };
+    readonly getFileThumbnail: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Collection access context for a collection-only file. */
+                readonly collectionId?: components["parameters"]["collectionIdQuery"];
+            };
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 307: components["responses"]["ObjectRedirect"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
     readonly createFolder: {
         readonly parameters: {
             readonly query?: never;
@@ -3485,6 +3575,45 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["UpdateMe"];
         readonly responses: {
             readonly 200: components["responses"]["User"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getMyAvatar: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 307: components["responses"]["ObjectRedirect"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly updateMyAvatar: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["AvatarUpload"];
+        readonly responses: {
+            readonly 200: components["responses"]["AvatarInfo"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly deleteMyAvatar: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
             readonly default: components["responses"]["Problem"];
         };
     };

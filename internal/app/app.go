@@ -12,6 +12,7 @@ import (
 	"github.com/mewisme/discloud/internal/adminops"
 	"github.com/mewisme/discloud/internal/adminusers"
 	"github.com/mewisme/discloud/internal/auth"
+	"github.com/mewisme/discloud/internal/avatars"
 	"github.com/mewisme/discloud/internal/collections"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/discordstore"
@@ -21,6 +22,7 @@ import (
 	"github.com/mewisme/discloud/internal/jobs"
 	"github.com/mewisme/discloud/internal/logging"
 	"github.com/mewisme/discloud/internal/nodes"
+	"github.com/mewisme/discloud/internal/objects"
 	"github.com/mewisme/discloud/internal/observability"
 	"github.com/mewisme/discloud/internal/orphangc"
 	"github.com/mewisme/discloud/internal/postgres"
@@ -29,6 +31,7 @@ import (
 	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
+	"github.com/mewisme/discloud/internal/thumbnails"
 	"github.com/mewisme/discloud/internal/uploads"
 	"github.com/mewisme/discloud/migrations"
 )
@@ -110,6 +113,9 @@ func Run() error {
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
 	settingsService := settings.New(pool)
+	objectService := objects.New(pool, blobStore, objects.DefaultMaxSize)
+	avatarService := avatars.New(pool, objectService)
+	thumbnailService := thumbnails.New(pool, fileService, objectService)
 	metadataProcessor := files.NewMetadataProcessor(fileService)
 	orphanCleaner := orphangc.New(
 		pool,
@@ -123,12 +129,14 @@ func Run() error {
 		logger.With("component", "upload-expiry"),
 	)
 	go orphanCleaner.Run(ctx)
+	go objectService.RunGC(ctx, logger.With("component", "object-gc"))
 
 	jobWorker := jobs.NewWorker(
 		pool,
 		logger.With("component", "jobs"),
 		map[string]jobs.Handler{
-			"file.metadata": metadataProcessor.Handle,
+			"file.metadata":  metadataProcessor.Handle,
+			"file.thumbnail": thumbnailService.Handle,
 		},
 	)
 	for i := range cfg.Jobs.WorkerCount {
@@ -143,6 +151,7 @@ func Run() error {
 			Ready:        readinessCheck(pool, blobStore),
 			Setup:        setupService,
 			Auth:         authService,
+			Avatars:      avatarService,
 			AdminUsers:   adminUserService,
 			AdminOps:     adminOpsService,
 			Metrics:      metrics,
@@ -152,6 +161,7 @@ func Run() error {
 			PartUploader: partUploader,
 			Finalizer:    finalizer,
 			Files:        fileService,
+			Thumbnails:   thumbnailService,
 			Folders:      folderService,
 			Collections:  collectionService,
 			Shares:       shareService,
