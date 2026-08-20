@@ -15,6 +15,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { apiJSON } from "@/lib/api/client"
 import type { ChangePasswordInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiFormError, type APIFormError } from "@/lib/helpers"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
@@ -26,11 +27,10 @@ const passwordSchema = z.object({
 })
 
 type PasswordValues = z.infer<typeof passwordSchema>
-type FormError = { message: string; requestID?: string }
 
 export function ChangePasswordForm() {
   const router = useRouter()
-  const [formError, setFormError] = useState<FormError>()
+  const [formError, setFormError] = useState<APIFormError>()
   const form = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
@@ -52,7 +52,7 @@ export function ChangePasswordForm() {
 
   function handleError(error: unknown) {
     if (!(error instanceof APIError)) {
-      setFormError({ message: "Could not change password. Try again." })
+      setFormError(apiFormError(error, "Could not change password. Try again."))
       return
     }
 
@@ -68,7 +68,7 @@ export function ChangePasswordForm() {
       return
     }
 
-    setFormError({ message: error.message || "Could not change password.", requestID: error.requestID })
+    setFormError(apiFormError(error, "Could not change password."))
   }
 
   const { errors, isSubmitting } = form.formState
@@ -92,41 +92,26 @@ export function ChangePasswordForm() {
                 </AlertDescription>
               </Alert>
             )}
+
             <Field data-invalid={!!errors.currentPassword}>
               <FieldLabel htmlFor="current-password">Current password</FieldLabel>
-              <PasswordInput
-                id="current-password"
-                autoComplete="current-password"
-                autoFocus
-                disabled={isSubmitting}
-                aria-invalid={!!errors.currentPassword}
-                {...form.register("currentPassword")}
-              />
+              <PasswordInput id="current-password" autoComplete="current-password" autoFocus disabled={isSubmitting} aria-invalid={!!errors.currentPassword} {...form.register("currentPassword")} />
               <FieldError errors={[errors.currentPassword]} />
             </Field>
+
             <Field data-invalid={!!errors.newPassword}>
               <FieldLabel htmlFor="new-password">New password</FieldLabel>
-              <PasswordInput
-                id="new-password"
-                autoComplete="new-password"
-                disabled={isSubmitting}
-                aria-invalid={!!errors.newPassword}
-                {...form.register("newPassword")}
-              />
+              <PasswordInput id="new-password" autoComplete="new-password" disabled={isSubmitting} aria-invalid={!!errors.newPassword} {...form.register("newPassword")} />
               <FieldDescription>Use at least 12 characters.</FieldDescription>
               <FieldError errors={[errors.newPassword]} />
             </Field>
+
             <Field data-invalid={!!errors.confirmPassword}>
               <FieldLabel htmlFor="confirm-password">Confirm new password</FieldLabel>
-              <PasswordInput
-                id="confirm-password"
-                autoComplete="new-password"
-                disabled={isSubmitting}
-                aria-invalid={!!errors.confirmPassword}
-                {...form.register("confirmPassword")}
-              />
+              <PasswordInput id="confirm-password" autoComplete="new-password" disabled={isSubmitting} aria-invalid={!!errors.confirmPassword} {...form.register("confirmPassword")} />
               <FieldError errors={[errors.confirmPassword]} />
             </Field>
+
             <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2Icon className="animate-spin" />}
               {isSubmitting ? "Changing password…" : "Change password"}

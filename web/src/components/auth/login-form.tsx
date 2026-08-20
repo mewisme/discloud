@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { LoginInput, LoginResult, MFAChallenge, User, VerifyLoginMFAInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiFormError, type APIFormError } from "@/lib/helpers"
 
 const loginSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
@@ -28,12 +29,11 @@ const mfaSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 type MFAValues = z.infer<typeof mfaSchema>
-type FormError = { message: string; requestID?: string }
 
 export function LoginForm() {
   const router = useRouter()
   const [challenge, setChallenge] = useState<MFAChallenge>()
-  const [formError, setFormError] = useState<FormError>()
+  const [formError, setFormError] = useState<APIFormError>()
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: "", password: "" },
@@ -118,16 +118,7 @@ export function LoginForm() {
               {formError && <FormAlert error={formError} />}
               <Field data-invalid={!!errors.code}>
                 <FieldLabel htmlFor="mfa-code">Authentication code</FieldLabel>
-                <Input
-                  id="mfa-code"
-                  autoComplete="one-time-code"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  autoFocus
-                  disabled={isSubmitting}
-                  aria-invalid={!!errors.code}
-                  {...mfaForm.register("code")}
-                />
+                <Input id="mfa-code" autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} autoFocus disabled={isSubmitting} aria-invalid={!!errors.code} {...mfaForm.register("code")} />
                 <FieldDescription>Authenticator and recovery codes are both accepted.</FieldDescription>
                 <FieldError errors={[errors.code]} />
               </Field>
@@ -160,25 +151,12 @@ export function LoginForm() {
             {formError && <FormAlert error={formError} />}
             <Field data-invalid={!!errors.username}>
               <FieldLabel htmlFor="username">Username</FieldLabel>
-              <Input
-                id="username"
-                autoComplete="username"
-                autoFocus
-                disabled={isSubmitting}
-                aria-invalid={!!errors.username}
-                {...loginForm.register("username")}
-              />
+              <Input id="username" autoComplete="username" autoFocus disabled={isSubmitting} aria-invalid={!!errors.username} {...loginForm.register("username")} />
               <FieldError errors={[errors.username]} />
             </Field>
             <Field data-invalid={!!errors.password}>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <PasswordInput
-                id="password"
-                autoComplete="current-password"
-                disabled={isSubmitting}
-                aria-invalid={!!errors.password}
-                {...loginForm.register("password")}
-              />
+              <PasswordInput id="password" autoComplete="current-password" disabled={isSubmitting} aria-invalid={!!errors.password} {...loginForm.register("password")} />
               <FieldError errors={[errors.password]} />
             </Field>
             <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
@@ -196,12 +174,7 @@ function isMFAChallenge(result: LoginResult): result is MFAChallenge {
   return "mfaRequired" in result && result.mfaRequired === true
 }
 
-function apiFormError(error: unknown, fallback: string): FormError {
-  if (!(error instanceof APIError)) return { message: fallback }
-  return { message: error.message || fallback, requestID: error.requestID }
-}
-
-function FormAlert({ error }: { error: FormError }) {
+function FormAlert({ error }: { error: APIFormError }) {
   return (
     <Alert variant="destructive">
       <TriangleAlertIcon />

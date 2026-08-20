@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { ActiveShareQuery, CreateShareInput, Share, ShareResourceType } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiErrorMessage } from "@/lib/helpers"
 
 type PublicShareDialogProps = {
   resourceType: ShareResourceType
@@ -52,11 +53,8 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
         if (!controller.signal.aborted) setShare(active)
       } catch (cause) {
         if (controller.signal.aborted) return
-        if (cause instanceof APIError && cause.status === 404) {
-          setShare(undefined)
-        } else {
-          setError(message(cause, "Could not load public link"))
-        }
+        if (cause instanceof APIError && cause.status === 404) setShare(undefined)
+        else setError(apiErrorMessage(cause, "Could not load public link"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -82,7 +80,7 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
       setShare(created)
       toast.success("Public link created")
     } catch (cause) {
-      setError(message(cause, "Could not create public link"))
+      setError(apiErrorMessage(cause, "Could not create public link"))
     } finally {
       setPending(false)
     }
@@ -109,7 +107,7 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
       setShare(undefined)
       toast.success("Public link revoked")
     } catch (cause) {
-      setError(message(cause, "Could not revoke public link"))
+      setError(apiErrorMessage(cause, "Could not revoke public link"))
     } finally {
       setPending(false)
     }
@@ -123,13 +121,12 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
     try {
       await apiJSON<void>(`/api/v1/shares/${share.id}`, { method: "DELETE" })
       setShare(undefined)
-
       const input = { resourceType, resourceId } satisfies CreateShareInput
       const created = await apiJSON<Share>("/api/v1/shares", { method: "POST", body: input })
       setShare(created)
       toast.success("Public link regenerated")
     } catch (cause) {
-      setError(message(cause, "Could not regenerate public link"))
+      setError(apiErrorMessage(cause, "Could not regenerate public link"))
     } finally {
       setPending(false)
     }
@@ -231,8 +228,4 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
       </DialogContent>
     </Dialog>
   )
-}
-
-function message(error: unknown, fallback: string) {
-  return error instanceof APIError ? error.message : fallback
 }

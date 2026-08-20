@@ -3,11 +3,11 @@
 import { Fragment, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, TriangleAlertIcon } from "lucide-react"
-import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
+import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
@@ -19,9 +19,10 @@ import { apiJSON } from "@/lib/api/client"
 import type { BrowserNode, CreateFolderInput, FolderChildrenQuery, Node, NodePage, UpdateNodeInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import type { BrowserOptions, BrowserOrder, BrowserSort } from "@/lib/files/browser"
+import { apiErrorMessage } from "@/lib/helpers"
 
 const nameFormSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").refine((value) => value !== "." && value !== "..", "Dot names are not allowed").refine((value) => !/[\/\\\u0000]/.test(value), "Path separators are not allowed"),
+  name: z.string().trim().min(1, "Name is required").refine((value) => value !== "." && value !== "..", "Dot names are not allowed").refine((value) => ![/[/\\\u0000]/].some((pattern) => pattern.test(value)), "Path separators are not allowed"),
 })
 
 type NameValues = z.infer<typeof nameFormSchema>
@@ -58,7 +59,7 @@ export function CreateFolderDialog({ folder, onReload }: { folder: Node; onReloa
         form.setError("name", { message: error.message }, { shouldFocus: true })
         return
       }
-      setFormError(apiMessage(error, "Could not create folder."))
+      setFormError(apiErrorMessage(error, "Could not create folder."))
     }
   }
 
@@ -226,7 +227,7 @@ function RenameNodeDialog({ node, open, onOpenChange, onReload }: { node: Browse
         form.setError("name", { message: error.message }, { shouldFocus: true })
         return
       }
-      setFormError(apiMessage(error, "Could not rename this item."))
+      setFormError(apiErrorMessage(error, "Could not rename this item."))
     }
   }
 
@@ -306,7 +307,7 @@ function MoveNodeDialog({
         router.refresh()
         return
       }
-      setError(apiMessage(cause, "Could not open this folder."))
+      setError(apiErrorMessage(cause, "Could not open this folder."))
     } finally {
       setLoading(false)
     }
@@ -321,7 +322,7 @@ function MoveNodeDialog({
       const next = await apiJSON<NodePage>(`/api/v1/folders/${current.id}/children`, { query })
       setPage((currentPage) => ({ ...next, nodes: [...currentPage.nodes, ...next.nodes] }))
     } catch (cause) {
-      setError(apiMessage(cause, "Could not load more folders."))
+      setError(apiErrorMessage(cause, "Could not load more folders."))
     } finally {
       setLoading(false)
     }
@@ -344,7 +345,7 @@ function MoveNodeDialog({
         router.refresh()
         return
       }
-      setError(apiMessage(cause, "Could not move this item."))
+      setError(apiErrorMessage(cause, "Could not move this item."))
     } finally {
       setMoving(false)
     }
@@ -433,9 +434,4 @@ function ErrorAlert({ message }: { message: string }) {
       <AlertDescription>{message}</AlertDescription>
     </Alert>
   )
-}
-
-function apiMessage(error: unknown, fallback: string) {
-  if (!(error instanceof APIError)) return fallback
-  return error.message || fallback
 }

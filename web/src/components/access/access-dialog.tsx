@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
 import type { AccessGrant, AccessLevel, AccessLevelInput, CollectionAccess, CollectionAccessGrant, FolderPermissions, LookupUser, LookupUserQuery } from "@/lib/api/models"
-import { APIError } from "@/lib/api/types"
+import { apiErrorMessage } from "@/lib/helpers"
 
 type AccessResource = {
   type: "folder" | "collection"
@@ -60,7 +60,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
           if (!controller.signal.aborted) setGrants([...data.access])
         }
       } catch (cause) {
-        if (!controller.signal.aborted) setError(errorMessage(cause, "Could not load access"))
+        if (!controller.signal.aborted) setError(apiErrorMessage(cause, "Could not load access"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -95,7 +95,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       setUsername("")
       toast.success(`Access granted to ${grant.username}`)
     } catch (cause) {
-      setError(errorMessage(cause, "Could not grant access"))
+      setError(apiErrorMessage(cause, "Could not grant access"))
     } finally {
       setAdding(false)
     }
@@ -110,7 +110,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       upsert(grant)
       toast.success("Access updated")
     } catch (cause) {
-      setError(errorMessage(cause, "Could not update access"))
+      setError(apiErrorMessage(cause, "Could not update access"))
     } finally {
       setPendingUserId(undefined)
     }
@@ -129,7 +129,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       setGrants((current) => current.filter((item) => item.userId !== grant.userId))
       toast.success(`Removed direct access for ${grant.username}`)
     } catch (cause) {
-      setError(errorMessage(cause, "Could not remove access"))
+      setError(apiErrorMessage(cause, "Could not remove access"))
     } finally {
       setPendingUserId(undefined)
     }
@@ -237,8 +237,4 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       </DialogContent>
     </Dialog>
   )
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof APIError ? error.message : fallback
 }

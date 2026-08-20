@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { SetupInput, SetupResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiFormError, type APIFormError } from "@/lib/helpers"
 
 const setupSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
@@ -27,11 +28,10 @@ const setupSchema = z.object({
 })
 
 type SetupFormValues = z.infer<typeof setupSchema>
-type FormError = { message: string; requestID?: string }
 
 export function SetupForm() {
   const router = useRouter()
-  const [formError, setFormError] = useState<FormError>()
+  const [formError, setFormError] = useState<APIFormError>()
   const form = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),
     defaultValues: { username: "", password: "", confirmPassword: "" },
@@ -53,7 +53,7 @@ export function SetupForm() {
 
   function handleSubmitError(error: unknown) {
     if (!(error instanceof APIError)) {
-      setFormError({ message: "Could not connect to DisCloud. Try again." })
+      setFormError(apiFormError(error, "Could not connect to DisCloud. Try again."))
       return
     }
 
@@ -74,7 +74,7 @@ export function SetupForm() {
       return
     }
 
-    setFormError({ message: error.message || "Could not complete setup.", requestID: error.requestID })
+    setFormError(apiFormError(error, "Could not complete setup."))
   }
 
   const { errors, isSubmitting } = form.formState
@@ -101,39 +101,20 @@ export function SetupForm() {
 
             <Field data-invalid={!!errors.username}>
               <FieldLabel htmlFor="username">Username</FieldLabel>
-              <Input
-                id="username"
-                autoComplete="username"
-                autoFocus
-                disabled={isSubmitting}
-                aria-invalid={!!errors.username}
-                {...form.register("username")}
-              />
+              <Input id="username" autoComplete="username" autoFocus disabled={isSubmitting} aria-invalid={!!errors.username} {...form.register("username")} />
               <FieldError errors={[errors.username]} />
             </Field>
 
             <Field data-invalid={!!errors.password}>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <PasswordInput
-                id="password"
-                autoComplete="new-password"
-                disabled={isSubmitting}
-                aria-invalid={!!errors.password}
-                {...form.register("password")}
-              />
+              <PasswordInput id="password" autoComplete="new-password" disabled={isSubmitting} aria-invalid={!!errors.password} {...form.register("password")} />
               <FieldDescription>Use at least 12 characters.</FieldDescription>
               <FieldError errors={[errors.password]} />
             </Field>
 
             <Field data-invalid={!!errors.confirmPassword}>
               <FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel>
-              <PasswordInput
-                id="confirm-password"
-                autoComplete="new-password"
-                disabled={isSubmitting}
-                aria-invalid={!!errors.confirmPassword}
-                {...form.register("confirmPassword")}
-              />
+              <PasswordInput id="confirm-password" autoComplete="new-password" disabled={isSubmitting} aria-invalid={!!errors.confirmPassword} {...form.register("confirmPassword")} />
               <FieldError errors={[errors.confirmPassword]} />
             </Field>
 

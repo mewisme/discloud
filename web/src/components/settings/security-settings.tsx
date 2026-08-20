@@ -17,6 +17,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { apiJSON } from "@/lib/api/client"
 import type { MFACodeInput, MFAEnrollment, RecoveryCodes } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiFormError, formatDateTime, type APIFormError } from "@/lib/helpers"
 
 const totpSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit authentication code"),
@@ -29,7 +30,6 @@ const verificationSchema = z.object({
 type TOTPValues = z.infer<typeof totpSchema>
 type VerificationValues = z.infer<typeof verificationSchema>
 type MFAAction = "regenerate" | "disable"
-type FormError = { message: string; requestID?: string }
 
 export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }) {
   const [enabled, setEnabled] = useState(initialEnabled)
@@ -37,7 +37,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
   const [recoveryCodes, setRecoveryCodes] = useState<readonly string[]>()
   const [action, setAction] = useState<MFAAction>()
   const [starting, setStarting] = useState(false)
-  const [formError, setFormError] = useState<FormError>()
+  const [formError, setFormError] = useState<APIFormError>()
   const confirmForm = useForm<TOTPValues>({
     resolver: zodResolver(totpSchema),
     defaultValues: { code: "" },
@@ -249,7 +249,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
                 </div>
                 <div className="space-y-2 text-sm">
                   <p className="font-medium">Scan this QR code with your authenticator app.</p>
-                  <p className="text-muted-foreground">Setup expires {new Date(enrollment.expiresAt).toLocaleString()}.</p>
+                  <p className="text-muted-foreground">Setup expires {formatDateTime(enrollment.expiresAt)}.</p>
                   {secret && (
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Manual setup key</p>
@@ -265,16 +265,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
                   control={confirmForm.control}
                   name="code"
                   render={({ field }) => (
-                    <InputOTP
-                      maxLength={6}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      autoFocus
-                      disabled={confirmState.isSubmitting}
-                      aria-invalid={!!confirmState.errors.code}
-                      value={field.value}
-                      onChange={field.onChange}
-                    >
+                    <InputOTP maxLength={6} inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={confirmState.isSubmitting} aria-invalid={!!confirmState.errors.code} value={field.value} onChange={field.onChange}>
                       <InputOTPGroup>
                         {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} />)}
                       </InputOTPGroup>
@@ -329,16 +320,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
 
                 <Field data-invalid={!!actionState.errors.code}>
                   <FieldLabel htmlFor="verification-code">Authenticator or recovery code</FieldLabel>
-                  <Input
-                    id="verification-code"
-                    autoComplete="one-time-code"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    autoFocus
-                    disabled={actionState.isSubmitting}
-                    aria-invalid={!!actionState.errors.code}
-                    {...actionForm.register("code")}
-                  />
+                  <Input id="verification-code" autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} autoFocus disabled={actionState.isSubmitting} aria-invalid={!!actionState.errors.code} {...actionForm.register("code")} />
                   <FieldError errors={[actionState.errors.code]} />
                 </Field>
 
@@ -367,9 +349,4 @@ function provisioningSecret(uri: string) {
   } catch {
     return ""
   }
-}
-
-function apiFormError(error: unknown, fallback: string): FormError {
-  if (!(error instanceof APIError)) return { message: fallback }
-  return { message: error.message || fallback, requestID: error.requestID }
 }
