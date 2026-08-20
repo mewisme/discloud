@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useState } from "react"
 import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -19,40 +19,55 @@ const pageSize = 25
 type JobStatus = NonNullable<JobsQuery["status"]>
 type UploadStatus = NonNullable<UploadDiagnosticsQuery["status"]>
 
-export function AdminDiagnostics() {
+export function AdminDiagnostics({
+  initialAudit,
+  initialJobs,
+  initialUploads,
+}: {
+  initialAudit: AuditPage
+  initialJobs: JobPage
+  initialUploads: UploadDiagnosticPage
+}) {
   return (
-    <Tabs defaultValue="audit">
-      <TabsList variant="line" className="w-full justify-start overflow-x-auto">
-        <TabsTrigger value="audit">Audit log</TabsTrigger>
-        <TabsTrigger value="jobs">Jobs</TabsTrigger>
-        <TabsTrigger value="uploads">Uploads</TabsTrigger>
-      </TabsList>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Diagnostics</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Inspect audit events, background jobs, and upload sessions.</p>
+      </div>
 
-      <TabsContent value="audit" className="pt-4">
-        <AuditDiagnostics />
-      </TabsContent>
+      <Tabs defaultValue="audit">
+        <TabsList variant="line" className="w-full justify-start">
+          <TabsTrigger value="audit">Audit log</TabsTrigger>
+          <TabsTrigger value="jobs">Jobs</TabsTrigger>
+          <TabsTrigger value="uploads">Uploads</TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="jobs" className="pt-4">
-        <JobDiagnostics />
-      </TabsContent>
+        <TabsContent value="audit" className="pt-4">
+          <AuditDiagnostics initialPage={initialAudit} />
+        </TabsContent>
 
-      <TabsContent value="uploads" className="pt-4">
-        <UploadDiagnostics />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="jobs" className="pt-4">
+          <JobDiagnostics initialPage={initialJobs} />
+        </TabsContent>
+
+        <TabsContent value="uploads" className="pt-4">
+          <UploadDiagnostics initialPage={initialUploads} />
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }
 
-function AuditDiagnostics() {
-  const [events, setEvents] = useState<readonly AuditEvent[]>([])
-  const [nextCursor, setNextCursor] = useState<string>()
+function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
+  const [events, setEvents] = useState<AuditEvent[]>(() => [...initialPage.events])
+  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [action, setAction] = useState("")
   const [actorUserId, setActorUserId] = useState("")
   const [resourceType, setResourceType] = useState("")
   const [resourceId, setResourceId] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const load = useCallback(async (cursor?: string, append = false) => {
+  async function load(cursor?: string, append = false) {
     setLoading(true)
 
     try {
@@ -73,12 +88,7 @@ function AuditDiagnostics() {
     } finally {
       setLoading(false)
     }
-  }, [action, actorUserId, resourceId, resourceType])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   return (
     <div className="space-y-3">
@@ -127,25 +137,15 @@ function AuditDiagnostics() {
             {events.map((event) => (
               <TableRow key={event.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
-
-                <TableCell>
-                  <Badge variant="outline" className="font-mono font-normal">{event.action}</Badge>
-                </TableCell>
-
-                <TableCell className="hidden max-w-48 truncate font-mono text-xs text-muted-foreground lg:table-cell">
-                  {event.actorUserId ?? "system"}
-                </TableCell>
-
+                <TableCell><Badge variant="outline" className="font-mono font-normal">{event.action}</Badge></TableCell>
+                <TableCell className="hidden max-w-48 truncate font-mono text-xs text-muted-foreground lg:table-cell">{event.actorUserId ?? "system"}</TableCell>
                 <TableCell className="hidden md:table-cell">
                   <div className="max-w-64">
                     <div className="text-sm">{event.resourceType || "—"}</div>
                     {event.resourceId && <div className="truncate font-mono text-xs text-muted-foreground">{event.resourceId}</div>}
                   </div>
                 </TableCell>
-
-                <TableCell>
-                  <JSONDialog title={event.action} description="Audit event metadata" value={event.metadata} />
-                </TableCell>
+                <TableCell><JSONDialog title={event.action} description="Audit event metadata" value={event.metadata} /></TableCell>
               </TableRow>
             ))}
 
@@ -163,14 +163,14 @@ function AuditDiagnostics() {
   )
 }
 
-function JobDiagnostics() {
-  const [jobs, setJobs] = useState<readonly JobDiagnostic[]>([])
-  const [nextCursor, setNextCursor] = useState<string>()
+function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
+  const [jobs, setJobs] = useState<JobDiagnostic[]>(() => [...initialPage.jobs])
+  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [status, setStatus] = useState<JobStatus | "all">("all")
   const [type, setType] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const load = useCallback(async (cursor?: string, append = false) => {
+  async function load(cursor?: string, append = false) {
     setLoading(true)
 
     try {
@@ -189,12 +189,7 @@ function JobDiagnostics() {
     } finally {
       setLoading(false)
     }
-  }, [status, type])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   return (
     <div className="space-y-3">
@@ -285,15 +280,15 @@ function JobDiagnostics() {
   )
 }
 
-function UploadDiagnostics() {
-  const [uploads, setUploads] = useState<readonly UploadDiagnostic[]>([])
-  const [nextCursor, setNextCursor] = useState<string>()
+function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage }) {
+  const [uploads, setUploads] = useState<UploadDiagnostic[]>(() => [...initialPage.uploads])
+  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [status, setStatus] = useState<UploadStatus | "all">("all")
   const [ownerUserId, setOwnerUserId] = useState("")
   const [actorUserId, setActorUserId] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const load = useCallback(async (cursor?: string, append = false) => {
+  async function load(cursor?: string, append = false) {
     setLoading(true)
 
     try {
@@ -313,12 +308,7 @@ function UploadDiagnostics() {
     } finally {
       setLoading(false)
     }
-  }, [actorUserId, ownerUserId, status])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   return (
     <div className="space-y-3">
@@ -377,28 +367,16 @@ function UploadDiagnostics() {
             {uploads.map((upload) => (
               <TableRow key={upload.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(upload.updatedAt)}</TableCell>
-
                 <TableCell>
                   <div className="max-w-64">
                     <div className="truncate font-medium">{upload.name}</div>
                     <div className="truncate font-mono text-xs text-muted-foreground">{upload.id}</div>
                   </div>
                 </TableCell>
-
                 <TableCell><StatusBadge status={upload.status} /></TableCell>
-
-                <TableCell className="hidden tabular-nums md:table-cell">
-                  {formatNumber(upload.uploadedParts)} / {formatNumber(upload.expectedParts)}
-                </TableCell>
-
-                <TableCell className="hidden whitespace-nowrap tabular-nums lg:table-cell">
-                  {formatBytes(upload.sizeBytes)}
-                </TableCell>
-
-                <TableCell className="hidden tabular-nums xl:table-cell">
-                  {formatNumber(upload.failedAttempts)} / {formatNumber(upload.attemptCount)}
-                </TableCell>
-
+                <TableCell className="hidden tabular-nums md:table-cell">{formatNumber(upload.uploadedParts)} / {formatNumber(upload.expectedParts)}</TableCell>
+                <TableCell className="hidden whitespace-nowrap tabular-nums lg:table-cell">{formatBytes(upload.sizeBytes)}</TableCell>
+                <TableCell className="hidden tabular-nums xl:table-cell">{formatNumber(upload.failedAttempts)} / {formatNumber(upload.attemptCount)}</TableCell>
                 <TableCell>
                   <JSONDialog
                     title={upload.name}
@@ -455,9 +433,7 @@ function JSONDialog({ title, description, value }: { title: string; description:
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted p-4 text-xs leading-relaxed">
-          {JSON.stringify(value, null, 2)}
-        </pre>
+        <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted p-4 text-xs leading-relaxed">{JSON.stringify(value, null, 2)}</pre>
       </DialogContent>
     </Dialog>
   )

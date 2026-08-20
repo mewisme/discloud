@@ -5,7 +5,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
-import { ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -22,6 +22,7 @@ type NavItem = {
   href: string
   icon: ComponentType<{ className?: string }>
   enabled: boolean
+  exact?: boolean
 }
 
 const workspace: NavItem[] = [
@@ -33,8 +34,14 @@ const workspace: NavItem[] = [
   { title: "Trash", href: "/trash", icon: Trash2Icon, enabled: true },
 ]
 
+const management: NavItem[] = [
+  { title: "Admin", href: "/admin", icon: ShieldIcon, enabled: true, exact: true },
+  { title: "Diagnostics", href: "/admin/diagnostics", icon: ActivityIcon, enabled: true },
+]
+
 const titles = [
   ["/settings/security", "Security"],
+  ["/admin/diagnostics", "Diagnostics"],
   ["/collections", "Collections"],
   ["/shared", "Shared"],
   ["/search", "Search"],
@@ -75,6 +82,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
@@ -82,15 +90,17 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
             <AppNav items={workspace} />
           </SidebarGroupContent>
         </SidebarGroup>
+
         {user.role === "admin" && (
           <SidebarGroup>
             <SidebarGroupLabel>Management</SidebarGroupLabel>
             <SidebarGroupContent>
-              <AppNav items={[{ title: "Admin", href: "/admin", icon: ShieldIcon, enabled: true }]} />
+              <AppNav items={management} />
             </SidebarGroupContent>
           </SidebarGroup>
         )}
       </SidebarContent>
+
       <SidebarFooter>
         <QuotaUsage usage={usage} />
         <SidebarMenu>
@@ -99,6 +109,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   )
@@ -110,23 +121,27 @@ function AppNav({ items }: { items: NavItem[] }) {
 
   return (
     <SidebarMenu>
-      {items.map((item) => (
-        <SidebarMenuItem key={item.href}>
-          {item.enabled ? (
-            <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)} tooltip={item.title}>
-              <Link href={item.href} onClick={() => setOpenMobile(false)}>
+      {items.map((item) => {
+        const active = item.exact ? pathname === item.href : isActivePath(pathname, item.href)
+
+        return (
+          <SidebarMenuItem key={item.href}>
+            {item.enabled ? (
+              <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
+                <Link href={item.href} onClick={() => setOpenMobile(false)}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton aria-disabled className="cursor-not-allowed opacity-50" tooltip={`${item.title} · coming soon`}>
                 <item.icon />
                 <span>{item.title}</span>
-              </Link>
-            </SidebarMenuButton>
-          ) : (
-            <SidebarMenuButton aria-disabled className="cursor-not-allowed opacity-50" tooltip={`${item.title} · coming soon`}>
-              <item.icon />
-              <span>{item.title}</span>
-            </SidebarMenuButton>
-          )}
-        </SidebarMenuItem>
-      ))}
+              </SidebarMenuButton>
+            )}
+          </SidebarMenuItem>
+        )
+      })}
     </SidebarMenu>
   )
 }
@@ -184,6 +199,7 @@ function UserMenu({ user }: { user: User }) {
           <ChevronsUpDownIcon className="ml-auto" />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end" sideOffset={8} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex items-center gap-2">
@@ -196,13 +212,16 @@ function UserMenu({ user }: { user: User }) {
             </div>
           </div>
         </DropdownMenuLabel>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem asChild>
           <Link href="/settings/security" onClick={() => setOpenMobile(false)}>
             <SettingsIcon />
             Security
           </Link>
         </DropdownMenuItem>
+
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             {theme === "dark" ? <MoonIcon /> : theme === "light" ? <SunIcon /> : <MonitorIcon />}
@@ -225,7 +244,9 @@ function UserMenu({ user }: { user: User }) {
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem variant="destructive" disabled={pending} onSelect={(event) => {
           event.preventDefault()
           void logout()
@@ -248,11 +269,13 @@ function QuotaUsage({ usage }: { usage: CurrentUserUsage }) {
         <span className="font-medium">Storage</span>
         {usage.quotaBytes !== null && <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>}
       </div>
+
       <div className="truncate text-xs tabular-nums text-muted-foreground">
         {formatBytes(usage.usedBytes)}
         {usage.reservedBytes > 0 && <span> (+{formatBytes(usage.reservedBytes)})</span>}
         <span> / {usage.quotaBytes === null ? "∞" : formatBytes(usage.quotaBytes)}</span>
       </div>
+
       {usage.quotaBytes !== null && <Progress value={percent} />}
       {usage.overQuota && <div className="text-xs font-medium text-destructive">Quota exceeded</div>}
     </div>
