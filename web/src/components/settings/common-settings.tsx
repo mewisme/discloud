@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckIcon, ChevronsUpDownIcon, Clock3Icon, Loader2Icon } from "lucide-react"
+import { ChevronsUpDownIcon, Clock3Icon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
@@ -65,11 +65,11 @@ export function CommonSettings() {
 
       <CardContent className="space-y-5">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Display time zone</label>
+          <label htmlFor="display-timezone" className="text-sm font-medium">Display time zone</label>
 
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+              <Button id="display-timezone" variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
                 <span className="truncate">{timezone}</span>
                 <ChevronsUpDownIcon className="shrink-0 text-muted-foreground" />
               </Button>

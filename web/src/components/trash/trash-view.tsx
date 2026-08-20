@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiJSON } from "@/lib/api/client"
 import type { Node, TrashItem, TrashPage, TrashQuery } from "@/lib/api/models"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
-import { DateOnly, DateTime } from "@/components/common/date-time"
+import { DateOnly } from "@/components/common/date-time"
 
 const pageSize = 50
 

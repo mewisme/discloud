@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircleIcon, BracesIcon, Loader2Icon } from "lucide-react"
+import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { toast } from "sonner"
 import { DiagnosticsDateRangePicker, DiagnosticsFilterBar, type DiagnosticsDateRange } from "@/components/admin/diagnostics-filter-bar"
 import { DateTime } from "@/components/common/date-time"
@@ -73,6 +73,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
   const [dateRange, setDateRange] = useState<DiagnosticsDateRange>()
   const [appliedQuery, setAppliedQuery] = useState<AuditQuery>({ limit: pageSize })
   const [loading, setLoading] = useState(false)
+  const [paginationError, setPaginationError] = useState<string>()
   const loadingRef = useRef(false)
 
   function currentQuery() {
@@ -92,6 +93,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
   async function load(query: AuditQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
+    setPaginationError(undefined)
     setLoading(true)
 
     try {
@@ -99,7 +101,9 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
       setEvents((current) => append ? [...current, ...page.events] : [...page.events])
       setNextCursor(page.nextCursor)
     } catch (error) {
-      toast.error(apiErrorMessage(error, "Could not load audit events."))
+      const message = apiErrorMessage(error, "Could not load audit events.")
+      if (append) setPaginationError(message)
+      else toast.error(message)
     } finally {
       loadingRef.current = false
       setLoading(false)
@@ -221,7 +225,9 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
         <InfiniteScrollSentinel
           loading={loading}
           hasMore={!!nextCursor}
+          error={paginationError}
           onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+          onRetry={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
         />
       </div>
     </div>
@@ -235,6 +241,7 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
   const [status, setStatus] = useState<JobStatus | "all">("all")
   const [type, setType] = useState("")
   const [loading, setLoading] = useState(false)
+  const [paginationError, setPaginationError] = useState<string>()
   const loadingRef = useRef(false)
 
   function currentQuery() {
@@ -248,6 +255,7 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
   async function load(query: JobsQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
+    setPaginationError(undefined)
     setLoading(true)
 
     try {
@@ -255,7 +263,9 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
       setJobs((current) => append ? [...current, ...page.jobs] : [...page.jobs])
       setNextCursor(page.nextCursor)
     } catch (error) {
-      toast.error(apiErrorMessage(error, "Could not load jobs."))
+      const message = apiErrorMessage(error, "Could not load jobs.")
+      if (append) setPaginationError(message)
+      else toast.error(message)
     } finally {
       loadingRef.current = false
       setLoading(false)
@@ -367,7 +377,9 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
         <InfiniteScrollSentinel
           loading={loading}
           hasMore={!!nextCursor}
+          error={paginationError}
           onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+          onRetry={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
         />
       </div>
     </div>
@@ -382,6 +394,7 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
   const [actorUserId, setActorUserId] = useState("")
   const [appliedQuery, setAppliedQuery] = useState<UploadDiagnosticsQuery>({ limit: pageSize })
   const [loading, setLoading] = useState(false)
+  const [paginationError, setPaginationError] = useState<string>()
   const loadingRef = useRef(false)
 
   function currentQuery() {
@@ -396,6 +409,7 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
   async function load(query: UploadDiagnosticsQuery, append = false) {
     if (loadingRef.current) return
     loadingRef.current = true
+    setPaginationError(undefined)
     setLoading(true)
 
     try {
@@ -403,7 +417,9 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
       setUploads((current) => append ? [...current, ...page.uploads] : [...page.uploads])
       setNextCursor(page.nextCursor)
     } catch (error) {
-      toast.error(apiErrorMessage(error, "Could not load upload diagnostics."))
+      const message = apiErrorMessage(error, "Could not load upload diagnostics.")
+      if (append) setPaginationError(message)
+      else toast.error(message)
     } finally {
       loadingRef.current = false
       setLoading(false)
@@ -541,7 +557,9 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
         <InfiniteScrollSentinel
           loading={loading}
           hasMore={!!nextCursor}
+          error={paginationError}
           onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
+          onRetry={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
         />
       </div>
     </div>
@@ -551,11 +569,15 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
 function InfiniteScrollSentinel({
   loading,
   hasMore,
+  error,
   onLoad,
+  onRetry,
 }: {
   loading: boolean
   hasMore: boolean
+  error?: string
   onLoad: () => void
+  onRetry: () => void
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const onLoadRef = useRef(onLoad)
@@ -566,7 +588,7 @@ function InfiniteScrollSentinel({
 
   useEffect(() => {
     const sentinel = sentinelRef.current
-    if (!sentinel || !hasMore || loading) return
+    if (!sentinel || !hasMore || loading || error) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -577,7 +599,7 @@ function InfiniteScrollSentinel({
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [hasMore, loading])
+  }, [error, hasMore, loading])
 
   return (
     <div ref={sentinelRef} className="flex min-h-10 items-center justify-center border-t">
@@ -588,7 +610,17 @@ function InfiniteScrollSentinel({
         </div>
       )}
 
-      {!loading && !hasMore && <span className="py-2 text-xs text-muted-foreground">End of results</span>}
+      {!loading && error && (
+        <div role="alert" className="flex flex-wrap items-center justify-center gap-2 px-3 py-2 text-xs text-destructive">
+          <span>{error}</span>
+          <Button size="sm" variant="ghost" onClick={onRetry}>
+            <RefreshCwIcon />
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {!loading && !error && !hasMore && <span className="py-2 text-xs text-muted-foreground">End of results</span>}
     </div>
   )
 }
