@@ -1,11 +1,12 @@
 import "client-only"
 import { apiError } from "@/lib/api/error"
+import { apiProxyPath } from "@/lib/api/path"
 import type { APIJSONInit, APIRequestInit, Query } from "@/lib/api/types"
 
 const API_PREFIX = "/api/backend"
 
 export function apiURL(path: string, query?: Query) {
-  const pathname = path.startsWith("/") ? path : `/${path}`
+  const pathname = apiProxyPath(path)
   const search = new URLSearchParams()
 
   for (const [key, value] of Object.entries(query ?? {})) {

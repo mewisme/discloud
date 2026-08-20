@@ -1,4 +1,5 @@
 import "server-only"
+import { apiBackendSegments } from "@/lib/api/path"
 
 type RouteContext = {
   params: Promise<{ path: string[] }>
@@ -54,7 +55,8 @@ function backendTarget(path: string[], requestURL: string) {
   if (target.protocol !== "http:" && target.protocol !== "https:") throw new Error("invalid backend protocol")
 
   const basePath = target.pathname.replace(/\/+$/, "")
-  target.pathname = `${basePath}/${path.map(encodeURIComponent).join("/")}`
+  const backendPath = apiBackendSegments(path)
+  target.pathname = `${basePath}/${backendPath.map(encodeURIComponent).join("/")}`
   target.search = new URL(requestURL).search
   target.hash = ""
   return target

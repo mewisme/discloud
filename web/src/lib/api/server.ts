@@ -1,6 +1,7 @@
 import "server-only"
 import { headers as requestHeaders } from "next/headers"
 import { apiError } from "@/lib/api/error"
+import { apiBackendPath } from "@/lib/api/path"
 import type { APIRequestInit, Query } from "@/lib/api/types"
 
 export async function apiServerJSON<T>(path: string, options: APIRequestInit = {}): Promise<T> {
@@ -35,8 +36,7 @@ function apiServerURL(path: string, query?: Query) {
   const url = new URL(raw)
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("invalid backend protocol")
 
-  const pathname = path.startsWith("/") ? path : `/${path}`
-  url.pathname = `${url.pathname.replace(/\/+$/, "")}${pathname}`
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}${apiBackendPath(path)}`
 
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(query ?? {})) {
