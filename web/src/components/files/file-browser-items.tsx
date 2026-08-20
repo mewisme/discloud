@@ -1,40 +1,11 @@
 "use client"
 
-import { FolderOpenIcon, FolderUpIcon, Loader2Icon, StarIcon } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { Loader2Icon } from "lucide-react"
 
-import { useWorkspace } from "@/components/app/workspace-context"
-import { DateOnly } from "@/components/common/date-time"
-import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
-import { FileNodeVisual } from "@/components/files/file-node-visual"
-import { NodeActionsMenu } from "@/components/files/node-actions"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
-import type { BrowserOptions } from "@/lib/files/browser"
-import { fileBrowserPath, folderBrowserURL } from "@/lib/files/navigation"
-import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
-
-type BrowserItemsProps = {
-  nodes: BrowserNode[]
-  folder: Node
-  breadcrumbs: readonly Node[]
-  page: NodePage
-  options: BrowserOptions
-  selected: ReadonlySet<string>
-  loading: boolean
-  favoritePending: boolean
-  onMoveTargets: (nodes: readonly BrowserNode[]) => void
-  onTrashTargets: (nodes: readonly BrowserNode[]) => void
-  onFavoriteTargets: (nodes: readonly BrowserNode[], favorite: boolean) => Promise<void>
-  onNavigate: (folderId: string) => void
-  onSelect: (nodeId: string, selected: boolean) => void
-  onSelectAll: (selected: boolean) => void
-  onFavorite: (node: BrowserNode, favorite: boolean) => Promise<void>
-  onMoved: (nodeId: string) => void
-  onReload: () => Promise<void>
-}
+import { EmptyFolder } from "@/components/files/browser/empty-folder"
+import { FileBrowserGrid } from "@/components/files/browser/file-browser-grid"
+import type { BrowserItemsProps } from "@/components/files/browser/file-browser-item-shared"
+import { FileBrowserList } from "@/components/files/browser/file-browser-list"
 
 export function BrowserItems(props: BrowserItemsProps) {
   const parent = props.folder.isRoot ? undefined : props.breadcrumbs.at(-2)
@@ -42,7 +13,12 @@ export function BrowserItems(props: BrowserItemsProps) {
 
   return (
     <div className="relative min-h-24" aria-busy={props.loading}>
-      {empty ? <EmptyFolder /> : props.options.view === "grid" ? <NodeGrid {...props} parent={parent} /> : <NodeList {...props} parent={parent} />}
+      {empty
+        ? <EmptyFolder />
+        : props.options.view === "grid"
+          ? <FileBrowserGrid {...props} parent={parent} />
+          : <FileBrowserList {...props} parent={parent} />}
+
       {props.loading && (
         <div className="absolute inset-0 z-10 grid min-h-24 place-items-center rounded-xl bg-background/70 backdrop-blur-[1px]">
           <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
@@ -53,225 +29,4 @@ export function BrowserItems(props: BrowserItemsProps) {
       )}
     </div>
   )
-}
-
-function NodeList(props: BrowserItemsProps & { parent?: Node }) {
-  const router = useRouter()
-  const workspace = useWorkspace()
-  const allSelected = props.nodes.length > 0 && props.nodes.every((node) => props.selected.has(node.id))
-  const someSelected = props.nodes.some((node) => props.selected.has(node.id))
-
-  function open(node: BrowserNode) {
-    if (node.kind === "folder") props.onNavigate(node.id)
-    else router.push(fileBrowserPath(workspace.username, node.id))
-  }
-
-  return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">
-              <Checkbox checked={allSelected ? true : someSelected ? "indeterminate" : false} aria-label="Select all loaded items" onCheckedChange={(value) => props.onSelectAll(value === true)} />
-            </TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead className="hidden md:table-cell">Type</TableHead>
-            <TableHead className="hidden w-28 sm:table-cell">Size</TableHead>
-            <TableHead className="hidden w-36 lg:table-cell">Modified</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {props.parent && (
-            <TableRow className="select-none">
-              <TableCell />
-              <TableCell>
-                <a
-                  className="flex items-center gap-2 font-medium hover:underline"
-                  href={folderBrowserURL(workspace.username, props.parent.isRoot ? undefined : props.parent.id, props.options)}
-                  onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}
-                >
-                  <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-                    <FolderUpIcon className="size-4 text-muted-foreground" />
-                  </div>
-                  <span>..</span>
-                </a>
-              </TableCell>
-              <TableCell className="hidden text-muted-foreground md:table-cell">Parent folder</TableCell>
-              <TableCell className="hidden sm:table-cell" />
-              <TableCell className="hidden lg:table-cell" />
-              <TableCell />
-            </TableRow>
-          )}
-
-          {props.nodes.map((node) => (
-            <FileNodeContextMenu
-              key={node.id}
-              node={node}
-              targets={contextTargets(props, node)}
-              favoritePending={props.favoritePending}
-              onOpen={open}
-              onMove={props.onMoveTargets}
-              onTrash={props.onTrashTargets}
-              onFavorite={props.onFavoriteTargets}
-              onReload={props.onReload}
-            >
-              <TableRow
-                className="select-none"
-                data-state={props.selected.has(node.id) ? "selected" : undefined}
-                onDoubleClick={(event) => {
-                  if (!isInteractiveTarget(event.target)) open(node)
-                }}
-              >
-                <TableCell>
-                  <Checkbox checked={props.selected.has(node.id)} aria-label={`Select ${node.name}`} onCheckedChange={(value) => props.onSelect(node.id, value === true)} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileNodeVisual node={node} className="size-9" iconClassName="size-4" />
-                    {node.kind === "folder" ? (
-                      <a
-                        className="truncate font-medium hover:underline"
-                        href={folderBrowserURL(workspace.username, node.id, props.options)}
-                        onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}
-                      >
-                        {node.name}
-                      </a>
-                    ) : (
-                      <Link className="truncate font-medium hover:underline" href={fileBrowserPath(workspace.username, node.id)}>
-                        {node.name}
-                      </Link>
-                    )}
-                    {node.isFavorite && <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
-                  </div>
-                </TableCell>
-                <TableCell className="hidden text-muted-foreground md:table-cell">{nodeType(node)}</TableCell>
-                <TableCell className="hidden text-muted-foreground sm:table-cell">{node.size != null ? formatBytes(node.size) : "—"}</TableCell>
-                <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}><DateOnly value={node.updatedAt} /></TableCell>
-                <TableCell>
-                  <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
-                </TableCell>
-              </TableRow>
-            </FileNodeContextMenu>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function NodeGrid(props: BrowserItemsProps & { parent?: Node }) {
-  const router = useRouter()
-  const workspace = useWorkspace()
-
-  function open(node: BrowserNode) {
-    if (node.kind === "folder") props.onNavigate(node.id)
-    else router.push(fileBrowserPath(workspace.username, node.id))
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-      {props.parent && (
-        <button type="button" className="group min-w-0 overflow-hidden rounded-xl border bg-card text-left transition-colors hover:bg-muted/40" onClick={() => props.onNavigate(props.parent!.id)}>
-          <div className="grid aspect-[4/3] w-full place-items-center bg-muted/40">
-            <FolderUpIcon className="size-8 text-muted-foreground" />
-          </div>
-          <div className="p-3">
-            <p className="truncate text-sm font-medium">..</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">Parent folder</p>
-          </div>
-        </button>
-      )}
-
-      {props.nodes.map((node) => (
-        <FileNodeContextMenu
-          key={node.id}
-          node={node}
-          targets={contextTargets(props, node)}
-          favoritePending={props.favoritePending}
-          onOpen={open}
-          onMove={props.onMoveTargets}
-          onTrash={props.onTrashTargets}
-          onFavorite={props.onFavoriteTargets}
-          onReload={props.onReload}
-        >
-          <div
-            className="group min-w-0 overflow-hidden rounded-xl border bg-card transition-[background-color,box-shadow] hover:bg-muted/20 data-[selected=true]:ring-2 data-[selected=true]:ring-primary/40"
-            data-selected={props.selected.has(node.id)}
-            onDoubleClick={(event) => {
-              if (!isInteractiveTarget(event.target)) open(node)
-            }}
-          >
-            <div className="relative">
-              <FileNodeVisual node={node} className="aspect-[4/3] w-full rounded-none bg-muted/30" iconClassName="size-8" />
-
-              <Checkbox
-                className="absolute left-2 top-2 bg-background/90 shadow-sm"
-                checked={props.selected.has(node.id)}
-                aria-label={`Select ${node.name}`}
-                onCheckedChange={(value) => props.onSelect(node.id, value === true)}
-              />
-
-              <div className="absolute right-2 top-2 rounded-md bg-background/90 shadow-sm backdrop-blur">
-                <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />
-              </div>
-            </div>
-
-            <div className="min-w-0 p-3">
-              <div className="flex min-w-0 items-center gap-1.5">
-                {node.kind === "folder" ? (
-                  <a
-                    className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                    href={folderBrowserURL(workspace.username, node.id, props.options)}
-                    onClick={(event) => handleClientNavigation(event, () => props.onNavigate(node.id))}
-                  >
-                    {node.name}
-                  </a>
-                ) : (
-                  <Link className="block min-w-0 flex-1 truncate text-sm font-medium hover:underline" href={fileBrowserPath(workspace.username, node.id)}>
-                    {node.name}
-                  </Link>
-                )}
-                {node.isFavorite && <StarIcon className="size-3 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />}
-              </div>
-
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {node.size != null ? `${nodeType(node)} · ${formatBytes(node.size)}` : nodeType(node)}
-              </p>
-            </div>
-          </div>
-        </FileNodeContextMenu>
-      ))}
-    </div>
-  )
-}
-
-function EmptyFolder() {
-  return (
-    <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center">
-      <div className="space-y-2">
-        <div className="mx-auto grid size-11 place-items-center rounded-xl bg-muted">
-          <FolderOpenIcon className="size-5 text-muted-foreground" />
-        </div>
-        <div>
-          <p className="font-medium">Empty folder</p>
-          <p className="text-sm text-muted-foreground">Drop files here or create a folder.</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function nodeType(node: BrowserNode) {
-  if (node.kind === "folder") return "Folder"
-  if (node.category) return node.category.charAt(0).toUpperCase() + node.category.slice(1)
-  return node.mimeType || "File"
-}
-
-function contextTargets(props: BrowserItemsProps, node: BrowserNode) {
-  if (!props.selected.has(node.id)) return [node]
-
-  const targets = props.nodes.filter((item) => props.selected.has(item.id))
-  return targets.length ? targets : [node]
 }
