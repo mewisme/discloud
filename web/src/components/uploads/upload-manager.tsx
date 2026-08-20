@@ -18,8 +18,6 @@ export function UploadManager() {
   if (!tasks.length) return null
 
   const active = tasks.filter(isActive).length
-  const skipped = tasks.filter((task) => task.status === "skipped")
-  const finished = tasks.filter((task) => task.status === "completed" || task.status === "skipped")
   const failed = tasks.filter((task) => task.status === "error")
   const completed = tasks.filter((task) => task.status === "completed")
   const cancellable = tasks.filter(canCancelTask)

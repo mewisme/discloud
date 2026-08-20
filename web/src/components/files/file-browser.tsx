@@ -186,7 +186,7 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
     window.addEventListener("popstate", popstate)
     return () => window.removeEventListener("popstate", popstate)
-  }, [folder.id, navigateFolder])
+  }, [folder.id, navigateFolder, workspace.username])
 
   useEffect(() => {
     const sentinel = sentinelRef.current

@@ -10,6 +10,7 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit",
+    "typegen": "next typegen",
     "test": "vitest run",
     "test:watch": "vitest",
     "api:types": "openapi-typescript ../docs/openapi.json -o src/lib/api/generated.ts --export-type --immutable --alphabetize",
