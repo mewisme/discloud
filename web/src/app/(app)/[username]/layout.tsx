@@ -4,7 +4,6 @@ import type { ReactNode } from "react"
 
 import { AppShell } from "@/components/app/app-shell"
 import { WorkspaceAccessDenied } from "@/components/app/workspace-access-denied"
-import { WorkspaceProvider } from "@/components/app/workspace-context"
 import { getCurrentUser } from "@/lib/auth/session"
 import { getWorkspace, WorkspaceAccessError, WorkspaceNotFoundError } from "@/lib/workspace/server"
 
@@ -25,7 +24,12 @@ export default async function WorkspaceLayout({
     workspace = await getWorkspace(username)
   } catch (error) {
     if (error instanceof WorkspaceAccessError) {
-      return <WorkspaceAccessDenied username={username} currentUsername={currentUser.username} />
+      return (
+        <WorkspaceAccessDenied
+          username={username}
+          currentUsername={currentUser.username}
+        />
+      )
     }
     if (error instanceof WorkspaceNotFoundError) notFound()
     throw error
@@ -35,10 +39,13 @@ export default async function WorkspaceLayout({
   const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
   return (
-    <WorkspaceProvider workspace={workspace}>
-      <AppShell user={currentUser} defaultSidebarOpen={defaultSidebarOpen}>
-        {children}
-      </AppShell>
-    </WorkspaceProvider>
+    <AppShell
+      user={currentUser}
+      workspace={workspace.owner}
+      usage={workspace.usage}
+      defaultSidebarOpen={defaultSidebarOpen}
+    >
+      {children}
+    </AppShell>
   )
 }

@@ -2537,6 +2537,11 @@ export type components = {
                 readonly "application/json": {
                     readonly description?: string;
                     readonly name: string;
+                    /**
+                     * Format: uuid
+                     * @description Optional collection owner. Omit to use the authenticated user; targeting another user requires administrator access.
+                     */
+                    readonly ownerUserId?: string;
                 };
             };
         };
@@ -3070,6 +3075,7 @@ export interface operations {
             readonly query?: {
                 readonly cursor?: components["parameters"]["cursor"];
                 readonly limit?: components["parameters"]["limit"];
+                readonly ownerId?: components["parameters"]["ownerId"];
             };
             readonly header?: never;
             readonly path?: never;
