@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation"
 import { CompactBreadcrumbs, type CompactBreadcrumbItem } from "@/components/navigation/compact-breadcrumbs"
-import { SlashIcon } from "lucide-react"
 
 export function SettingsPageHeader({
   title,

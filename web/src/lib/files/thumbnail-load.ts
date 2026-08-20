@@ -1,10 +1,10 @@
 import "client-only"
+import { abortReason, ThumbnailLoadQueue } from "@/lib/files/thumbnail-queue"
 
 const maxConcurrentThumbnailLoads = 4
 const maxThumbnailAttempts = 4
 const thumbnailLoadTimeoutMs = 15_000
-const pending: Array<() => void> = []
-let active = 0
+const thumbnailQueue = new ThumbnailLoadQueue(maxConcurrentThumbnailLoads)
 
 export async function loadThumbnail(baseURL: string, signal?: AbortSignal) {
   let lastError: unknown
@@ -16,7 +16,7 @@ export async function loadThumbnail(baseURL: string, signal?: AbortSignal) {
       await waitForThumbnailRetry(attempt, signal)
     }
 
-    const release = await acquireThumbnailLoadSlot(signal)
+    const release = await thumbnailQueue.acquire(signal)
     const source = thumbnailAttemptURL(baseURL, attempt)
 
     try {
@@ -33,50 +33,6 @@ export async function loadThumbnail(baseURL: string, signal?: AbortSignal) {
   throw lastError instanceof Error ? lastError : new Error("Thumbnail could not be loaded")
 }
 
-function acquireThumbnailLoadSlot(signal?: AbortSignal): Promise<() => void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(abortReason(signal))
-      return
-    }
-
-    let started = false
-
-    const start = () => {
-      if (signal?.aborted) {
-        reject(abortReason(signal))
-        drainThumbnailQueue()
-        return
-      }
-
-      started = true
-      signal?.removeEventListener("abort", onAbort)
-      active++
-
-      let released = false
-      resolve(() => {
-        if (released) return
-        released = true
-        active = Math.max(0, active - 1)
-        drainThumbnailQueue()
-      })
-    }
-
-    const onAbort = () => {
-      if (started) return
-
-      const index = pending.indexOf(start)
-      if (index >= 0) pending.splice(index, 1)
-      reject(abortReason(signal!))
-      drainThumbnailQueue()
-    }
-
-    signal?.addEventListener("abort", onAbort, { once: true })
-    pending.push(start)
-    drainThumbnailQueue()
-  })
-}
-
 function preloadThumbnail(source: string, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
@@ -89,24 +45,24 @@ function preloadThumbnail(source: string, signal?: AbortSignal) {
 
     const finish = (error?: Error) => {
       if (settled) return
+
       settled = true
       window.clearTimeout(timeout)
       signal?.removeEventListener("abort", onAbort)
       image.onload = null
       image.onerror = null
+
       if (error) reject(error)
       else resolve()
     }
 
-    const onAbort = () => {
+    const stop = (error: Error) => {
+      finish(error)
       image.src = ""
-      finish(abortReason(signal!))
     }
 
-    const timeout = window.setTimeout(() => {
-      image.src = ""
-      finish(new Error("Thumbnail load timed out"))
-    }, thumbnailLoadTimeoutMs)
+    const onAbort = () => stop(abortReason(signal!))
+    const timeout = window.setTimeout(() => stop(new Error("Thumbnail load timed out")), thumbnailLoadTimeoutMs)
 
     image.onload = () => finish()
     image.onerror = () => finish(new Error("Thumbnail request failed"))
@@ -144,16 +100,4 @@ function waitForThumbnailRetry(attempt: number, signal?: AbortSignal) {
 
     signal?.addEventListener("abort", onAbort, { once: true })
   })
-}
-
-function drainThumbnailQueue() {
-  while (active < maxConcurrentThumbnailLoads && pending.length > 0) {
-    pending.shift()?.()
-  }
-}
-
-function abortReason(signal: AbortSignal) {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new DOMException("Thumbnail load aborted", "AbortError")
 }
