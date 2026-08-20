@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { Collection, CollectionPage, CollectionsQuery, CreateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { formatDate } from "@/lib/helpers"
+import { apiErrorMessage, formatDate } from "@/lib/helpers"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -45,7 +45,7 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
       setCollections((current) => [...current, ...page.collections])
       setNextCursor(page.nextCursor)
     } catch (error) {
-      toast.error(error instanceof APIError ? error.message : "Could not load more collections")
+      toast.error(apiErrorMessage(error, "Could not load more collections"))
     } finally {
       setLoadingMore(false)
     }
@@ -137,7 +137,7 @@ function CreateCollectionDialog({ onCreated }: { onCreated: (collection: Collect
         form.setError("name", { message: error.message }, { shouldFocus: true })
         return
       }
-      setFormError(error instanceof APIError ? error.message : "Could not create collection")
+      setFormError(apiErrorMessage(error, "Could not create collection"))
     }
   }
 

@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJSON } from "@/lib/api/client"
 import type { AddCollectionItemInput, Collection, CollectionItem, CollectionItems, SearchPage, SearchQuery, SearchResult, UpdateCollectionInput } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiErrorMessage, formatBytes, formatDate } from "@/lib/helpers"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -27,9 +28,6 @@ const formSchema = z.object({
 })
 
 type FormValues = z.infer<typeof formSchema>
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" })
 
 export function CollectionDetail({ initialCollection, initialItems }: { initialCollection: Collection; initialItems: readonly CollectionItem[] }) {
   const router = useRouter()
@@ -48,7 +46,7 @@ export function CollectionDetail({ initialCollection, initialItems }: { initialC
       setItems((current) => current.filter((item) => item.fileId !== fileId))
       toast.success("Removed from collection")
     } catch (error) {
-      toast.error(error instanceof APIError ? error.message : "Could not remove file")
+      toast.error(apiErrorMessage(error, "Could not remove file"))
     }
   }
 
@@ -59,7 +57,7 @@ export function CollectionDetail({ initialCollection, initialItems }: { initialC
       router.replace("/collections")
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof APIError ? error.message : "Could not trash collection")
+      toast.error(apiErrorMessage(error, "Could not trash collection"))
     }
   }
 
@@ -145,7 +143,7 @@ export function CollectionDetail({ initialCollection, initialItems }: { initialC
                   </TableCell>
                   <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{item.category || "File"}</TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">{formatBytes(item.size)}</TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">{dateFormatter.format(new Date(item.addedAt))}</TableCell>
+                  <TableCell className="hidden text-muted-foreground lg:table-cell">{formatDate(item.addedAt)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end">
                       <Button size="icon-sm" variant="ghost" asChild>
@@ -200,7 +198,7 @@ function EditCollectionDialog({ collection, onUpdated }: { collection: Collectio
         form.setError("name", { message: error.message }, { shouldFocus: true })
         return
       }
-      setFormError(error instanceof APIError ? error.message : "Could not update collection")
+      setFormError(apiErrorMessage(error, "Could not update collection"))
     }
   }
 
@@ -268,7 +266,7 @@ function AddItemDialog({ collectionId, existingItems, onAdded }: { collectionId:
         const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery, signal: controller.signal })
         setResults(page.results.filter((item) => !!item.parentId))
       } catch (error) {
-        if (!controller.signal.aborted) toast.error(error instanceof APIError ? error.message : "Could not search files")
+        if (!controller.signal.aborted) toast.error(apiErrorMessage(error, "Could not search files"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -289,7 +287,7 @@ function AddItemDialog({ collectionId, existingItems, onAdded }: { collectionId:
       await onAdded()
       toast.success(result.created ? "File added" : "File is already in this collection")
     } catch (error) {
-      toast.error(error instanceof APIError ? error.message : "Could not add file")
+      toast.error(apiErrorMessage(error, "Could not add file"))
     } finally {
       setPendingId(undefined)
     }
@@ -382,11 +380,4 @@ function collectionFileURL(collectionId: string, fileId: string) {
 
 function collectionDownloadURL(collectionId: string, fileId: string) {
   return `/api/backend/api/v1/files/${encodeURIComponent(fileId)}/download?collectionId=${encodeURIComponent(collectionId)}`
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
 }

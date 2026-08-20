@@ -40,7 +40,10 @@ export function formatDuration(milliseconds: number) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor(seconds % 3600 / 60)
   const remainder = seconds % 60
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}` : `${minutes}:${String(remainder).padStart(2, "0")}`
+
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
+    : `${minutes}:${String(remainder).padStart(2, "0")}`
 }
 
 export function formatNumber(value: number) {
@@ -57,8 +60,10 @@ export function isActivePath(pathname: string, href: string) {
 
 export function handleClientNavigation(event: NavigationMouseEvent, navigate: () => void) {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
+
   event.preventDefault()
   navigate()
+
   return true
 }
 
@@ -72,7 +77,11 @@ export function apiErrorMessage(error: unknown, fallback: string) {
 
 export function apiFormError(error: unknown, fallback: string): APIFormError {
   if (!(error instanceof APIError)) return { message: fallback }
-  return { message: error.message || fallback, ...(error.requestID ? { requestID: error.requestID } : {}) }
+
+  return {
+    message: error.message || fallback,
+    ...(error.requestID ? { requestID: error.requestID } : {}),
+  }
 }
 
 function toDate(value: string | number | Date) {

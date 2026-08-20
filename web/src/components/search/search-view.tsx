@@ -11,10 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { apiErrorMessage, formatBytes, formatDateTime } from "@/lib/helpers"
 import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, searchURL, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort } from "@/lib/search/options"
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
 
 export function SearchView() {
   const router = useRouter()
@@ -162,7 +160,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
           router.refresh()
           return
         }
-        setError(cause instanceof APIError ? cause.message : "Could not search files")
+        setError(apiErrorMessage(cause, "Could not search files"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -193,7 +191,7 @@ function SearchResults({ options }: { options: SearchOptions }) {
         router.refresh()
         return
       }
-      setError(cause instanceof APIError ? cause.message : "Could not load more results")
+      setError(apiErrorMessage(cause, "Could not load more results"))
     } finally {
       if (!controller.signal.aborted) setLoadingMore(false)
     }
@@ -287,7 +285,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
         </div>
       </TableCell>
       <TableCell className="hidden text-muted-foreground lg:table-cell">{result.size != null ? formatBytes(result.size) : "—"}</TableCell>
-      <TableCell className="hidden text-muted-foreground xl:table-cell">{dateFormatter.format(new Date(result.updatedAt))}</TableCell>
+      <TableCell className="hidden text-muted-foreground xl:table-cell">{formatDateTime(result.updatedAt)}</TableCell>
       <TableCell>
         {result.kind === "file" && (
           <Button size="icon-sm" variant="ghost" asChild>
@@ -345,11 +343,4 @@ function searchQuery(options: SearchOptions, cursor?: string): SearchQuery {
     limit: 50,
     cursor,
   }
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
 }

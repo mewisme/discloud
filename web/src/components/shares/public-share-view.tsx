@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode, useState } from "react"
 import { CloudIcon, DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderUpIcon, Globe2Icon, LibraryIcon, Loader2Icon } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { FilePreview } from "@/components/files/file-preview"
 import { Badge } from "@/components/ui/badge"
@@ -12,15 +13,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON, apiURL } from "@/lib/api/client"
 import type { PublicFolder, PublicNode, PublicShare } from "@/lib/api/models"
+import { apiErrorMessage, formatBytes, formatDate, isInteractiveTarget } from "@/lib/helpers"
 import { publicFileContentPath, publicFileDownloadPath, publicFolderDownloadPath, publicFolderPath } from "@/lib/shares/public"
-import { APIError } from "@/lib/api/types"
-import Link from "next/link"
 
 type PublicFile = NonNullable<PublicShare["file"]>
 type PublicCollection = NonNullable<PublicShare["collection"]>
-
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" })
 
 export function PublicShareView({ share }: { share: PublicShare }) {
   return (
@@ -92,10 +89,7 @@ function PublicFileView({ publicId, file }: { publicId: string; file: PublicFile
         <Info label="SHA-256" value={file.sha256 ? `${file.sha256.slice(0, 12)}…` : "—"} mono />
       </div>
 
-      <FilePreview
-        file={{ id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, category: file.category }}
-        source={source}
-      />
+      <FilePreview file={{ id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, category: file.category }} source={source} />
     </div>
   )
 }
@@ -114,7 +108,7 @@ function PublicFolderView({ publicId, root }: { publicId: string; root: PublicFo
       const folder = await apiJSON<PublicFolder>(publicFolderPath(publicId, node.id))
       setPath((currentPath) => [...currentPath, folder])
     } catch (error) {
-      toast.error(error instanceof APIError ? error.message : "Could not open this folder")
+      toast.error(apiErrorMessage(error, "Could not open this folder"))
     } finally {
       setLoading(false)
     }
@@ -305,7 +299,7 @@ function PublicEntriesTable({
               key={node.id}
               className="select-none"
               onDoubleClick={(event) => {
-                if (interactiveTarget(event.target)) return
+                if (isInteractiveTarget(event.target)) return
                 if (node.kind === "folder") onOpenFolder?.(node)
                 else onOpenFile(node)
               }}
@@ -313,11 +307,7 @@ function PublicEntriesTable({
               <TableCell>
                 <div className="flex min-w-0 items-center gap-2">
                   <PublicNodeIcon node={node} />
-                  <button
-                    type="button"
-                    className="truncate text-left font-medium hover:underline"
-                    onClick={() => node.kind === "folder" ? onOpenFolder?.(node) : onOpenFile(node)}
-                  >
+                  <button type="button" className="truncate text-left font-medium hover:underline" onClick={() => node.kind === "folder" ? onOpenFolder?.(node) : onOpenFile(node)}>
                     {node.name}
                   </button>
                 </div>
@@ -327,10 +317,7 @@ function PublicEntriesTable({
               <TableCell className="hidden text-muted-foreground lg:table-cell">{formatDate(node.updatedAt)}</TableCell>
               <TableCell>
                 <Button size="icon-sm" variant="ghost" asChild>
-                  <a
-                    href={apiURL(node.kind === "folder" ? publicFolderDownloadPath(publicId, node.id) : publicFileDownloadPath(publicId, node.id))}
-                    aria-label={`Download ${node.name}`}
-                  >
+                  <a href={apiURL(node.kind === "folder" ? publicFolderDownloadPath(publicId, node.id) : publicFileDownloadPath(publicId, node.id))} aria-label={`Download ${node.name}`}>
                     <DownloadIcon />
                   </a>
                 </Button>
@@ -377,10 +364,7 @@ function PublicPreviewDialog({ publicId, file, onOpenChange }: { publicId: strin
           </Button>
         </div>
 
-        <FilePreview
-          file={{ id: file.id, name: file.name, size: file.size ?? 0, mimeType: file.mimeType || "application/octet-stream", category: file.category }}
-          source={source}
-        />
+        <FilePreview file={{ id: file.id, name: file.name, size: file.size ?? 0, mimeType: file.mimeType || "application/octet-stream", category: file.category }} source={source} />
       </DialogContent>
     </Dialog>
   )
@@ -425,19 +409,4 @@ function UnavailableShare() {
       </div>
     </div>
   )
-}
-
-function interactiveTarget(target: EventTarget | null) {
-  return target instanceof Element && !!target.closest("a,button,input,[role=button],[role=menuitem]")
-}
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${numberFormatter.format(bytes / 1024 ** exponent)} ${units[exponent]}`
-}
-
-function formatDate(value: string) {
-  return dateFormatter.format(new Date(value))
 }
