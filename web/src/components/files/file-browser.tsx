@@ -60,7 +60,6 @@ export function FileBrowser({
 
   return (
     <FileUploadTarget
-      // eslint-disable-next-line react-hooks/refs
       folderId={browser.folder.id}
       disabled={browser.accessLevel === "view"}
     >
@@ -184,7 +183,6 @@ export function FileBrowser({
           />
         )}
 
-        {/* eslint-disable-next-line react-hooks/refs */}
         {browser.loadingMore && (
           <div
             role="status"
