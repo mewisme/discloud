@@ -98,9 +98,7 @@ function AppSidebar({
 
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">DisCloud</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    @{workspace.username}
-                  </span>
+                  <span className="truncate text-xs text-muted-foreground">@{workspace.username}</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -111,7 +109,7 @@ function AppSidebar({
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>
-            {workspace.username === user.username ? "Workspace" : `${workspace.name}'s Workspace`}
+            {workspace.username === user.username ? "Workspace" : `${workspace.name}'s workspace`}
           </SidebarGroupLabel>
 
           <SidebarGroupContent>
@@ -179,9 +177,7 @@ function AppHeader({ user, workspace }: { user: User; workspace: Workspace }) {
       <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger />
         <Separator orientation="vertical" className="h-5" />
-        <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">
-          {title}
-        </span>
+        <span className="hidden max-w-40 truncate text-sm font-medium sm:inline lg:max-w-64">{title}</span>
       </div>
 
       <div className="pointer-events-none fixed left-1/2 top-2 z-30 w-[calc(100vw-10rem)] max-w-md -translate-x-1/2 sm:w-[min(28rem,calc(100vw-18rem))] lg:w-[min(32rem,calc(100vw-24rem))]">
@@ -219,9 +215,7 @@ function QuotaUsage({
           {showOwner ? `@${username} storage` : "Storage"}
         </span>
         {usage.quotaBytes !== null && (
-          <span className="tabular-nums text-muted-foreground">
-            {Math.round(percent)}%
-          </span>
+          <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>
         )}
       </div>
 

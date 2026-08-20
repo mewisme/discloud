@@ -141,7 +141,7 @@ export function CommandPalette() {
             </CommandGroup>
 
             {value.length >= 2 && (
-              <CommandGroup heading={`Go to folder · @${workspace.username}`}>
+              <CommandGroup heading={`Go to folder · ${workspace.name}'s workspace`}>
                 {folderLoading && (
                   <CommandItem disabled>
                     <Loader2Icon className="animate-spin" />

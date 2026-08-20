@@ -20,13 +20,8 @@ export function SharedView({
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Shared
-        </h1>
-
-        <p className="text-sm text-muted-foreground">
-          Folders and collections shared directly with your account.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Shared</h1>
+        <p className="text-sm text-muted-foreground">Folders and collections shared directly with your account.</p>
       </div>
 
       {items.length === 0 ? (
@@ -35,12 +30,8 @@ export function SharedView({
             <Share2Icon className="mx-auto size-10 text-muted-foreground" />
 
             <div>
-              <p className="font-medium">
-                Nothing shared with you
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Shared folders and collections will appear here.
-              </p>
+              <p className="font-medium">Nothing shared with you</p>
+              <p className="text-sm text-muted-foreground">Shared folders and collections will appear here.</p>
             </div>
           </div>
         </div>
@@ -50,15 +41,9 @@ export function SharedView({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">
-                  Owner
-                </TableHead>
-                <TableHead className="w-24">
-                  Access
-                </TableHead>
-                <TableHead className="hidden w-36 sm:table-cell">
-                  Shared
-                </TableHead>
+                <TableHead className="hidden md:table-cell">Owner</TableHead>
+                <TableHead className="w-24">Access</TableHead>
+                <TableHead className="hidden w-36 sm:table-cell">Shared</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -80,9 +65,7 @@ export function SharedView({
                         </Link>
 
                         {item.description && (
-                          <p className="truncate text-xs text-muted-foreground">
-                            {item.description}
-                          </p>
+                          <p className="truncate text-xs text-muted-foreground">{item.description}</p>
                         )}
                       </div>
                     </div>
@@ -96,9 +79,7 @@ export function SharedView({
                   </TableCell>
 
                   <TableCell>
-                    <Badge variant="secondary" className="capitalize">
-                      {item.accessLevel}
-                    </Badge>
+                    <Badge variant="secondary" className="capitalize">{item.accessLevel}</Badge>
                   </TableCell>
 
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
@@ -116,7 +97,7 @@ export function SharedView({
 
 function itemName(item: SharedItem) {
   return item.kind === "folder" && (item.isRoot || !item.name)
-    ? `${item.ownerName}'s Workspace`
+    ? `${item.ownerName}'s workspace`
     : item.name
 }
 
