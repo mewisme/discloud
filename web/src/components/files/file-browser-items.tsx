@@ -80,7 +80,7 @@ function NodeList(props: BrowserItemsProps & { parent?: Node }) {
         </TableHeader>
         <TableBody>
           {props.parent && (
-            <TableRow className="select-none">
+            <TableRow className="select-none" onContextMenu={(event) => event.preventDefault()}>
               <TableCell />
               <TableCell>
                 <a className="flex items-center gap-2 font-medium hover:underline" href={folderBrowserURL(props.parent.id, props.options)} onClick={(event) => handleClientNavigation(event, () => props.onNavigate(props.parent!.id))}>

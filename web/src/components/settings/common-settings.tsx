@@ -85,6 +85,7 @@ export function CommonSettings() {
                     <CommandItem
                       key={item}
                       value={item}
+                      data-checked={timezone === item}
                       onSelect={() => {
                         setTimezone(item)
                         setOpen(false)
