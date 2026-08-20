@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+
 import { CollectionsView } from "@/components/collections/collections-view"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { CollectionPage } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Collections",

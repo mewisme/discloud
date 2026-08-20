@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CheckIcon, ClipboardIcon, DownloadIcon, KeyRoundIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, ShieldOffIcon, TriangleAlertIcon, XIcon } from "lucide-react"
-import { Controller, useForm } from "react-hook-form"
 import { QRCodeSVG } from "qrcode.react"
+import { useState } from "react"
+import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
+
+import { DateTime } from "@/components/common/date-time"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,8 +19,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { apiJSON } from "@/lib/api/client"
 import type { MFACodeInput, MFAEnrollment, RecoveryCodes } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { apiFormError, type APIFormError } from "@/lib/helpers"
-import { DateTime } from "@/components/common/date-time"
+import { type APIFormError,apiFormError } from "@/lib/helpers"
 
 const totpSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit authentication code"),

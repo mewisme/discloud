@@ -1,7 +1,8 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
 import { WifiOffIcon } from "lucide-react"
+import { useSyncExternalStore } from "react"
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 function subscribe(callback: () => void) {

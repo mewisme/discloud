@@ -27,6 +27,54 @@ func TestValidateTimezone(t *testing.T) {
 	}
 }
 
+func TestValidateFileBrowserToolbarConfig(t *testing.T) {
+	t.Parallel()
+
+	for _, config := range []FileBrowserToolbarConfig{
+		{Variant: "inline", DockPosition: "bottom"},
+		{Variant: "inline", DockPosition: "right"},
+		{Variant: "dock", DockPosition: "bottom"},
+		{Variant: "dock", DockPosition: "right"},
+	} {
+		if _, err := validateFileBrowserToolbarConfig(config); err != nil {
+			t.Fatalf("validateFileBrowserToolbarConfig(%+v): %v", config, err)
+		}
+	}
+
+	for _, config := range []FileBrowserToolbarConfig{
+		{Variant: "", DockPosition: "bottom"},
+		{Variant: "floating", DockPosition: "bottom"},
+		{Variant: "dock", DockPosition: ""},
+		{Variant: "dock", DockPosition: "left"},
+	} {
+		if _, err := validateFileBrowserToolbarConfig(config); !errors.Is(err, ErrInvalidFileBrowserToolbar) {
+			t.Fatalf("validateFileBrowserToolbarConfig(%+v) error = %v, want ErrInvalidFileBrowserToolbar", config, err)
+		}
+	}
+}
+
+func TestDecodeUserConfigDefaultsLegacyToolbar(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"Asia/Bangkok"}}`), 7)
+	if err != nil {
+		t.Fatalf("decodeUserConfig: %v", err)
+	}
+
+	if config.Common.Timezone != "Asia/Bangkok" {
+		t.Fatalf("timezone = %q, want Asia/Bangkok", config.Common.Timezone)
+	}
+	if config.Common.FileBrowserToolbar.Variant != "inline" {
+		t.Fatalf("toolbar variant = %q, want inline", config.Common.FileBrowserToolbar.Variant)
+	}
+	if config.Common.FileBrowserToolbar.DockPosition != "bottom" {
+		t.Fatalf("toolbar dock position = %q, want bottom", config.Common.FileBrowserToolbar.DockPosition)
+	}
+	if config.Revision != 7 {
+		t.Fatalf("revision = %d, want 7", config.Revision)
+	}
+}
+
 func TestValidateAppConfigKey(t *testing.T) {
 	t.Parallel()
 

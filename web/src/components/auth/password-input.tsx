@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, type ComponentProps } from "react"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { type ComponentProps,useState } from "react"
+
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 
 export function PasswordInput(props: Omit<ComponentProps<typeof InputGroupInput>, "type">) {

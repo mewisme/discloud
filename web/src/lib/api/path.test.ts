@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { apiBackendPath, apiBackendSegments, apiProxyPath } from "@/lib/api/path"
 
 describe("apiProxyPath", () => {

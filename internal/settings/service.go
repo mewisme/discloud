@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	ErrInvalidTimezone    = errors.New("invalid timezone")
-	ErrInvalidConfigKey   = errors.New("invalid app config key")
-	ErrInvalidConfigValue = errors.New("invalid app config value")
-	ErrAppConfigNotFound  = errors.New("app config not found")
+	ErrInvalidTimezone           = errors.New("invalid timezone")
+	ErrInvalidFileBrowserToolbar = errors.New("invalid file browser toolbar configuration")
+	ErrInvalidConfigKey          = errors.New("invalid app config key")
+	ErrInvalidConfigValue        = errors.New("invalid app config value")
+	ErrAppConfigNotFound         = errors.New("app config not found")
 )
 
 var appConfigKeyPattern = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
@@ -31,8 +32,19 @@ type Service struct {
 	pool *pgxpool.Pool
 }
 
+type FileBrowserToolbarConfig struct {
+	Variant      string `json:"variant"`
+	DockPosition string `json:"dockPosition"`
+}
+
 type CommonUserConfig struct {
-	Timezone string `json:"timezone"`
+	Timezone           string                   `json:"timezone"`
+	FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+}
+
+type CommonUserConfigPatch struct {
+	Timezone           string
+	FileBrowserToolbar *FileBrowserToolbarConfig
 }
 
 type UserConfig struct {
@@ -77,10 +89,27 @@ func (s *Service) GetUserConfig(ctx context.Context, userID string) (UserConfig,
 	return decodeUserConfig(raw, revision)
 }
 
-func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID, timezone string) (UserConfig, error) {
-	timezone, err := validateTimezone(timezone)
+func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID string, input CommonUserConfigPatch) (UserConfig, error) {
+	timezone, err := validateTimezone(input.Timezone)
 	if err != nil {
 		return UserConfig{}, err
+	}
+
+	commonPatch := map[string]any{
+		"timezone": timezone,
+	}
+
+	if input.FileBrowserToolbar != nil {
+		toolbar, err := validateFileBrowserToolbarConfig(*input.FileBrowserToolbar)
+		if err != nil {
+			return UserConfig{}, err
+		}
+		commonPatch["fileBrowserToolbar"] = toolbar
+	}
+
+	patchJSON, err := json.Marshal(commonPatch)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("encode common user config: %w", err)
 	}
 
 	var raw []byte
@@ -93,10 +122,7 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID, timezone s
 		)
 		VALUES (
 			$1::uuid,
-			jsonb_build_object(
-				'common',
-				jsonb_build_object('timezone', $2::text)
-			)
+			jsonb_build_object('common', $2::jsonb)
 		)
 		ON CONFLICT (user_id)
 		DO UPDATE SET
@@ -109,13 +135,13 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID, timezone s
 							THEN user_config.config->'common'
 						ELSE '{}'::jsonb
 					END
-				) || jsonb_build_object('timezone', $2::text),
+				) || $2::jsonb,
 				true
 			),
 			revision = user_config.revision + 1,
 			updated_at = now()
 		RETURNING config, revision
-	`, userID, timezone).Scan(&raw, &revision)
+	`, userID, string(patchJSON)).Scan(&raw, &revision)
 	if err != nil {
 		return UserConfig{}, fmt.Errorf("update common user config: %w", err)
 	}
@@ -275,15 +301,24 @@ func (s *Service) DeleteAppConfig(ctx context.Context, actorUserID, key string) 
 func defaultUserConfig() UserConfig {
 	return UserConfig{
 		Common: CommonUserConfig{
-			Timezone: "UTC",
+			Timezone:           "UTC",
+			FileBrowserToolbar: defaultFileBrowserToolbarConfig(),
 		},
+	}
+}
+
+func defaultFileBrowserToolbarConfig() FileBrowserToolbarConfig {
+	return FileBrowserToolbarConfig{
+		Variant:      "inline",
+		DockPosition: "bottom",
 	}
 }
 
 func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	var stored struct {
 		Common struct {
-			Timezone string `json:"timezone"`
+			Timezone           string                   `json:"timezone"`
+			FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 		} `json:"common"`
 	}
 
@@ -298,9 +333,23 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 		return UserConfig{}, fmt.Errorf("decode user config timezone: %w", err)
 	}
 
+	toolbar := defaultFileBrowserToolbarConfig()
+	if strings.TrimSpace(stored.Common.FileBrowserToolbar.Variant) != "" {
+		toolbar.Variant = stored.Common.FileBrowserToolbar.Variant
+	}
+	if strings.TrimSpace(stored.Common.FileBrowserToolbar.DockPosition) != "" {
+		toolbar.DockPosition = stored.Common.FileBrowserToolbar.DockPosition
+	}
+
+	toolbar, err := validateFileBrowserToolbarConfig(toolbar)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("decode file browser toolbar config: %w", err)
+	}
+
 	return UserConfig{
 		Common: CommonUserConfig{
-			Timezone: timezone,
+			Timezone:           timezone,
+			FileBrowserToolbar: toolbar,
 		},
 		Revision: revision,
 	}, nil
@@ -314,6 +363,20 @@ func validateTimezone(value string) (string, error) {
 	if _, err := time.LoadLocation(value); err != nil {
 		return "", ErrInvalidTimezone
 	}
+	return value, nil
+}
+
+func validateFileBrowserToolbarConfig(value FileBrowserToolbarConfig) (FileBrowserToolbarConfig, error) {
+	value.Variant = strings.TrimSpace(value.Variant)
+	value.DockPosition = strings.TrimSpace(value.DockPosition)
+
+	if value.Variant != "inline" && value.Variant != "dock" {
+		return FileBrowserToolbarConfig{}, ErrInvalidFileBrowserToolbar
+	}
+	if value.DockPosition != "bottom" && value.DockPosition != "right" {
+		return FileBrowserToolbarConfig{}, ErrInvalidFileBrowserToolbar
+	}
+
 	return value, nil
 }
 

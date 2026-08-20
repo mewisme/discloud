@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Image from "next/image"
 import { FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, PlayIcon } from "lucide-react"
+import Image from "next/image"
+import { useEffect, useState } from "react"
+
 import { apiURL } from "@/lib/api/client"
 import type { BrowserNode } from "@/lib/api/models"
 import { loadThumbnail } from "@/lib/files/thumbnail-load"

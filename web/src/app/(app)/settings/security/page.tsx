@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SettingsPageHeader } from "@/components/settings/settings-page-header"
 import type { MFAStatus } from "@/lib/api/models"

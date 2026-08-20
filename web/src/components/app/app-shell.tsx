@@ -1,12 +1,13 @@
 "use client"
 
-import type { ComponentType, ReactNode } from "react"
-import { useState } from "react"
+import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
+import type { ComponentType, ReactNode } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
+
 import { CommandPalette } from "@/components/app/command-palette"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"

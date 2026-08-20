@@ -1,8 +1,9 @@
 "use client"
 
-import type { ReactNode } from "react"
-import Link from "next/link"
 import { DownloadIcon, FileIcon, FolderIcon, InfoIcon, TriangleAlertIcon } from "lucide-react"
+import Link from "next/link"
+import type { ReactNode } from "react"
+
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { FilePreview } from "@/components/files/file-preview"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"

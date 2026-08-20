@@ -1,9 +1,10 @@
 "use client"
 
-import { type ReactNode, useState } from "react"
 import { CloudIcon, DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderUpIcon, Globe2Icon, LibraryIcon, Loader2Icon } from "lucide-react"
 import Link from "next/link"
+import { type ReactNode, useState } from "react"
 import { toast } from "sonner"
+
 import { FilePreview } from "@/components/files/file-preview"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Badge } from "@/components/ui/badge"

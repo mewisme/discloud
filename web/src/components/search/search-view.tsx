@@ -1,9 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, HeartIcon, Loader2Icon, RefreshCwIcon, SearchIcon, Share2Icon, StarIcon, XIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, HeartIcon, Loader2Icon, RefreshCwIcon, SearchIcon, Share2Icon, StarIcon, XIcon } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+
+import { DateTime } from "@/components/common/date-time"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,8 +14,7 @@ import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { apiErrorMessage, formatBytes } from "@/lib/helpers"
-import { DateTime } from "@/components/common/date-time"
-import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, searchURL, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort } from "@/lib/search/options"
+import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, type SearchSort,searchURL } from "@/lib/search/options"
 
 export function SearchView() {
   const router = useRouter()

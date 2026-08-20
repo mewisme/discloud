@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
+
 import { AdminDiagnostics } from "@/components/admin/admin-diagnostics"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { AuditPage, AuditQuery, JobPage, JobsQuery, UploadDiagnosticPage, UploadDiagnosticsQuery, User } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Diagnostics",

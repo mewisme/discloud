@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+
 import { TrashView } from "@/components/trash/trash-view"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { TrashPage, TrashQuery, User } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Trash",

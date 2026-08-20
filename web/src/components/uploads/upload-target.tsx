@@ -1,9 +1,10 @@
 "use client"
 
+import { CloudUploadIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { createContext, useContext, useEffect } from "react"
-import { CloudUploadIcon } from "lucide-react"
 import { useDropzone } from "react-dropzone"
+
 import { useUploads } from "@/components/uploads/upload-provider"
 import { FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
 

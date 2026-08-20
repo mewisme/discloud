@@ -1,4 +1,5 @@
 import "server-only"
+
 import { apiBackendSegments } from "@/lib/api/path"
 
 type RouteContext = {
@@ -113,11 +114,11 @@ function problem(status: number, title: string, detail: string) {
 }
 
 export {
-  proxy as GET,
-  proxy as POST,
-  proxy as PUT,
-  proxy as PATCH,
   proxy as DELETE,
+  proxy as GET,
   proxy as HEAD,
   proxy as OPTIONS,
+  proxy as PATCH,
+  proxy as POST,
+  proxy as PUT,
 }

@@ -1,12 +1,13 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronRightIcon, FolderIcon, FolderPlusIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Fragment, type ReactNode, useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
+
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -29,7 +30,17 @@ const nameFormSchema = z.object({
 type NameValues = z.infer<typeof nameFormSchema>
 type Reload = () => Promise<void>
 
-export function CreateFolderDialog({ folder, onReload, openEvent }: { folder: Node; onReload: Reload; openEvent?: string }) {
+export function CreateFolderDialog({
+  folder,
+  onReload,
+  openEvent,
+  trigger,
+}: {
+  folder: Node
+  onReload: Reload
+  openEvent?: string
+  trigger?: ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const [formError, setFormError] = useState<string>()
   const form = useForm<NameValues>({ resolver: zodResolver(nameFormSchema), defaultValues: { name: "" } })
@@ -75,10 +86,12 @@ export function CreateFolderDialog({ folder, onReload, openEvent }: { folder: No
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <FolderPlusIcon />
-          New folder
-        </Button>
+        {trigger ?? (
+          <Button>
+            <FolderPlusIcon />
+            New folder
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

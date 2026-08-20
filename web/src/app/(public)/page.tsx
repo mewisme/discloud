@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
-import { apiServerJSON } from "@/lib/api/server"
+
 import type { SetupStatus } from "@/lib/api/models"
+import { apiServerJSON } from "@/lib/api/server"
 import { authenticatedPath, getCurrentUser } from "@/lib/auth/session"
 
 export default async function Home() {

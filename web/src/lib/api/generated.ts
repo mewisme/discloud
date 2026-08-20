@@ -1521,6 +1521,12 @@ export type components = {
             readonly size: number;
             readonly width?: number;
         };
+        readonly FileBrowserToolbarConfig: {
+            /** @enum {string} */
+            readonly dockPosition: "bottom" | "right";
+            /** @enum {string} */
+            readonly variant: "inline" | "dock";
+        };
         readonly FolderChild: components["schemas"]["Node"] & {
             /** @enum {string} */
             readonly accessLevel: "view" | "edit" | "full";
@@ -1835,6 +1841,7 @@ export type components = {
         };
         readonly UserConfig: {
             readonly common: {
+                readonly fileBrowserToolbar: components["schemas"]["FileBrowserToolbarConfig"];
                 readonly timezone: string;
             };
             /** Format: int64 */
@@ -2635,6 +2642,7 @@ export type components = {
         readonly UpdateCommonConfig: {
             readonly content: {
                 readonly "application/json": {
+                    readonly fileBrowserToolbar?: components["schemas"]["FileBrowserToolbarConfig"];
                     readonly timezone: string;
                 };
             };

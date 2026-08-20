@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
+
 import { FileBrowser } from "@/components/files/file-browser"
-import { parseBrowserOptions, type BrowserSearchParams } from "@/lib/files/browser"
+import { type BrowserSearchParams,parseBrowserOptions } from "@/lib/files/browser"
 import { loadFileBrowser } from "@/lib/files/browser-server"
 
 export const metadata: Metadata = {

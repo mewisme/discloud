@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+
 import { PublicShareView } from "@/components/shares/public-share-view"
-import { apiServerJSON } from "@/lib/api/server"
 import type { PublicShare } from "@/lib/api/models"
+import { apiServerJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
 import { publicSharePath } from "@/lib/shares/public"
 

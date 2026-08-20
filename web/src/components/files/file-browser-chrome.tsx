@@ -1,22 +1,26 @@
 "use client"
 
+import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, FolderPlusIcon, Globe2Icon, LayoutGridIcon, ListIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
 import { useState } from "react"
-import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, Globe2Icon, LayoutGridIcon, ListIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
+import { useHotkeys } from "react-hotkeys-hook"
+
 import { AccessDialog } from "@/components/access/access-dialog"
+import { useCurrentUser } from "@/components/app/current-user-context"
 import { CreateFolderDialog } from "@/components/files/node-actions"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
-import { useUploadTarget } from "@/components/uploads/upload-target"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Node, NodePage } from "@/lib/api/models"
-import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
-import { folderBrowserURL } from "@/lib/files/navigation"
-import { useCurrentUser } from "@/components/app/current-user-context"
-import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "@/lib/files/commands"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { useHotkeys } from "react-hotkeys-hook"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useUploadTarget } from "@/components/uploads/upload-target"
+import type { Node, NodePage, UserConfig } from "@/lib/api/models"
+import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
+import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "@/lib/files/commands"
+import { folderBrowserURL } from "@/lib/files/navigation"
+import { cn } from "@/lib/utils"
+
+type ToolbarConfig = UserConfig["common"]["fileBrowserToolbar"]
 
 export function FileBrowserChrome({
   folder,
@@ -26,6 +30,8 @@ export function FileBrowserChrome({
   itemCount,
   hasMore,
   reloading,
+  toolbarConfig,
+  selectionActive,
   onNavigate,
   onReload,
   onOptionsChange,
@@ -37,6 +43,8 @@ export function FileBrowserChrome({
   itemCount: number
   hasMore: boolean
   reloading: boolean
+  toolbarConfig: ToolbarConfig
+  selectionActive: boolean
   onNavigate: (folderId: string) => void
   onReload: () => Promise<void>
   onOptionsChange: (patch: Partial<BrowserOptions>) => void
@@ -58,10 +66,22 @@ export function FileBrowserChrome({
   }
 
   useHotkeys(["alt+u"], () => {
-    if (editable && uploadTarget) {
-      uploadTarget.open()
-    }
+    if (editable && uploadTarget) uploadTarget.open()
   }, {}, [editable, uploadTarget])
+
+  const toolbarProps = {
+    folder,
+    options,
+    editable,
+    shareable,
+    reloading,
+    uploadTarget,
+    onReload,
+    onOptionsChange,
+    onSortChange: changeSort,
+    onAccess: () => setAccessOpen(true),
+    onPublicShare: () => setPublicShareOpen(true),
+  }
 
   return (
     <>
@@ -73,24 +93,11 @@ export function FileBrowserChrome({
           <p className="text-sm text-muted-foreground">{itemCount}{hasMore ? "+" : ""} items</p>
         </div>
 
-        <div className="hidden items-center gap-2 sm:flex">
-          {editable && <CreateFolderDialog folder={folder} onReload={onReload} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} />}
-          {editable && uploadTarget && (
-            <Button variant="outline" onClick={uploadTarget.open}>
-              <UploadIcon />
-              Upload
-              <KbdGroup><Kbd>Alt + U</Kbd></KbdGroup>
-            </Button>
-          )}
-          <Button variant="outline" disabled={reloading} aria-label="Reload folder" onClick={() => void onReload()}>
-            <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
-            <KbdGroup>
-              <Kbd>R</Kbd>
-            </KbdGroup>
-          </Button>
-          <DesktopControls options={options} onChange={onOptionsChange} onSortChange={changeSort} />
-          <FolderActionsMenu folder={folder} options={options} canShare={shareable} onAccess={() => setAccessOpen(true)} onPublicShare={() => setPublicShareOpen(true)} />
-        </div>
+        {toolbarConfig.variant === "inline" && (
+          <div className="hidden items-center gap-2 sm:flex">
+            <HorizontalToolbar {...toolbarProps} />
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 sm:hidden">
           {editable && <CreateFolderDialog folder={folder} onReload={onReload} />}
@@ -99,9 +106,27 @@ export function FileBrowserChrome({
               <UploadIcon />
             </Button>
           )}
-          <FolderActionsMenu folder={folder} options={options} canShare={shareable} mobile reloading={reloading} onReload={onReload} onAccess={() => setAccessOpen(true)} onPublicShare={() => setPublicShareOpen(true)} onOptionsChange={onOptionsChange} />
+          <FolderActionsMenu
+            folder={folder}
+            options={options}
+            canShare={shareable}
+            mobile
+            reloading={reloading}
+            onReload={onReload}
+            onAccess={() => setAccessOpen(true)}
+            onPublicShare={() => setPublicShareOpen(true)}
+            onOptionsChange={onOptionsChange}
+          />
         </div>
       </div>
+
+      {toolbarConfig.variant === "dock" && (
+        <DockedToolbar
+          {...toolbarProps}
+          dockPosition={toolbarConfig.dockPosition}
+          selectionActive={selectionActive}
+        />
+      )}
 
       {shareable && (
         <>
@@ -111,6 +136,141 @@ export function FileBrowserChrome({
       )}
     </>
   )
+}
+
+function HorizontalToolbar({
+  folder,
+  options,
+  editable,
+  shareable,
+  reloading,
+  uploadTarget,
+  onReload,
+  onOptionsChange,
+  onSortChange,
+  onAccess,
+  onPublicShare,
+}: ToolbarProps) {
+  return (
+    <>
+      {editable && <CreateFolderDialog folder={folder} onReload={onReload} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} />}
+
+      {editable && uploadTarget && (
+        <Button variant="outline" onClick={uploadTarget.open}>
+          <UploadIcon />
+          Upload
+          <KbdGroup><Kbd>Alt + U</Kbd></KbdGroup>
+        </Button>
+      )}
+
+      <Button variant="outline" disabled={reloading} aria-label="Reload folder" onClick={() => void onReload()}>
+        <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
+        <KbdGroup><Kbd>R</Kbd></KbdGroup>
+      </Button>
+
+      <DesktopControls options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
+
+      <FolderActionsMenu folder={folder} options={options} canShare={shareable} onAccess={onAccess} onPublicShare={onPublicShare} />
+    </>
+  )
+}
+
+function DockedToolbar({
+  dockPosition,
+  selectionActive,
+  ...props
+}: ToolbarProps & {
+  dockPosition: ToolbarConfig["dockPosition"]
+  selectionActive: boolean
+}) {
+  if (dockPosition === "right") {
+    return (
+      <div className="pointer-events-none fixed right-[calc(1rem+env(safe-area-inset-right))] top-1/2 z-30 hidden -translate-y-1/2 sm:block">
+        <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
+          <VerticalToolbar {...props} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 z-30 hidden justify-center px-3 transition-[bottom] duration-200 sm:flex",
+        selectionActive
+          ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
+          : "bottom-[calc(1rem+env(safe-area-inset-bottom))]",
+      )}
+    >
+      <div
+        className={cn(
+          "pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 border bg-background/95 p-2 shadow-xl backdrop-blur-md",
+          selectionActive ? "rounded-t-2xl rounded-b-xl" : "rounded-2xl",
+        )}
+      >
+        <HorizontalToolbar {...props} />
+      </div>
+    </div>
+  )
+}
+
+function VerticalToolbar({
+  folder,
+  options,
+  editable,
+  shareable,
+  reloading,
+  uploadTarget,
+  onReload,
+  onOptionsChange,
+  onSortChange,
+  onAccess,
+  onPublicShare,
+}: ToolbarProps) {
+  return (
+    <>
+      {editable && (
+        <CreateFolderDialog
+          folder={folder}
+          onReload={onReload}
+          openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT}
+          trigger={
+            <Button size="icon" variant="outline" aria-label="Create folder" title="Create folder">
+              <FolderPlusIcon />
+            </Button>
+          }
+        />
+      )}
+
+      {editable && uploadTarget && (
+        <Button size="icon" variant="outline" aria-label="Upload files" title="Upload files" onClick={uploadTarget.open}>
+          <UploadIcon />
+        </Button>
+      )}
+
+      <Button size="icon" variant="outline" disabled={reloading} aria-label="Reload folder" title="Reload folder" onClick={() => void onReload()}>
+        <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
+      </Button>
+
+      <DockControlsMenu options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
+
+      <FolderActionsMenu folder={folder} options={options} canShare={shareable} onAccess={onAccess} onPublicShare={onPublicShare} />
+    </>
+  )
+}
+
+type ToolbarProps = {
+  folder: Node
+  options: BrowserOptions
+  editable: boolean
+  shareable: boolean
+  reloading: boolean
+  uploadTarget: ReturnType<typeof useUploadTarget>
+  onReload: () => Promise<void>
+  onOptionsChange: (patch: Partial<BrowserOptions>) => void
+  onSortChange: (sort: BrowserSort) => void
+  onAccess: () => void
+  onPublicShare: () => void
 }
 
 function DesktopControls({ options, onChange, onSortChange }: { options: BrowserOptions; onChange: (patch: Partial<BrowserOptions>) => void; onSortChange: (sort: BrowserSort) => void }) {
@@ -143,6 +303,51 @@ function DesktopControls({ options, onChange, onSortChange }: { options: Browser
         </Button>
       </div>
     </>
+  )
+}
+
+function DockControlsMenu({ options, onChange, onSortChange }: { options: BrowserOptions; onChange: (patch: Partial<BrowserOptions>) => void; onSortChange: (sort: BrowserSort) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="icon" variant="outline" aria-label="View and sort options" title="View and sort options">
+          <SlidersHorizontalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="left" align="center" className="w-52">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <SlidersHorizontalIcon />
+            Sort
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={options.sort} onValueChange={(value) => onSortChange(value as BrowserSort)}>
+              <DropdownMenuRadioItem value="name">Name</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="updated">Modified</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="size">Size</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuItem onSelect={() => onChange({ order: options.order === "asc" ? "desc" : "asc" })}>
+          {options.order === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />}
+          {options.order === "asc" ? "Ascending" : "Descending"}
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuRadioGroup value={options.view} onValueChange={(value) => onChange({ view: value as BrowserOptions["view"] })}>
+          <DropdownMenuRadioItem value="list">
+            <ListIcon />
+            List
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="grid">
+            <LayoutGridIcon />
+            Grid
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
 import { CircleCheckIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react"
-import { useUploads, type UploadTask } from "@/components/uploads/upload-provider"
+import { useState } from "react"
+
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { type UploadTask,useUploads } from "@/components/uploads/upload-provider"
 import { formatBytes } from "@/lib/helpers"
 
 export function UploadManager() {

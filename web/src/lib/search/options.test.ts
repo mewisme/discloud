@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { parseSearchOptions, patchSearchOptions, searchURL } from "@/lib/search/options"
 
 describe("parseSearchOptions", () => {

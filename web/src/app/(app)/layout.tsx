@@ -1,12 +1,13 @@
-import type { ReactNode } from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import type { ReactNode } from "react"
+
 import { AppShell } from "@/components/app/app-shell"
+import { UserConfigProvider } from "@/components/settings/user-config-context"
 import { UploadManager } from "@/components/uploads/upload-manager"
 import { UploadProvider } from "@/components/uploads/upload-provider"
-import { apiServerAuthJSON } from "@/lib/api/server"
-import { UserConfigProvider } from "@/components/settings/user-config-context"
 import type { CurrentUserUsage, UserConfig } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 import { getCurrentUser } from "@/lib/auth/session"
 
 export default async function AppLayout({ children }: { children: ReactNode }) {

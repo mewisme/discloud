@@ -1,12 +1,13 @@
 import { DownloadIcon, FileIcon, LibraryIcon } from "lucide-react"
 import Link from "next/link"
+
+import { DateTime } from "@/components/common/date-time"
 import { FilePreview } from "@/components/files/file-preview"
 import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Collection, CollectionItem } from "@/lib/api/models"
 import { formatBytes } from "@/lib/helpers"
-import { DateTime } from "@/components/common/date-time"
 
 export function CollectionFileDetail({ collection, item }: { collection: Collection; item: CollectionItem }) {
   const collectionHref = `/collections/${encodeURIComponent(collection.id)}`

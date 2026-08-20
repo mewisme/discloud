@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
+
 import { AdminView } from "@/components/admin/admin-view"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { AdminUsers, ListUsersQuery, StorageOverview, User } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Admin",

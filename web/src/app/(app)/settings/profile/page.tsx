@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { SettingsPageHeader } from "@/components/settings/settings-page-header"
 

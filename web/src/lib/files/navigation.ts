@@ -1,4 +1,4 @@
-import { browserURL, type BrowserOptions } from "@/lib/files/browser"
+import { type BrowserOptions,browserURL } from "@/lib/files/browser"
 
 export function folderBrowserPath(folderId: string) {
   return `/files/${encodeURIComponent(folderId)}`

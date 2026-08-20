@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
+
 import { SetupForm } from "@/components/auth/setup-form"
-import { apiServerJSON } from "@/lib/api/server"
 import type { SetupStatus } from "@/lib/api/models"
+import { apiServerJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Setup",

@@ -1,6 +1,7 @@
 import "server-only"
-import { apiServerAuthJSON } from "@/lib/api/server"
+
 import type { Breadcrumbs, CurrentUserRoot, FolderChildrenQuery, Node, NodePage } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 import type { BrowserOptions } from "@/lib/files/browser"
 
 export type FileBrowserData = {

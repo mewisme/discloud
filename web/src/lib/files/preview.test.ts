@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { filePreviewKind, isTextMIME } from "@/lib/files/preview"
 
 describe("filePreviewKind", () => {

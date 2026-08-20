@@ -13,7 +13,8 @@ import (
 const settingsBodyLimit = 64 << 10
 
 type updateCommonConfigRequest struct {
-	Timezone string `json:"timezone"`
+	Timezone           string                             `json:"timezone"`
+	FileBrowserToolbar *settings.FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 }
 
 type setAppConfigRequest struct {
@@ -47,7 +48,10 @@ func registerSettingsRoutes(mux *http.ServeMux, service *settings.Service, authS
 		result, err := service.UpdateCommonUserConfig(
 			r.Context(),
 			currentPrincipal(r.Context()).User.ID,
-			input.Timezone,
+			settings.CommonUserConfigPatch{
+				Timezone:           input.Timezone,
+				FileBrowserToolbar: input.FileBrowserToolbar,
+			},
 		)
 		if writeSettingsError(w, r, err) {
 			return
@@ -114,6 +118,8 @@ func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) bool 
 		return false
 	case errors.Is(err, settings.ErrInvalidTimezone):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid timezone")
+	case errors.Is(err, settings.ErrInvalidFileBrowserToolbar):
+		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file browser toolbar configuration")
 	case errors.Is(err, settings.ErrInvalidConfigKey):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid app config key")
 	case errors.Is(err, settings.ErrInvalidConfigValue):

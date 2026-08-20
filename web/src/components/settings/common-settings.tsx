@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { ChevronsUpDownIcon, Clock3Icon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { ChevronsUpDownIcon, Clock3Icon, Loader2Icon } from "lucide-react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,20 +13,36 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage, formatDateTime } from "@/lib/helpers"
+import { cn } from "@/lib/utils"
+
+type ToolbarConfig = UserConfig["common"]["fileBrowserToolbar"]
+type ToolbarVariant = ToolbarConfig["variant"]
+type ToolbarDockPosition = ToolbarConfig["dockPosition"]
 
 export function CommonSettings() {
   const router = useRouter()
   const { config, setConfig } = useUserConfig()
   const [timezone, setTimezone] = useState(config.common.timezone || "UTC")
-  const [open, setOpen] = useState(false)
+  const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(config.common.fileBrowserToolbar.variant)
+  const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(config.common.fileBrowserToolbar.dockPosition)
+  const [timezoneOpen, setTimezoneOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [now, setNow] = useState<Date>()
   const timezones = useMemo(() => availableTimezones(), [])
-  const dirty = timezone !== config.common.timezone
+  const dirty =
+    timezone !== config.common.timezone ||
+    toolbarVariant !== config.common.fileBrowserToolbar.variant ||
+    toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition
 
   useEffect(() => {
     setTimezone(config.common.timezone || "UTC")
-  }, [config.common.timezone])
+    setToolbarVariant(config.common.fileBrowserToolbar.variant)
+    setToolbarDockPosition(config.common.fileBrowserToolbar.dockPosition)
+  }, [
+    config.common.timezone,
+    config.common.fileBrowserToolbar.variant,
+    config.common.fileBrowserToolbar.dockPosition,
+  ])
 
   useEffect(() => {
     setNow(new Date())
@@ -35,7 +52,13 @@ export function CommonSettings() {
     setPending(true)
 
     try {
-      const input = { timezone } satisfies UpdateCommonConfigInput
+      const input = {
+        timezone,
+        fileBrowserToolbar: {
+          variant: toolbarVariant,
+          dockPosition: toolbarDockPosition,
+        },
+      } satisfies UpdateCommonConfigInput
       const next = await apiJSON<UserConfig>("/me/config/common", {
         method: "PUT",
         body: input,
@@ -52,70 +75,243 @@ export function CommonSettings() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock3Icon className="size-4" />
-          Time zone
-        </CardTitle>
-        <CardDescription>
-          Used only when displaying dates and times. DisCloud continues storing and processing timestamps in UTC.
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <SlidersHorizontalIcon className="size-4" />
+            File browser
+          </CardTitle>
+          <CardDescription>
+            Customize how file browser controls are positioned in your workspace.
+          </CardDescription>
+        </CardHeader>
 
-      <CardContent className="space-y-5">
-        <div className="space-y-2">
-          <label htmlFor="display-timezone" className="text-sm font-medium">Display time zone</label>
+        <CardContent className="divide-y">
+          <SettingRow
+            title="Toolbar layout"
+            description="Keep file browser controls in the page header or move them into a floating dock."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ChoiceCard
+                title="Inline"
+                description="Keep controls beside the folder heading."
+                selected={toolbarVariant === "inline"}
+                onClick={() => setToolbarVariant("inline")}
+              >
+                <ToolbarPreview variant="inline" dockPosition={toolbarDockPosition} />
+              </ChoiceCard>
 
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button id="display-timezone" variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
-                <span className="truncate">{timezone}</span>
-                <ChevronsUpDownIcon className="shrink-0 text-muted-foreground" />
-              </Button>
-            </PopoverTrigger>
+              <ChoiceCard
+                title="Dock"
+                description="Keep controls floating while browsing files."
+                selected={toolbarVariant === "dock"}
+                onClick={() => setToolbarVariant("dock")}
+              >
+                <ToolbarPreview variant="dock" dockPosition={toolbarDockPosition} />
+              </ChoiceCard>
+            </div>
+          </SettingRow>
 
-            <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
-              <Command>
-                <CommandInput placeholder="Search time zones…" />
-                <CommandList>
-                  <CommandEmpty>No time zone found.</CommandEmpty>
+          {toolbarVariant === "dock" && (
+            <SettingRow
+              title="Dock position"
+              description="Choose whether the dock runs horizontally below the browser or vertically along its right side."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ChoiceCard
+                  title="Bottom"
+                  description="Horizontal floating toolbar."
+                  selected={toolbarDockPosition === "bottom"}
+                  onClick={() => setToolbarDockPosition("bottom")}
+                >
+                  <ToolbarPreview variant="dock" dockPosition="bottom" />
+                </ChoiceCard>
 
-                  {timezones.map((item) => (
-                    <CommandItem
-                      key={item}
-                      value={item}
-                      data-checked={timezone === item}
-                      onSelect={() => {
-                        setTimezone(item)
-                        setOpen(false)
-                      }}
-                    >
-                      <span className="truncate">{item}</span>
-                    </CommandItem>
-                  ))}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+                <ChoiceCard
+                  title="Right"
+                  description="Compact vertical toolbar."
+                  selected={toolbarDockPosition === "right"}
+                  onClick={() => setToolbarDockPosition("right")}
+                >
+                  <ToolbarPreview variant="dock" dockPosition="right" />
+                </ChoiceCard>
+              </div>
+            </SettingRow>
+          )}
+        </CardContent>
+      </Card>
 
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Preview</p>
-          <p className="mt-1 font-medium">
-            {now ? formatDateTime(now, timezone) : "—"}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock3Icon className="size-4" />
+            Date and time
+          </CardTitle>
+          <CardDescription>
+            Configure how dates and times are displayed. DisCloud continues storing and processing timestamps in UTC.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <SettingRow
+            title="Display time zone"
+            description="Used throughout the interface when formatting timestamps."
+            last
+          >
+            <div className="space-y-3">
+              <Popover open={timezoneOpen} onOpenChange={setTimezoneOpen}>
+                <PopoverTrigger asChild>
+                  <Button id="display-timezone" variant="outline" role="combobox" aria-expanded={timezoneOpen} className="w-full justify-between font-normal">
+                    <span className="truncate">{timezone}</span>
+                    <ChevronsUpDownIcon className="shrink-0 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+
+                <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+                  <Command>
+                    <CommandInput placeholder="Search time zones…" />
+                    <CommandList>
+                      <CommandEmpty>No time zone found.</CommandEmpty>
+                      {timezones.map((item) => (
+                        <CommandItem
+                          key={item}
+                          value={item}
+                          data-checked={timezone === item}
+                          onSelect={() => {
+                            setTimezone(item)
+                            setTimezoneOpen(false)
+                          }}
+                        >
+                          <span className="truncate">{item}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Preview</p>
+                <p className="mt-1 font-medium">{now ? formatDateTime(now, timezone) : "—"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{timezone}</p>
+              </div>
+            </div>
+          </SettingRow>
+        </CardContent>
+      </Card>
+
+      <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{dirty ? "Unsaved changes" : "Settings are up to date"}</p>
+          <p className="text-xs text-muted-foreground">
+            {dirty ? "Save to apply these preferences across your account." : "Your common preferences are saved."}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{timezone}</p>
         </div>
 
-        <div className="flex justify-end">
-          <Button disabled={!dirty || pending} onClick={() => void save()}>
-            {pending && <Loader2Icon className="animate-spin" />}
-            Save changes
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <Button disabled={!dirty || pending} onClick={() => void save()}>
+          {pending && <Loader2Icon className="animate-spin" />}
+          Save changes
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function SettingRow({
+  title,
+  description,
+  children,
+  last = false,
+}: {
+  title: string
+  description: string
+  children: ReactNode
+  last?: boolean
+}) {
+  return (
+    <div className={cn("grid gap-5 py-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]", last && "pb-0 pt-0")}>
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+
+      <div className="min-w-0">{children}</div>
+    </div>
+  )
+}
+
+function ChoiceCard({
+  title,
+  description,
+  selected,
+  onClick,
+  children,
+}: {
+  title: string
+  description: string
+  selected: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      className={cn(
+        "rounded-xl border p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        selected && "border-primary bg-primary/5",
+      )}
+      onClick={onClick}
+    >
+      <div className="mb-3">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      </div>
+
+      {children}
+    </button>
+  )
+}
+
+function ToolbarPreview({
+  variant,
+  dockPosition,
+}: {
+  variant: ToolbarVariant
+  dockPosition: ToolbarDockPosition
+}) {
+  return (
+    <div className="relative h-24 overflow-hidden rounded-lg border bg-muted/20 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="h-2.5 w-16 rounded-full bg-muted-foreground/20" />
+
+        {variant === "inline" && (
+          <PreviewToolbar className="flex-row" />
+        )}
+      </div>
+
+      <div className="mt-3 h-11 rounded-md border border-dashed bg-background/50" />
+
+      {variant === "dock" && dockPosition === "bottom" && (
+        <PreviewToolbar className="absolute bottom-2 left-1/2 -translate-x-1/2 flex-row shadow-sm" />
+      )}
+
+      {variant === "dock" && dockPosition === "right" && (
+        <PreviewToolbar className="absolute right-2 top-1/2 -translate-y-1/2 flex-col shadow-sm" />
+      )}
+    </div>
+  )
+}
+
+function PreviewToolbar({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex gap-1 rounded-md border bg-background p-1", className)}>
+      <span className="size-2.5 rounded-sm bg-muted-foreground/30" />
+      <span className="size-2.5 rounded-sm bg-muted-foreground/30" />
+      <span className="size-2.5 rounded-sm bg-muted-foreground/30" />
+      <span className="size-2.5 rounded-sm bg-muted-foreground/30" />
+    </div>
   )
 }
 

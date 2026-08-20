@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { CompactBreadcrumbs, type CompactBreadcrumbItem } from "@/components/navigation/compact-breadcrumbs"
+
+import { type CompactBreadcrumbItem, CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 
 export function SettingsPageHeader({
   title,

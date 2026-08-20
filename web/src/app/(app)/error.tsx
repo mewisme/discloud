@@ -1,7 +1,8 @@
 "use client"
 
-import Link from "next/link"
 import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
+import Link from "next/link"
+
 import { Button } from "@/components/ui/button"
 
 export default function AppError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

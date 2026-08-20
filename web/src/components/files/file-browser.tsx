@@ -1,22 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2Icon, MoreHorizontalIcon, MoveIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
 import { toast } from "sonner"
+
 import { FileBrowserChrome } from "@/components/files/file-browser-chrome"
 import { BrowserItems } from "@/components/files/file-browser-items"
 import { MoveNodesDialog, TrashNodesDialog } from "@/components/files/node-actions"
-import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "@/components/uploads/upload-provider"
-import { FileUploadTarget } from "@/components/uploads/upload-target"
+import { useUserConfig } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "@/components/uploads/upload-provider"
+import { FileUploadTarget } from "@/components/uploads/upload-target"
 import { apiJSON } from "@/lib/api/client"
 import type { Breadcrumbs, BrowserNode, CurrentUserRoot, FolderChildrenQuery, Node, NodePage } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
-import { browserURL, type BrowserOptions } from "@/lib/files/browser"
+import { type BrowserOptions, browserURL } from "@/lib/files/browser"
 import { folderBrowserPath, folderIdFromBrowserPath } from "@/lib/files/navigation"
+import { cn } from "@/lib/utils"
 
 type FileBrowserProps = {
   folder: Node
@@ -29,6 +32,7 @@ type HistoryMode = "push" | "replace" | "none"
 
 export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcrumbs, initialPage, options: initialOptions }: FileBrowserProps) {
   const router = useRouter()
+  const { config } = useUserConfig()
   const [folder, setFolder] = useState(initialFolder)
   const [breadcrumbs, setBreadcrumbs] = useState<readonly Node[]>(initialBreadcrumbs)
   const [nodes, setNodes] = useState<BrowserNode[]>(() => [...initialPage.nodes])
@@ -46,6 +50,10 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const selectedNodes = nodes.filter((node) => selected.has(node.id))
+  const toolbarConfig = config.common.fileBrowserToolbar
+  const horizontalToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "bottom"
+  const rightToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "right"
+  const mergeHorizontalDocks = horizontalToolbarDocked && selectedNodes.length > 0
   const bulkEditable = selectedNodes.length > 0 && selectedNodes.every((node) => node.accessLevel !== "view")
   const bulkSameOwner = selectedNodes.length > 0 && selectedNodes.every((node) => node.ownerUserId === selectedNodes[0].ownerUserId)
   const bulkCanMove = bulkEditable && bulkSameOwner
@@ -318,7 +326,15 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
 
   return (
     <FileUploadTarget folderId={folder.id} disabled={accessLevel === "view"}>
-      <div className={`mx-auto flex w-full max-w-7xl flex-col gap-5 ${selectedNodes.length > 0 ? "pb-28" : ""}`}>
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-7xl flex-col gap-5",
+          horizontalToolbarDocked && selectedNodes.length === 0 && "pb-24",
+          horizontalToolbarDocked && selectedNodes.length > 0 && "pb-40",
+          !horizontalToolbarDocked && selectedNodes.length > 0 && "pb-28",
+          rightToolbarDocked && "sm:pr-16",
+        )}
+      >
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {selectedNodes.length === 0
             ? "No items selected"
@@ -333,6 +349,8 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
           itemCount={nodes.length}
           hasMore={!!nextCursor}
           reloading={tableLoading}
+          toolbarConfig={toolbarConfig}
+          selectionActive={selectedNodes.length > 0}
           onNavigate={(folderId) => void navigateFolder(folderId)}
           onReload={reloadCurrent}
           onOptionsChange={updateOptions}
@@ -343,7 +361,10 @@ export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcr
             <div
               role="toolbar"
               aria-label={`${selectedNodes.length} selected item${selectedNodes.length === 1 ? "" : "s"} actions`}
-              className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+              className={cn(
+                "pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150",
+                mergeHorizontalDocks ? "rounded-t-xl rounded-b-2xl" : "rounded-2xl",
+              )}
             >
               <span className="whitespace-nowrap px-2 text-sm font-medium">
                 {selectedNodes.length} selected

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { publicFileContentPath, publicFileDownloadPath, publicFolderDownloadPath, publicFolderPath, publicSharePath } from "@/lib/shares/public"
 
 describe("public share paths", () => {

@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+
 import { FileBrowser } from "@/components/files/file-browser"
 import { APIError } from "@/lib/api/types"
-import { parseBrowserOptions, type BrowserOptions, type BrowserSearchParams } from "@/lib/files/browser"
+import { type BrowserOptions, type BrowserSearchParams,parseBrowserOptions } from "@/lib/files/browser"
 import { loadFileBrowser } from "@/lib/files/browser-server"
 
 export const metadata: Metadata = {

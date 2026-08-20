@@ -1,10 +1,11 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+
 import { AccessDialog } from "@/components/access/access-dialog"
 import { CollectionDetail } from "@/components/collections/collection-detail"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { Collection, CollectionItems } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
 
 export const metadata: Metadata = {

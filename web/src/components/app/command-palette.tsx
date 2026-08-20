@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
 import { FolderIcon, FolderPlusIcon, LibraryIcon, Loader2Icon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, Trash2Icon, UploadIcon } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { Button } from "@/components/ui/button"
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"

@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { CameraIcon, Loader2Icon, Trash2Icon, UserRoundIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
+
 import { useCurrentUser, useSetCurrentUser } from "@/components/app/current-user-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"

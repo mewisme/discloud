@@ -1,4 +1,5 @@
 import "client-only"
+
 import { abortReason, ThumbnailLoadQueue } from "@/lib/files/thumbnail-queue"
 
 const maxConcurrentThumbnailLoads = 4

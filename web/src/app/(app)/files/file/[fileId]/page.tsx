@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+
 import { FileDetail } from "@/components/files/file-detail"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { Breadcrumbs, File } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
 
 export const metadata: Metadata = {

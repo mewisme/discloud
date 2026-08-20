@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+
 import { SharedView } from "@/components/shared/shared-view"
-import { apiServerAuthJSON } from "@/lib/api/server"
 import type { SharedItems } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Shared",

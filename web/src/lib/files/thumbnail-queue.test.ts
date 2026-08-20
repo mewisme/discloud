@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { ThumbnailLoadQueue } from "@/lib/files/thumbnail-queue"
 
 describe("ThumbnailLoadQueue", () => {
