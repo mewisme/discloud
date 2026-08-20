@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, ShieldCheckIcon, UserRoundIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
-import { AdminDiagnostics } from "@/components/admin/admin-diagnostics"
 import { CreateUserDialog, ReconcileQuotaDialog, UserActions } from "@/components/admin/admin-user-dialogs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

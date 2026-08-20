@@ -8,6 +8,7 @@ import { useTheme } from "next-themes"
 import { ActivityIcon, ChevronsUpDownIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, Loader2Icon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
@@ -53,10 +54,17 @@ const titles = [
 export function AppShell({ children, user, usage, defaultSidebarOpen }: { children: ReactNode; user: User; usage: CurrentUserUsage; defaultSidebarOpen: boolean }) {
   return (
     <SidebarProvider defaultOpen={defaultSidebarOpen}>
+      <Button asChild size="sm" variant="secondary" className="fixed left-3 top-3 z-50 -translate-y-20 shadow-lg transition-transform focus:translate-y-0">
+        <Link href="#main-content">Skip to content</Link>
+      </Button>
+
       <AppSidebar user={user} usage={usage} />
+
       <SidebarInset>
         <AppHeader />
-        <div className="flex flex-1 flex-col p-4 sm:p-6">{children}</div>
+        <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col p-4 outline-none sm:p-6">
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )
@@ -157,9 +165,18 @@ function AppHeader() {
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-full" />
       <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
-      <form action="/search" className="relative ml-auto w-full max-w-sm">
+
+      <form action="/search" role="search" className="relative ml-auto w-full max-w-sm">
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input key={searchValue} name="q" defaultValue={searchValue} maxLength={256} placeholder="Search…" className="h-8 pl-8" />
+        <Input
+          key={searchValue}
+          name="q"
+          defaultValue={searchValue}
+          maxLength={256}
+          aria-label="Search files and folders"
+          placeholder="Search…"
+          className="h-8 pl-8"
+        />
       </form>
     </header>
   )
