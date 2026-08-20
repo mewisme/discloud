@@ -166,7 +166,7 @@ function AppHeader() {
   const title = titles.find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1] ?? "DisCloud"
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-4">
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-full" />
       <span className="hidden shrink-0 text-sm font-medium sm:inline">{title}</span>
