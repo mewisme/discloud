@@ -14,7 +14,11 @@ func (s *Service) ListUploads(ctx context.Context, query UploadQuery) ([]UploadD
 		SELECT
 			us.id::text,
 			us.actor_user_id::text,
+			actor.username::text,
+			actor.name,
 			us.owner_user_id::text,
+			owner.username::text,
+			owner.name,
 			us.parent_folder_id::text,
 			us.name,
 			us.size_bytes,
@@ -30,6 +34,8 @@ func (s *Service) ListUploads(ctx context.Context, query UploadQuery) ([]UploadD
 			us.updated_at,
 			us.expires_at
 		FROM upload_sessions us
+		JOIN users actor ON actor.id = us.actor_user_id
+		JOIN users owner ON owner.id = us.owner_user_id
 		LEFT JOIN LATERAL (
 			SELECT count(*) AS uploaded_parts
 			FROM upload_parts up
@@ -73,11 +79,27 @@ func (s *Service) ListUploads(ctx context.Context, query UploadQuery) ([]UploadD
 	for rows.Next() {
 		var item UploadDiagnostic
 		if err := rows.Scan(
-			&item.ID, &item.ActorUserID, &item.OwnerUserID, &item.ParentFolderID,
-			&item.Name, &item.SizeBytes, &item.ReservedBytes, &item.Status,
-			&item.ExpectedParts, &item.UploadedParts, &item.AttemptCount,
-			&item.FailedAttempts, &item.LastErrorClass, &item.LastErrorMessage,
-			&item.CreatedAt, &item.UpdatedAt, &item.ExpiresAt,
+			&item.ID,
+			&item.ActorUserID,
+			&item.ActorUsername,
+			&item.ActorName,
+			&item.OwnerUserID,
+			&item.OwnerUsername,
+			&item.OwnerName,
+			&item.ParentFolderID,
+			&item.Name,
+			&item.SizeBytes,
+			&item.ReservedBytes,
+			&item.Status,
+			&item.ExpectedParts,
+			&item.UploadedParts,
+			&item.AttemptCount,
+			&item.FailedAttempts,
+			&item.LastErrorClass,
+			&item.LastErrorMessage,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+			&item.ExpiresAt,
 		); err != nil {
 			return nil, false, fmt.Errorf("scan upload diagnostic: %w", err)
 		}

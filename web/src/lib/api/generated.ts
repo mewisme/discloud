@@ -1810,8 +1810,10 @@ export type components = {
             readonly userCount: number;
         };
         readonly UploadDiagnostic: {
+            readonly actorName: string;
             /** Format: uuid */
             readonly actorUserId: string;
+            readonly actorUsername: string;
             /** Format: int64 */
             readonly attemptCount: number;
             /** Format: date-time */
@@ -1826,8 +1828,10 @@ export type components = {
             readonly lastErrorClass?: string;
             readonly lastErrorMessage?: string;
             readonly name: string;
+            readonly ownerName: string;
             /** Format: uuid */
             readonly ownerUserId: string;
+            readonly ownerUsername: string;
             /** Format: uuid */
             readonly parentFolderId: string;
             /** Format: int64 */

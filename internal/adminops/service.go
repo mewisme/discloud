@@ -85,7 +85,11 @@ type UploadQuery struct {
 type UploadDiagnostic struct {
 	ID               string    `json:"id"`
 	ActorUserID      string    `json:"actorUserId"`
+	ActorUsername    string    `json:"actorUsername"`
+	ActorName        string    `json:"actorName"`
 	OwnerUserID      string    `json:"ownerUserId"`
+	OwnerUsername    string    `json:"ownerUsername"`
+	OwnerName        string    `json:"ownerName"`
 	ParentFolderID   string    `json:"parentFolderId"`
 	Name             string    `json:"name"`
 	SizeBytes        int64     `json:"sizeBytes"`

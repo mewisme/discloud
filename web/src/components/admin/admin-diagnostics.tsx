@@ -530,9 +530,15 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
               <TableRow key={upload.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground"><DateTime value={upload.updatedAt} /></TableCell>
                 <TableCell>
-                  <div className="max-w-64">
+                  <div className="max-w-72">
                     <div className="truncate font-medium">{upload.name}</div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">{upload.id}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      Owner: <span className="text-foreground">{upload.ownerName}</span> · @{upload.ownerUsername}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      Actor: <span className="text-foreground">{upload.actorName}</span> · @{upload.actorUsername}
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-muted-foreground">{upload.id}</div>
                   </div>
                 </TableCell>
                 <TableCell><StatusBadge status={upload.status} /></TableCell>
@@ -547,7 +553,11 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
                       id: upload.id,
                       status: upload.status,
                       actorUserId: upload.actorUserId,
+                      actorUsername: upload.actorUsername,
+                      actorName: upload.actorName,
                       ownerUserId: upload.ownerUserId,
+                      ownerUsername: upload.ownerUsername,
+                      ownerName: upload.ownerName,
                       parentFolderId: upload.parentFolderId,
                       sizeBytes: upload.sizeBytes,
                       reservedBytes: upload.reservedBytes,
