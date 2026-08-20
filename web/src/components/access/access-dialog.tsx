@@ -21,7 +21,7 @@ type AccessResource = {
   name: string
 }
 
-type Grant = Pick<AccessGrant, "userId" | "username" | "level">
+type Grant = Pick<AccessGrant, "userId" | "username" | "name" | "level">
 
 type AccessDialogProps = {
   resource: AccessResource
@@ -104,7 +104,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       const grant = await putGrant(user.id, level)
       upsert(grant)
       setUsername("")
-      toast.success(`Access granted to ${grant.username}`)
+      toast.success(`Access granted to ${grant.name} (@${grant.username})`)
     } catch (cause) {
       setError(apiErrorMessage(cause, "Could not grant access"))
     } finally {
@@ -158,7 +158,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       await apiJSON<void>(path, { method: "DELETE" })
       setGrants((current) => current.filter((item) => item.userId !== grant.userId))
       setRemoveTarget(undefined)
-      toast.success(`Removed direct access for ${grant.username}`)
+      toast.success(`Removed direct access for ${grant.name} (@${grant.username})`)
     } catch (cause) {
       setRemoveError(apiErrorMessage(cause, "Could not remove access"))
     } finally {
@@ -177,7 +177,8 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
   }
 
   function upsert(grant: Grant) {
-    setGrants((current) => [...current.filter((item) => item.userId !== grant.userId), grant].sort((a, b) => a.username.localeCompare(b.username)))
+    setGrants((current) => [...current.filter((item) => item.userId !== grant.userId), grant]
+      .sort((a, b) => a.name.localeCompare(b.name) || a.username.localeCompare(b.username)))
   }
 
   return (
@@ -226,7 +227,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
           <p className="text-xs text-muted-foreground">
-            View can read. Edit can change content. Full can also manage access.
+            Enter the exact username to add a user. View can read. Edit can change content. Full can also manage access.
             {resource.type === "folder" && " Folder access is inherited by descendants; removing a direct grant does not remove access inherited from an ancestor."}
           </p>
 
@@ -255,11 +256,16 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
                 <TableBody>
                   {grants.map((grant) => (
                     <TableRow key={grant.userId}>
-                      <TableCell className="font-medium">{grant.username}</TableCell>
+                      <TableCell>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{grant.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">@{grant.username}</p>
+                        </div>
+                      </TableCell>
 
                       <TableCell>
                         <Select value={grant.level} disabled={mutating} onValueChange={(value) => void update(grant.userId, value as AccessLevel)}>
-                          <SelectTrigger size="sm" aria-label={`Access level for ${grant.username}`}>
+                          <SelectTrigger size="sm" aria-label={`Access level for ${grant.name} (@${grant.username})`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -275,7 +281,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
                           size="icon-sm"
                           variant="ghost"
                           disabled={mutating}
-                          aria-label={`Remove access for ${grant.username}`}
+                          aria-label={`Remove access for ${grant.name} (@${grant.username})`}
                           onClick={() => openRemove(grant)}
                         >
                           {pendingUserId === grant.userId ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
@@ -301,7 +307,7 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
 
             <AlertDialogDescription>
               {removeTarget
-                ? `Remove direct access to ${resource.name} for ${removeTarget.username}?`
+                ? `Remove direct access to ${resource.name} for ${removeTarget.name} (@${removeTarget.username})?`
                 : "Remove this direct access grant?"}
               {resource.type === "folder" && " Access inherited from another folder will remain unchanged."}
             </AlertDialogDescription>

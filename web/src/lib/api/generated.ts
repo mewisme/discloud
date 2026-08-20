@@ -1398,6 +1398,7 @@ export type components = {
             readonly createdBy: string;
             /** @enum {string} */
             readonly level: "view" | "edit" | "full";
+            readonly name: string;
             /** Format: date-time */
             readonly updatedAt: string;
             /** Format: uuid */
@@ -1743,6 +1744,7 @@ export type components = {
             /** @enum {string} */
             readonly kind: "folder" | "collection";
             readonly name: string;
+            readonly ownerName: string;
             /** Format: uuid */
             readonly ownerUserId: string;
             readonly ownerUsername: string;

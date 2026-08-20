@@ -88,8 +88,11 @@ export function SharedView({
                     </div>
                   </TableCell>
 
-                  <TableCell className="hidden text-muted-foreground md:table-cell">
-                    {item.ownerUsername}
+                  <TableCell className="hidden md:table-cell">
+                    <div className="min-w-0">
+                      <p className="truncate">{item.ownerName}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{item.ownerUsername}</p>
+                    </div>
                   </TableCell>
 
                   <TableCell>
@@ -113,7 +116,7 @@ export function SharedView({
 
 function itemName(item: SharedItem) {
   return item.kind === "folder" && (item.isRoot || !item.name)
-    ? `${item.ownerUsername}'s Workspace`
+    ? `${item.ownerName}'s Workspace`
     : item.name
 }
 

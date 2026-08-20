@@ -17,6 +17,7 @@ type sharedItemResponse struct {
 	Kind          string    `json:"kind"`
 	OwnerUserID   string    `json:"ownerUserId"`
 	OwnerUsername string    `json:"ownerUsername"`
+	OwnerName     string    `json:"ownerName"`
 	Name          string    `json:"name"`
 	Description   string    `json:"description,omitempty"`
 	IsRoot        bool      `json:"isRoot"`
@@ -45,14 +46,14 @@ func registerSharedRoutes(mux *http.ServeMux, folderACL *acl.Service, collection
 		for _, folder := range folders {
 			items = append(items, sharedItemResponse{
 				ID: folder.ID, Kind: "folder", OwnerUserID: folder.OwnerUserID,
-				OwnerUsername: folder.OwnerUsername, Name: folder.Name, IsRoot: folder.IsRoot,
+				OwnerUsername: folder.OwnerUsername, OwnerName: folder.OwnerName, Name: folder.Name, IsRoot: folder.IsRoot,
 				AccessLevel: folder.Level.String(), SharedAt: folder.SharedAt, UpdatedAt: folder.UpdatedAt,
 			})
 		}
 		for _, collection := range collections {
 			items = append(items, sharedItemResponse{
 				ID: collection.ID, Kind: "collection", OwnerUserID: collection.OwnerUserID,
-				OwnerUsername: collection.OwnerUsername, Name: collection.Name, Description: collection.Description,
+				OwnerUsername: collection.OwnerUsername, OwnerName: collection.OwnerName, Name: collection.Name, Description: collection.Description,
 				AccessLevel: collection.Level.String(), SharedAt: collection.SharedAt, UpdatedAt: collection.UpdatedAt,
 			})
 		}

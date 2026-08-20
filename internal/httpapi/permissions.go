@@ -18,6 +18,7 @@ type setFolderPermissionRequest struct {
 type folderPermissionResponse struct {
 	UserID    string    `json:"userId"`
 	Username  string    `json:"username"`
+	Name      string    `json:"name"`
 	Level     string    `json:"level"`
 	CreatedBy string    `json:"createdBy"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -101,6 +102,7 @@ func permissionJSON(grant acl.Grant) folderPermissionResponse {
 	return folderPermissionResponse{
 		UserID:    grant.UserID,
 		Username:  grant.Username,
+		Name:      grant.Name,
 		Level:     grant.Level.String(),
 		CreatedBy: grant.CreatedBy,
 		CreatedAt: grant.CreatedAt,

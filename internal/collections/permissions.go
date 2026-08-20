@@ -15,6 +15,7 @@ import (
 type Grant struct {
 	UserID    string
 	Username  string
+	Name      string
 	Level     Level
 	CreatedBy string
 	CreatedAt time.Time
@@ -34,6 +35,7 @@ func (s *Service) ListGrants(ctx context.Context, actor Actor, collectionID stri
 		SELECT
 			cp.user_id::text,
 			u.username::text,
+			u.name,
 			cp.level,
 			cp.created_by::text,
 			cp.created_at,
@@ -53,7 +55,7 @@ func (s *Service) ListGrants(ctx context.Context, actor Actor, collectionID stri
 		var grant Grant
 		var level string
 		if err := rows.Scan(
-			&grant.UserID, &grant.Username, &level, &grant.CreatedBy,
+			&grant.UserID, &grant.Username, &grant.Name, &level, &grant.CreatedBy,
 			&grant.CreatedAt, &grant.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan collection grant: %w", err)
@@ -90,10 +92,10 @@ func (s *Service) SetGrant(ctx context.Context, actor Actor, collectionID, userI
 		}
 
 		err = tx.QueryRow(ctx, `
-			SELECT id::text, username::text
+			SELECT id::text, username::text, name
 			FROM users
 			WHERE id = $1::uuid
-		`, userID).Scan(&grant.UserID, &grant.Username)
+		`, userID).Scan(&grant.UserID, &grant.Username, &grant.Name)
 		if errors.Is(err, pgx.ErrNoRows) || isInvalidUUID(err) {
 			return ErrUserNotFound
 		}

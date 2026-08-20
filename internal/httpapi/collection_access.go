@@ -17,6 +17,7 @@ type setCollectionAccessRequest struct {
 type collectionAccessResponse struct {
 	UserID    string    `json:"userId"`
 	Username  string    `json:"username"`
+	Name      string    `json:"name"`
 	Level     string    `json:"level"`
 	CreatedBy string    `json:"createdBy"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -89,7 +90,7 @@ func registerCollectionAccessRoutes(mux *http.ServeMux, service *collections.Ser
 
 func collectionAccessJSON(grant collections.Grant) collectionAccessResponse {
 	return collectionAccessResponse{
-		UserID: grant.UserID, Username: grant.Username, Level: grant.Level.String(),
+		UserID: grant.UserID, Username: grant.Username, Name: grant.Name, Level: grant.Level.String(),
 		CreatedBy: grant.CreatedBy, CreatedAt: grant.CreatedAt, UpdatedAt: grant.UpdatedAt,
 	}
 }

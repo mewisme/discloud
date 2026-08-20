@@ -10,6 +10,7 @@ type SharedFolder struct {
 	ID            string
 	OwnerUserID   string
 	OwnerUsername string
+	OwnerName     string
 	Name          string
 	IsRoot        bool
 	Level         Level
@@ -36,6 +37,7 @@ func (s *Service) SharedWithUser(ctx context.Context, userID string) ([]SharedFo
 			n.id::text,
 			n.owner_user_id::text,
 			owner.username::text,
+			owner.name,
 			n.name,
 			n.is_root,
 			fp.level,
@@ -62,6 +64,7 @@ func (s *Service) SharedWithUser(ctx context.Context, userID string) ([]SharedFo
 			&item.ID,
 			&item.OwnerUserID,
 			&item.OwnerUsername,
+			&item.OwnerName,
 			&item.Name,
 			&item.IsRoot,
 			&level,

@@ -42,6 +42,7 @@ type Actor struct {
 type Grant struct {
 	UserID    string
 	Username  string
+	Name      string
 	Level     Level
 	CreatedBy string
 	CreatedAt time.Time
@@ -118,6 +119,7 @@ func (s *Service) List(ctx context.Context, actor Actor, folderID string) ([]Gra
 		SELECT
 			fp.user_id::text,
 			u.username::text,
+			u.name,
 			fp.level,
 			fp.created_by::text,
 			fp.created_at,
@@ -140,6 +142,7 @@ func (s *Service) List(ctx context.Context, actor Actor, folderID string) ([]Gra
 		if err := rows.Scan(
 			&grant.UserID,
 			&grant.Username,
+			&grant.Name,
 			&level,
 			&grant.CreatedBy,
 			&grant.CreatedAt,
@@ -190,10 +193,10 @@ func (s *Service) Set(ctx context.Context, actor Actor, folderID, userID string,
 		}
 
 		err = tx.QueryRow(ctx, `
-			SELECT id::text, username::text
+			SELECT id::text, username::text, name
 			FROM users
 			WHERE id = $1::uuid
-		`, userID).Scan(&grant.UserID, &grant.Username)
+		`, userID).Scan(&grant.UserID, &grant.Username, &grant.Name)
 
 		if errors.Is(err, pgx.ErrNoRows) || isInvalidUUID(err) {
 			return ErrUserNotFound

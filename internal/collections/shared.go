@@ -10,6 +10,7 @@ type SharedCollection struct {
 	ID            string
 	OwnerUserID   string
 	OwnerUsername string
+	OwnerName     string
 	Name          string
 	Description   string
 	Level         Level
@@ -23,6 +24,7 @@ func (s *Service) SharedWithUser(ctx context.Context, userID string) ([]SharedCo
 			c.id::text,
 			c.owner_user_id::text,
 			owner.username::text,
+			owner.name,
 			c.name,
 			COALESCE(c.description, ''),
 			cp.level,
@@ -48,6 +50,7 @@ func (s *Service) SharedWithUser(ctx context.Context, userID string) ([]SharedCo
 			&item.ID,
 			&item.OwnerUserID,
 			&item.OwnerUsername,
+			&item.OwnerName,
 			&item.Name,
 			&item.Description,
 			&level,
