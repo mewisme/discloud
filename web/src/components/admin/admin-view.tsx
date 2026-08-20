@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, ShieldCheckIcon, UserRoundIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
+import { AdminDiagnostics } from "@/components/admin/admin-diagnostics"
 import { CreateUserDialog, ReconcileQuotaDialog, UserActions } from "@/components/admin/admin-user-dialogs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -72,7 +73,7 @@ export function AdminView({
   const nextDisabled = offset + users.length >= total || loading
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <div className="flex items-center gap-2">
@@ -195,6 +196,15 @@ export function AdminView({
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Diagnostics</h2>
+          <p className="text-sm text-muted-foreground">Inspect audit events, background jobs, and upload sessions.</p>
+        </div>
+
+        <AdminDiagnostics />
       </section>
     </div>
   )
