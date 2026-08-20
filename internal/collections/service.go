@@ -123,6 +123,18 @@ func (l Level) Allows(required Level) bool {
 }
 
 func (s *Service) Create(ctx context.Context, actor Actor, name, description string) (Collection, error) {
+	return s.CreateForOwner(ctx, actor, actor.UserID, name, description)
+}
+
+func (s *Service) CreateForOwner(ctx context.Context, actor Actor, ownerID, name, description string) (Collection, error) {
+	ownerID = strings.TrimSpace(ownerID)
+	if ownerID == "" {
+		ownerID = actor.UserID
+	}
+	if !actor.Admin && !strings.EqualFold(ownerID, actor.UserID) {
+		return Collection{}, ErrForbidden
+	}
+
 	name, nameKey, err := nodes.NormalizeName(name)
 	if err != nil {
 		return Collection{}, err
@@ -130,11 +142,15 @@ func (s *Service) Create(ctx context.Context, actor Actor, name, description str
 
 	var collection Collection
 	err = postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := requireActiveOwner(ctx, tx, ownerID); err != nil {
+			return err
+		}
+
 		err := scanCollection(tx.QueryRow(ctx, `
 			INSERT INTO collections (owner_user_id, name, name_key, description, created_by)
-			VALUES ($1::uuid, $2, $3, NULLIF($4, ''), $1::uuid)
+			VALUES ($1::uuid, $2, $3, NULLIF($4, ''), $5::uuid)
 			RETURNING `+collectionColumns,
-			actor.UserID, name, nameKey, strings.TrimSpace(description),
+			ownerID, name, nameKey, strings.TrimSpace(description), actor.UserID,
 		), &collection)
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -171,6 +187,21 @@ func (s *Service) Get(ctx context.Context, actor Actor, collectionID string) (Co
 }
 
 func (s *Service) List(ctx context.Context, actor Actor, limit int, afterNameKey, afterID string) ([]Collection, bool, error) {
+	return s.list(ctx, actor, "", limit, afterNameKey, afterID)
+}
+
+func (s *Service) ListForOwner(ctx context.Context, actor Actor, ownerID string, limit int, afterNameKey, afterID string) ([]Collection, bool, error) {
+	ownerID = strings.TrimSpace(ownerID)
+	if ownerID == "" {
+		return s.List(ctx, actor, limit, afterNameKey, afterID)
+	}
+	if !actor.Admin && !strings.EqualFold(ownerID, actor.UserID) {
+		return nil, false, ErrForbidden
+	}
+	return s.list(ctx, actor, ownerID, limit, afterNameKey, afterID)
+}
+
+func (s *Service) list(ctx context.Context, actor Actor, ownerID string, limit int, afterNameKey, afterID string) ([]Collection, bool, error) {
 	if limit < 1 || limit > 100 || (afterID == "") != (afterNameKey == "") {
 		return nil, false, ErrInvalidCursor
 	}
@@ -180,22 +211,28 @@ func (s *Service) List(ctx context.Context, actor Actor, limit int, afterNameKey
 		FROM collections c
 		WHERE c.deleted_at IS NULL
 		  AND (
-				$1::boolean
-				OR c.owner_user_id = $2::uuid
-				OR EXISTS (
-					SELECT 1
-					FROM collection_permissions cp
-					WHERE cp.collection_id = c.id
-					  AND cp.user_id = $2::uuid
+				($3 <> '' AND c.owner_user_id::text = $3)
+				OR (
+					$3 = ''
+					AND (
+						$1::boolean
+						OR c.owner_user_id = $2::uuid
+						OR EXISTS (
+							SELECT 1
+							FROM collection_permissions cp
+							WHERE cp.collection_id = c.id
+							  AND cp.user_id = $2::uuid
+						)
+					)
 				)
 		  )
 		  AND (
-				$3 = ''
-				OR (c.name_key, c.id) > ($3, $4::uuid)
+				$4 = ''
+				OR (c.name_key, c.id) > ($4, $5::uuid)
 		  )
 		ORDER BY c.name_key, c.id
-		LIMIT $5
-	`, actor.Admin, actor.UserID, afterNameKey, nullableString(afterID), limit+1)
+		LIMIT $6
+	`, actor.Admin, actor.UserID, ownerID, afterNameKey, nullableString(afterID), limit+1)
 	if err != nil {
 		if isInvalidUUID(err) {
 			return nil, false, ErrInvalidCursor
@@ -415,6 +452,24 @@ func requireLevel(ctx context.Context, db queryRower, state collectionState, act
 	}
 	if !level.Allows(required) {
 		return ErrForbidden
+	}
+	return nil
+}
+
+func requireActiveOwner(ctx context.Context, db queryRower, ownerID string) error {
+	var active bool
+	if err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM users
+			WHERE id::text = $1
+			  AND status = 'active'
+		)
+	`, ownerID).Scan(&active); err != nil {
+		return fmt.Errorf("validate collection owner: %w", err)
+	}
+	if !active {
+		return ErrUserNotFound
 	}
 	return nil
 }

@@ -56,21 +56,32 @@ func TestNormalizeInputRejectsInvalidRanges(t *testing.T) {
 }
 
 func TestNormalizeInputRestrictsAdminFilters(t *testing.T) {
-	for _, input := range []Input{
-		{Limit: 50, State: StateTrash},
-		{Limit: 50, OwnerID: "01900000-0000-7000-8000-000000000001"},
-	} {
-		if err := normalizeInput(Actor{}, &input); !errors.Is(err, ErrForbidden) {
-			t.Fatalf("normalizeInput(%+v) = %v", input, err)
-		}
+	const (
+		selfID  = "01900000-0000-7000-8000-000000000001"
+		otherID = "01900000-0000-7000-8000-000000000002"
+	)
+
+	trash := Input{Limit: 50, State: StateTrash}
+	if err := normalizeInput(Actor{UserID: selfID}, &trash); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-admin trash filter = %v", err)
 	}
 
-	input := Input{
+	otherOwner := Input{Limit: 50, OwnerID: otherID}
+	if err := normalizeInput(Actor{UserID: selfID}, &otherOwner); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-admin cross-owner filter = %v", err)
+	}
+
+	selfOwner := Input{Limit: 50, OwnerID: selfID}
+	if err := normalizeInput(Actor{UserID: selfID}, &selfOwner); err != nil {
+		t.Fatalf("non-admin self-owner filter = %v", err)
+	}
+
+	admin := Input{
 		Limit:   50,
 		State:   StateTrash,
-		OwnerID: "01900000-0000-7000-8000-000000000001",
+		OwnerID: otherID,
 	}
-	if err := normalizeInput(Actor{Admin: true}, &input); err != nil {
+	if err := normalizeInput(Actor{UserID: selfID, Admin: true}, &admin); err != nil {
 		t.Fatalf("admin normalizeInput(): %v", err)
 	}
 }

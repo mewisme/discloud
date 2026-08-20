@@ -486,7 +486,7 @@ func normalizeInput(actor Actor, input *Input) error {
 	if !actor.Admin && input.State != StateActive {
 		return ErrForbidden
 	}
-	if !actor.Admin && input.OwnerID != "" {
+	if input.OwnerID != "" && !actor.Admin && input.OwnerID != actor.UserID {
 		return ErrForbidden
 	}
 

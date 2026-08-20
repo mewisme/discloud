@@ -76,6 +76,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.AdminUsers != nil && deps.Auth != nil {
 		registerAdminUserRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
+		registerWorkspaceRoutes(mux, deps.AdminUsers, deps.Auth, authConfig)
 	}
 	if deps.AdminOps != nil && deps.Auth != nil {
 		registerAdminOpsRoutes(mux, deps.AdminOps, deps.Auth, authConfig)

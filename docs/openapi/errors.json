@@ -96,7 +96,7 @@
     "completeUpload":[400,401,403,404,409,410,422,500,502,503],
     "listTrash":[400,401,403,404,500],
     "listCollections":[400,401,403,500],
-    "createCollection":[400,401,403,409,500],
+    "createCollection":[400,401,403,404,409,500],
     "getCollection":[401,403,404,500],
     "updateCollection":[400,401,403,404,409,500],
     "trashCollection":[401,403,404,500],

@@ -17,6 +17,7 @@ import (
 type createCollectionRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	OwnerUserID string `json:"ownerUserId,omitempty"`
 }
 
 type updateCollectionRequest struct {
@@ -79,7 +80,7 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 		}
 
 		actor := collectionActor(r)
-		items, hasMore, err := service.List(r.Context(), actor, limit, afterNameKey, afterID)
+		items, hasMore, err := service.ListForOwner(r.Context(), actor, r.URL.Query().Get("ownerId"), limit, afterNameKey, afterID)
 		if writeCollectionError(w, r, err) {
 			return
 		}
@@ -114,7 +115,7 @@ func registerCollectionRoutes(mux *http.ServeMux, service *collections.Service, 
 			return
 		}
 
-		collection, err := service.Create(r.Context(), collectionActor(r), input.Name, input.Description)
+		collection, err := service.CreateForOwner(r.Context(), collectionActor(r), input.OwnerUserID, input.Name, input.Description)
 		if writeCollectionError(w, r, err) {
 			return
 		}
