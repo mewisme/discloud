@@ -1,6 +1,8 @@
 {
   "parameters":{
     "userId":{"name":"userId","in":"path","schema":{"type":"string","format":"uuid"},"required":true},
+    "configKey":{"name":"key","in":"path","schema":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[a-z0-9]+([._-][a-z0-9]+)*$"},"required":true},
+    "configPrefix":{"name":"prefix","in":"query","schema":{"type":"string","maxLength":128}},
     "sessionId":{"name":"sessionId","in":"path","schema":{"type":"string","format":"uuid"},"required":true},
     "folderId":{"name":"folderId","in":"path","schema":{"type":"string","format":"uuid"},"required":true},
     "nodeId":{"name":"nodeId","in":"path","schema":{"type":"string","format":"uuid"},"required":true},
@@ -49,6 +51,9 @@
   "schemas":{
     "Problem":{"type":"object","properties":{"type":{"type":"string","default":"about:blank"},"title":{"type":"string"},"status":{"type":"integer"},"detail":{"type":"string"},"request_id":{"type":"string"}},"required":["type","title","status"]},
     "User":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"username":{"type":"string"},"role":{"type":"string","enum":["admin","user"]},"mustChangePassword":{"type":"boolean"}},"required":["id","username","role","mustChangePassword"]},
+    "UserConfig":{"type":"object","properties":{"common":{"type":"object","properties":{"timezone":{"type":"string","minLength":1,"maxLength":128}},"required":["timezone"]},"revision":{"type":"integer","format":"int64","minimum":0}},"required":["common","revision"]},
+    "AppConfigEntry":{"type":"object","properties":{"key":{"type":"string"},"value":{},"revision":{"type":"integer","format":"int64","minimum":1},"updatedBy":{"type":["string","null"],"format":"uuid"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"required":["key","value","revision","updatedBy","createdAt","updatedAt"]},
+    "AppConfigList":{"type":"object","properties":{"entries":{"type":"array","items":{"$ref":"#/schemas/AppConfigEntry"}}},"required":["entries"]},
     "Session":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"createdAt":{"type":"string","format":"date-time"},"expiresAt":{"type":"string","format":"date-time"},"current":{"type":"boolean"}},"required":["id","createdAt","expiresAt","current"]},
     "Node":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"kind":{"type":"string","enum":["file","folder"]},"ownerUserId":{"type":"string","format":"uuid"},"parentId":{"type":["string","null"],"format":"uuid"},"name":{"type":"string"},"isRoot":{"type":"boolean"},"isFavorite":{"type":"boolean"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"required":["id","kind","ownerUserId","parentId","name","isRoot","isFavorite","createdAt","updatedAt"]},
     "FolderChild":{"allOf":[{"$ref":"#/schemas/Node"},{"type":"object","properties":{"size":{"type":"integer","format":"int64","minimum":0},"mimeType":{"type":"string"},"extension":{"type":"string"},"category":{"type":"string","enum":["image","video","audio","document","text","archive","application","binary","other"]},"accessLevel":{"type":"string","enum":["view","edit","full"]},"canFavorite":{"type":"boolean"}},"required":["accessLevel","canFavorite"]}]},
@@ -75,13 +80,15 @@
     "MFARequired":{"type":"object","properties":{"mfaRequired":{"type":"boolean","const":true},"challengeToken":{"type":"string"},"expiresAt":{"type":"string","format":"date-time"}},"required":["mfaRequired","challengeToken","expiresAt"]},
     "UserLookup":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"username":{"type":"string"}},"required":["id","username"]},
     "SharedItem":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"kind":{"type":"string","enum":["folder","collection"]},"ownerUserId":{"type":"string","format":"uuid"},"ownerUsername":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"isRoot":{"type":"boolean"},"accessLevel":{"type":"string","enum":["view","edit","full"]},"sharedAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"required":["id","kind","ownerUserId","ownerUsername","name","isRoot","accessLevel","sharedAt","updatedAt"]},
-"SharedItems":{"type":"object","properties":{"items":{"type":"array","items":{"$ref":"#/schemas/SharedItem"}}},"required":["items"]}
+  "SharedItems":{"type":"object","properties":{"items":{"type":"array","items":{"$ref":"#/schemas/SharedItem"}}},"required":["items"]}
   },
   "requestBodies":{
     "Setup":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"username":{"type":"string"},"password":{"type":"string","format":"password"}},"required":["username","password"]}}}},
     "Login":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"username":{"type":"string"},"password":{"type":"string","format":"password"}},"required":["username","password"]}}}},
     "MFAVerify":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"challengeToken":{"type":"string"},"code":{"type":"string"}},"required":["challengeToken","code"]}}}},
     "UpdateMe":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"username":{"type":"string"}},"required":["username"]}}}},
+    "UpdateCommonConfig":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"timezone":{"type":"string","minLength":1,"maxLength":128}},"required":["timezone"],"additionalProperties":false}}}},
+    "SetAppConfig":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"value":{}},"required":["value"],"additionalProperties":false}}}},
     "ChangePassword":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"currentPassword":{"type":"string","format":"password"},"newPassword":{"type":"string","format":"password"}},"required":["currentPassword","newPassword"]}}}},
     "MFACode":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"code":{"type":"string"}},"required":["code"]}}}},
     "AdminCreateUser":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"username":{"type":"string"},"password":{"type":"string","format":"password"},"role":{"type":"string","enum":["admin","user"]},"storageQuotaBytes":{"type":["integer","null"],"format":"int64","minimum":0}},"required":["username","password"]}}}},
@@ -110,6 +117,9 @@
     "Zip":{"description":"ZIP archive.","content":{"application/zip":{"schema":{"type":"string","format":"binary"}}}},
     "Binary":{"description":"File content. Supports full or single-range responses.","headers":{"Accept-Ranges":{"schema":{"type":"string"}},"Content-Range":{"schema":{"type":"string"}},"ETag":{"schema":{"type":"string"}}},"content":{"*/*":{"schema":{"type":"string","format":"binary"}}}},
     "User":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/User"}}}},
+    "UserConfig":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/UserConfig"}}}},
+    "AppConfigEntry":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/AppConfigEntry"}}}},
+    "AppConfigList":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/AppConfigList"}}}},    
     "Node":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/Node"}}}},
     "File":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/File"}}}},
     "UploadSession":{"description":"Successful response.","content":{"application/json":{"schema":{"$ref":"#/schemas/UploadSession"}}}},

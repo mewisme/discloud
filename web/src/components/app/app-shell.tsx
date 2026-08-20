@@ -43,6 +43,7 @@ const management: NavItem[] = [
 
 const titles = [
   ["/settings/security", "Security"],
+  ["/settings/common", "Common"],
   ["/settings", "Settings"],
   ["/admin/diagnostics", "Diagnostics"],
   ["/collections", "Collections"],

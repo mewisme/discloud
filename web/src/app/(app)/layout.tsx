@@ -5,7 +5,8 @@ import { AppShell } from "@/components/app/app-shell"
 import { UploadManager } from "@/components/uploads/upload-manager"
 import { UploadProvider } from "@/components/uploads/upload-provider"
 import { apiServerAuthJSON } from "@/lib/api/server"
-import type { CurrentUserUsage } from "@/lib/api/models"
+import { UserConfigProvider } from "@/components/settings/user-config-context"
+import type { CurrentUserUsage, UserConfig } from "@/lib/api/models"
 import { getCurrentUser } from "@/lib/auth/session"
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -14,17 +15,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!user) redirect("/login")
   if (user.mustChangePassword) redirect("/change-password")
 
-  const [usage, cookieStore] = await Promise.all([
+  const [usage, userConfig, cookieStore] = await Promise.all([
     apiServerAuthJSON<CurrentUserUsage>("/api/v1/me/usage"),
+    apiServerAuthJSON<UserConfig>("/api/v1/me/config"),
     cookies(),
   ])
 
   return (
-    <UploadProvider>
-      <AppShell user={user} usage={usage} defaultSidebarOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
-        {children}
-      </AppShell>
-      <UploadManager />
-    </UploadProvider>
+    <UserConfigProvider initialConfig={userConfig}>
+      <UploadProvider>
+        <AppShell user={user} usage={usage} defaultSidebarOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
+          {children}
+        </AppShell>
+        <UploadManager />
+      </UploadProvider>
+    </UserConfigProvider>
   )
 }

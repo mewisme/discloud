@@ -1,8 +1,8 @@
 import { APIError } from "@/lib/api/types"
 
 const bytesFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" })
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
+const dateFormatterCache = new Map<string, Intl.DateTimeFormat>()
+const dateTimeFormatterCache = new Map<string, Intl.DateTimeFormat>()
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
 const interactiveSelector = "a,button,input,select,textarea,[role=button],[role=checkbox],[role=menuitem],[contenteditable=true]"
 
@@ -27,12 +27,26 @@ export function formatBytes(bytes: number) {
   return `${bytes < 0 ? "-" : ""}${bytesFormatter.format(Math.abs(bytes) / 1024 ** exponent)} ${units[exponent]}`
 }
 
-export function formatDate(value: string | number | Date) {
-  return dateFormatter.format(toDate(value))
+export function formatDate(value: string | number | Date, timeZone = "UTC") {
+  let formatter = dateFormatterCache.get(timeZone)
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone })
+    dateFormatterCache.set(timeZone, formatter)
+  }
+
+  return formatter.format(toDate(value))
 }
 
-export function formatDateTime(value: string | number | Date) {
-  return dateTimeFormatter.format(toDate(value))
+export function formatDateTime(value: string | number | Date, timeZone = "UTC") {
+  let formatter = dateTimeFormatterCache.get(timeZone)
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone })
+    dateTimeFormatterCache.set(timeZone, formatter)
+  }
+
+  return formatter.format(toDate(value))
 }
 
 export function formatDuration(milliseconds: number) {

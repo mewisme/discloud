@@ -26,6 +26,7 @@ import (
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
 	"github.com/mewisme/discloud/internal/search"
+	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -108,6 +109,7 @@ func Run() error {
 	collectionService := collections.New(pool)
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
+	settingsService := settings.New(pool)
 	metadataProcessor := files.NewMetadataProcessor(fileService)
 	orphanCleaner := orphangc.New(
 		pool,
@@ -154,6 +156,7 @@ func Run() error {
 			Collections:  collectionService,
 			Shares:       shareService,
 			Search:       searchService,
+			Settings:     settingsService,
 		},
 		cfg.HTTP,
 		cfg.Auth,

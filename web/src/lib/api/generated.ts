@@ -20,6 +20,38 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/admin/config": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["listAppConfig"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/admin/config/{key}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getAppConfig"];
+        readonly put: operations["setAppConfig"];
+        readonly post?: never;
+        readonly delete: operations["deleteAppConfig"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/jobs": {
         readonly parameters: {
             readonly query?: never;
@@ -677,6 +709,38 @@ export type paths = {
         readonly patch: operations["updateMe"];
         readonly trace?: never;
     };
+    readonly "/api/v1/me/config": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getMyConfig"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/me/config/common": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["updateMyCommonConfig"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/me/mfa": {
         readonly parameters: {
             readonly query?: never;
@@ -1306,6 +1370,21 @@ export type components = {
             readonly storageUsedBytes: number;
             readonly username: string;
         };
+        readonly AppConfigEntry: {
+            /** Format: date-time */
+            readonly createdAt: string;
+            readonly key: string;
+            /** Format: int64 */
+            readonly revision: number;
+            /** Format: date-time */
+            readonly updatedAt: string;
+            /** Format: uuid */
+            readonly updatedBy: string | null;
+            readonly value: unknown;
+        };
+        readonly AppConfigList: {
+            readonly entries: readonly components["schemas"]["AppConfigEntry"][];
+        };
         readonly AuditEvent: {
             readonly action: string;
             /** Format: uuid */
@@ -1712,6 +1791,13 @@ export type components = {
             readonly role: "admin" | "user";
             readonly username: string;
         };
+        readonly UserConfig: {
+            readonly common: {
+                readonly timezone: string;
+            };
+            /** Format: int64 */
+            readonly revision: number;
+        };
         readonly UserLookup: {
             /** Format: uuid */
             readonly id: string;
@@ -1760,6 +1846,24 @@ export type components = {
                     readonly total: number;
                     readonly users: readonly components["schemas"]["AdminUser"][];
                 };
+            };
+        };
+        /** @description Successful response. */
+        readonly AppConfigEntry: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["AppConfigEntry"];
+            };
+        };
+        /** @description Successful response. */
+        readonly AppConfigList: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["AppConfigList"];
             };
         };
         /** @description Successful response. */
@@ -2194,6 +2298,15 @@ export type components = {
                 readonly "application/json": components["schemas"]["User"];
             };
         };
+        /** @description Successful response. */
+        readonly UserConfig: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["UserConfig"];
+            };
+        };
         /** @description ZIP archive. */
         readonly Zip: {
             headers: {
@@ -2212,6 +2325,8 @@ export type components = {
         readonly collectionId: string;
         /** @description Collection access context for a collection-only file. */
         readonly collectionIdQuery: string;
+        readonly configKey: string;
+        readonly configPrefix: string;
         readonly createdFrom: string;
         readonly createdTo: string;
         readonly cursor: string;
@@ -2419,6 +2534,13 @@ export type components = {
                 };
             };
         };
+        readonly SetAppConfig: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly value: unknown;
+                };
+            };
+        };
         readonly Setup: {
             readonly content: {
                 readonly "application/json": {
@@ -2433,6 +2555,13 @@ export type components = {
                 readonly "application/json": {
                     readonly description?: string;
                     readonly name?: string;
+                };
+            };
+        };
+        readonly UpdateCommonConfig: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly timezone: string;
                 };
             };
         };
@@ -2493,6 +2622,66 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["AuditPage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly listAppConfig: {
+        readonly parameters: {
+            readonly query?: {
+                readonly prefix?: components["parameters"]["configPrefix"];
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["AppConfigList"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getAppConfig: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly key: components["parameters"]["configKey"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["AppConfigEntry"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly setAppConfig: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly key: components["parameters"]["configKey"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["SetAppConfig"];
+        readonly responses: {
+            readonly 200: components["responses"]["AppConfigEntry"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly deleteAppConfig: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly key: components["parameters"]["configKey"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
             readonly default: components["responses"]["Problem"];
         };
     };
@@ -3296,6 +3485,32 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["UpdateMe"];
         readonly responses: {
             readonly 200: components["responses"]["User"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getMyConfig: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["UserConfig"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly updateMyCommonConfig: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["UpdateCommonConfig"];
+        readonly responses: {
+            readonly 200: components["responses"]["UserConfig"];
             readonly default: components["responses"]["Problem"];
         };
     };

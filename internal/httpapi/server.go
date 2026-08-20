@@ -16,6 +16,7 @@ import (
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/observability"
 	"github.com/mewisme/discloud/internal/search"
+	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
 	"github.com/mewisme/discloud/internal/uploads"
@@ -38,6 +39,7 @@ type RouterDependencies struct {
 	Collections  *collections.Service
 	Shares       *shares.Service
 	Search       *search.Service
+	Settings     *settings.Service
 }
 
 func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig config.AuthConfig) http.Handler {
@@ -108,6 +110,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.Search != nil && deps.Auth != nil {
 		registerSearchRoutes(mux, deps.Search, deps.Auth, authConfig)
+	}
+	if deps.Settings != nil && deps.Auth != nil {
+		registerSettingsRoutes(mux, deps.Settings, deps.Auth, authConfig)
 	}
 
 	handler := csrfMiddleware(httpConfig, mux)
