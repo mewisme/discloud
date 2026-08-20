@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils"
 
 const infoAutoHideMs = 2200
 const previewWarmRangeEnd = 256 * 1024 - 1
+const warmedPreviewAssets = new Set<string>()
+const warmingPreviewAssets = new Set<string>()
 
 export type PreviewCarouselFile = {
   id: string
@@ -231,9 +233,21 @@ function PreviewAssetPreloader({
       collectionId ? { collectionId } : undefined,
     )
 
+    if (warmedPreviewAssets.has(contentURL) || warmingPreviewAssets.has(contentURL)) return
+
+    warmingPreviewAssets.add(contentURL)
+
     if (kind === "image") {
       const image = new window.Image()
+
+      const complete = (success: boolean) => {
+        warmingPreviewAssets.delete(contentURL)
+        if (success) warmedPreviewAssets.add(contentURL)
+      }
+
       image.decoding = "async"
+      image.onload = () => complete(true)
+      image.onerror = () => complete(false)
       image.src = contentURL
 
       return () => {
@@ -244,11 +258,25 @@ function PreviewAssetPreloader({
 
     if (kind === "video" || kind === "audio") {
       const media = document.createElement(kind)
+
+      const complete = () => {
+        warmingPreviewAssets.delete(contentURL)
+        warmedPreviewAssets.add(contentURL)
+      }
+
+      const fail = () => {
+        warmingPreviewAssets.delete(contentURL)
+      }
+
       media.preload = "metadata"
+      media.addEventListener("loadedmetadata", complete, { once: true })
+      media.addEventListener("error", fail, { once: true })
       media.src = contentURL
       media.load()
 
       return () => {
+        media.removeEventListener("loadedmetadata", complete)
+        media.removeEventListener("error", fail)
         media.removeAttribute("src")
         media.load()
       }
@@ -263,12 +291,17 @@ function PreviewAssetPreloader({
           Range: `bytes=0-${previewWarmRangeEnd}`,
         },
         signal: controller.signal,
-      }).catch(() => { })
+      }).then((response) => {
+        warmingPreviewAssets.delete(contentURL)
+        if (response.ok) warmedPreviewAssets.add(contentURL)
+      }).catch(() => {
+        warmingPreviewAssets.delete(contentURL)
+      })
 
       return () => controller.abort()
     }
 
-    return
+    warmingPreviewAssets.delete(contentURL)
   }, [collectionId, file.category, file.id, file.mimeType])
 
   return null
