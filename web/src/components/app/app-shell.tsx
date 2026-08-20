@@ -39,6 +39,7 @@ const titles = [
   ["/shared", "Shared"],
   ["/search", "Search"],
   ["/trash", "Trash"],
+  ["/admin", "Admin"],
   ["/files", "Files"],
 ] as const
 
@@ -85,7 +86,7 @@ function AppSidebar({ user, usage }: { user: User; usage: CurrentUserUsage }) {
           <SidebarGroup>
             <SidebarGroupLabel>Management</SidebarGroupLabel>
             <SidebarGroupContent>
-              <AppNav items={[{ title: "Admin", href: "/admin", icon: ShieldIcon, enabled: false }]} />
+              <AppNav items={[{ title: "Admin", href: "/admin", icon: ShieldIcon, enabled: true }]} />
             </SidebarGroupContent>
           </SidebarGroup>
         )}
@@ -159,7 +160,7 @@ function UserMenu({ user }: { user: User }) {
     setPending(true)
 
     try {
-      await apiJSON<void>("/api/v1/auth/logout", { method: "POST" })
+      await apiJSON<void>("/auth/logout", { method: "POST" })
       setOpenMobile(false)
       router.replace("/login")
       router.refresh()
