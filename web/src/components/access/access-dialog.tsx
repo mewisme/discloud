@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Loader2Icon, Share2Icon, Trash2Icon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -36,8 +37,12 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [pendingUserId, setPendingUserId] = useState<string>()
+  const [removeTarget, setRemoveTarget] = useState<Grant>()
+  const [removeError, setRemoveError] = useState<string>()
   const [error, setError] = useState<string>()
   const open = controlledOpen ?? internalOpen
+  const mutating = adding || !!pendingUserId
+  const removing = !!removeTarget && pendingUserId === removeTarget.userId
   const triggerNode = trigger === undefined ? (
     <Button size="sm" variant="outline">
       <Share2Icon />
@@ -71,6 +76,8 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
   }, [open, resource.id, resource.type])
 
   function changeOpen(next: boolean) {
+    if (!next && mutating) return
+
     if (controlledOpen === undefined) setInternalOpen(next)
     onOpenChange?.(next)
 
@@ -78,12 +85,15 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
       setUsername("")
       setError(undefined)
       setLoading(true)
+      setRemoveTarget(undefined)
+      setRemoveError(undefined)
     }
   }
 
   async function add() {
     const value = username.trim()
-    if (!value || adding) return
+    if (!value || mutating) return
+
     setAdding(true)
     setError(undefined)
 
@@ -102,6 +112,8 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
   }
 
   async function update(userId: string, nextLevel: AccessLevel) {
+    if (mutating) return
+
     setPendingUserId(userId)
     setError(undefined)
 
@@ -116,9 +128,26 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
     }
   }
 
-  async function remove(grant: Grant) {
+  function openRemove(grant: Grant) {
+    if (mutating) return
+    setRemoveError(undefined)
+    setRemoveTarget(grant)
+  }
+
+  function changeRemoveOpen(next: boolean) {
+    if (removing) return
+    if (!next) {
+      setRemoveTarget(undefined)
+      setRemoveError(undefined)
+    }
+  }
+
+  async function remove() {
+    const grant = removeTarget
+    if (!grant || mutating) return
+
     setPendingUserId(grant.userId)
-    setError(undefined)
+    setRemoveError(undefined)
 
     try {
       const path = resource.type === "folder"
@@ -127,9 +156,10 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
 
       await apiJSON<void>(path, { method: "DELETE" })
       setGrants((current) => current.filter((item) => item.userId !== grant.userId))
+      setRemoveTarget(undefined)
       toast.success(`Removed direct access for ${grant.username}`)
     } catch (cause) {
-      setError(apiErrorMessage(cause, "Could not remove access"))
+      setRemoveError(apiErrorMessage(cause, "Could not remove access"))
     } finally {
       setPendingUserId(undefined)
     }
@@ -150,91 +180,147 @@ export function AccessDialog({ resource, open: controlledOpen, onOpenChange, tri
   }
 
   return (
-    <Dialog open={open} onOpenChange={changeOpen}>
-      {triggerNode && <DialogTrigger asChild>{triggerNode}</DialogTrigger>}
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Manage access</DialogTitle>
-          <DialogDescription>Share {resource.name} with another DisCloud user.</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={changeOpen}>
+        {triggerNode && <DialogTrigger asChild>{triggerNode}</DialogTrigger>}
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input value={username} autoFocus placeholder="Exact username" disabled={adding} onChange={(event) => setUsername(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault()
-              void add()
-            }
-          }} />
-          <Select value={level} disabled={adding} onValueChange={(value) => setLevel(value as AccessLevel)}>
-            <SelectTrigger className="sm:w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="view">View</SelectItem>
-              <SelectItem value="edit">Edit</SelectItem>
-              <SelectItem value="full">Full</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button disabled={adding || !username.trim()} onClick={() => void add()}>
-            {adding ? <Loader2Icon className="animate-spin" /> : <UserPlusIcon />}
-            Add
-          </Button>
-        </div>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage access</DialogTitle>
+            <DialogDescription>Share {resource.name} with another DisCloud user.</DialogDescription>
+          </DialogHeader>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={username}
+              autoFocus
+              placeholder="Exact username"
+              disabled={mutating}
+              onChange={(event) => setUsername(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void add()
+                }
+              }}
+            />
 
-        <p className="text-xs text-muted-foreground">
-          View can read. Edit can change content. Full can also manage access.
-          {resource.type === "folder" && " Folder access is inherited by descendants; removing a direct grant does not remove access inherited from an ancestor."}
-        </p>
+            <Select value={level} disabled={mutating} onValueChange={(value) => setLevel(value as AccessLevel)}>
+              <SelectTrigger className="sm:w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="view">View</SelectItem>
+                <SelectItem value="edit">Edit</SelectItem>
+                <SelectItem value="full">Full</SelectItem>
+              </SelectContent>
+            </Select>
 
-        {loading ? (
-          <div className="grid min-h-40 place-items-center text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Loading access…
+            <Button disabled={mutating || !username.trim()} onClick={() => void add()}>
+              {adding ? <Loader2Icon className="animate-spin" /> : <UserPlusIcon />}
+              {adding ? "Adding…" : "Add"}
+            </Button>
+          </div>
+
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+
+          <p className="text-xs text-muted-foreground">
+            View can read. Edit can change content. Full can also manage access.
+            {resource.type === "folder" && " Folder access is inherited by descendants; removing a direct grant does not remove access inherited from an ancestor."}
+          </p>
+
+          {loading ? (
+            <div className="grid min-h-40 place-items-center text-sm text-muted-foreground">
+              <div role="status" className="flex items-center gap-2">
+                <Loader2Icon className="size-4 animate-spin" />
+                Loading access…
+              </div>
             </div>
-          </div>
-        ) : grants.length === 0 ? (
-          <div className="grid min-h-32 place-items-center rounded-lg border border-dashed text-sm text-muted-foreground">No direct grants.</div>
-        ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead className="w-32">Access</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {grants.map((grant) => (
-                  <TableRow key={grant.userId}>
-                    <TableCell className="font-medium">{grant.username}</TableCell>
-                    <TableCell>
-                      <Select value={grant.level} disabled={pendingUserId === grant.userId} onValueChange={(value) => void update(grant.userId, value as AccessLevel)}>
-                        <SelectTrigger size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="view">View</SelectItem>
-                          <SelectItem value="edit">Edit</SelectItem>
-                          <SelectItem value="full">Full</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Button size="icon-sm" variant="ghost" disabled={pendingUserId === grant.userId} aria-label={`Remove access for ${grant.username}`} onClick={() => void remove(grant)}>
-                        {pendingUserId === grant.userId ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
-                      </Button>
-                    </TableCell>
+          ) : grants.length === 0 ? (
+            <div className="grid min-h-32 place-items-center rounded-lg border border-dashed text-sm text-muted-foreground">No direct grants.</div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead className="w-32">Access</TableHead>
+                    <TableHead className="w-12">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+                </TableHeader>
+
+                <TableBody>
+                  {grants.map((grant) => (
+                    <TableRow key={grant.userId}>
+                      <TableCell className="font-medium">{grant.username}</TableCell>
+
+                      <TableCell>
+                        <Select value={grant.level} disabled={mutating} onValueChange={(value) => void update(grant.userId, value as AccessLevel)}>
+                          <SelectTrigger size="sm" aria-label={`Access level for ${grant.username}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="view">View</SelectItem>
+                            <SelectItem value="edit">Edit</SelectItem>
+                            <SelectItem value="full">Full</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+
+                      <TableCell>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={mutating}
+                          aria-label={`Remove access for ${grant.username}`}
+                          onClick={() => openRemove(grant)}
+                        >
+                          {pendingUserId === grant.userId ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!removeTarget} onOpenChange={changeRemoveOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive">
+              <Trash2Icon />
+            </AlertDialogMedia>
+
+            <AlertDialogTitle>Remove access?</AlertDialogTitle>
+
+            <AlertDialogDescription>
+              {removeTarget
+                ? `Remove direct access to ${resource.name} for ${removeTarget.username}?`
+                : "Remove this direct access grant?"}
+              {resource.type === "folder" && " Access inherited from another folder will remain unchanged."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {removeError && (
+            <p role="alert" className="text-sm text-destructive">
+              {removeError}
+            </p>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" disabled={removing} onClick={() => void remove()}>
+              {removing && <Loader2Icon className="animate-spin" />}
+              {removing ? "Removing…" : "Remove access"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

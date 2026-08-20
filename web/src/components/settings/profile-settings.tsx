@@ -6,6 +6,7 @@ import { CameraIcon, Loader2Icon, Trash2Icon, UserRoundIcon } from "lucide-react
 import { toast } from "sonner"
 import { useCurrentUser, useSetCurrentUser } from "@/components/app/current-user-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiRequest } from "@/lib/api/client"
@@ -14,6 +15,7 @@ import { apiErrorMessage } from "@/lib/helpers"
 
 const maxAvatarBytes = 10 * 1024 * 1024
 const avatarAccept = "image/jpeg,image/png,image/gif,image/webp"
+const avatarTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"])
 
 export function ProfileSettings() {
   const router = useRouter()
@@ -21,7 +23,9 @@ export function ProfileSettings() {
   const setUser = useSetCurrentUser()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string>()
   const pending = uploading || removing
 
   async function selectAvatar(file: File) {
@@ -29,8 +33,8 @@ export function ProfileSettings() {
       toast.error("Avatar must be 10 MiB or smaller.")
       return
     }
-    if (file.type && !file.type.startsWith("image/")) {
-      toast.error("Choose a supported image file.")
+    if (file.type && !avatarTypes.has(file.type)) {
+      toast.error("Choose a JPEG, PNG, GIF or WebP image.")
       return
     }
 
@@ -60,8 +64,17 @@ export function ProfileSettings() {
     }
   }
 
+  function changeRemoveOpen(next: boolean) {
+    if (removing) return
+    setRemoveOpen(next)
+    if (!next) setRemoveError(undefined)
+  }
+
   async function removeAvatar() {
+    if (removing) return
+
     setRemoving(true)
+    setRemoveError(undefined)
 
     try {
       await apiRequest("/me/avatar", { method: "DELETE" })
@@ -70,10 +83,11 @@ export function ProfileSettings() {
         hasAvatar: false,
         avatarRevision: current.avatarRevision + 1,
       }))
+      setRemoveOpen(false)
       toast.success("Avatar removed")
       router.refresh()
     } catch (error) {
-      toast.error(apiErrorMessage(error, "Could not remove avatar."))
+      setRemoveError(apiErrorMessage(error, "Could not remove avatar."))
     } finally {
       setRemoving(false)
     }
@@ -120,14 +134,44 @@ export function ProfileSettings() {
         <div className="grid gap-2 sm:flex">
           <Button className="w-full sm:w-auto" disabled={pending} onClick={() => inputRef.current?.click()}>
             {uploading ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
-            {user.hasAvatar ? "Change avatar" : "Upload avatar"}
+            {uploading ? "Uploading…" : user.hasAvatar ? "Change avatar" : "Upload avatar"}
           </Button>
 
           {user.hasAvatar && (
-            <Button className="w-full sm:w-auto" variant="outline" disabled={pending} onClick={() => void removeAvatar()}>
-              {removing ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
-              Remove
-            </Button>
+            <AlertDialog open={removeOpen} onOpenChange={changeRemoveOpen}>
+              <AlertDialogTrigger asChild>
+                <Button className="w-full sm:w-auto" variant="outline" disabled={pending}>
+                  <Trash2Icon />
+                  Remove avatar
+                </Button>
+              </AlertDialogTrigger>
+
+              <AlertDialogContent size="sm">
+                <AlertDialogHeader>
+                  <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                    <Trash2Icon />
+                  </AlertDialogMedia>
+                  <AlertDialogTitle>Remove profile picture?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Your current avatar will be removed and DisCloud will fall back to your initials. You can upload another image at any time.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                {removeError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {removeError}
+                  </p>
+                )}
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+                  <Button variant="destructive" disabled={removing} onClick={() => void removeAvatar()}>
+                    {removing && <Loader2Icon className="animate-spin" />}
+                    {removing ? "Removing…" : "Remove avatar"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </CardContent>
