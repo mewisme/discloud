@@ -165,6 +165,22 @@ export type paths = {
         readonly patch: operations["updateUser"];
         readonly trace?: never;
     };
+    readonly "/api/v1/admin/users/{userId}/avatar": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["getAdminUserAvatar"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/users/{userId}/disable": {
         readonly parameters: {
             readonly query?: never;
@@ -1406,6 +1422,9 @@ export type components = {
             readonly username: string;
         };
         readonly AdminUser: {
+            /** Format: int64 */
+            readonly avatarRevision: number;
+            readonly hasAvatar: boolean;
             /** Format: uuid */
             readonly id: string;
             readonly mustChangePassword: boolean;
@@ -1438,8 +1457,10 @@ export type components = {
         };
         readonly AuditEvent: {
             readonly action: string;
+            readonly actorName?: string;
             /** Format: uuid */
             readonly actorUserId?: string;
+            readonly actorUsername?: string;
             /** Format: date-time */
             readonly createdAt: string;
             /** Format: uuid */
@@ -2934,6 +2955,21 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["AdminUpdateUser"];
         readonly responses: {
             readonly 200: components["responses"]["AdminUser"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getAdminUserAvatar: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly userId: components["parameters"]["userId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 307: components["responses"]["ObjectRedirect"];
             readonly default: components["responses"]["Problem"];
         };
     };

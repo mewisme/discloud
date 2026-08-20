@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrInvalidUsername = errors.New("username is required")
-	ErrWeakPassword    = errors.New("password must be at least 12 characters")
+	ErrInvalidUsername          = errors.New("username is required")
+	ErrWeakPassword             = errors.New("password must be at least 12 characters")
+	ErrInvalidTemporaryPassword = errors.New("temporary password is required")
 )
 
 var passwordParams = argon2id.Params{
@@ -32,6 +33,13 @@ func NormalizeUsername(username string) (string, error) {
 func ValidatePassword(password string) error {
 	if utf8.RuneCountInString(password) < 12 {
 		return ErrWeakPassword
+	}
+	return nil
+}
+
+func ValidateTemporaryPassword(password string) error {
+	if utf8.RuneCountInString(password) < 1 {
+		return ErrInvalidTemporaryPassword
 	}
 	return nil
 }

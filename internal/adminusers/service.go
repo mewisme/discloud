@@ -37,6 +37,8 @@ type User struct {
 	StorageUsedBytes     int64
 	StorageReservedBytes int64
 	MustChangePassword   bool
+	HasAvatar            bool
+	AvatarRevision       int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	DisabledAt           *time.Time
@@ -78,8 +80,15 @@ func New(pool *pgxpool.Pool) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, actorUserID string, input CreateInput) (User, error) {
+	name, err := auth.NormalizeName(input.Name)
+	if err != nil {
+		return User{}, err
+	}
 	username, err := auth.NormalizeUsername(input.Username)
 	if err != nil {
+		return User{}, err
+	}
+	if err := auth.ValidateTemporaryPassword(input.Password); err != nil {
 		return User{}, err
 	}
 	if err := auth.ValidatePassword(input.Password); err != nil {
@@ -107,38 +116,46 @@ func (s *Service) Create(ctx context.Context, actorUserID string, input CreateIn
 		err := tx.QueryRow(ctx, `
 			INSERT INTO users (
 				username,
+				name,
 				password_hash,
 				role,
 				storage_quota_bytes,
 				must_change_password
 			)
-			VALUES ($1, $2, $3, $4, true)
+			VALUES ($1, $2, $3, $4, $5, true)
 			RETURNING
 				id::text,
 				username::text,
+				name,
 				role,
 				status,
 				storage_quota_bytes,
 				storage_used_bytes,
 				storage_reserved_bytes,
 				must_change_password,
+				avatar_object_id IS NOT NULL,
+				avatar_revision,
 				created_at,
 				updated_at,
 				disabled_at
 		`,
 			username,
+			name,
 			passwordHash,
 			role,
 			input.StorageQuotaBytes,
 		).Scan(
 			&user.ID,
 			&user.Username,
+			&user.Name,
 			&user.Role,
 			&user.Status,
 			&user.StorageQuotaBytes,
 			&user.StorageUsedBytes,
 			&user.StorageReservedBytes,
 			&user.MustChangePassword,
+			&user.HasAvatar,
+			&user.AvatarRevision,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.DisabledAt,
@@ -188,12 +205,15 @@ func (s *Service) Get(ctx context.Context, userID string) (User, error) {
 		SELECT
 			id::text,
 			username::text,
+			name,
 			role,
 			status,
 			storage_quota_bytes,
 			storage_used_bytes,
 			storage_reserved_bytes,
 			must_change_password,
+			avatar_object_id IS NOT NULL,
+			avatar_revision,
 			created_at,
 			updated_at,
 			disabled_at
@@ -202,12 +222,15 @@ func (s *Service) Get(ctx context.Context, userID string) (User, error) {
 	`, userID).Scan(
 		&user.ID,
 		&user.Username,
+		&user.Name,
 		&user.Role,
 		&user.Status,
 		&user.StorageQuotaBytes,
 		&user.StorageUsedBytes,
 		&user.StorageReservedBytes,
 		&user.MustChangePassword,
+		&user.HasAvatar,
+		&user.AvatarRevision,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.DisabledAt,
@@ -232,12 +255,15 @@ func (s *Service) List(ctx context.Context, limit, offset int) (ListResult, erro
 		SELECT
 			id::text,
 			username::text,
+			name,
 			role,
 			status,
 			storage_quota_bytes,
 			storage_used_bytes,
 			storage_reserved_bytes,
 			must_change_password,
+			avatar_object_id IS NOT NULL,
+			avatar_revision,
 			created_at,
 			updated_at,
 			disabled_at
@@ -256,12 +282,15 @@ func (s *Service) List(ctx context.Context, limit, offset int) (ListResult, erro
 		if err := rows.Scan(
 			&user.ID,
 			&user.Username,
+			&user.Name,
 			&user.Role,
 			&user.Status,
 			&user.StorageQuotaBytes,
 			&user.StorageUsedBytes,
 			&user.StorageReservedBytes,
 			&user.MustChangePassword,
+			&user.HasAvatar,
+			&user.AvatarRevision,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.DisabledAt,
@@ -313,6 +342,8 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 				storage_used_bytes,
 				storage_reserved_bytes,
 				must_change_password,
+				avatar_object_id IS NOT NULL,
+				avatar_revision,
 				created_at,
 				updated_at,
 				disabled_at
@@ -326,6 +357,8 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 			&user.StorageUsedBytes,
 			&user.StorageReservedBytes,
 			&user.MustChangePassword,
+			&user.HasAvatar,
+			&user.AvatarRevision,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.DisabledAt,
@@ -391,7 +424,7 @@ func (s *Service) SetQuota(ctx context.Context, actorUserID, userID string, quot
 }
 
 func (s *Service) ResetPassword(ctx context.Context, actorUserID, userID, password string) error {
-	if err := auth.ValidatePassword(password); err != nil {
+	if err := auth.ValidateTemporaryPassword(password); err != nil {
 		return err
 	}
 

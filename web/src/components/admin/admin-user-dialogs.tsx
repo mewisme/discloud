@@ -58,7 +58,7 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
     }
 
     if (!password) {
-      toast.error("Password is required")
+      toast.error("Temporary password is required")
       return
     }
 
@@ -122,7 +122,8 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
           <Field>
             <FieldLabel htmlFor="admin-create-password">Temporary password</FieldLabel>
-            <Input id="admin-create-password" type="password" value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+            <Input id="admin-create-password" type="password" required minLength={1} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+            <FieldDescription>Temporary passwords only need 1 character. The user must choose a new password after signing in.</FieldDescription>
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -486,7 +487,8 @@ function ResetPasswordDialog({
 
         <Field>
           <FieldLabel htmlFor={`admin-password-${user.id}`}>Temporary password</FieldLabel>
-          <Input id={`admin-password-${user.id}`} type="password" autoFocus value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+          <Input id={`admin-password-${user.id}`} type="password" autoFocus required minLength={1} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+          <FieldDescription>Only 1 character is required because this password must be replaced after the next sign-in.</FieldDescription>
         </Field>
 
         <DialogFooter>

@@ -204,7 +204,20 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
               <TableRow key={event.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground"><DateTime value={event.createdAt} /></TableCell>
                 <TableCell><Badge variant="outline" className="font-mono font-normal">{event.action}</Badge></TableCell>
-                <TableCell className="hidden max-w-48 truncate font-mono text-xs text-muted-foreground lg:table-cell">{event.actorUserId ?? "system"}</TableCell>
+                <TableCell className="hidden max-w-56 lg:table-cell">
+                  {!event.actorUserId ? (
+                    <span className="text-sm text-muted-foreground">system</span>
+                  ) : event.actorName || event.actorUsername ? (
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">{event.actorName || `@${event.actorUsername}`}</p>
+                      {event.actorName && event.actorUsername && (
+                        <p className="truncate text-xs text-muted-foreground">@{event.actorUsername}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="block truncate font-mono text-xs text-muted-foreground">{event.actorUserId}</span>
+                  )}
+                </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <div className="max-w-64">
                     <div className="text-sm">{event.resourceType || "—"}</div>

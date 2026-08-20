@@ -1,6 +1,27 @@
 package auth
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
+
+func TestValidatePassword(t *testing.T) {
+	if err := ValidatePassword("short"); !errors.Is(err, ErrWeakPassword) {
+		t.Fatalf("ValidatePassword(short) = %v, want ErrWeakPassword", err)
+	}
+	if err := ValidatePassword("123456789012"); err != nil {
+		t.Fatalf("ValidatePassword(valid) = %v", err)
+	}
+}
+
+func TestValidateTemporaryPassword(t *testing.T) {
+	if err := ValidateTemporaryPassword(""); !errors.Is(err, ErrInvalidTemporaryPassword) {
+		t.Fatalf("ValidateTemporaryPassword(empty) = %v, want ErrInvalidTemporaryPassword", err)
+	}
+	if err := ValidateTemporaryPassword("x"); err != nil {
+		t.Fatalf("ValidateTemporaryPassword(one char) = %v", err)
+	}
+}
 
 func TestPasswordHashAndVerify(t *testing.T) {
 	const password = "correct-horse-battery-staple"

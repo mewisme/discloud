@@ -6,12 +6,13 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { CreateUserDialog, ReconcileQuotaDialog, UserActions } from "@/components/admin/admin-user-dialogs"
+import { UserAvatar } from "@/components/common/user-avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { apiJSON } from "@/lib/api/client"
+import { apiJSON, apiURL } from "@/lib/api/client"
 import type { AdminUser, AdminUsers, ListUsersQuery, StorageOverview } from "@/lib/api/models"
 import { apiErrorMessage, formatBytes, formatNumber } from "@/lib/helpers"
 
@@ -137,14 +138,19 @@ export function AdminView({
                 const quotaPercent = user.storageQuotaBytes === null
                   ? 0
                   : Math.min(100, user.storageQuotaBytes === 0 ? 100 : committed / user.storageQuotaBytes * 100)
-
+                const avatarSrc = user.hasAvatar
+                  ? apiURL(`/admin/users/${encodeURIComponent(user.id)}/avatar`, { revision: user.avatarRevision })
+                  : undefined
                 return (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="grid size-8 shrink-0 place-items-center rounded-full bg-muted">
-                          {user.role === "admin" ? <ShieldCheckIcon className="size-4" /> : <UserRoundIcon className="size-4" />}
-                        </div>
+                        <UserAvatar
+                          className="size-8 shrink-0"
+                          name={user.name}
+                          username={user.username}
+                          src={avatarSrc}
+                        />
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">

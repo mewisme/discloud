@@ -50,6 +50,7 @@
     "listUsers":[400,401,403,500],
     "createUser":[400,401,403,409,500],
     "getUser":[401,403,404,500],
+    "getAdminUserAvatar":[401,403,404,500,502,503],
     "updateUser":[400,401,403,404,500],
     "setUserQuota":[400,401,403,404,500],
     "resetUserPassword":[400,401,403,404,500],

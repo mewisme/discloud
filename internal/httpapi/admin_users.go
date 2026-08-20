@@ -42,6 +42,8 @@ type adminUserResponse struct {
 	StorageUsedBytes     int64  `json:"storageUsedBytes"`
 	StorageReservedBytes int64  `json:"storageReservedBytes"`
 	MustChangePassword   bool   `json:"mustChangePassword"`
+	HasAvatar            bool   `json:"hasAvatar"`
+	AvatarRevision       int64  `json:"avatarRevision"`
 }
 
 type adminUsageResponse struct {
@@ -261,6 +263,7 @@ func writeAdminUserError(w http.ResponseWriter, r *http.Request, err error, inte
 		errors.Is(err, auth.ErrWeakPassword),
 		errors.Is(err, adminusers.ErrInvalidRole),
 		errors.Is(err, adminusers.ErrInvalidQuota),
+		errors.Is(err, auth.ErrInvalidTemporaryPassword),
 		errors.Is(err, adminusers.ErrNoChanges):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", err.Error())
 	default:
@@ -281,6 +284,8 @@ func adminUserJSON(user adminusers.User) adminUserResponse {
 		StorageUsedBytes:     user.StorageUsedBytes,
 		StorageReservedBytes: user.StorageReservedBytes,
 		MustChangePassword:   user.MustChangePassword,
+		HasAvatar:            user.HasAvatar,
+		AvatarRevision:       user.AvatarRevision,
 	}
 }
 

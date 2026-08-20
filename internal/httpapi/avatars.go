@@ -21,17 +21,16 @@ func registerAvatarRoutes(mux *http.ServeMux, service *avatars.Service, authServ
 	protected := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, requireAuth(authService, cfg, handler))
 	}
+	admin := func(pattern string, handler http.HandlerFunc) {
+		mux.Handle(pattern, requireAdmin(authService, cfg, handler))
+	}
 
 	protected("GET /api/v1/me/avatar", func(w http.ResponseWriter, r *http.Request) {
-		rawURL, err := service.ResolveURL(r.Context(), currentPrincipal(r.Context()).User.ID)
-		if errors.Is(err, avatars.ErrNotFound) || errors.Is(err, objects.ErrNotFound) {
-			WriteProblem(w, r, http.StatusNotFound, "Not Found", "avatar not found")
-			return
-		}
-		if writeObjectStorageError(w, r, err, "could not load avatar") {
-			return
-		}
-		writeObjectRedirect(w, rawURL, "private, max-age=300")
+		writeAvatarRedirect(w, r, service, currentPrincipal(r.Context()).User.ID)
+	})
+
+	admin("GET /api/v1/admin/users/{userId}/avatar", func(w http.ResponseWriter, r *http.Request) {
+		writeAvatarRedirect(w, r, service, r.PathValue("userId"))
 	})
 
 	protected("PUT /api/v1/me/avatar", func(w http.ResponseWriter, r *http.Request) {
@@ -69,4 +68,16 @@ func registerAvatarRoutes(mux *http.ServeMux, service *avatars.Service, authServ
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func writeAvatarRedirect(w http.ResponseWriter, r *http.Request, service *avatars.Service, userID string) {
+	rawURL, err := service.ResolveURL(r.Context(), userID)
+	if errors.Is(err, avatars.ErrNotFound) || errors.Is(err, objects.ErrNotFound) {
+		WriteProblem(w, r, http.StatusNotFound, "Not Found", "avatar not found")
+		return
+	}
+	if writeObjectStorageError(w, r, err, "could not load avatar") {
+		return
+	}
+	writeObjectRedirect(w, rawURL, "private, max-age=300")
 }
