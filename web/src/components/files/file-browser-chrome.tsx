@@ -65,7 +65,7 @@ export function FileBrowserChrome({
     onOptionsChange({ sort, order: sort === "name" ? "asc" : "desc" })
   }
 
-  useHotkeys(["alt+u"], () => {
+  useHotkeys(["u"], () => {
     if (editable && uploadTarget) uploadTarget.open()
   }, {}, [editable, uploadTarget])
 
@@ -159,7 +159,7 @@ function HorizontalToolbar({
         <Button variant="outline" onClick={uploadTarget.open}>
           <UploadIcon />
           Upload
-          <KbdGroup><Kbd>Alt + U</Kbd></KbdGroup>
+          <KbdGroup><Kbd>U</Kbd></KbdGroup>
         </Button>
       )}
 
