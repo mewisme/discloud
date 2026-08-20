@@ -1,15 +1,14 @@
 "use client"
 
-import { Fragment, type ReactNode, useState } from "react"
+import { type ReactNode, useState } from "react"
 import { CloudIcon, DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderUpIcon, Globe2Icon, LibraryIcon, Loader2Icon } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { FilePreview } from "@/components/files/file-preview"
+import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { Badge } from "@/components/ui/badge"
-import { Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON, apiURL } from "@/lib/api/client"
 import type { PublicFolder, PublicNode, PublicShare } from "@/lib/api/models"
@@ -99,6 +98,7 @@ function PublicFolderView({ publicId, root }: { publicId: string; root: PublicFo
   const [preview, setPreview] = useState<PublicNode>()
   const [loading, setLoading] = useState(false)
   const current = path[path.length - 1]
+  const breadcrumbs = path.map((folder, index) => ({ id: folder.id, label: folder.name || (index === 0 ? "Shared folder" : "Folder") }))
 
   async function openFolder(node: PublicNode) {
     if (loading) return
@@ -114,9 +114,14 @@ function PublicFolderView({ publicId, root }: { publicId: string; root: PublicFo
     }
   }
 
+  function navigateBreadcrumb(folderId: string) {
+    const index = path.findIndex((folder) => folder.id === folderId)
+    if (index >= 0) setPath((currentPath) => currentPath.slice(0, index + 1))
+  }
+
   return (
     <div className="space-y-5">
-      <PublicBreadcrumbs path={path} onNavigate={(index) => setPath((currentPath) => currentPath.slice(0, index + 1))} />
+      <CompactBreadcrumbs items={breadcrumbs} onNavigate={(item) => navigateBreadcrumb(item.id)} />
 
       <ResourceHeading
         icon={<FolderIcon className="size-5" />}
@@ -176,66 +181,6 @@ function ResourceHeading({ icon, title, description, action }: { icon: ReactNode
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
-  )
-}
-
-function PublicBreadcrumbs({ path, onNavigate }: { path: readonly PublicFolder[]; onNavigate: (index: number) => void }) {
-  if (path.length <= 1) return null
-
-  const collapsed = path.length > 4
-  const first = path[0]
-  const middle = collapsed ? path.slice(1, -2) : []
-  const visibleStart = collapsed ? path.length - 2 : 0
-  const visible = path.slice(visibleStart)
-
-  return (
-    <Breadcrumb>
-      <BreadcrumbList className="flex-nowrap overflow-hidden">
-        {collapsed && (
-          <>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <button type="button" onClick={() => onNavigate(0)}>{first.name || "Shared folder"}</button>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-md outline-none hover:text-foreground">
-                  <BreadcrumbEllipsis />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {middle.map((item, index) => (
-                    <DropdownMenuItem key={item.id} onSelect={() => onNavigate(index + 1)}>{item.name}</DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-          </>
-        )}
-
-        {visible.map((item, index) => {
-          const absoluteIndex = visibleStart + index
-          const current = absoluteIndex === path.length - 1
-
-          return (
-            <Fragment key={item.id}>
-              {index > 0 && <BreadcrumbSeparator />}
-              <BreadcrumbItem className="min-w-0">
-                {current ? (
-                  <BreadcrumbPage className="max-w-48 truncate">{item.name}</BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink asChild>
-                    <button type="button" className="max-w-40 truncate" onClick={() => onNavigate(absoluteIndex)}>{item.name}</button>
-                  </BreadcrumbLink>
-                )}
-              </BreadcrumbItem>
-            </Fragment>
-          )
-        })}
-      </BreadcrumbList>
-    </Breadcrumb>
   )
 }
 

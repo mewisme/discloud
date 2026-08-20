@@ -116,6 +116,7 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
   return (
     <div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center">

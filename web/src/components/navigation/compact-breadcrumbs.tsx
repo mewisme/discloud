@@ -33,11 +33,7 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
                   <span className="sr-only">Show hidden folders</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {middle.map((item) => (
-                    <DropdownMenuItem key={item.id} asChild>
-                      <a href={item.href} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
-                    </DropdownMenuItem>
-                  ))}
+                  {middle.map((item) => <BreadcrumbMenuEntry key={item.id} item={item} onNavigate={onNavigate} />)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </BreadcrumbItem>
@@ -60,10 +56,20 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
 }
 
 function BreadcrumbEntry({ item, current, onNavigate }: { item: CompactBreadcrumbItem; current: boolean; onNavigate?: (item: CompactBreadcrumbItem) => void }) {
-  if (current || !item.href) {
+  if (current || (!item.href && !onNavigate)) {
     return (
       <BreadcrumbItem className="min-w-0">
         <BreadcrumbPage className="max-w-40 truncate sm:max-w-64" title={item.label}>{item.label}</BreadcrumbPage>
+      </BreadcrumbItem>
+    )
+  }
+
+  if (!item.href) {
+    return (
+      <BreadcrumbItem className="min-w-0">
+        <BreadcrumbLink asChild>
+          <button type="button" className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={() => onNavigate?.(item)}>{item.label}</button>
+        </BreadcrumbLink>
       </BreadcrumbItem>
     )
   }
@@ -74,5 +80,15 @@ function BreadcrumbEntry({ item, current, onNavigate }: { item: CompactBreadcrum
         <a href={item.href} className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
       </BreadcrumbLink>
     </BreadcrumbItem>
+  )
+}
+
+function BreadcrumbMenuEntry({ item, onNavigate }: { item: CompactBreadcrumbItem; onNavigate?: (item: CompactBreadcrumbItem) => void }) {
+  if (!item.href) return <DropdownMenuItem disabled={!onNavigate} onSelect={() => onNavigate?.(item)}>{item.label}</DropdownMenuItem>
+
+  return (
+    <DropdownMenuItem asChild>
+      <a href={item.href} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
+    </DropdownMenuItem>
   )
 }

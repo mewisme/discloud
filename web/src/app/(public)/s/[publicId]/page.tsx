@@ -3,11 +3,12 @@ import { notFound } from "next/navigation"
 import { PublicShareView } from "@/components/shares/public-share-view"
 import { apiServerJSON } from "@/lib/api/server"
 import type { PublicShare } from "@/lib/api/models"
-import { publicSharePath } from "@/lib/shares/public"
 import { APIError } from "@/lib/api/types"
+import { publicSharePath } from "@/lib/shares/public"
 
 export const metadata: Metadata = {
   title: "Public share",
+  robots: { index: false, follow: false },
 }
 
 export default async function PublicSharePage({ params }: { params: Promise<{ publicId: string }> }) {
