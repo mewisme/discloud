@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { DownloadIcon, FileIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
+import { DownloadIcon, FileIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { apiRequest, apiURL } from "@/lib/api/client"
 import { filePreviewKind } from "@/lib/files/preview"
+import { cn } from "@/lib/utils"
 
 const textPreviewLimit = 256 * 1024
 
@@ -30,11 +32,7 @@ export function FilePreview({ file, collectionId, source: customSource }: { file
 
   switch (kind) {
     case "image":
-      return (
-        <div className="relative min-h-80 overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
-          <Image src={contentURL} alt={file.name} fill unoptimized sizes="(max-width: 768px) 100vw, 75vw" loading="eager" className="object-contain" />
-        </div>
-      )
+      return <ImagePreview file={file} contentURL={contentURL} />
     case "video":
       return (
         <div className="grid min-h-64 place-items-center overflow-hidden rounded-xl border bg-black">
@@ -54,6 +52,71 @@ export function FilePreview({ file, collectionId, source: customSource }: { file
     default:
       return <UnsupportedPreview file={file} source={source} />
   }
+}
+
+function ImagePreview({ file, contentURL }: { file: PreviewFile; contentURL: string }) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
+
+  useEffect(() => {
+    setLoading(true)
+    setError(false)
+  }, [contentURL, retryKey])
+
+  return (
+    <div className="relative min-h-80 overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
+      {loading && !error && (
+        <div className="absolute inset-0 z-10 grid place-items-center">
+          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+            <Spinner className="size-6" />
+            <span>Loading image…</span>
+          </div>
+        </div>
+      )}
+
+      {error ? (
+        <div className="absolute inset-0 grid place-items-center p-6">
+          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+            <TriangleAlertIcon className="size-8 text-muted-foreground" />
+
+            <div className="space-y-1">
+              <p className="font-medium">Preview unavailable</p>
+              <p className="text-sm text-muted-foreground">The image could not be loaded.</p>
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRetryKey((current) => current + 1)}
+            >
+              <RefreshCwIcon />
+              Try again
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Image
+          key={`${contentURL}-${retryKey}`}
+          src={contentURL}
+          alt={file.name}
+          fill
+          unoptimized
+          sizes="(max-width: 768px) 100vw, 75vw"
+          loading="eager"
+          className={cn(
+            "object-contain transition-opacity duration-200",
+            loading ? "opacity-0" : "opacity-100",
+          )}
+          onLoad={() => setLoading(false)}
+          onError={() => {
+            setLoading(false)
+            setError(true)
+          }}
+        />
+      )}
+    </div>
+  )
 }
 
 function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
@@ -99,7 +162,7 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
     return (
       <div className="grid min-h-72 place-items-center rounded-xl border">
         <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2Icon className="size-4 animate-spin" aria-hidden />
+          <Spinner aria-hidden />
           Loading preview…
         </div>
       </div>
