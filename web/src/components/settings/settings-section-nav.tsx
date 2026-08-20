@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { LineNav } from "@/components/line-nav"
+import { LineNav } from "@/components/ui/line-nav"
 
 export type SettingsSectionNavItem = {
   id: string
