@@ -21,6 +21,7 @@ import (
 var (
 	ErrInvalidTimezone           = errors.New("invalid timezone")
 	ErrInvalidFileBrowserToolbar = errors.New("invalid file browser toolbar configuration")
+	ErrInvalidFilePreview        = errors.New("invalid file preview configuration")
 	ErrInvalidConfigKey          = errors.New("invalid app config key")
 	ErrInvalidConfigValue        = errors.New("invalid app config value")
 	ErrAppConfigNotFound         = errors.New("app config not found")
@@ -37,14 +38,20 @@ type FileBrowserToolbarConfig struct {
 	DockPosition string `json:"dockPosition"`
 }
 
+type FilePreviewConfig struct {
+	PreloadNext int `json:"preloadNext"`
+}
+
 type CommonUserConfig struct {
 	Timezone           string                   `json:"timezone"`
 	FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+	FilePreview        FilePreviewConfig        `json:"filePreview"`
 }
 
 type CommonUserConfigPatch struct {
 	Timezone           string
 	FileBrowserToolbar *FileBrowserToolbarConfig
+	FilePreview        *FilePreviewConfig
 }
 
 type UserConfig struct {
@@ -105,6 +112,14 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID string, inp
 			return UserConfig{}, err
 		}
 		commonPatch["fileBrowserToolbar"] = toolbar
+	}
+
+	if input.FilePreview != nil {
+		preview, err := validateFilePreviewConfig(*input.FilePreview)
+		if err != nil {
+			return UserConfig{}, err
+		}
+		commonPatch["filePreview"] = preview
 	}
 
 	patchJSON, err := json.Marshal(commonPatch)
@@ -303,6 +318,7 @@ func defaultUserConfig() UserConfig {
 		Common: CommonUserConfig{
 			Timezone:           "UTC",
 			FileBrowserToolbar: defaultFileBrowserToolbarConfig(),
+			FilePreview:        defaultFilePreviewConfig(),
 		},
 	}
 }
@@ -314,11 +330,18 @@ func defaultFileBrowserToolbarConfig() FileBrowserToolbarConfig {
 	}
 }
 
+func defaultFilePreviewConfig() FilePreviewConfig {
+	return FilePreviewConfig{
+		PreloadNext: 3,
+	}
+}
+
 func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	var stored struct {
 		Common struct {
 			Timezone           string                   `json:"timezone"`
 			FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+			FilePreview        FilePreviewConfig        `json:"filePreview"`
 		} `json:"common"`
 	}
 
@@ -346,10 +369,21 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 		return UserConfig{}, fmt.Errorf("decode file browser toolbar config: %w", err)
 	}
 
+	preview := defaultFilePreviewConfig()
+	if stored.Common.FilePreview.PreloadNext != 0 {
+		preview.PreloadNext = stored.Common.FilePreview.PreloadNext
+	}
+
+	preview, err = validateFilePreviewConfig(preview)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("decode file preview config: %w", err)
+	}
+
 	return UserConfig{
 		Common: CommonUserConfig{
 			Timezone:           timezone,
 			FileBrowserToolbar: toolbar,
+			FilePreview:        preview,
 		},
 		Revision: revision,
 	}, nil
@@ -377,6 +411,13 @@ func validateFileBrowserToolbarConfig(value FileBrowserToolbarConfig) (FileBrows
 		return FileBrowserToolbarConfig{}, ErrInvalidFileBrowserToolbar
 	}
 
+	return value, nil
+}
+
+func validateFilePreviewConfig(value FilePreviewConfig) (FilePreviewConfig, error) {
+	if value.PreloadNext < 3 || value.PreloadNext > 5 {
+		return FilePreviewConfig{}, ErrInvalidFilePreview
+	}
 	return value, nil
 }
 

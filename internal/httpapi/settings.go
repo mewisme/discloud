@@ -15,6 +15,7 @@ const settingsBodyLimit = 64 << 10
 type updateCommonConfigRequest struct {
 	Timezone           string                             `json:"timezone"`
 	FileBrowserToolbar *settings.FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+	FilePreview        *settings.FilePreviewConfig        `json:"filePreview"`
 }
 
 type setAppConfigRequest struct {
@@ -51,6 +52,7 @@ func registerSettingsRoutes(mux *http.ServeMux, service *settings.Service, authS
 			settings.CommonUserConfigPatch{
 				Timezone:           input.Timezone,
 				FileBrowserToolbar: input.FileBrowserToolbar,
+				FilePreview:        input.FilePreview,
 			},
 		)
 		if writeSettingsError(w, r, err) {
@@ -120,6 +122,8 @@ func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) bool 
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid timezone")
 	case errors.Is(err, settings.ErrInvalidFileBrowserToolbar):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file browser toolbar configuration")
+	case errors.Is(err, settings.ErrInvalidFilePreview):
+		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file preview configuration")
 	case errors.Is(err, settings.ErrInvalidConfigKey):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid app config key")
 	case errors.Is(err, settings.ErrInvalidConfigValue):

@@ -1527,6 +1527,10 @@ export type components = {
             /** @enum {string} */
             readonly variant: "inline" | "dock";
         };
+        readonly FilePreviewConfig: {
+            /** @default 3 */
+            readonly preloadNext: number;
+        };
         readonly FolderChild: components["schemas"]["Node"] & {
             /** @enum {string} */
             readonly accessLevel: "view" | "edit" | "full";
@@ -1842,6 +1846,7 @@ export type components = {
         readonly UserConfig: {
             readonly common: {
                 readonly fileBrowserToolbar: components["schemas"]["FileBrowserToolbarConfig"];
+                readonly filePreview: components["schemas"]["FilePreviewConfig"];
                 readonly timezone: string;
             };
             /** Format: int64 */
@@ -2643,6 +2648,7 @@ export type components = {
             readonly content: {
                 readonly "application/json": {
                     readonly fileBrowserToolbar?: components["schemas"]["FileBrowserToolbarConfig"];
+                    readonly filePreview?: components["schemas"]["FilePreviewConfig"];
                     readonly timezone: string;
                 };
             };

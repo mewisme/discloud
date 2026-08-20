@@ -53,7 +53,27 @@ func TestValidateFileBrowserToolbarConfig(t *testing.T) {
 	}
 }
 
-func TestDecodeUserConfigDefaultsLegacyToolbar(t *testing.T) {
+func TestValidateFilePreviewConfig(t *testing.T) {
+	t.Parallel()
+
+	for _, preloadNext := range []int{3, 4, 5} {
+		config, err := validateFilePreviewConfig(FilePreviewConfig{PreloadNext: preloadNext})
+		if err != nil {
+			t.Fatalf("validateFilePreviewConfig(%d): %v", preloadNext, err)
+		}
+		if config.PreloadNext != preloadNext {
+			t.Fatalf("preloadNext = %d, want %d", config.PreloadNext, preloadNext)
+		}
+	}
+
+	for _, preloadNext := range []int{0, 1, 2, 6, 10} {
+		if _, err := validateFilePreviewConfig(FilePreviewConfig{PreloadNext: preloadNext}); !errors.Is(err, ErrInvalidFilePreview) {
+			t.Fatalf("validateFilePreviewConfig(%d) error = %v, want ErrInvalidFilePreview", preloadNext, err)
+		}
+	}
+}
+
+func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 	t.Parallel()
 
 	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"Asia/Bangkok"}}`), 7)
@@ -70,8 +90,24 @@ func TestDecodeUserConfigDefaultsLegacyToolbar(t *testing.T) {
 	if config.Common.FileBrowserToolbar.DockPosition != "bottom" {
 		t.Fatalf("toolbar dock position = %q, want bottom", config.Common.FileBrowserToolbar.DockPosition)
 	}
+	if config.Common.FilePreview.PreloadNext != 3 {
+		t.Fatalf("preview preloadNext = %d, want 3", config.Common.FilePreview.PreloadNext)
+	}
 	if config.Revision != 7 {
 		t.Fatalf("revision = %d, want 7", config.Revision)
+	}
+}
+
+func TestDecodeUserConfigFilePreview(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","filePreview":{"preloadNext":5}}}`), 2)
+	if err != nil {
+		t.Fatalf("decodeUserConfig: %v", err)
+	}
+
+	if config.Common.FilePreview.PreloadNext != 5 {
+		t.Fatalf("preview preloadNext = %d, want 5", config.Common.FilePreview.PreloadNext)
 	}
 }
 

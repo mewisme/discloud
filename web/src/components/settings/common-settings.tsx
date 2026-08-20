@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronsUpDownIcon, Clock3Icon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react"
+import { ChevronsUpDownIcon, Clock3Icon, ImageIcon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage, formatDateTime } from "@/lib/helpers"
@@ -25,6 +26,7 @@ export function CommonSettings() {
   const [timezone, setTimezone] = useState(config.common.timezone || "UTC")
   const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(config.common.fileBrowserToolbar.variant)
   const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(config.common.fileBrowserToolbar.dockPosition)
+  const [previewPreloadNext, setPreviewPreloadNext] = useState(config.common.filePreview.preloadNext)
   const [timezoneOpen, setTimezoneOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [now, setNow] = useState<Date>()
@@ -32,16 +34,19 @@ export function CommonSettings() {
   const dirty =
     timezone !== config.common.timezone ||
     toolbarVariant !== config.common.fileBrowserToolbar.variant ||
-    toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition
+    toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition ||
+    previewPreloadNext !== config.common.filePreview.preloadNext
 
   useEffect(() => {
     setTimezone(config.common.timezone || "UTC")
     setToolbarVariant(config.common.fileBrowserToolbar.variant)
     setToolbarDockPosition(config.common.fileBrowserToolbar.dockPosition)
+    setPreviewPreloadNext(config.common.filePreview.preloadNext)
   }, [
     config.common.timezone,
     config.common.fileBrowserToolbar.variant,
     config.common.fileBrowserToolbar.dockPosition,
+    config.common.filePreview.preloadNext,
   ])
 
   useEffect(() => {
@@ -57,6 +62,9 @@ export function CommonSettings() {
         fileBrowserToolbar: {
           variant: toolbarVariant,
           dockPosition: toolbarDockPosition,
+        },
+        filePreview: {
+          preloadNext: previewPreloadNext,
         },
       } satisfies UpdateCommonConfigInput
       const next = await apiJSON<UserConfig>("/me/config/common", {
@@ -75,8 +83,8 @@ export function CommonSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="min-w-0 space-y-6">
+      <Card id="file-browser" className="scroll-mt-24">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <SlidersHorizontalIcon className="size-4" />
@@ -142,7 +150,51 @@ export function CommonSettings() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="file-preview" className="scroll-mt-24">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="size-4" />
+            File preview
+          </CardTitle>
+          <CardDescription>
+            Configure how DisCloud prepares upcoming assets while navigating the preview carousel.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <SettingRow
+            title="Preload upcoming assets"
+            description="Prepare a small number of upcoming preview items so next and swipe navigation feels faster."
+            last
+          >
+            <div className="space-y-3">
+              <Select
+                value={String(previewPreloadNext)}
+                onValueChange={(value) => setPreviewPreloadNext(Number(value))}
+              >
+                <SelectTrigger className="w-full sm:w-56" aria-label="Upcoming assets to preload">
+                  <SelectValue />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Upcoming assets</SelectLabel>
+                    <SelectItem value="3">3 items · Recommended</SelectItem>
+                    <SelectItem value="4">4 items</SelectItem>
+                    <SelectItem value="5">5 items</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Images are preloaded in full. Video and audio preload metadata only. PDF and text previews warm only their initial content range.
+              </p>
+            </div>
+          </SettingRow>
+        </CardContent>
+      </Card>
+
+      <Card id="date-time" className="scroll-mt-24">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock3Icon className="size-4" />
@@ -285,10 +337,7 @@ function ToolbarPreview({
     <div className="relative h-24 overflow-hidden rounded-lg border bg-muted/20 p-2">
       <div className="flex items-center justify-between gap-2">
         <div className="h-2.5 w-16 rounded-full bg-muted-foreground/20" />
-
-        {variant === "inline" && (
-          <PreviewToolbar className="flex-row" />
-        )}
+        {variant === "inline" && <PreviewToolbar className="flex-row" />}
       </div>
 
       <div className="mt-3 h-11 rounded-md border border-dashed bg-background/50" />
