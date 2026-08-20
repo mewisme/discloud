@@ -2,12 +2,15 @@
 
 import { FileIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FilePreview } from "@/components/files/file-preview"
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Spinner } from "@/components/ui/spinner"
 import { filePreviewKind } from "@/lib/files/preview"
+import { cn } from "@/lib/utils"
+
+const infoAutoHideMs = 2200
 
 export type PreviewCarouselFile = {
   id: string
@@ -30,7 +33,9 @@ export function FilePreviewCarousel({
 }) {
   const router = useRouter()
   const [api, setApi] = useState<CarouselApi>()
+  const [infoVisible, setInfoVisible] = useState(true)
   const navigatingToRef = useRef<string | undefined>(undefined)
+  const infoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const slides = useMemo(() => {
     const seen = new Set<string>()
 
@@ -43,14 +48,42 @@ export function FilePreviewCarousel({
   const currentIndex = slides.findIndex((file) => file.id === currentFile.id)
   const [selectedIndex, setSelectedIndex] = useState(Math.max(0, currentIndex))
 
+  const clearInfoTimer = useCallback(() => {
+    if (!infoTimerRef.current) return
+    clearTimeout(infoTimerRef.current)
+    infoTimerRef.current = undefined
+  }, [])
+
+  const showInfo = useCallback((autoHide = false) => {
+    clearInfoTimer()
+    setInfoVisible(true)
+
+    if (autoHide) {
+      infoTimerRef.current = setTimeout(() => {
+        setInfoVisible(false)
+        infoTimerRef.current = undefined
+      }, infoAutoHideMs)
+    }
+  }, [clearInfoTimer])
+
+  const hideInfo = useCallback(() => {
+    clearInfoTimer()
+    setInfoVisible(false)
+  }, [clearInfoTimer])
+
+  useEffect(() => {
+    return clearInfoTimer
+  }, [clearInfoTimer])
+
   useEffect(() => {
     navigatingToRef.current = undefined
+    showInfo(true)
 
     if (!api || currentIndex < 0) return
 
     setSelectedIndex(currentIndex)
     api.scrollTo(currentIndex, true)
-  }, [api, currentFile.id, currentIndex])
+  }, [api, currentFile.id, currentIndex, showInfo])
 
   useEffect(() => {
     if (!api) return
@@ -60,6 +93,7 @@ export function FilePreviewCarousel({
       const selected = slides[index]
 
       setSelectedIndex(index)
+      showInfo(true)
 
       if (!selected || selected.id === currentFile.id) {
         navigatingToRef.current = undefined
@@ -76,7 +110,7 @@ export function FilePreviewCarousel({
     return () => {
       api.off("select", select)
     }
-  }, [api, currentFile.id, routeBase, router, slides])
+  }, [api, currentFile.id, routeBase, router, showInfo, slides])
 
   if (currentIndex < 0 || slides.length < 2) {
     return <FilePreview file={currentFile} collectionId={collectionId} />
@@ -95,6 +129,12 @@ export function FilePreviewCarousel({
       tabIndex={0}
       aria-label="File preview"
       className="min-w-0"
+      onMouseEnter={() => showInfo()}
+      onMouseMove={() => {
+        if (!infoVisible) showInfo()
+      }}
+      onMouseLeave={hideInfo}
+      onFocusCapture={() => showInfo()}
     >
       <CarouselContent className="ml-0">
         {slides.map((file, index) => (
@@ -119,12 +159,26 @@ export function FilePreviewCarousel({
       />
 
       {selected && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 rounded-full border bg-background/85 px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-md">
-          <span className="block truncate">{selected.name}</span>
-          <span className="text-muted-foreground">
-            {selectedIndex + 1} / {slides.length}
-          </span>
-        </div>
+        <>
+          <p className="sr-only" role="status" aria-live="polite">
+            {selected.name}, {selectedIndex + 1} of {slides.length}
+          </p>
+
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 rounded-full border bg-background/85 px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-md transition-[opacity,transform] duration-200",
+              infoVisible
+                ? "-translate-y-0 opacity-100"
+                : "translate-y-2 opacity-0",
+            )}
+          >
+            <span className="block truncate">{selected.name}</span>
+            <span className="text-muted-foreground">
+              {selectedIndex + 1} / {slides.length}
+            </span>
+          </div>
+        </>
       )}
     </Carousel>
   )
