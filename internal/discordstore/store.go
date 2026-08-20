@@ -57,15 +57,24 @@ func (s *Store) SelectUploadBot(excludedBotUserIDs []string) (string, error) {
 }
 
 func (s *Store) PutChunk(ctx context.Context, excluded []string, r io.Reader, size int64, expectedSHA256 [32]byte) (blobstore.PutResult, error) {
-	botUserID, err := s.SelectUploadBot(excluded)
+	botUserID, release, err := s.AcquireUploadBot(ctx, excluded)
 	if err != nil {
 		return blobstore.PutResult{}, err
 	}
+	defer release()
 	return s.PutChunkWithBot(ctx, botUserID, r, size, expectedSHA256)
 }
 
 func (s *Store) PutChunkWithBot(ctx context.Context, botUserID string, r io.Reader, size int64, expectedSHA256 [32]byte) (blobstore.PutResult, error) {
 	if size <= 0 {
+		return blobstore.PutResult{}, blobstore.ErrInvalidChunk
+	}
+	filename := hex.EncodeToString(expectedSHA256[:]) + ".chunk"
+	return s.putAttachmentWithBot(ctx, botUserID, filename, r, size, expectedSHA256)
+}
+
+func (s *Store) putAttachmentWithBot(ctx context.Context, botUserID, filename string, r io.Reader, size int64, expectedSHA256 [32]byte) (blobstore.PutResult, error) {
+	if r == nil || size <= 0 || filename == "" {
 		return blobstore.PutResult{}, blobstore.ErrInvalidChunk
 	}
 
@@ -79,7 +88,7 @@ func (s *Store) PutChunkWithBot(ctx context.Context, botUserID string, r io.Read
 	contentType := multipartWriter.FormDataContentType()
 	bodyResult := make(chan chunkBodyResult, 1)
 
-	go writeChunkMultipart(writer, multipartWriter, r, size, expectedSHA256, bodyResult)
+	go writeAttachmentMultipart(writer, multipartWriter, r, size, expectedSHA256, filename, bodyResult)
 
 	message, requestErr := s.client.CreateMessage(ctx, bot.Token, s.channelID, contentType, reader)
 	_ = reader.CloseWithError(requestErr)
@@ -94,7 +103,7 @@ func (s *Store) PutChunkWithBot(ctx context.Context, botUserID string, r io.Read
 		return blobstore.PutResult{}, classified
 	}
 	if result.err != nil {
-		return blobstore.PutResult{}, fmt.Errorf("stream Discord chunk: %w", result.err)
+		return blobstore.PutResult{}, fmt.Errorf("stream Discord attachment: %w", result.err)
 	}
 	if message.ID == "" || message.ChannelID != s.channelID || len(message.Attachments) != 1 {
 		return blobstore.PutResult{}, &UpstreamError{
@@ -113,7 +122,7 @@ func (s *Store) PutChunkWithBot(ctx context.Context, botUserID string, r io.Read
 
 	return blobstore.PutResult{
 		BotUserID: bot.UserID,
-		Location: blobstore.ChunkLocation{
+		Location: blobstore.Location{
 			DiscordChannelID:    message.ChannelID,
 			DiscordMessageID:    message.ID,
 			DiscordAttachmentID: attachment.ID,
@@ -126,65 +135,23 @@ func (s *Store) OpenChunk(ctx context.Context, location blobstore.ChunkLocation,
 		return nil, blobstore.ErrInvalidChunk
 	}
 
-	excluded := make([]string, 0, s.scheduler.Len())
-	var lastErr error
-
-	for len(excluded) < s.scheduler.Len() {
-		if err := ctx.Err(); err != nil {
-			return nil, classifyError("", err)
-		}
-
-		bot, err := s.scheduler.Next(excluded)
-		if err != nil {
-			if lastErr != nil {
-				return nil, lastErr
-			}
-			return nil, err
-		}
-		excluded = append(excluded, bot.UserID)
-
-		message, err := s.client.GetMessage(ctx, bot.Token, location.DiscordChannelID, location.DiscordMessageID)
-		if err != nil {
-			classified := classifyError(bot.UserID, err)
-			s.applyCooldown(bot.UserID, classified)
-			lastErr = classified
-			continue
-		}
-
-		attachmentURL := ""
-		for _, attachment := range message.Attachments {
-			if attachment.ID == location.DiscordAttachmentID {
-				attachmentURL = attachment.URL
-				break
-			}
-		}
-		if attachmentURL == "" {
-			lastErr = &UpstreamError{
-				Class: ErrorProtocol, BotUserID: bot.UserID, Retryable: false,
-				Cause: errors.New("Discord attachment not present in message response"),
-			}
-			continue
-		}
-
-		rangeHeader := chunkRange(offset, length)
-		resp, err := s.client.OpenAttachment(ctx, attachmentURL, rangeHeader)
-		if err != nil {
-			return nil, classifyError("", err)
-		}
-		if rangeHeader != "" && resp.StatusCode != http.StatusPartialContent {
-			resp.Body.Close()
-			return nil, &UpstreamError{
-				Class: ErrorProtocol, Retryable: false,
-				Cause: fmt.Errorf("range request returned HTTP %d", resp.StatusCode),
-			}
-		}
-		return resp.Body, nil
+	attachmentURL, _, err := s.ResolveAttachmentURL(ctx, location)
+	if err != nil {
+		return nil, err
 	}
-
-	if lastErr != nil {
-		return nil, lastErr
+	rangeHeader := chunkRange(offset, length)
+	resp, err := s.client.OpenAttachment(ctx, attachmentURL, rangeHeader)
+	if err != nil {
+		return nil, classifyError("", err)
 	}
-	return nil, blobstore.ErrNoUsableBot
+	if rangeHeader != "" && resp.StatusCode != http.StatusPartialContent {
+		resp.Body.Close()
+		return nil, &UpstreamError{
+			Class: ErrorProtocol, Retryable: false,
+			Cause: fmt.Errorf("range request returned HTTP %d", resp.StatusCode),
+		}
+	}
+	return resp.Body, nil
 }
 
 func (s *Store) applyCooldown(botUserID string, err error) {
@@ -200,7 +167,7 @@ func (s *Store) applyCooldown(botUserID string, err error) {
 	s.scheduler.Cooldown(botUserID, duration)
 }
 
-func writeChunkMultipart(writer *io.PipeWriter, multipartWriter *multipart.Writer, source io.Reader, size int64, expectedSHA256 [32]byte, result chan<- chunkBodyResult) {
+func writeAttachmentMultipart(writer *io.PipeWriter, multipartWriter *multipart.Writer, source io.Reader, size int64, expectedSHA256 [32]byte, filename string, result chan<- chunkBodyResult) {
 	var outcome chunkBodyResult
 
 	defer func() {
@@ -218,7 +185,6 @@ func writeChunkMultipart(writer *io.PipeWriter, multipartWriter *multipart.Write
 		result <- outcome
 	}()
 
-	filename := hex.EncodeToString(expectedSHA256[:]) + ".chunk"
 	payload, err := json.Marshal(struct {
 		Attachments []struct {
 			ID       int    `json:"id"`
@@ -249,7 +215,7 @@ func writeChunkMultipart(writer *io.PipeWriter, multipartWriter *multipart.Write
 	n, err := io.CopyN(part, io.TeeReader(source, hash), size)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			outcome.invariant = fmt.Errorf("chunk size = %d, expected %d", n, size)
+			outcome.invariant = fmt.Errorf("attachment size = %d, expected %d", n, size)
 		} else {
 			outcome.err = err
 		}
@@ -259,7 +225,7 @@ func writeChunkMultipart(writer *io.PipeWriter, multipartWriter *multipart.Write
 	var extra [1]byte
 	extraN, extraErr := io.ReadFull(source, extra[:])
 	if extraN > 0 {
-		outcome.invariant = fmt.Errorf("chunk exceeds expected size %d", size)
+		outcome.invariant = fmt.Errorf("attachment exceeds expected size %d", size)
 		return
 	}
 	if extraErr != nil && !errors.Is(extraErr, io.EOF) && !errors.Is(extraErr, io.ErrUnexpectedEOF) {
@@ -270,7 +236,7 @@ func writeChunkMultipart(writer *io.PipeWriter, multipartWriter *multipart.Write
 	var actualSHA256 [32]byte
 	copy(actualSHA256[:], hash.Sum(nil))
 	if actualSHA256 != expectedSHA256 {
-		outcome.invariant = errors.New("chunk SHA-256 mismatch")
+		outcome.invariant = errors.New("attachment SHA-256 mismatch")
 	}
 }
 

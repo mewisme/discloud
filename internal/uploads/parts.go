@@ -138,30 +138,28 @@ func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID strin
 				return ErrAttemptsExhausted
 			}
 
-			botUserID, err := u.blobs.SelectUploadBot(excluded)
+			botUserID, releaseBot, err := acquireUploadBot(ctx, u.blobs, excluded)
 			if err != nil {
 				return err
 			}
 
 			attempt, err := u.service.StartAttempt(ctx, current.ID, partIndex, botUserID)
 			if errors.Is(err, ErrBotAlreadyTried) {
+				releaseBot()
 				continue
 			}
 			if err != nil {
+				releaseBot()
 				return err
 			}
 
 			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				releaseBot()
 				return fmt.Errorf("rewind upload part: %w", err)
 			}
 
-			put, err := u.blobs.PutChunkWithBot(
-				ctx,
-				botUserID,
-				file,
-				size,
-				expectedSHA256,
-			)
+			put, err := u.blobs.PutChunkWithBot(ctx, botUserID, file, size, expectedSHA256)
+			releaseBot()
 			if err != nil {
 				class, retryable := blobstore.Classify(err)
 				if finishErr := u.service.FinishAttempt(
@@ -404,4 +402,12 @@ func scanPart(row scanner) (Part, error) {
 	}
 	copy(part.SHA256[:], digest)
 	return part, nil
+}
+
+func acquireUploadBot(ctx context.Context, store blobstore.AttemptBlobStore, excluded []string) (string, func(), error) {
+	if leased, ok := store.(blobstore.UploadLeaseStore); ok {
+		return leased.AcquireUploadBot(ctx, excluded)
+	}
+	botUserID, err := store.SelectUploadBot(excluded)
+	return botUserID, func() {}, err
 }
