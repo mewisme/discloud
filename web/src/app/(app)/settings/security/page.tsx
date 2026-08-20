@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 import { SecuritySettings } from "@/components/settings/security-settings"
-import { apiServerAuthJSON } from "@/lib/api/server"
+import { SettingsPageHeader } from "@/components/settings/settings-page-header"
 import type { MFAStatus } from "@/lib/api/models"
+import { apiServerAuthJSON } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Security",
@@ -12,10 +13,11 @@ export default async function SecurityPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Security</h1>
-        <p className="text-sm text-muted-foreground">Manage two-factor authentication and recovery codes.</p>
-      </div>
+      <SettingsPageHeader
+        title="Security"
+        description="Manage two-factor authentication and recovery codes."
+      />
+
       <SecuritySettings initialEnabled={status.enabled} />
     </div>
   )

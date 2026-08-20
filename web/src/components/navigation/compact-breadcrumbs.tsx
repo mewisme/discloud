@@ -11,7 +11,7 @@ export type CompactBreadcrumbItem = {
   href?: string
 }
 
-export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly CompactBreadcrumbItem[]; onNavigate?: (item: CompactBreadcrumbItem) => void }) {
+export function CompactBreadcrumbs({ items, separator, onNavigate }: { items: readonly CompactBreadcrumbItem[]; separator?: React.ReactNode; onNavigate?: (item: CompactBreadcrumbItem) => void }) {
   if (items.length === 0) return null
 
   const collapsed = items.length > 4
@@ -25,7 +25,9 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
         {collapsed && (
           <>
             <BreadcrumbEntry item={first} current={false} onNavigate={onNavigate} />
-            <BreadcrumbSeparator />
+            <BreadcrumbSeparator>
+              {separator}
+            </BreadcrumbSeparator>
             <BreadcrumbItem>
               <DropdownMenu>
                 <DropdownMenuTrigger className="rounded-md outline-none hover:text-foreground">
@@ -37,7 +39,9 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
                 </DropdownMenuContent>
               </DropdownMenu>
             </BreadcrumbItem>
-            <BreadcrumbSeparator />
+            <BreadcrumbSeparator>
+              {separator}
+            </BreadcrumbSeparator>
           </>
         )}
 
@@ -45,7 +49,11 @@ export function CompactBreadcrumbs({ items, onNavigate }: { items: readonly Comp
           const current = item.id === items[items.length - 1].id
           return (
             <Fragment key={item.id}>
-              {index > 0 && <BreadcrumbSeparator />}
+              {index > 0 && (
+                <BreadcrumbSeparator>
+                  {separator}
+                </BreadcrumbSeparator>
+              )}
               <BreadcrumbEntry item={item} current={current} onNavigate={onNavigate} />
             </Fragment>
           )
