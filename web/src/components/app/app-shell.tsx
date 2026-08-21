@@ -54,7 +54,7 @@ export function AppShell({
 
           <SidebarInset
             className={cn(
-              "md:peer-data-[variant=inset]:mt-0 md:peer-data-[variant=inset]:rounded-t-none",
+              "md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-t-none",
               sidebarOnRight && "md:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:mr-0",
             )}
           >

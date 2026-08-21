@@ -296,7 +296,7 @@ export function WorkspaceSwitcher() {
 
 function WorkspaceIcon() {
   return (
-    <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+    <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
       <FolderRootIcon className="size-4" />
     </div>
   )

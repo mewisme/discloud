@@ -46,7 +46,7 @@ export function FilePreviewSettings({
               <SelectContent>
                 <SelectGroup>
                   <SelectLabel>Upcoming previews</SelectLabel>
-                  <SelectItem value="3">3 items · Recommended</SelectItem>
+                  <SelectItem value="3">3 items</SelectItem>
                   <SelectItem value="4">4 items</SelectItem>
                   <SelectItem value="5">5 items</SelectItem>
                 </SelectGroup>

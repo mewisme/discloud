@@ -92,7 +92,7 @@ export function SidebarSettings({
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>Collapse behavior</SelectLabel>
-                <SelectItem value="icon">Icon rail · Recommended</SelectItem>
+                <SelectItem value="icon">Icon rail</SelectItem>
                 <SelectItem value="offcanvas">Off-canvas</SelectItem>
                 <SelectItem value="none">Always expanded</SelectItem>
               </SelectGroup>
