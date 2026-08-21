@@ -51,6 +51,26 @@ export type UploadDiagnostic = UploadDiagnosticPage["uploads"][number]
 export type StorageOverview = OperationJSON<"getStorageOverview", 200>
 export type ReconcileQuotaInput = OperationBody<"reconcileQuota">
 export type QuotaReconciliationPage = OperationJSON<"reconcileQuota", 200>
+export type BotRuntimeSnapshot = OperationJSON<"getAdminBotRuntime", 200>
+export type BotRuntimeBot = BotRuntimeSnapshot["bots"][number]
+export type BotRuntimeQueue = BotRuntimeSnapshot["queues"][string]
+export type BotRuntimeEvent = {
+  id: number
+  type: string
+  at: string
+  botId?: string
+  operation?: string
+  uploadId?: string
+  resourceId?: string
+  fileName?: string
+  partIndex?: number
+  sizeBytes?: number
+  durationMs?: number
+  queueDepth?: number
+  cooldownUntil?: string
+  errorClass?: string
+  message?: string
+}
 
 export type Node = OperationJSON<"getFolder", 200>
 export type NodeKind = Node["kind"]

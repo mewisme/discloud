@@ -53,6 +53,7 @@ function routeTitle(pathname: string, username: string) {
   if (path === "/" || path.startsWith("/folders/")) return "Files"
   if (path.startsWith("/files/")) return "File"
   if (path.startsWith("/uploads")) return "Uploads"
+  if (path.startsWith("/admin/bots")) return "Bots"
   if (path.startsWith("/admin/diagnostics")) return "Diagnostics"
   if (path === "/admin" || path.startsWith("/admin/")) return "Admin"
   if (path.startsWith("/settings/profile")) return "Profile"

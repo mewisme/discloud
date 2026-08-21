@@ -1,6 +1,6 @@
 "use client"
 
-import { ActivityIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, SearchIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, BotIcon, CloudIcon, FolderIcon, HeartIcon, LibraryIcon, SearchIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ComponentType } from "react"
@@ -77,6 +77,12 @@ export function AppSidebar({
       icon: ShieldIcon,
       enabled: true,
       exact: true,
+    },
+    {
+      title: "Bots",
+      href: workspacePath(user.username, "admin/bots"),
+      icon: BotIcon,
+      enabled: true,
     },
     {
       title: "Diagnostics",
