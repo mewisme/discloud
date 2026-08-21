@@ -100,10 +100,11 @@ func Run() error {
 	metrics := observability.NewMetrics(pool)
 	aclService := acl.New(pool)
 	nodeService := nodes.New(pool)
-	uploadService := uploads.New(
+	uploadService := uploads.NewWithCapacityProvider(
 		pool,
 		cfg.Upload.ChunkSizeBytes,
 		cfg.Upload.SessionTTL,
+		blobStore,
 	)
 	partUploader := uploads.NewPartUploader(uploadService, blobStore)
 	finalizer := uploads.NewFinalizer(uploadService, blobStore)

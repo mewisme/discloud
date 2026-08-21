@@ -74,10 +74,11 @@ type CreateInput struct {
 }
 
 type Service struct {
-	pool       *pgxpool.Pool
-	acl        *acl.Service
-	chunkSize  int64
-	sessionTTL time.Duration
+	pool             *pgxpool.Pool
+	acl              *acl.Service
+	defaultChunkSize int64
+	chunkPlanner     *chunkPlanner
+	sessionTTL       time.Duration
 }
 
 type scanner interface {
@@ -111,11 +112,26 @@ func New(
 	chunkSize int64,
 	sessionTTL time.Duration,
 ) *Service {
+	return NewWithCapacityProvider(
+		pool,
+		chunkSize,
+		sessionTTL,
+		nil,
+	)
+}
+
+func NewWithCapacityProvider(
+	pool *pgxpool.Pool,
+	chunkSize int64,
+	sessionTTL time.Duration,
+	capacity CapacityProvider,
+) *Service {
 	return &Service{
-		pool:       pool,
-		acl:        acl.New(pool),
-		chunkSize:  chunkSize,
-		sessionTTL: sessionTTL,
+		pool:             pool,
+		acl:              acl.New(pool),
+		defaultChunkSize: chunkSize,
+		chunkPlanner:     newChunkPlanner(chunkSize, capacity),
+		sessionTTL:       sessionTTL,
 	}
 }
 
@@ -125,9 +141,17 @@ func (s *Service) Create(
 	input CreateInput,
 ) (Session, error) {
 	if input.SizeBytes < 0 ||
-		s.chunkSize <= 0 ||
-		s.chunkSize > math.MaxInt32 ||
+		s.defaultChunkSize <= 0 ||
+		s.defaultChunkSize > math.MaxInt32 ||
 		s.sessionTTL <= 0 {
+		return Session{}, ErrInvalidUpload
+	}
+
+	chunkSize := s.defaultChunkSize
+	if s.chunkPlanner != nil {
+		chunkSize = s.chunkPlanner.Plan(input.SizeBytes)
+	}
+	if chunkSize <= 0 || chunkSize > math.MaxInt32 {
 		return Session{}, ErrInvalidUpload
 	}
 
@@ -140,7 +164,7 @@ func (s *Service) Create(
 		return Session{}, ErrInvalidUpload
 	}
 
-	expectedParts, err := partCount(input.SizeBytes, s.chunkSize)
+	expectedParts, err := partCount(input.SizeBytes, chunkSize)
 	if err != nil {
 		return Session{}, err
 	}
@@ -269,7 +293,7 @@ func (s *Service) Create(
 			name,
 			nameKey,
 			input.SizeBytes,
-			s.chunkSize,
+			chunkSize,
 			expectedParts,
 			mimeTypeHint,
 			fileSHA256,
