@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import type { ReactNode } from "react"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { apiJSON } from "@/lib/api/client"
@@ -30,47 +30,87 @@ export type UploadTask = {
   error?: string
 }
 
-type UploadContextValue = {
-  tasks: UploadTask[]
+type UploadActionsContextValue = {
   addFiles: (folderId: string, files: readonly File[]) => void
   retry: (taskId: string) => void
   cancel: (taskId: string) => Promise<void>
   remove: (taskId: string) => void
 }
 
-const UploadContext = createContext<UploadContextValue | null>(null)
+const UploadTasksContext = createContext<UploadTask[] | null>(null)
+const UploadActionsContext = createContext<UploadActionsContextValue | null>(null)
 
 export function UploadProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [tasks, setTasks] = useState<UploadTask[]>([])
   const tasksRef = useRef<UploadTask[]>([])
   const controllers = useRef(new Map<string, AbortController>())
+  const pendingProgress = useRef(new Map<string, number>())
+  const progressFrame = useRef<number>(undefined)
   const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort())
+    pendingProgress.current.clear()
+    if (progressFrame.current !== undefined) cancelAnimationFrame(progressFrame.current)
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
   }, [])
 
-  function patchTask(id: string, patch: Partial<UploadTask>) {
+  const patchTask = useCallback((id: string, patch: Partial<UploadTask>) => {
+    if (patch.status && patch.status !== "uploading") pendingProgress.current.delete(id)
     const next = tasksRef.current.map((task) => task.id === id ? { ...task, ...patch } : task)
     tasksRef.current = next
     setTasks(next)
-  }
+  }, [])
 
-  function taskById(id: string) {
-    return tasksRef.current.find((task) => task.id === id)
-  }
+  const queueProgress = useCallback((id: string, uploadedBytes: number) => {
+    pendingProgress.current.set(id, uploadedBytes)
+    if (progressFrame.current !== undefined) return
 
-  function schedule(task: UploadTask) {
-    void withUploadSlot(async () => {
-      const current = taskById(task.id)
-      if (!current || current.status !== "queued") return
-      await execute(current)
+    progressFrame.current = requestAnimationFrame(() => {
+      progressFrame.current = undefined
+      const updates = new Map(pendingProgress.current)
+      pendingProgress.current.clear()
+      if (!updates.size) return
+
+      let changed = false
+      tasksRef.current = tasksRef.current.map((task) => {
+        const uploaded = updates.get(task.id)
+        if (uploaded === undefined || task.status !== "uploading") return task
+        const nextUploaded = Math.max(task.uploadedBytes, uploaded)
+        if (nextUploaded === task.uploadedBytes) return task
+        changed = true
+        return { ...task, uploadedBytes: nextUploaded }
+      })
+      if (!changed) return
+
+      startTransition(() => {
+        setTasks((current) => current.map((task) => {
+          const uploaded = updates.get(task.id)
+          if (uploaded === undefined || task.status !== "uploading") return task
+          const nextUploaded = Math.max(task.uploadedBytes, uploaded)
+          return nextUploaded === task.uploadedBytes ? task : { ...task, uploadedBytes: nextUploaded }
+        }))
+      })
     })
-  }
+  }, [])
 
-  async function execute(task: UploadTask) {
+  const taskById = useCallback((id: string) => tasksRef.current.find((task) => task.id === id), [])
+
+  const scheduleServerRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = undefined
+      router.refresh()
+    }, 200)
+  }, [router])
+
+  const notifyCompleted = useCallback((folderId: string) => {
+    window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
+    scheduleServerRefresh()
+  }, [scheduleServerRefresh])
+
+  const execute = useCallback(async (task: UploadTask) => {
     const controller = new AbortController()
     controllers.current.set(task.id, controller)
     patchTask(task.id, { status: "preparing", error: undefined })
@@ -83,7 +123,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         signal: controller.signal,
         callbacks: {
           onSession: (sessionId) => patchTask(task.id, { sessionId, status: "uploading" }),
-          onProgress: (uploadedBytes) => patchTask(task.id, { uploadedBytes }),
+          onProgress: (uploadedBytes) => queueProgress(task.id, uploadedBytes),
           onFinalizing: () => patchTask(task.id, { status: "finalizing" }),
         },
       })
@@ -108,28 +148,17 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     } finally {
       controllers.current.delete(task.id)
     }
-  }
+  }, [notifyCompleted, patchTask, queueProgress, router, taskById])
 
-  function addFiles(folderId: string, files: readonly File[]) {
-    if (!files.length) return
-    void prepareFiles(folderId, files)
-  }
+  const schedule = useCallback((task: UploadTask) => {
+    void withUploadSlot(async () => {
+      const current = taskById(task.id)
+      if (!current || current.status !== "queued") return
+      await execute(current)
+    })
+  }, [execute, taskById])
 
-  async function prepareFiles(folderId: string, files: readonly File[]) {
-    try {
-      const plan = await planUploadFiles(folderId, files)
-      if (plan.createdFolders > 0) notifyCompleted(folderId)
-      enqueueFiles(plan.files)
-    } catch (error) {
-      if (error instanceof APIError && error.status === 401) {
-        router.replace("/login")
-        router.refresh()
-      }
-      toast.error(uploadErrorMessage(error))
-    }
-  }
-
-  function enqueueFiles(files: readonly PlannedUploadFile[]) {
+  const enqueueFiles = useCallback((files: readonly PlannedUploadFile[]) => {
     const known = new Set(
       tasksRef.current
         .filter((task) => !["completed", "cancelled", "skipped"].includes(task.status))
@@ -164,9 +193,28 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     tasksRef.current = next
     setTasks(next)
     additions.forEach(schedule)
-  }
+  }, [schedule])
 
-  function retry(taskId: string) {
+  const prepareFiles = useCallback(async (folderId: string, files: readonly File[]) => {
+    try {
+      const plan = await planUploadFiles(folderId, files)
+      if (plan.createdFolders > 0) notifyCompleted(folderId)
+      enqueueFiles(plan.files)
+    } catch (error) {
+      if (error instanceof APIError && error.status === 401) {
+        router.replace("/login")
+        router.refresh()
+      }
+      toast.error(uploadErrorMessage(error))
+    }
+  }, [enqueueFiles, notifyCompleted, router])
+
+  const addFiles = useCallback((folderId: string, files: readonly File[]) => {
+    if (!files.length) return
+    void prepareFiles(folderId, files)
+  }, [prepareFiles])
+
+  const retry = useCallback((taskId: string) => {
     const task = taskById(taskId)
     if (!task || task.status !== "error") return
 
@@ -179,9 +227,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
     patchTask(taskId, next)
     schedule(next)
-  }
+  }, [patchTask, schedule, taskById])
 
-  async function cancel(taskId: string) {
+  const cancel = useCallback(async (taskId: string) => {
     const task = taskById(taskId)
     if (!task) return
 
@@ -205,9 +253,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       }
       patchTask(taskId, { status: "error", error: uploadErrorMessage(error) })
     }
-  }
+  }, [patchTask, router, scheduleServerRefresh, taskById])
 
-  function remove(taskId: string) {
+  const remove = useCallback((taskId: string) => {
     const task = taskById(taskId)
     if (!task) return
     if (!["completed", "skipped", "cancelled"].includes(task.status) && !(task.status === "error" && !task.sessionId)) return
@@ -215,29 +263,35 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     const next = tasksRef.current.filter((item) => item.id !== taskId)
     tasksRef.current = next
     setTasks(next)
-  }
+  }, [taskById])
 
-  function notifyCompleted(folderId: string) {
-    window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
-    scheduleServerRefresh()
-  }
-
-  function scheduleServerRefresh() {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current)
-    refreshTimer.current = setTimeout(() => router.refresh(), 200)
-  }
+  const actions = useMemo(() => ({ addFiles, retry, cancel, remove }), [addFiles, cancel, remove, retry])
 
   return (
-    <UploadContext.Provider value={{ tasks, addFiles, retry, cancel, remove }}>
-      {children}
-    </UploadContext.Provider>
+    <UploadActionsContext.Provider value={actions}>
+      <UploadTasksContext.Provider value={tasks}>
+        {children}
+      </UploadTasksContext.Provider>
+    </UploadActionsContext.Provider>
   )
 }
 
-export function useUploads() {
-  const context = useContext(UploadContext)
-  if (!context) throw new Error("useUploads must be used inside UploadProvider")
+export function useUploadTasks() {
+  const context = useContext(UploadTasksContext)
+  if (!context) throw new Error("useUploadTasks must be used inside UploadProvider")
   return context
+}
+
+export function useUploadActions() {
+  const context = useContext(UploadActionsContext)
+  if (!context) throw new Error("useUploadActions must be used inside UploadProvider")
+  return context
+}
+
+export function useUploads() {
+  const tasks = useUploadTasks()
+  const actions = useUploadActions()
+  return useMemo(() => ({ tasks, ...actions }), [actions, tasks])
 }
 
 function uploadErrorMessage(error: unknown) {

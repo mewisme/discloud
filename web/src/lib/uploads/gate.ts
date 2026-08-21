@@ -5,6 +5,13 @@ type GateWaiter = {
   abort?: () => void
 }
 
+const ADAPTIVE_INITIAL_LIMIT = 2
+const LATENCY_EWMA_WEIGHT = 0.2
+const LATENCY_GROWTH_RATIO = 1.5
+const LATENCY_GROWTH_SLACK_MS = 250
+const MIN_DECREASE_COOLDOWN_MS = 500
+const MAX_DECREASE_COOLDOWN_MS = 5000
+
 export class ConcurrencyGate {
   private active = 0
   private readonly waiting: GateWaiter[] = []
@@ -77,6 +84,88 @@ export class ConcurrencyGate {
       this.active++
       waiter.resolve()
     }
+  }
+}
+
+export class AdaptiveConcurrencyGate {
+  private readonly gate = new ConcurrencyGate(1)
+  private ceiling = 1
+  private limit = 1
+  private initialized = false
+  private healthySuccesses = 0
+  private latencyEwmaMs = 0
+  private lastDecreaseAt = Number.NEGATIVE_INFINITY
+
+  get currentLimit() {
+    return this.limit
+  }
+
+  get maxLimit() {
+    return this.ceiling
+  }
+
+  setCeiling(limit: number) {
+    validateLimit(limit)
+    if (this.ceiling !== limit) this.healthySuccesses = 0
+    this.ceiling = limit
+
+    if (!this.initialized) {
+      this.initialized = true
+      this.setLimit(Math.min(ADAPTIVE_INITIAL_LIMIT, limit))
+      return
+    }
+
+    if (this.limit > limit) this.setLimit(limit)
+  }
+
+  run<T>(work: () => Promise<T>, signal?: AbortSignal) {
+    return this.gate.run(work, signal)
+  }
+
+  recordSuccess(durationMs: number) {
+    if (!Number.isFinite(durationMs) || durationMs < 0) return
+
+    const duration = Math.max(1, durationMs)
+    const previousLatency = this.latencyEwmaMs
+    const latencyHealthy = previousLatency === 0
+      || duration <= Math.max(previousLatency * LATENCY_GROWTH_RATIO, previousLatency + LATENCY_GROWTH_SLACK_MS)
+
+    this.latencyEwmaMs = previousLatency === 0
+      ? duration
+      : previousLatency * (1 - LATENCY_EWMA_WEIGHT) + duration * LATENCY_EWMA_WEIGHT
+
+    if (this.limit >= this.ceiling) return
+    if (!latencyHealthy) {
+      this.healthySuccesses = 0
+      return
+    }
+
+    this.healthySuccesses++
+    if (this.healthySuccesses < this.limit) return
+
+    this.healthySuccesses = 0
+    this.setLimit(this.limit + 1)
+  }
+
+  recordCongestion(now = Date.now()) {
+    this.healthySuccesses = 0
+    if (this.limit <= 1) return
+
+    const cooldown = Math.min(
+      MAX_DECREASE_COOLDOWN_MS,
+      Math.max(MIN_DECREASE_COOLDOWN_MS, this.latencyEwmaMs || MIN_DECREASE_COOLDOWN_MS),
+    )
+    if (now - this.lastDecreaseAt < cooldown) return
+
+    this.lastDecreaseAt = now
+    this.setLimit(Math.max(1, Math.ceil(this.limit / 2)))
+  }
+
+  private setLimit(limit: number) {
+    const next = Math.min(this.ceiling, Math.max(1, limit))
+    if (next === this.limit) return
+    this.limit = next
+    this.gate.setLimit(next)
   }
 }
 

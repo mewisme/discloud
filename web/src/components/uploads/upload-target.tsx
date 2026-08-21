@@ -6,7 +6,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useDropzone } from "react-dropzone"
 
-import { useUploads } from "@/components/uploads/upload-provider"
+import { useUploadActions } from "@/components/uploads/upload-provider"
 import { FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
 import { cn } from "@/lib/utils"
 
@@ -25,7 +25,7 @@ export function FileUploadTarget({
   disabled: boolean
   children: ReactNode
 }) {
-  const { addFiles } = useUploads()
+  const { addFiles } = useUploadActions()
   const [dragOverlayActive, setDragOverlayActive] = useState(false)
   const [dropReady, setDropReady] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)

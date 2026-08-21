@@ -4,9 +4,9 @@ import { apiJSON, apiRequest } from "@/lib/api/client"
 import type { CompletedFile, CreateUploadInput, UploadSession } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { planUploadParts } from "@/lib/uploads/chunks"
-import { ConcurrencyGate } from "@/lib/uploads/gate"
+import { AdaptiveConcurrencyGate, ConcurrencyGate } from "@/lib/uploads/gate"
 
-const partGate = new ConcurrencyGate(1)
+const partGate = new AdaptiveConcurrencyGate()
 const fileGate = new ConcurrencyGate(3)
 
 export type UploadCallbacks = {
@@ -36,7 +36,7 @@ export async function uploadFile({
     ? await apiJSON<UploadSession>(`/api/v1/uploads/${sessionId}`, { signal })
     : await createSession(file, folderId, signal)
 
-  partGate.setLimit(normalizePartConcurrency(session.recommendedPartConcurrency))
+  partGate.setCeiling(normalizePartConcurrency(session.recommendedPartConcurrency))
   callbacks.onSession(session.id)
 
   if (session.status === "completed") {
@@ -95,6 +95,8 @@ async function putPart(uploadId: string, index: number, body: Blob, sha256: stri
   })
 
   for (let attempt = 0; ; attempt++) {
+    const startedAt = performance.now()
+
     try {
       await apiRequest(`/api/v1/uploads/${uploadId}/parts/${index}`, {
         method: "PUT",
@@ -103,9 +105,12 @@ async function putPart(uploadId: string, index: number, body: Blob, sha256: stri
         signal,
         timeoutMs: 0,
       })
+      partGate.recordSuccess(performance.now() - startedAt)
       return
     } catch (error) {
-      if (signal.aborted || attempt >= 2 || !retryablePartError(error)) throw error
+      const retryable = retryablePartError(error)
+      if (retryable && !signal.aborted) partGate.recordCongestion()
+      if (signal.aborted || attempt >= 2 || !retryable) throw error
       await delay(500 * 2 ** attempt, signal)
     }
   }
@@ -121,7 +126,7 @@ function normalizePartConcurrency(value: number) {
 }
 
 function retryablePartError(error: unknown) {
-  return error instanceof TypeError || error instanceof APIError && (error.status === 502 || error.status === 503)
+  return error instanceof TypeError || error instanceof APIError && [408, 429, 502, 503, 504].includes(error.status)
 }
 
 function isAbortError(error: unknown) {
