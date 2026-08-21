@@ -2,6 +2,7 @@
 
 import { FolderPlusIcon, RefreshCwIcon, UploadIcon } from "lucide-react"
 
+import { BottomDock } from "@/components/app/bottom-dock-stack"
 import { CreateFolderDialog } from "@/components/files/actions/create-folder-dialog"
 import { DesktopBrowserControls, DockBrowserControls } from "@/components/files/browser/file-browser-controls"
 import { FolderActionsMenu } from "@/components/files/browser/folder-actions-menu"
@@ -90,14 +91,14 @@ export function DockedFileBrowserToolbar({
   }
 
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 hidden justify-center px-3 sm:flex"
-      data-selection-active={selectionActive || undefined}
-    >
-      <div className="pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
+    <BottomDock slot="file-browser" className="hidden sm:block">
+      <div
+        data-selection-active={selectionActive || undefined}
+        className="flex items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md"
+      >
         <HorizontalFileBrowserToolbar {...props} />
       </div>
-    </div>
+    </BottomDock>
   )
 }
 

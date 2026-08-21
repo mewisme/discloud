@@ -2,10 +2,10 @@
 
 import { Loader2Icon, MoreHorizontalIcon, MoveIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
 
+import { BottomDock } from "@/components/app/bottom-dock-stack"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { BrowserNode } from "@/lib/api/models"
-import { cn } from "@/lib/utils"
 
 export function FileBrowserSelectionToolbar({
   selectedNodes,
@@ -39,17 +39,12 @@ export function FileBrowserSelectionToolbar({
   if (!selectedNodes.length) return null
 
   return (
-    <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 transition-[bottom] duration-200 ease-out",
-        mergeHorizontalDocks
-        && "sm:bottom-[calc(4.75rem+env(safe-area-inset-bottom))]",
-      )}
-    >
+    <BottomDock slot="selection">
       <div
         role="toolbar"
         aria-label={`${selectedNodes.length} selected item${selectedNodes.length === 1 ? "" : "s"} actions`}
-        className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+        data-file-browser-docked={mergeHorizontalDocks || undefined}
+        className="flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
       >
         <span className="whitespace-nowrap px-2 text-sm font-medium">
           {selectedNodes.length} selected
@@ -150,8 +145,7 @@ export function FileBrowserSelectionToolbar({
 
               {canTrash && (
                 <>
-                  {(canMove || canFavorite || canUnfavorite)
-                    && <DropdownMenuSeparator />}
+                  {(canMove || canFavorite || canUnfavorite) && <DropdownMenuSeparator />}
 
                   <DropdownMenuItem
                     variant="destructive"
@@ -179,6 +173,6 @@ export function FileBrowserSelectionToolbar({
           <XIcon />
         </Button>
       </div>
-    </div>
+    </BottomDock>
   )
 }

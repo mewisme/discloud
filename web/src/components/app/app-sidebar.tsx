@@ -1,6 +1,6 @@
 "use client"
 
-import { ActivityIcon, BotIcon, ChevronRightIcon, FolderIcon, HeartIcon, LibraryIcon, SearchIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, BotIcon, ChevronRightIcon, FolderIcon, HeartIcon, LibraryIcon, SearchIcon, Share2Icon, ShieldIcon, Trash2Icon, UploadIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ComponentType, useEffect, useState } from "react"
@@ -53,6 +53,11 @@ export function AppSidebar({
       title: "Search",
       href: workspacePath(workspace.username, "search"),
       icon: SearchIcon,
+    },
+    {
+      title: "Uploads",
+      href: workspacePath(user.username, "uploads"),
+      icon: UploadIcon,
     },
   ]
 
