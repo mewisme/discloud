@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { UploadManagerPage } from "@/components/uploads/upload-manager"
+import { UploadManagerPage } from "@/components/uploads/upload-manager-page"
 
 export const metadata: Metadata = {
   title: "Uploads",

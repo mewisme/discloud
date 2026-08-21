@@ -4,7 +4,7 @@ import { DownloadIcon, FolderOpenIcon, Globe2Icon, MoveIcon, PencilIcon, StarIco
 import type { ReactElement } from "react"
 import { useState } from "react"
 
-import { RenameNodeDialog } from "@/components/files/node-actions"
+import { RenameNodeDialog } from "@/components/files/actions/rename-node-dialog"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { BrowserNode } from "@/lib/api/models"
@@ -27,18 +27,29 @@ export function FileNodeContextMenu({
   onOpen: (node: BrowserNode) => void
   onMove: (nodes: readonly BrowserNode[]) => void
   onTrash: (nodes: readonly BrowserNode[]) => void
-  onFavorite: (nodes: readonly BrowserNode[], favorite: boolean) => Promise<void>
+  onFavorite: (
+    nodes: readonly BrowserNode[],
+    favorite: boolean,
+  ) => Promise<void>
   onReload: () => Promise<void>
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [publicShareOpen, setPublicShareOpen] = useState(false)
   const single = targets.length === 1
-  const editable = targets.length > 0 && targets.every((item) => item.accessLevel !== "view")
-  const sameOwner = targets.length > 0 && targets.every((item) => item.ownerUserId === targets[0].ownerUserId)
+  const editable = targets.length > 0
+    && targets.every((item) => item.accessLevel !== "view")
+  const sameOwner = targets.length > 0
+    && targets.every(
+      (item) => item.ownerUserId === targets[0].ownerUserId,
+    )
   const canMove = editable && sameOwner
   const canTrash = editable
-  const canFavorite = targets.some((item) => item.canFavorite && !item.isFavorite)
-  const canUnfavorite = targets.some((item) => item.canFavorite && item.isFavorite)
+  const canFavorite = targets.some(
+    (item) => item.canFavorite && !item.isFavorite,
+  )
+  const canUnfavorite = targets.some(
+    (item) => item.canFavorite && item.isFavorite,
+  )
   const canPublicShare = single && node.accessLevel === "full"
 
   return (
@@ -47,7 +58,11 @@ export function FileNodeContextMenu({
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 
         <ContextMenuContent className="w-56">
-          {!single && <ContextMenuLabel>{targets.length} selected</ContextMenuLabel>}
+          {!single && (
+            <ContextMenuLabel>
+              {targets.length} selected
+            </ContextMenuLabel>
+          )}
 
           {single && (
             <>
@@ -58,7 +73,9 @@ export function FileNodeContextMenu({
 
               {node.kind === "file" && (
                 <ContextMenuItem asChild>
-                  <a href={`/api/backend/api/v1/files/${encodeURIComponent(node.id)}/download`}>
+                  <a
+                    href={`/api/backend/api/v1/files/${encodeURIComponent(node.id)}/download`}
+                  >
                     <DownloadIcon />
                     Download
                   </a>
@@ -79,39 +96,61 @@ export function FileNodeContextMenu({
           {canMove && (
             <ContextMenuItem onSelect={() => onMove(targets)}>
               <MoveIcon />
-              {single ? "Move" : `Move ${targets.length} items`}
+              {single
+                ? "Move"
+                : `Move ${targets.length} items`}
             </ContextMenuItem>
           )}
 
           {canPublicShare && (
-            <ContextMenuItem onSelect={() => setPublicShareOpen(true)}>
+            <ContextMenuItem
+              onSelect={() => setPublicShareOpen(true)}
+            >
               <Globe2Icon />
               Public link
             </ContextMenuItem>
           )}
 
-          {(single && editable || canMove || canPublicShare) && (canFavorite || canUnfavorite) && <ContextMenuSeparator />}
+          {(single && editable || canMove || canPublicShare)
+            && (canFavorite || canUnfavorite)
+            && <ContextMenuSeparator />}
 
           {canFavorite && (
-            <ContextMenuItem disabled={favoritePending} onSelect={() => void onFavorite(targets, true)}>
+            <ContextMenuItem
+              disabled={favoritePending}
+              onSelect={() => void onFavorite(targets, true)}
+            >
               <StarIcon />
-              {single ? "Add to favorites" : "Add selected to favorites"}
+              {single
+                ? "Add to favorites"
+                : "Add selected to favorites"}
             </ContextMenuItem>
           )}
 
           {canUnfavorite && (
-            <ContextMenuItem disabled={favoritePending} onSelect={() => void onFavorite(targets, false)}>
+            <ContextMenuItem
+              disabled={favoritePending}
+              onSelect={() => void onFavorite(targets, false)}
+            >
               <StarOffIcon />
-              {single ? "Remove from favorites" : "Remove selected from favorites"}
+              {single
+                ? "Remove from favorites"
+                : "Remove selected from favorites"}
             </ContextMenuItem>
           )}
 
           {canTrash && (
             <>
               <ContextMenuSeparator />
-              <ContextMenuItem variant="destructive" onSelect={() => onTrash(targets)}>
+
+              <ContextMenuItem
+                variant="destructive"
+                onSelect={() => onTrash(targets)}
+              >
                 <Trash2Icon />
-                {single ? "Move to trash" : `Move ${targets.length} items to trash`}
+                {single
+                  ? "Move to trash"
+                  : `Move ${targets.length} items to trash`}
               </ContextMenuItem>
             </>
           )}

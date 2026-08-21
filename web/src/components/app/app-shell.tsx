@@ -9,7 +9,7 @@ import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { type Workspace, WorkspaceProvider } from "@/components/app/workspace-context"
 import { Button } from "@/components/ui/button"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { UploadManager } from "@/components/uploads/upload-manager"
+import { UploadManagerButton } from "@/components/uploads/upload-manager-button"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 
 export function AppShell({
@@ -59,7 +59,7 @@ export function AppShell({
             </main>
           </SidebarInset>
 
-          <UploadManager />
+          <UploadManagerButton />
         </SidebarProvider>
       </WorkspaceProvider>
     </CurrentUserProvider>

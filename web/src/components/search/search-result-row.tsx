@@ -1,10 +1,11 @@
 "use client"
 
-import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, HeartIcon, Share2Icon, StarIcon } from "lucide-react"
+import { DownloadIcon, FolderIcon, HeartIcon, Share2Icon, StarIcon } from "lucide-react"
 import Link from "next/link"
 
 import { useWorkspace } from "@/components/app/workspace-context"
 import { DateTime } from "@/components/common/date-time"
+import { FileTypeIcon } from "@/components/files/file-type-icon"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import type { SearchResult } from "@/lib/api/models"
@@ -25,8 +26,12 @@ export function SearchResultRow({ result }: { result: SearchResult }) {
           <Link href={href} className="truncate font-medium hover:underline">
             {result.name}
           </Link>
+
           {result.isFavorite && (
-            <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" />
+            <StarIcon
+              className="size-3.5 shrink-0 fill-current text-muted-foreground"
+              aria-label="Favorite"
+            />
           )}
         </div>
       </TableCell>
@@ -80,21 +85,14 @@ export function SearchResultRow({ result }: { result: SearchResult }) {
 }
 
 function SearchResultIcon({ result }: { result: SearchResult }) {
-  if (result.kind === "folder") return <FolderIcon className="size-4 shrink-0" />
-
-  switch (result.category) {
-    case "image":
-      return <FileImageIcon className="size-4 shrink-0" />
-    case "video":
-      return <FileVideoIcon className="size-4 shrink-0" />
-    case "audio":
-      return <FileAudioIcon className="size-4 shrink-0" />
-    case "document":
-    case "text":
-      return <FileTextIcon className="size-4 shrink-0" />
-    case "archive":
-      return <FileArchiveIcon className="size-4 shrink-0" />
-    default:
-      return <FileIcon className="size-4 shrink-0" />
+  if (result.kind === "folder") {
+    return <FolderIcon className="size-4 shrink-0" />
   }
+
+  return (
+    <FileTypeIcon
+      category={result.category}
+      className="size-4 shrink-0"
+    />
+  )
 }

@@ -1,7 +1,8 @@
 "use client"
 
-import { DownloadIcon, FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, FolderUpIcon, Loader2Icon } from "lucide-react"
+import { DownloadIcon, FolderIcon, FolderUpIcon, Loader2Icon } from "lucide-react"
 
+import { FileTypeIcon } from "@/components/files/file-type-icon"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiURL } from "@/lib/api/client"
@@ -53,16 +54,21 @@ export function PublicEntriesTable({
 
         <TableBody>
           {parent && (
-            <TableRow className="cursor-pointer select-none" onClick={parent}>
+            <TableRow
+              className="cursor-pointer select-none"
+              onClick={parent}
+            >
               <TableCell>
                 <div className="flex items-center gap-2 font-medium">
                   <FolderUpIcon className="size-4 text-muted-foreground" />
                   ..
                 </div>
               </TableCell>
+
               <TableCell className="hidden text-muted-foreground md:table-cell">
                 Parent folder
               </TableCell>
+
               <TableCell className="hidden sm:table-cell" />
               <TableCell className="hidden lg:table-cell" />
               <TableCell />
@@ -75,8 +81,12 @@ export function PublicEntriesTable({
               className="select-none"
               onDoubleClick={(event) => {
                 if (isInteractiveTarget(event.target)) return
-                if (node.kind === "folder") onOpenFolder?.(node)
-                else onOpenFile(node)
+
+                if (node.kind === "folder") {
+                  onOpenFolder?.(node)
+                } else {
+                  onOpenFile(node)
+                }
               }}
             >
               <TableCell>
@@ -87,8 +97,11 @@ export function PublicEntriesTable({
                     type="button"
                     className="truncate text-left font-medium hover:underline"
                     onClick={() => {
-                      if (node.kind === "folder") onOpenFolder?.(node)
-                      else onOpenFile(node)
+                      if (node.kind === "folder") {
+                        onOpenFolder?.(node)
+                      } else {
+                        onOpenFile(node)
+                      }
                     }}
                   >
                     {node.name}
@@ -97,11 +110,15 @@ export function PublicEntriesTable({
               </TableCell>
 
               <TableCell className="hidden capitalize text-muted-foreground md:table-cell">
-                {node.kind === "folder" ? "Folder" : node.category || node.mimeType || "File"}
+                {node.kind === "folder"
+                  ? "Folder"
+                  : node.category || node.mimeType || "File"}
               </TableCell>
 
               <TableCell className="hidden text-muted-foreground sm:table-cell">
-                {node.kind === "file" && node.size != null ? formatBytes(node.size) : "—"}
+                {node.kind === "file" && node.size != null
+                  ? formatBytes(node.size)
+                  : "—"}
               </TableCell>
 
               <TableCell className="hidden text-muted-foreground lg:table-cell">
@@ -140,21 +157,14 @@ export function PublicEntriesTable({
 }
 
 function PublicNodeIcon({ node }: { node: PublicNode }) {
-  if (node.kind === "folder") return <FolderIcon className="size-4 shrink-0" />
-
-  switch (node.category) {
-    case "image":
-      return <FileImageIcon className="size-4 shrink-0" />
-    case "video":
-      return <FileVideoIcon className="size-4 shrink-0" />
-    case "audio":
-      return <FileAudioIcon className="size-4 shrink-0" />
-    case "document":
-    case "text":
-      return <FileTextIcon className="size-4 shrink-0" />
-    case "archive":
-      return <FileArchiveIcon className="size-4 shrink-0" />
-    default:
-      return <FileIcon className="size-4 shrink-0" />
+  if (node.kind === "folder") {
+    return <FolderIcon className="size-4 shrink-0" />
   }
+
+  return (
+    <FileTypeIcon
+      category={node.category}
+      className="size-4 shrink-0"
+    />
+  )
 }

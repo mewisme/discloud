@@ -1,9 +1,10 @@
 "use client"
 
-import { FileArchiveIcon, FileAudioIcon, FileIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FolderIcon, PlayIcon } from "lucide-react"
+import { FolderIcon, PlayIcon } from "lucide-react"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 
+import { FileTypeIcon } from "@/components/files/file-type-icon"
 import { apiURL } from "@/lib/api/client"
 import type { BrowserNode } from "@/lib/api/models"
 import { loadThumbnail } from "@/lib/files/thumbnail-load"
@@ -68,29 +69,15 @@ export function FileNodeVisual({
             </div>
           )}
         </>
+      ) : node.kind === "folder" ? (
+        <FolderIcon className={cn("text-muted-foreground", iconClassName)} aria-hidden />
       ) : (
-        <NodeIcon node={node} className={cn("text-muted-foreground", iconClassName)} />
+        <FileTypeIcon
+          category={node.category}
+          className={cn("text-muted-foreground", iconClassName)}
+          aria-hidden
+        />
       )}
     </div>
   )
-}
-
-function NodeIcon({ node, className }: { node: BrowserNode; className?: string }) {
-  if (node.kind === "folder") return <FolderIcon className={className} aria-hidden />
-
-  switch (node.category) {
-    case "image":
-      return <FileImageIcon className={className} aria-hidden />
-    case "video":
-      return <FileVideoIcon className={className} aria-hidden />
-    case "audio":
-      return <FileAudioIcon className={className} aria-hidden />
-    case "document":
-    case "text":
-      return <FileTextIcon className={className} aria-hidden />
-    case "archive":
-      return <FileArchiveIcon className={className} aria-hidden />
-    default:
-      return <FileIcon className={className} aria-hidden />
-  }
 }
