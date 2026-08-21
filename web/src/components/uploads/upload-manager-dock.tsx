@@ -1,8 +1,9 @@
 "use client"
 
-import { ArrowUpRightIcon, CircleAlertIcon, Loader2Icon, UploadIcon } from "lucide-react"
+import { ArrowUpRightIcon, CheckIcon, CircleAlertIcon, Loader2Icon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 
 import { BottomDock } from "@/components/app/bottom-dock-stack"
 import { useCurrentUser } from "@/components/app/current-user-context"
@@ -13,22 +14,71 @@ import { isActiveUploadTask } from "@/components/uploads/upload-task"
 import { formatBytes } from "@/lib/helpers"
 import { workspacePath } from "@/lib/workspace/navigation"
 
+const completionHideDelayMs = 3000
+
 export function UploadManagerDock() {
   const pathname = usePathname()
   const currentUser = useCurrentUser()
   const { tasks } = useUploads()
+  const [hovered, setHovered] = useState(false)
+  const [completionVisible, setCompletionVisible] = useState(false)
+  const previousNeedsAttentionRef = useRef(false)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const href = workspacePath(currentUser.username, "uploads")
-  if (pathname === href || pathname === `${href}/`) return null
-
+  const onUploadsPage = pathname === href || pathname === `${href}/`
   const activeTasks = tasks.filter(isActiveUploadTask)
   const failedTasks = tasks.filter((task) => task.status === "error")
+  const completedTasks = tasks.filter((task) => task.status === "completed")
+  const needsAttention = activeTasks.length > 0 || failedTasks.length > 0
 
-  if (!activeTasks.length && !failedTasks.length) return null
+  useEffect(() => {
+    const previousNeedsAttention = previousNeedsAttentionRef.current
+    previousNeedsAttentionRef.current = needsAttention
 
+    if (needsAttention) {
+      setCompletionVisible(false)
+      return
+    }
+
+    if (previousNeedsAttention && completedTasks.length > 0) {
+      setCompletionVisible(true)
+    }
+  }, [completedTasks.length, needsAttention])
+
+  useEffect(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = undefined
+    }
+
+    if (!completionVisible || hovered || onUploadsPage) return
+
+    hideTimerRef.current = setTimeout(() => {
+      setCompletionVisible(false)
+      hideTimerRef.current = undefined
+    }, completionHideDelayMs)
+
+    return () => {
+      if (!hideTimerRef.current) return
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = undefined
+    }
+  }, [completionVisible, hovered, onUploadsPage])
+
+  useEffect(() => {
+    if (!onUploadsPage) return
+    setCompletionVisible(false)
+  }, [onUploadsPage])
+
+  if (onUploadsPage) return null
+  if (!needsAttention && !completionVisible) return null
+
+  const finished = !needsAttention && completionVisible
   const currentTask = activeTasks.find((task) => task.status === "uploading")
     ?? activeTasks.find((task) => task.status === "finalizing")
     ?? activeTasks[0]
+    ?? [...completedTasks].reverse()[0]
 
   const relevantTasks = tasks.filter((task) => !["cancelled", "skipped"].includes(task.status))
   const totalBytes = relevantTasks.reduce((total, task) => total + Math.max(0, task.file.size), 0)
@@ -36,27 +86,34 @@ export function UploadManagerDock() {
     if (task.status === "completed") return total + Math.max(0, task.file.size)
     return total + Math.min(Math.max(0, task.uploadedBytes), Math.max(0, task.file.size))
   }, 0)
-  const progress = totalBytes > 0
-    ? Math.min(100, uploadedBytes / totalBytes * 100)
-    : 0
+  const progress = totalBytes > 0 ? Math.min(100, uploadedBytes / totalBytes * 100) : finished ? 100 : 0
 
   return (
     <BottomDock slot="uploads">
-      <div className="flex w-[min(36rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div
+        className="flex w-[min(32rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+      >
         <StatusIcon
           active={activeTasks.length}
           failed={failedTasks.length}
+          finished={finished}
         />
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 text-sm font-medium">
-              {activeTasks.length > 0 ? "Uploading" : "Upload failed"}
+              {finished
+                ? "Upload complete"
+                : activeTasks.length > 0
+                  ? "Uploading"
+                  : "Upload failed"}
             </span>
 
-            {activeTasks.length > 0 && (
+            {currentTask && (
               <span className="truncate text-xs text-muted-foreground">
-                {currentTask?.file.name}
+                {currentTask.file.name}
               </span>
             )}
 
@@ -68,23 +125,19 @@ export function UploadManagerDock() {
           </div>
 
           <div className="mt-1.5 flex items-center gap-2">
-            <Progress
-              value={progress}
-              className="h-1.5 min-w-0 flex-1"
-            />
+            <Progress value={progress} className="h-1.5 min-w-0 flex-1" />
 
             <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
               {Math.round(progress)}%
             </span>
           </div>
 
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground">
-            {activeTasks.length > 0 && (
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+            {!finished && activeTasks.length > 0 && (
               <>
                 <span className="shrink-0">
                   {activeTasks.length} active
                 </span>
-
                 <span aria-hidden>·</span>
               </>
             )}
@@ -93,10 +146,9 @@ export function UploadManagerDock() {
               {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
             </span>
 
-            {activeTasks.length > 1 && currentTask && (
+            {!finished && activeTasks.length > 1 && (
               <>
                 <span aria-hidden>·</span>
-
                 <span className="shrink-0">
                   +{activeTasks.length - 1} more
                 </span>
@@ -125,9 +177,11 @@ export function UploadManagerDock() {
 function StatusIcon({
   active,
   failed,
+  finished,
 }: {
   active: number
   failed: number
+  finished: boolean
 }) {
   if (active > 0) {
     return (
@@ -145,9 +199,13 @@ function StatusIcon({
     )
   }
 
-  return (
-    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted">
-      <UploadIcon className="size-4" />
-    </div>
-  )
+  if (finished) {
+    return (
+      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
+        <CheckIcon className="size-4" />
+      </div>
+    )
+  }
+
+  return null
 }
