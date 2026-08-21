@@ -1,24 +1,10 @@
 import "client-only"
 
 import { apiError } from "@/lib/api/error"
-import { apiProxyPath } from "@/lib/api/path"
-import type { APIJSONInit, APIRequestInit, Query } from "@/lib/api/types"
+import { apiURL } from "@/lib/api/path"
+import type { APIJSONInit, APIRequestInit } from "@/lib/api/types"
 
-const API_PREFIX = "/api/backend"
-
-export function apiURL(path: string, query?: Query) {
-  const pathname = apiProxyPath(path)
-  const search = new URLSearchParams()
-
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value == null) continue
-    const values = Array.isArray(value) ? value : [value]
-    for (const item of values) search.append(key, String(item))
-  }
-
-  const encoded = search.toString()
-  return `${API_PREFIX}${pathname}${encoded ? `?${encoded}` : ""}`
-}
+export { apiURL }
 
 export async function apiRequest(path: string, options: APIRequestInit = {}) {
   const { query, timeoutMs = 30_000, signal, ...init } = options

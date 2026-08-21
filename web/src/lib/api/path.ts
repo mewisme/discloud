@@ -1,5 +1,22 @@
+import type { Query } from "@/lib/api/types"
+
+const API_PREFIX = "/api/backend"
 const API_VERSION_PREFIX = "/api/v1"
 const API_VERSION_SEGMENTS = ["api", "v1"] as const
+
+export function apiURL(path: string, query?: Query) {
+  const pathname = apiProxyPath(path)
+  const search = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value == null) continue
+    const values = Array.isArray(value) ? value : [value]
+    for (const item of values) search.append(key, String(item))
+  }
+
+  const encoded = search.toString()
+  return `${API_PREFIX}${pathname}${encoded ? `?${encoded}` : ""}`
+}
 
 export function apiBackendPath(path: string) {
   const pathname = normalizePath(path)
