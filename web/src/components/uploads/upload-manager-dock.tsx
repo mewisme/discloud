@@ -22,7 +22,7 @@ export function UploadManagerDock() {
   const { tasks } = useUploads()
   const [hovered, setHovered] = useState(false)
   const [completionVisible, setCompletionVisible] = useState(false)
-  const previousNeedsAttentionRef = useRef(false)
+  const previousActiveCountRef = useRef(0)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const href = workspacePath(currentUser.username, "uploads")
@@ -30,21 +30,23 @@ export function UploadManagerDock() {
   const activeTasks = tasks.filter(isActiveUploadTask)
   const failedTasks = tasks.filter((task) => task.status === "error")
   const completedTasks = tasks.filter((task) => task.status === "completed")
-  const needsAttention = activeTasks.length > 0 || failedTasks.length > 0
+  const activeCount = activeTasks.length
+  const failedCount = failedTasks.length
+  const needsAttention = activeCount > 0 || failedCount > 0
 
   useEffect(() => {
-    const previousNeedsAttention = previousNeedsAttentionRef.current
-    previousNeedsAttentionRef.current = needsAttention
+    const previousActiveCount = previousActiveCountRef.current
+    previousActiveCountRef.current = activeCount
 
     if (needsAttention) {
       setCompletionVisible(false)
       return
     }
 
-    if (previousNeedsAttention && completedTasks.length > 0) {
+    if (previousActiveCount > 0 && completedTasks.length > 0) {
       setCompletionVisible(true)
     }
-  }, [completedTasks.length, needsAttention])
+  }, [activeCount, completedTasks.length, needsAttention])
 
   useEffect(() => {
     if (hideTimerRef.current) {
@@ -67,8 +69,7 @@ export function UploadManagerDock() {
   }, [completionVisible, hovered, onUploadsPage])
 
   useEffect(() => {
-    if (!onUploadsPage) return
-    setCompletionVisible(false)
+    if (onUploadsPage) setCompletionVisible(false)
   }, [onUploadsPage])
 
   if (onUploadsPage) return null
@@ -78,7 +79,7 @@ export function UploadManagerDock() {
   const currentTask = activeTasks.find((task) => task.status === "uploading")
     ?? activeTasks.find((task) => task.status === "finalizing")
     ?? activeTasks[0]
-    ?? [...completedTasks].reverse()[0]
+    ?? completedTasks.at(-1)
 
   const relevantTasks = tasks.filter((task) => !["cancelled", "skipped"].includes(task.status))
   const totalBytes = relevantTasks.reduce((total, task) => total + Math.max(0, task.file.size), 0)
@@ -86,76 +87,69 @@ export function UploadManagerDock() {
     if (task.status === "completed") return total + Math.max(0, task.file.size)
     return total + Math.min(Math.max(0, task.uploadedBytes), Math.max(0, task.file.size))
   }, 0)
-  const progress = totalBytes > 0 ? Math.min(100, uploadedBytes / totalBytes * 100) : finished ? 100 : 0
+  const progress = totalBytes > 0
+    ? Math.min(100, uploadedBytes / totalBytes * 100)
+    : finished
+      ? 100
+      : 0
 
   return (
     <BottomDock slot="uploads">
       <div
-        className="flex w-[min(32rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+        className="flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
       >
         <StatusIcon
-          active={activeTasks.length}
-          failed={failedTasks.length}
+          active={activeCount}
+          failed={failedCount}
           finished={finished}
         />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-sm font-medium">
-              {finished
-                ? "Upload complete"
-                : activeTasks.length > 0
-                  ? "Uploading"
-                  : "Upload failed"}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-sm font-medium">
+            {finished
+              ? "Upload complete"
+              : activeCount > 0
+                ? "Uploading"
+                : "Upload failed"}
+          </span>
+
+          {currentTask && (
+            <span className="hidden max-w-48 truncate text-sm text-muted-foreground sm:block">
+              {currentTask.file.name}
             </span>
-
-            {currentTask && (
-              <span className="truncate text-xs text-muted-foreground">
-                {currentTask.file.name}
-              </span>
-            )}
-
-            {failedTasks.length > 0 && (
-              <span className="ml-auto shrink-0 text-xs font-medium text-destructive">
-                {failedTasks.length} failed
-              </span>
-            )}
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-2">
-            <Progress value={progress} className="h-1.5 min-w-0 flex-1" />
-
-            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-              {Math.round(progress)}%
-            </span>
-          </div>
-
-          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-            {!finished && activeTasks.length > 0 && (
-              <>
-                <span className="shrink-0">
-                  {activeTasks.length} active
-                </span>
-                <span aria-hidden>·</span>
-              </>
-            )}
-
-            <span className="truncate tabular-nums">
-              {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
-            </span>
-
-            {!finished && activeTasks.length > 1 && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="shrink-0">
-                  +{activeTasks.length - 1} more
-                </span>
-              </>
-            )}
-          </div>
+          )}
         </div>
+
+        <div className="hidden h-5 w-px bg-border sm:block" />
+
+        <Progress
+          value={progress}
+          className="h-1.5 w-20 shrink-0 sm:w-28"
+        />
+
+        <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+          {Math.round(progress)}%
+        </span>
+
+        <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground md:block">
+          {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
+        </span>
+
+        {!finished && activeCount > 1 && (
+          <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+            {activeCount} active
+          </span>
+        )}
+
+        {failedCount > 0 && (
+          <span className="shrink-0 text-xs font-medium text-destructive">
+            {failedCount} failed
+          </span>
+        )}
+
+        <div className="h-5 w-px bg-border" />
 
         <Button
           asChild
@@ -185,7 +179,7 @@ function StatusIcon({
 }) {
   if (active > 0) {
     return (
-      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
         <Loader2Icon className="size-4 animate-spin" />
       </div>
     )
@@ -193,7 +187,7 @@ function StatusIcon({
 
   if (failed > 0) {
     return (
-      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-destructive/10 text-destructive">
+      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive/10 text-destructive">
         <CircleAlertIcon className="size-4" />
       </div>
     )
@@ -201,7 +195,7 @@ function StatusIcon({
 
   if (finished) {
     return (
-      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
+      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
         <CheckIcon className="size-4" />
       </div>
     )
