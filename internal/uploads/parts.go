@@ -152,6 +152,9 @@ func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID strin
 					SizeBytes: size,
 				},
 			)
+			if err != nil {
+				return err
+			}
 
 			attempt, err := u.service.StartAttempt(ctx, current.ID, partIndex, botUserID)
 			if errors.Is(err, ErrBotAlreadyTried) {
