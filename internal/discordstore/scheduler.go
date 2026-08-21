@@ -12,12 +12,14 @@ type Scheduler struct {
 	mu               sync.Mutex
 	bots             []Bot
 	next             int
+	fairCursor       int
 	cooldown         map[string]time.Time
 	busy             map[string]bool
 	controls         map[string]*botControl
 	leases           map[string]leaseRuntime
 	metrics          map[string]*botRuntimeMetrics
 	waiters          map[blobstore.LeaseOperation]map[uint64]time.Time
+	waiterExclusions map[uint64]map[string]struct{}
 	nextWaiterID     uint64
 	events           []RuntimeEvent
 	eventSequence    uint64
@@ -39,17 +41,18 @@ func NewScheduler(bots []Bot) *Scheduler {
 
 func newSchedulerWithClock(bots []Bot, now func() time.Time) *Scheduler {
 	scheduler := &Scheduler{
-		bots:        append([]Bot(nil), bots...),
-		cooldown:    make(map[string]time.Time),
-		busy:        make(map[string]bool),
-		controls:    make(map[string]*botControl),
-		leases:      make(map[string]leaseRuntime),
-		metrics:     make(map[string]*botRuntimeMetrics),
-		waiters:     make(map[blobstore.LeaseOperation]map[uint64]time.Time),
-		events:      make([]RuntimeEvent, 0, runtimeEventBufferSize),
-		subscribers: make(map[uint64]chan RuntimeEvent),
-		changed:     make(chan struct{}),
-		now:         now,
+		bots:             append([]Bot(nil), bots...),
+		cooldown:         make(map[string]time.Time),
+		busy:             make(map[string]bool),
+		controls:         make(map[string]*botControl),
+		leases:           make(map[string]leaseRuntime),
+		metrics:          make(map[string]*botRuntimeMetrics),
+		waiters:          make(map[blobstore.LeaseOperation]map[uint64]time.Time),
+		waiterExclusions: make(map[uint64]map[string]struct{}),
+		events:           make([]RuntimeEvent, 0, runtimeEventBufferSize),
+		subscribers:      make(map[uint64]chan RuntimeEvent),
+		changed:          make(chan struct{}),
+		now:              now,
 	}
 
 	for _, bot := range scheduler.bots {
@@ -100,81 +103,147 @@ func (s *Scheduler) Acquire(
 	metadata ...blobstore.LeaseMetadata,
 ) (Bot, func(), error) {
 	excluded := idSet(excludedBotUserIDs)
-	leaseMetadata := blobstore.LeaseMetadata{Operation: blobstore.LeaseOperationUnknown}
+	leaseMetadata := blobstore.LeaseMetadata{
+		Operation: blobstore.LeaseOperationUnknown,
+	}
 	if len(metadata) > 0 {
 		leaseMetadata = normalizeLeaseMetadata(metadata[0])
 	}
 
+	_, fairOperation := fairOperationIndex(leaseMetadata.Operation)
 	var waiterID uint64
 
 	for {
 		s.mu.Lock()
 
 		if len(s.bots) == 0 {
-			s.dequeueLocked(leaseMetadata.Operation, waiterID)
+			removed := s.dequeueAcquireWaiterLocked(
+				leaseMetadata.Operation,
+				waiterID,
+			)
+			if removed {
+				s.notifyLocked()
+			}
 			s.mu.Unlock()
 			return Bot{}, nil, blobstore.ErrNoUsableBot
 		}
 
 		now := s.now()
-		eligible := 0
-		busyEligible := false
-		var earliestCooldown time.Time
+		selection := s.selectAvailableBotLocked(
+			excluded,
+			now,
+		)
 
-		for i := 0; i < len(s.bots); i++ {
-			index := (s.next + i) % len(s.bots)
-			bot := s.bots[index]
-
-			if _, skip := excluded[bot.UserID]; skip {
-				continue
+		if selection.eligible == 0 {
+			removed := s.dequeueAcquireWaiterLocked(
+				leaseMetadata.Operation,
+				waiterID,
+			)
+			if removed {
+				s.notifyLocked()
 			}
-			if !s.controlEligibleLocked(bot.UserID) {
-				continue
-			}
-
-			eligible++
-
-			if s.busy[bot.UserID] {
-				busyEligible = true
-				continue
-			}
-
-			if cooling, until := s.cooldownStateLocked(bot.UserID, now); cooling {
-				if earliestCooldown.IsZero() || until.Before(earliestCooldown) {
-					earliestCooldown = until
-				}
-				continue
-			}
-
-			s.dequeueLocked(leaseMetadata.Operation, waiterID)
-			waiterID = 0
-			s.next = (index + 1) % len(s.bots)
-
-			release := s.startLeaseLocked(bot, leaseMetadata, now)
-			s.mu.Unlock()
-			return bot, release, nil
-		}
-
-		if eligible == 0 || !busyEligible {
-			s.dequeueLocked(leaseMetadata.Operation, waiterID)
 			s.mu.Unlock()
 			return Bot{}, nil, blobstore.ErrNoUsableBot
 		}
 
-		if waiterID == 0 {
-			waiterID = s.enqueueLocked(leaseMetadata.Operation)
+		if waiterID == 0 &&
+			fairOperation &&
+			s.hasFairWaitersLocked() {
+			waiterID = s.enqueueAcquireWaiterLocked(
+				leaseMetadata.Operation,
+				excluded,
+			)
+		}
+
+		if selection.available {
+			allowed := waiterID == 0 ||
+				!fairOperation ||
+				s.fairnessAllowsLocked(
+					leaseMetadata.Operation,
+					waiterID,
+					now,
+				)
+
+			if allowed {
+				wasQueued := s.dequeueAcquireWaiterLocked(
+					leaseMetadata.Operation,
+					waiterID,
+				)
+				waiterID = 0
+
+				if fairOperation {
+					s.advanceFairnessLocked(
+						leaseMetadata.Operation,
+					)
+				}
+
+				s.next = (selection.index + 1) % len(s.bots)
+
+				release := s.startLeaseLocked(
+					selection.bot,
+					leaseMetadata,
+					now,
+				)
+
+				if wasQueued ||
+					s.hasFairWaitersLocked() {
+					s.notifyLocked()
+				}
+
+				s.mu.Unlock()
+				return selection.bot, release, nil
+			}
+
+			if waiterID == 0 {
+				waiterID = s.enqueueAcquireWaiterLocked(
+					leaseMetadata.Operation,
+					excluded,
+				)
+			}
+		} else {
+			if !selection.busyEligible {
+				removed := s.dequeueAcquireWaiterLocked(
+					leaseMetadata.Operation,
+					waiterID,
+				)
+				if removed {
+					s.notifyLocked()
+				}
+				s.mu.Unlock()
+				return Bot{}, nil, blobstore.ErrNoUsableBot
+			}
+
+			if waiterID == 0 {
+				waiterID = s.enqueueAcquireWaiterLocked(
+					leaseMetadata.Operation,
+					excluded,
+				)
+			}
 		}
 
 		changed := s.changed
 		var wait time.Duration
-		if !earliestCooldown.IsZero() {
-			wait = earliestCooldown.Sub(now)
+
+		if !selection.available &&
+			!selection.earliestCooldown.IsZero() {
+			wait = selection.earliestCooldown.Sub(now)
 		}
+
 		s.mu.Unlock()
 
-		if err := waitForScheduler(ctx, changed, wait); err != nil {
+		if err := waitForScheduler(
+			ctx,
+			changed,
+			wait,
+		); err != nil {
 			s.mu.Lock()
-			s.dequeueLocked(leaseMetadata.Operation, waiterID)
+			removed := s.dequeueAcquireWaiterLocked(
+				leaseMetadata.Operation,
+				waiterID,
+			)
+			if removed {
+				s.notifyLocked()
+			}
 			s.mu.Unlock()
 			return Bot{}, nil, err
 		}
@@ -187,7 +256,10 @@ func (s *Scheduler) Get(userID string) (Bot, bool) {
 	return s.findBotLocked(userID)
 }
 
-func (s *Scheduler) Cooldown(userID string, duration time.Duration) {
+func (s *Scheduler) Cooldown(
+	userID string,
+	duration time.Duration,
+) {
 	if duration <= 0 {
 		return
 	}
@@ -196,16 +268,20 @@ func (s *Scheduler) Cooldown(userID string, duration time.Duration) {
 	defer s.mu.Unlock()
 
 	until := s.now().Add(duration)
-	if current, exists := s.cooldown[userID]; exists && !until.After(current) {
+
+	if current, exists := s.cooldown[userID]; exists &&
+		!until.After(current) {
 		return
 	}
 
 	s.cooldown[userID] = until
+
 	s.emitLocked(RuntimeEvent{
 		Type:          RuntimeEventCooldownStarted,
 		BotUserID:     userID,
 		CooldownUntil: timePointer(until),
 	})
+
 	s.notifyLocked()
 }
 
@@ -227,6 +303,7 @@ func (s *Scheduler) startLeaseLocked(
 	startedAt time.Time,
 ) func() {
 	s.busy[bot.UserID] = true
+
 	s.leases[bot.UserID] = leaseRuntime{
 		metadata:  cloneLeaseMetadata(metadata),
 		startedAt: startedAt,
@@ -245,6 +322,7 @@ func (s *Scheduler) startLeaseLocked(
 			s.mu.Lock()
 
 			lease, hasLease := s.leases[bot.UserID]
+
 			delete(s.leases, bot.UserID)
 			delete(s.busy, bot.UserID)
 
@@ -254,7 +332,11 @@ func (s *Scheduler) startLeaseLocked(
 					bot.UserID,
 					lease.metadata,
 				)
-				event.Duration = s.now().Sub(lease.startedAt)
+
+				event.Duration = s.now().Sub(
+					lease.startedAt,
+				)
+
 				s.emitLocked(event)
 			}
 
@@ -271,14 +353,23 @@ func (s *Scheduler) notifyLocked() {
 }
 
 func idSet(values []string) map[string]struct{} {
-	result := make(map[string]struct{}, len(values))
+	result := make(
+		map[string]struct{},
+		len(values),
+	)
+
 	for _, value := range values {
 		result[value] = struct{}{}
 	}
+
 	return result
 }
 
-func waitForScheduler(ctx context.Context, changed <-chan struct{}, wait time.Duration) error {
+func waitForScheduler(
+	ctx context.Context,
+	changed <-chan struct{},
+	wait time.Duration,
+) error {
 	if wait <= 0 {
 		select {
 		case <-ctx.Done():
