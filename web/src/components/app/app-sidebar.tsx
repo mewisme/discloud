@@ -33,7 +33,6 @@ export function AppSidebar({
   usage: CurrentUserUsage
 }) {
   const workspaceRoot = workspacePath(workspace.username)
-  const actorRoot = workspacePath(user.username)
 
   const primaryItems: NavItem[] = [
     {
