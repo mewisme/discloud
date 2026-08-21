@@ -28,18 +28,19 @@ type createUploadRequest struct {
 }
 
 type uploadSessionResponse struct {
-	ID              string               `json:"id"`
-	OwnerUserID     string               `json:"ownerUserId"`
-	ParentFolderID  string               `json:"parentFolderId"`
-	Name            string               `json:"name"`
-	Size            int64                `json:"size"`
-	ChunkSize       int64                `json:"chunkSize"`
-	ExpectedParts   int                  `json:"expectedParts"`
-	Status          string               `json:"status"`
-	FileSHA256      string               `json:"fileSha256,omitempty"`
-	ExpiresAt       time.Time            `json:"expiresAt"`
-	CommittedFileID string               `json:"committedFileId,omitempty"`
-	Parts           []uploadPartResponse `json:"parts,omitempty"`
+	ID                         string               `json:"id"`
+	OwnerUserID                string               `json:"ownerUserId"`
+	ParentFolderID             string               `json:"parentFolderId"`
+	Name                       string               `json:"name"`
+	Size                       int64                `json:"size"`
+	ChunkSize                  int64                `json:"chunkSize"`
+	ExpectedParts              int                  `json:"expectedParts"`
+	RecommendedPartConcurrency int                  `json:"recommendedPartConcurrency"`
+	Status                     string               `json:"status"`
+	FileSHA256                 string               `json:"fileSha256,omitempty"`
+	ExpiresAt                  time.Time            `json:"expiresAt"`
+	CommittedFileID            string               `json:"committedFileId,omitempty"`
+	Parts                      []uploadPartResponse `json:"parts,omitempty"`
 }
 
 type uploadPartResponse struct {
@@ -94,7 +95,7 @@ func registerUploadRoutes(mux *http.ServeMux, service *uploads.Service, uploader
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(uploadSessionJSON(session, nil))
+		_ = json.NewEncoder(w).Encode(uploadSessionJSON(session, nil, uploader.RecommendedPartConcurrency()))
 	})
 
 	protected("GET /api/v1/uploads/{uploadId}", func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +111,7 @@ func registerUploadRoutes(mux *http.ServeMux, service *uploads.Service, uploader
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(uploadSessionJSON(session, parts))
+		_ = json.NewEncoder(w).Encode(uploadSessionJSON(session, parts, uploader.RecommendedPartConcurrency()))
 	})
 
 	protected("PUT /api/v1/uploads/{uploadId}/parts/{partIndex}", func(w http.ResponseWriter, r *http.Request) {
@@ -162,12 +163,16 @@ func uploadActor(r *http.Request) uploads.Actor {
 	return uploads.Actor{UserID: principal.User.ID, Admin: principal.User.Role == "admin"}
 }
 
-func uploadSessionJSON(session uploads.Session, parts []uploads.Part) uploadSessionResponse {
+func uploadSessionJSON(session uploads.Session, parts []uploads.Part, recommendedPartConcurrency int) uploadSessionResponse {
+	if recommendedPartConcurrency < 1 {
+		recommendedPartConcurrency = 1
+	}
+
 	response := uploadSessionResponse{
 		ID: session.ID, OwnerUserID: session.OwnerUserID, ParentFolderID: session.ParentFolderID,
 		Name: session.Name, Size: session.SizeBytes, ChunkSize: session.ChunkSizeBytes,
-		ExpectedParts: session.ExpectedParts, Status: string(session.Status), ExpiresAt: session.ExpiresAt,
-		CommittedFileID: session.CommittedFileID,
+		ExpectedParts: session.ExpectedParts, RecommendedPartConcurrency: recommendedPartConcurrency,
+		Status: string(session.Status), ExpiresAt: session.ExpiresAt, CommittedFileID: session.CommittedFileID,
 	}
 	if len(session.FileSHA256) == 32 {
 		response.FileSHA256 = hex.EncodeToString(session.FileSHA256)

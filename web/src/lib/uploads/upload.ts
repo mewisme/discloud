@@ -6,7 +6,7 @@ import { APIError } from "@/lib/api/types"
 import { planUploadParts } from "@/lib/uploads/chunks"
 import { ConcurrencyGate } from "@/lib/uploads/gate"
 
-const partGate = new ConcurrencyGate(4)
+const partGate = new ConcurrencyGate(1)
 const fileGate = new ConcurrencyGate(3)
 
 export type UploadCallbacks = {
@@ -36,6 +36,7 @@ export async function uploadFile({
     ? await apiJSON<UploadSession>(`/api/v1/uploads/${sessionId}`, { signal })
     : await createSession(file, folderId, signal)
 
+  partGate.setLimit(normalizePartConcurrency(session.recommendedPartConcurrency))
   callbacks.onSession(session.id)
 
   if (session.status === "completed") {
@@ -60,7 +61,7 @@ export async function uploadFile({
     await putPart(session.id, part.index, blob, digest, signal)
     uploadedBytes += part.size
     callbacks.onProgress(uploadedBytes)
-  })))
+  }, signal)))
 
   const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected" && !isAbortError(result.reason))
     ?? results.find((result): result is PromiseRejectedResult => result.status === "rejected")
@@ -113,6 +114,10 @@ async function putPart(uploadId: string, index: number, body: Blob, sha256: stri
 async function sha256Hex(blob: Blob) {
   const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+function normalizePartConcurrency(value: number) {
+  return Number.isSafeInteger(value) && value > 0 ? value : 1
 }
 
 function retryablePartError(error: unknown) {

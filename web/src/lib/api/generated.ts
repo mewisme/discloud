@@ -2052,6 +2052,7 @@ export type components = {
             /** Format: uuid */
             readonly parentFolderId: string;
             readonly parts?: readonly components["schemas"]["UploadPart"][];
+            readonly recommendedPartConcurrency: number;
             /** Format: int64 */
             readonly size: number;
             /** @enum {string} */

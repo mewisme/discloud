@@ -3,6 +3,8 @@ package httpapi
 import (
 	"encoding/hex"
 	"testing"
+
+	"github.com/mewisme/discloud/internal/uploads"
 )
 
 func TestParseSHA256(t *testing.T) {
@@ -33,5 +35,25 @@ func TestParseSHA256RejectsInvalidValues(t *testing.T) {
 func TestOptionalSHA256(t *testing.T) {
 	if value, err := optionalSHA256(nil); err != nil || value != nil {
 		t.Fatalf("optionalSHA256(nil) = %x, %v", value, err)
+	}
+}
+
+func TestUploadSessionJSONIncludesRecommendedPartConcurrency(t *testing.T) {
+	response := uploadSessionJSON(uploads.Session{}, nil, 8)
+	if response.RecommendedPartConcurrency != 8 {
+		t.Fatalf(
+			"RecommendedPartConcurrency = %d, want 8",
+			response.RecommendedPartConcurrency,
+		)
+	}
+}
+
+func TestUploadSessionJSONClampsRecommendedPartConcurrency(t *testing.T) {
+	response := uploadSessionJSON(uploads.Session{}, nil, 0)
+	if response.RecommendedPartConcurrency != 1 {
+		t.Fatalf(
+			"RecommendedPartConcurrency = %d, want 1",
+			response.RecommendedPartConcurrency,
+		)
 	}
 }
