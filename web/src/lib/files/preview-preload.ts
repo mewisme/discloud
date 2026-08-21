@@ -5,8 +5,10 @@ import { filePreviewKind } from "@/lib/files/preview"
 
 const maxConcurrentPreviewWarms = 3
 const maxRememberedWarmAssets = 256
-const previewWarmRangeEnd = 256 * 1024 - 1
 const previewWarmTimeoutMs = 8000
+
+const defaultPreviewWarmBytes = 256 * 1024
+const videoPreviewWarmBytes = 2 * 1024 * 1024
 
 export type PreviewPreloadAsset = {
   id: string
@@ -115,10 +117,11 @@ function drainPreviewWarmQueue() {
     }
 
     const warm = preloadPreviewAsset(task)
-      .then(() => {
-        rememberWarmedPreviewAsset(task.source)
+      .then((success) => {
+        if (success) {
+          rememberWarmedPreviewAsset(task.source)
+        }
       })
-      .catch(() => { })
       .finally(() => {
         activePreviewWarms.delete(task.source)
         drainPreviewWarmQueue()
@@ -128,40 +131,42 @@ function drainPreviewWarmQueue() {
   }
 }
 
-async function preloadPreviewAsset(task: PreviewWarmTask) {
+async function preloadPreviewAsset(
+  task: PreviewWarmTask,
+): Promise<boolean> {
   switch (task.kind) {
     case "image":
-      await preloadImage(task.source)
-      return
+      return preloadImage(task.source)
 
     case "video":
-      await preloadMedia(task.source, "video")
-      return
+      return preloadRange(
+        task.source,
+        videoPreviewWarmBytes,
+      )
 
     case "audio":
-      await preloadMedia(task.source, "audio")
-      return
-
     case "pdf":
     case "text":
-      await preloadRange(task.source)
-      return
+      return preloadRange(
+        task.source,
+        defaultPreviewWarmBytes,
+      )
+
+    default:
+      return false
   }
 }
 
 function preloadImage(source: string) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<boolean>((resolve) => {
     const image = new window.Image()
-
     let settled = false
 
     const timeout = window.setTimeout(() => {
-      finish(
-        new Error("Preview image preload timed out"),
-      )
+      finish(false)
     }, previewWarmTimeoutMs)
 
-    function finish(error?: Error) {
+    function finish(success: boolean) {
       if (settled) {
         return
       }
@@ -173,126 +178,36 @@ function preloadImage(source: string) {
       image.onload = null
       image.onerror = null
 
-      if (error) {
-        reject(error)
-        return
-      }
-
-      resolve()
+      resolve(success)
     }
 
     image.decoding = "async"
 
     image.onload = () => {
-      finish()
+      finish(true)
     }
 
     image.onerror = () => {
-      finish(
-        new Error("Preview image preload failed"),
-      )
+      finish(false)
     }
 
     image.src = source
   })
 }
 
-async function preloadMedia(
+async function preloadRange(
   source: string,
-  kind: "video" | "audio",
-) {
-  const media = document.createElement(kind)
-
-  const readyEvent =
-    kind === "video"
-      ? "loadeddata"
-      : "loadedmetadata"
-
-  media.preload =
-    kind === "video"
-      ? "auto"
-      : "metadata"
-
-  if (media instanceof HTMLVideoElement) {
-    media.muted = true
-    media.playsInline = true
-  }
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      let settled = false
-
-      const timeout = window.setTimeout(() => {
-        finish(
-          new Error("Preview media preload timed out"),
-        )
-      }, previewWarmTimeoutMs)
-
-      function cleanup() {
-        window.clearTimeout(timeout)
-
-        media.removeEventListener(
-          readyEvent,
-          loaded,
-        )
-
-        media.removeEventListener(
-          "error",
-          failed,
-        )
-      }
-
-      function finish(error?: Error) {
-        if (settled) {
-          return
-        }
-
-        settled = true
-        cleanup()
-
-        if (error) {
-          reject(error)
-          return
-        }
-
-        resolve()
-      }
-
-      function loaded() {
-        finish()
-      }
-
-      function failed() {
-        finish(
-          new Error("Preview media preload failed"),
-        )
-      }
-
-      media.addEventListener(
-        readyEvent,
-        loaded,
-        { once: true },
-      )
-
-      media.addEventListener(
-        "error",
-        failed,
-        { once: true },
-      )
-
-      media.src = source
-      media.load()
-    })
-  } finally {
-    releaseMedia(media)
-  }
-}
-
-async function preloadRange(source: string) {
+  bytes: number,
+): Promise<boolean> {
   const controller = new AbortController()
+  let timedOut = false
 
   const timeout = window.setTimeout(() => {
-    controller.abort()
+    timedOut = true
+
+    controller.abort(
+      new Error("Preview preload timed out"),
+    )
   }, previewWarmTimeoutMs)
 
   try {
@@ -300,26 +215,26 @@ async function preloadRange(source: string) {
       credentials: "include",
       signal: controller.signal,
       headers: {
-        Range: `bytes=0-${previewWarmRangeEnd}`,
+        Range: `bytes=0-${Math.max(0, bytes - 1)}`,
       },
     })
 
     if (!response.ok) {
-      throw new Error(
-        `Preview range preload failed with ${response.status}`,
-      )
+      return false
     }
 
     await response.arrayBuffer()
+
+    return true
+  } catch {
+    return false
   } finally {
     window.clearTimeout(timeout)
-  }
-}
 
-function releaseMedia(media: HTMLMediaElement) {
-  media.pause()
-  media.removeAttribute("src")
-  media.load()
+    if (timedOut && !controller.signal.aborted) {
+      controller.abort()
+    }
+  }
 }
 
 function rememberWarmedPreviewAsset(source: string) {
