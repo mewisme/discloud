@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation"
 
+import { useCurrentUser } from "@/components/app/current-user-context"
 import { type CompactBreadcrumbItem, CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
+import { workspacePath } from "@/lib/workspace/navigation"
 
 export function SettingsPageHeader({
   title,
@@ -12,9 +14,17 @@ export function SettingsPageHeader({
   description: string
 }) {
   const router = useRouter()
+  const user = useCurrentUser()
   const items: CompactBreadcrumbItem[] = [
-    { id: "settings", label: "Settings", href: "/settings" },
-    { id: title.toLowerCase(), label: title },
+    {
+      id: "settings",
+      label: "Settings",
+      href: workspacePath(user.username, "settings"),
+    },
+    {
+      id: title.toLowerCase(),
+      label: title,
+    },
   ]
 
   return (
@@ -24,7 +34,7 @@ export function SettingsPageHeader({
         onNavigate={(item) => {
           if (item.href) router.push(item.href)
         }}
-        separator={'/'}
+        separator="/"
       />
 
       <div>
