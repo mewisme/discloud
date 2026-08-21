@@ -35,7 +35,7 @@ export function FileDetail({
   const breadcrumbItems = [
     ...breadcrumbs.map((item) => ({
       id: item.id,
-      label: item.isRoot ? `${workspace.username}'s Workspace` : item.name,
+      label: item.isRoot ? `${workspace.name}'s Workspace` : item.name,
       href: folderBrowserPath(workspace.username, item.isRoot ? undefined : item.id),
     })),
     { id: `file:${file.id}`, label: file.name },

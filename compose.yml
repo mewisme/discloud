@@ -13,12 +13,30 @@ services:
       - .env
     environment:
       DISCLOUD_HTTP_LISTEN_ADDRESS: ":8080"
+      DISCLOUD_HTTP_CORS_ALLOWED_ORIGINS: ${DISCLOUD_HTTP_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       DISCLOUD_DATABASE_DSN: postgres://discloud:discloud@postgres:5432/discloud?sslmode=disable
     ports:
       - 8080:8080
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - network
+
+  web:
+    image: ghcr.io/mewisme/discloud-web:latest
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: web
+    restart: unless-stopped
+    environment:
+      DISCLOUD_API_URL: http://backend:8080
+      DISCLOUD_PUBLIC_API_URL: ${DISCLOUD_PUBLIC_API_URL:-http://localhost:8080}
+    ports:
+      - 3000:3000
+    depends_on:
+      - backend
     networks:
       - network
 

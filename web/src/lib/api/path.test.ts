@@ -2,19 +2,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { apiBackendPath, apiBackendSegments, apiDirectURL, apiProxyPath, apiURL } from "@/lib/api/path"
 
-const publicAPIURL = process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+const publicAPIURL = process.env.DISCLOUD_PUBLIC_API_URL
 
 beforeEach(() => {
-  delete process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+  delete process.env.DISCLOUD_PUBLIC_API_URL
 })
 
 afterEach(() => {
   if (publicAPIURL === undefined) {
-    delete process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+    delete process.env.DISCLOUD_PUBLIC_API_URL
     return
   }
 
-  process.env.NEXT_PUBLIC_DISCLOUD_API_URL = publicAPIURL
+  process.env.DISCLOUD_PUBLIC_API_URL = publicAPIURL
 })
 
 describe("apiURL", () => {
@@ -51,7 +51,7 @@ describe("apiDirectURL", () => {
   })
 
   it("builds direct backend URLs", () => {
-    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080"
+    process.env.DISCLOUD_PUBLIC_API_URL = "http://localhost:8080"
 
     expect(apiDirectURL("/api/v1/folders/123")).toBe(
       "http://localhost:8080/api/v1/folders/123",
@@ -59,7 +59,7 @@ describe("apiDirectURL", () => {
   })
 
   it("normalizes trailing slashes", () => {
-    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080/"
+    process.env.DISCLOUD_PUBLIC_API_URL = "http://localhost:8080/"
 
     expect(apiDirectURL("/folders/123")).toBe(
       "http://localhost:8080/api/v1/folders/123",
@@ -67,13 +67,21 @@ describe("apiDirectURL", () => {
   })
 
   it("adds direct query parameters", () => {
-    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080"
+    process.env.DISCLOUD_PUBLIC_API_URL = "http://localhost:8080"
 
     expect(apiDirectURL("/search", {
       q: "hello world",
       limit: 25,
     })).toBe(
       "http://localhost:8080/api/v1/search?q=hello+world&limit=25",
+    )
+  })
+
+  it("rejects unsupported public API protocols", () => {
+    process.env.DISCLOUD_PUBLIC_API_URL = "ftp://localhost:8080"
+
+    expect(() => apiDirectURL("/folders/123")).toThrow(
+      "DISCLOUD_PUBLIC_API_URL must use HTTP or HTTPS",
     )
   })
 })

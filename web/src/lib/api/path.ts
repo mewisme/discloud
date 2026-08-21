@@ -4,6 +4,12 @@ const API_PREFIX = "/api/backend"
 const API_VERSION_PREFIX = "/api/v1"
 const API_VERSION_SEGMENTS = ["api", "v1"] as const
 
+type DisCloudRuntimeGlobal = typeof globalThis & {
+  __DISCLOUD_CONFIG__?: {
+    apiURL?: string
+  }
+}
+
 export function apiURL(path: string, query?: Query) {
   const pathname = apiProxyPath(path)
   const search = queryString(query)
@@ -12,14 +18,14 @@ export function apiURL(path: string, query?: Query) {
 }
 
 export function apiDirectURL(path: string, query?: Query) {
-  const raw = process.env.NEXT_PUBLIC_DISCLOUD_API_URL?.trim()
+  const raw = publicAPIURL()
 
   if (!raw) return apiURL(path, query)
 
   const url = new URL(raw)
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("NEXT_PUBLIC_DISCLOUD_API_URL must use HTTP or HTTPS")
+    throw new Error("DISCLOUD_PUBLIC_API_URL must use HTTP or HTTPS")
   }
 
   url.pathname = `${url.pathname.replace(/\/+$/, "")}${apiBackendPath(path)}`
@@ -65,6 +71,14 @@ export function apiBackendSegments(path: readonly string[]) {
   }
 
   return [...API_VERSION_SEGMENTS, ...path]
+}
+
+function publicAPIURL() {
+  if (typeof window === "undefined") {
+    return process.env.DISCLOUD_PUBLIC_API_URL?.trim()
+  }
+
+  return (globalThis as DisCloudRuntimeGlobal).__DISCLOUD_CONFIG__?.apiURL?.trim()
 }
 
 function queryString(query?: Query) {

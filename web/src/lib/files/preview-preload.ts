@@ -1,6 +1,6 @@
 import "client-only"
 
-import { apiURL } from "@/lib/api/client"
+import { apiDirectURL } from "@/lib/api/client"
 import { filePreviewKind } from "@/lib/files/preview"
 
 const maxConcurrentPreviewWarms = 3
@@ -156,7 +156,7 @@ function previewWarmTask(
   file: PreviewPreloadAsset,
   collectionId?: string,
 ): PreviewWarmTask | null {
-  const source = apiURL(
+  const source = apiDirectURL(
     `/files/${encodeURIComponent(file.id)}/content`,
     collectionId ? { collectionId } : undefined,
   )
@@ -230,9 +230,7 @@ function desiredPreviewKeys() {
   const desired = new Set<string>()
 
   for (const window of preloadWindows.values()) {
-    for (const key of window) {
-      desired.add(key)
-    }
+    for (const key of window) desired.add(key)
   }
 
   return desired
@@ -240,12 +238,10 @@ function desiredPreviewKeys() {
 
 function drainPreviewWarmQueue() {
   while (
-    activePreviewWarms.size <
-    maxConcurrentPreviewWarms &&
+    activePreviewWarms.size < maxConcurrentPreviewWarms &&
     pendingPreviewWarms.length > 0
   ) {
     const task = pendingPreviewWarms.shift()
-
     if (!task) return
 
     if (
@@ -257,9 +253,7 @@ function drainPreviewWarmQueue() {
 
     const warm = preloadPreviewTask(task)
       .then((success) => {
-        if (success) {
-          rememberWarmedPreviewTask(task.key)
-        }
+        if (success) rememberWarmedPreviewTask(task.key)
       })
       .finally(() => {
         activePreviewWarms.delete(task.key)
