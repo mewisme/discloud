@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/mewisme/discloud/internal/acl"
 	"github.com/mewisme/discloud/internal/adminops"
@@ -37,6 +38,8 @@ import (
 )
 
 func Run() error {
+	startedAt := time.Now()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -51,6 +54,18 @@ func Run() error {
 	}
 	slog.SetDefault(logger)
 
+	appLogger := logger.With("component", "app")
+	appLogger.Info(
+		"application starting",
+		"listen_address", cfg.HTTP.ListenAddress,
+		"log_level", cfg.Log.Level,
+		"discord_bots", len(cfg.Discord.Bots),
+		"job_workers", cfg.Jobs.WorkerCount,
+		"upload_chunk_size_bytes", cfg.Upload.ChunkSizeBytes,
+		"media_chunk_size_bytes", cfg.Upload.MediaChunkSizeBytes,
+		"upload_session_ttl", cfg.Upload.SessionTTL.String(),
+	)
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -58,11 +73,23 @@ func Run() error {
 	)
 	defer stop()
 
+	dbLogger := logger.With("component", "database")
+	dbStartedAt := time.Now()
+
 	pool, err := postgres.Open(ctx, cfg.Database)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
+
+	dbLogger.Info(
+		"database connected",
+		"min_connections", cfg.Database.MinConnections,
+		"max_connections", cfg.Database.MaxConnections,
+		"duration_ms", time.Since(dbStartedAt).Milliseconds(),
+	)
+
+	migrationStartedAt := time.Now()
 
 	if err := migrate.Up(
 		ctx,
@@ -73,10 +100,17 @@ func Run() error {
 		return err
 	}
 
+	dbLogger.Info(
+		"database migrations ready",
+		"duration_ms", time.Since(migrationStartedAt).Milliseconds(),
+	)
+
 	tokens := make([]string, len(cfg.Discord.Bots))
 	for i, bot := range cfg.Discord.Bots {
 		tokens[i] = bot.Token
 	}
+
+	discordStartedAt := time.Now()
 
 	blobStore, err := discordstore.New(
 		ctx,
@@ -87,6 +121,12 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("create Discord blob store: %w", err)
 	}
+
+	logDiscordStartup(
+		logger.With("component", "discord"),
+		blobStore.RuntimeSnapshot(),
+		time.Since(discordStartedAt),
+	)
 
 	setupService := setup.New(pool)
 	authService := auth.NewWithMFA(
@@ -125,6 +165,8 @@ func Run() error {
 		logger.With("component", "orphan-gc"),
 	)
 
+	appLogger.Info("application services initialized")
+
 	go uploads.RunExpiryWorker(
 		ctx,
 		uploadService,
@@ -149,9 +191,20 @@ func Run() error {
 		)
 	}
 
+	logger.Info(
+		"background workers started",
+		"component", "workers",
+		"job_workers", cfg.Jobs.WorkerCount,
+		"upload_expiry", true,
+		"orphan_gc", true,
+		"object_gc", true,
+	)
+
+	readyCheck := readinessCheck(pool, blobStore)
+
 	handler := httpapi.NewRouter(
 		httpapi.RouterDependencies{
-			Ready:        readinessCheck(pool, blobStore),
+			Ready:        readyCheck,
 			Setup:        setupService,
 			Auth:         authService,
 			Avatars:      avatarService,
@@ -176,8 +229,30 @@ func Run() error {
 		cfg.Auth,
 	)
 
+	if err := readyCheck(ctx); err != nil {
+		appLogger.Warn(
+			"startup readiness check failed",
+			"error", err,
+			"startup_duration_ms", time.Since(startedAt).Milliseconds(),
+		)
+	} else {
+		appLogger.Info(
+			"startup readiness check passed",
+			"startup_duration_ms", time.Since(startedAt).Milliseconds(),
+		)
+	}
+
 	server := httpapi.NewServer(cfg.HTTP, handler)
-	logger.Info("HTTP server started", "address", server.Addr)
+	httpLogger := logger.With("component", "http", "address", server.Addr)
+
+	if cfg.HTTP.PublicBaseURL != nil {
+		httpLogger.Info(
+			"HTTP server starting",
+			"public_base_url", cfg.HTTP.PublicBaseURL.String(),
+		)
+	} else {
+		httpLogger.Info("HTTP server starting")
+	}
 
 	if err := runServer(
 		ctx,
@@ -187,6 +262,53 @@ func Run() error {
 		return err
 	}
 
-	logger.Info("application stopped")
+	appLogger.Info(
+		"application stopped",
+		"uptime_ms", time.Since(startedAt).Milliseconds(),
+	)
+
 	return nil
+}
+
+func logDiscordStartup(
+	logger *slog.Logger,
+	snapshot discordstore.BotRuntimeSnapshot,
+	duration time.Duration,
+) {
+	for _, bot := range snapshot.Bots {
+		if !bot.Resolved {
+			logger.Warn(
+				"Discord bot unresolved",
+				"config_index", bot.ConfigIndex,
+				"error_class", bot.ResolveErrorClass,
+				"error", bot.ResolveErrorMessage,
+			)
+			continue
+		}
+
+		logger.Info(
+			"Discord bot loaded",
+			"config_index", bot.ConfigIndex,
+			"user_id", bot.UserID,
+			"username", bot.Username,
+			"display_name", bot.DisplayName,
+			"state", bot.State,
+		)
+	}
+
+	args := []any{
+		"configured", snapshot.Capacity.Configured,
+		"resolved", snapshot.Resolved,
+		"unresolved", snapshot.Unresolved,
+		"effective_capacity", snapshot.Capacity.Effective,
+		"available", snapshot.Capacity.Available,
+		"duration_ms", duration.Milliseconds(),
+	}
+
+	if snapshot.Unresolved > 0 || snapshot.Capacity.Effective < 1 {
+		logger.Warn("Discord storage initialized in degraded mode", args...)
+		return
+	}
+
+	logger.Info("Discord storage ready", args...)
 }
