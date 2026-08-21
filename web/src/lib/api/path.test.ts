@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest"
 
-import { apiBackendPath, apiBackendSegments, apiProxyPath } from "@/lib/api/path"
+import { apiBackendPath, apiBackendSegments, apiProxyPath, apiURL } from "@/lib/api/path"
+
+describe("apiURL", () => {
+  it("builds proxy URLs from versioned API paths", () => {
+    expect(apiURL("/api/v1/folders/123")).toBe("/api/backend/folders/123")
+    expect(apiURL("api/v1/folders/123")).toBe("/api/backend/folders/123")
+  })
+
+  it("builds proxy URLs from short API paths", () => {
+    expect(apiURL("/folders/123")).toBe("/api/backend/folders/123")
+    expect(apiURL("folders/123")).toBe("/api/backend/folders/123")
+  })
+
+  it("encodes query values and ignores nullish values", () => {
+    expect(apiURL("/api/v1/search", {
+      q: "hello world",
+      limit: 25,
+      favorite: true,
+      cursor: undefined,
+      category: null,
+    })).toBe("/api/backend/search?q=hello+world&limit=25&favorite=true")
+  })
+
+  it("repeats array query parameters", () => {
+    expect(apiURL("/api/v1/files", {
+      id: ["first", "second"],
+    })).toBe("/api/backend/files?id=first&id=second")
+  })
+})
 
 describe("apiProxyPath", () => {
   it("removes the API version prefix", () => {
