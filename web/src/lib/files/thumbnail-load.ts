@@ -77,7 +77,10 @@ function thumbnailAttemptURL(baseURL: string, attempt: number) {
 
   const url = new URL(baseURL, window.location.origin)
   url.searchParams.set("_thumbnailRetry", String(attempt))
-  return `${url.pathname}${url.search}${url.hash}`
+
+  return /^https?:\/\//i.test(baseURL)
+    ? url.toString()
+    : `${url.pathname}${url.search}${url.hash}`
 }
 
 function waitForThumbnailRetry(attempt: number, signal?: AbortSignal) {

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 
 import { FileTypeIcon } from "@/components/files/file-type-icon"
-import { apiURL } from "@/lib/api/client"
+import { apiDirectURL } from "@/lib/api/client"
 import type { BrowserNode } from "@/lib/api/models"
 import { loadThumbnail } from "@/lib/files/thumbnail-load"
 import { cn } from "@/lib/utils"
@@ -20,7 +20,7 @@ export function FileNodeVisual({
   iconClassName?: string
 }) {
   const thumbnailURL = node.kind === "file" && node.thumbnailStatus === "ready"
-    ? apiURL(`/files/${encodeURIComponent(node.id)}/thumbnail`)
+    ? apiDirectURL(`/files/${encodeURIComponent(node.id)}/thumbnail`)
     : undefined
   const [source, setSource] = useState<string>()
   const [failed, setFailed] = useState(false)
