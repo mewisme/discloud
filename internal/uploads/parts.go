@@ -138,10 +138,20 @@ func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID strin
 				return ErrAttemptsExhausted
 			}
 
-			botUserID, releaseBot, err := acquireUploadBot(ctx, u.blobs, excluded)
-			if err != nil {
-				return err
-			}
+			partIndexValue := partIndex
+
+			botUserID, releaseBot, err := acquireUploadBot(
+				ctx,
+				u.blobs,
+				excluded,
+				blobstore.LeaseMetadata{
+					Operation: blobstore.LeaseOperationUpload,
+					UploadID:  current.ID,
+					FileName:  current.Name,
+					PartIndex: &partIndexValue,
+					SizeBytes: size,
+				},
+			)
 
 			attempt, err := u.service.StartAttempt(ctx, current.ID, partIndex, botUserID)
 			if errors.Is(err, ErrBotAlreadyTried) {
@@ -404,10 +414,24 @@ func scanPart(row scanner) (Part, error) {
 	return part, nil
 }
 
-func acquireUploadBot(ctx context.Context, store blobstore.AttemptBlobStore, excluded []string) (string, func(), error) {
+func acquireUploadBot(
+	ctx context.Context,
+	store blobstore.AttemptBlobStore,
+	excluded []string,
+	metadata blobstore.LeaseMetadata,
+) (string, func(), error) {
+	if leased, ok := store.(blobstore.UploadLeaseMetadataStore); ok {
+		return leased.AcquireUploadBotFor(
+			ctx,
+			excluded,
+			metadata,
+		)
+	}
+
 	if leased, ok := store.(blobstore.UploadLeaseStore); ok {
 		return leased.AcquireUploadBot(ctx, excluded)
 	}
+
 	botUserID, err := store.SelectUploadBot(excluded)
 	return botUserID, func() {}, err
 }

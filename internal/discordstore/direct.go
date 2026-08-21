@@ -13,10 +13,27 @@ import (
 )
 
 func (s *Store) AcquireUploadBot(ctx context.Context, excludedBotUserIDs []string) (string, func(), error) {
-	bot, release, err := s.scheduler.Acquire(ctx, excludedBotUserIDs)
+	return s.AcquireUploadBotFor(
+		ctx,
+		excludedBotUserIDs,
+		blobstore.LeaseMetadata{Operation: blobstore.LeaseOperationUpload},
+	)
+}
+
+func (s *Store) AcquireUploadBotFor(
+	ctx context.Context,
+	excludedBotUserIDs []string,
+	metadata blobstore.LeaseMetadata,
+) (string, func(), error) {
+	if metadata.Operation == "" {
+		metadata.Operation = blobstore.LeaseOperationUpload
+	}
+
+	bot, release, err := s.scheduler.Acquire(ctx, excludedBotUserIDs, metadata)
 	if err != nil {
 		return "", nil, err
 	}
+
 	return bot.UserID, release, nil
 }
 
@@ -30,7 +47,15 @@ func (s *Store) PutObject(ctx context.Context, filename string, r io.ReadSeeker,
 	var lastErr error
 
 	for len(excluded) < s.scheduler.Len() {
-		botUserID, release, err := s.AcquireUploadBot(ctx, excluded)
+		botUserID, release, err := s.AcquireUploadBotFor(
+			ctx,
+			excluded,
+			blobstore.LeaseMetadata{
+				Operation: blobstore.LeaseOperationUpload,
+				FileName:  filename,
+				SizeBytes: size,
+			},
+		)
 		if err != nil {
 			if lastErr != nil {
 				return blobstore.PutResult{}, lastErr
@@ -51,6 +76,7 @@ func (s *Store) PutObject(ctx context.Context, filename string, r io.ReadSeeker,
 
 		lastErr = err
 		excluded = append(excluded, botUserID)
+
 		_, retryable := blobstore.Classify(err)
 		if !retryable {
 			return blobstore.PutResult{}, err
@@ -60,11 +86,15 @@ func (s *Store) PutObject(ctx context.Context, filename string, r io.ReadSeeker,
 	if lastErr != nil {
 		return blobstore.PutResult{}, lastErr
 	}
+
 	return blobstore.PutResult{}, blobstore.ErrNoUsableBot
 }
 
 func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Location) (string, time.Time, error) {
-	if location.DiscordChannelID == "" || location.DiscordMessageID == "" || location.DiscordAttachmentID == "" || location.DiscordChannelID != s.channelID {
+	if location.DiscordChannelID == "" ||
+		location.DiscordMessageID == "" ||
+		location.DiscordAttachmentID == "" ||
+		location.DiscordChannelID != s.channelID {
 		return "", time.Time{}, blobstore.ErrInvalidChunk
 	}
 
@@ -76,42 +106,67 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 			return "", time.Time{}, classifyError("", err)
 		}
 
-		bot, release, err := s.scheduler.Acquire(ctx, excluded)
+		bot, release, err := s.scheduler.Acquire(
+			ctx,
+			excluded,
+			blobstore.LeaseMetadata{
+				Operation:  blobstore.LeaseOperationResolve,
+				ResourceID: location.DiscordMessageID,
+			},
+		)
 		if err != nil {
 			if lastErr != nil {
 				return "", time.Time{}, lastErr
 			}
 			return "", time.Time{}, err
 		}
+
 		excluded = append(excluded, bot.UserID)
 
-		message, err := s.client.GetMessage(ctx, bot.Token, location.DiscordChannelID, location.DiscordMessageID)
+		message, err := s.client.GetMessage(
+			ctx,
+			bot.Token,
+			location.DiscordChannelID,
+			location.DiscordMessageID,
+		)
 		if err != nil {
 			classified := classifyError(bot.UserID, err)
+			s.scheduler.RecordFailure(bot.UserID, classified)
 			s.applyCooldown(bot.UserID, classified)
 			release()
 			lastErr = classified
 			continue
 		}
-		release()
 
+		found := false
 		for _, attachment := range message.Attachments {
-			if attachment.ID == location.DiscordAttachmentID && strings.TrimSpace(attachment.URL) != "" {
-				return attachment.URL, attachmentURLExpiry(attachment.URL), nil
+			if attachment.ID != location.DiscordAttachmentID || strings.TrimSpace(attachment.URL) == "" {
+				continue
 			}
+
+			found = true
+			s.scheduler.RecordSuccess(bot.UserID, 0)
+			release()
+			return attachment.URL, attachmentURLExpiry(attachment.URL), nil
 		}
 
-		lastErr = &UpstreamError{
-			Class:     ErrorProtocol,
-			BotUserID: bot.UserID,
-			Retryable: false,
-			Cause:     errors.New("Discord attachment not present in message response"),
+		if !found {
+			protocolErr := &UpstreamError{
+				Class:     ErrorProtocol,
+				BotUserID: bot.UserID,
+				Retryable: false,
+				Cause:     errors.New("Discord attachment not present in message response"),
+			}
+			s.scheduler.RecordFailure(bot.UserID, protocolErr)
+			release()
+			lastErr = protocolErr
 		}
 	}
 
 	if lastErr != nil {
 		return "", time.Time{}, lastErr
 	}
+
 	return "", time.Time{}, blobstore.ErrNoUsableBot
 }
 
@@ -134,5 +189,6 @@ func attachmentURLExpiry(rawURL string) time.Time {
 	if err != nil || seconds <= 0 {
 		return time.Time{}
 	}
+
 	return time.Unix(seconds, 0).UTC()
 }

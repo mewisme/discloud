@@ -27,6 +27,26 @@ type PutResult struct {
 	AttachmentURLExpiresAt time.Time
 }
 
+type LeaseOperation string
+
+const (
+	LeaseOperationUnknown     LeaseOperation = "unknown"
+	LeaseOperationUpload      LeaseOperation = "upload"
+	LeaseOperationResolve     LeaseOperation = "resolve"
+	LeaseOperationDelete      LeaseOperation = "delete"
+	LeaseOperationProbe       LeaseOperation = "probe"
+	LeaseOperationMaintenance LeaseOperation = "maintenance"
+)
+
+type LeaseMetadata struct {
+	Operation  LeaseOperation
+	UploadID   string
+	ResourceID string
+	FileName   string
+	PartIndex  *int
+	SizeBytes  int64
+}
+
 type ClassifiedError interface {
 	error
 	StorageClass() string
@@ -46,6 +66,10 @@ type AttemptBlobStore interface {
 
 type UploadLeaseStore interface {
 	AcquireUploadBot(ctx context.Context, excludedBotUserIDs []string) (botUserID string, release func(), err error)
+}
+
+type UploadLeaseMetadataStore interface {
+	AcquireUploadBotFor(ctx context.Context, excludedBotUserIDs []string, metadata LeaseMetadata) (botUserID string, release func(), err error)
 }
 
 type DirectObjectStore interface {

@@ -66,66 +66,38 @@ func TestLoad_EnvironmentOverrides(t *testing.T) {
 	)
 
 	values := map[string]string{
-		envHTTPListenAddress: ":9000",
-
-		envPublicBaseURL: "https://files.example.com/base",
-
+		envHTTPListenAddress:     ":9000",
+		envPublicBaseURL:         "https://files.example.com/base",
 		envHTTPReadHeaderTimeout: "7s",
-
-		envHTTPIdleTimeout: "3m",
-
-		envHTTPShutdownTimeout: "20s",
-
-		envHTTPMaxHeaderBytes: "2097152",
-
-		envHTTPTrustedProxies: "10.0.0.1, 10.0.0.2",
-
+		envHTTPIdleTimeout:       "3m",
+		envHTTPShutdownTimeout:   "20s",
+		envHTTPMaxHeaderBytes:    "2097152",
+		envHTTPTrustedProxies:    "10.0.0.1, 10.0.0.2",
 		envHTTPCORSAllowedOrigins: "https://app.example.com\n" +
 			"https://admin.example.com",
-
-		envDatabaseDSN: "postgres://user:pass@db/discloud",
-
-		envDatabaseMinConnections: "2",
-
-		envDatabaseMaxConnections: "30",
-
+		envDatabaseDSN:               "postgres://user:pass@db/discloud",
+		envDatabaseMinConnections:    "2",
+		envDatabaseMaxConnections:    "30",
 		envDatabaseMaxConnectionLife: "2h",
-
 		envDatabaseMaxConnectionIdle: "45m",
-
 		envDatabaseHealthCheckPeriod: "30s",
-
-		envAuthSessionTTL: "336h",
-
-		envAuthCookieName: "dc_session",
-
-		envAuthCookieDomain: "example.com",
-
-		envAuthCookiePath: "/api",
-
-		envAuthCookieSecure: "false",
-
-		envAuthCookieSameSite: "STRICT",
-
-		envMFAIssuer: "My DisCloud",
-
+		envAuthSessionTTL:            "336h",
+		envAuthCookieName:            "dc_session",
+		envAuthCookieDomain:          "example.com",
+		envAuthCookiePath:            "/api",
+		envAuthCookieSecure:          "false",
+		envAuthCookieSameSite:        "STRICT",
+		envMFAIssuer:                 "My DisCloud",
 		envEncryptionMasterKeyBase64: base64.StdEncoding.EncodeToString(
 			masterKey,
 		),
-
-		envDiscordGuildID: "guild-1",
-
+		envDiscordGuildID:   "guild-1",
 		envDiscordChannelID: "channel-1",
-
 		envDiscordBotTokens: "bot-a, bot-b\nbot-c",
-
-		envUploadChunkSize: "20MiB",
-
+		envUploadChunkSize:  "20MiB",
 		envUploadSessionTTL: "72h",
-
-		envJobsWorkerCount: "6",
-
-		envLogLevel: "DEBUG",
+		envJobsWorkerCount:  "6",
+		envLogLevel:         "DEBUG",
 	}
 
 	cfg, err := load(
