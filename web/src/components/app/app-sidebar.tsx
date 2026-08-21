@@ -7,6 +7,7 @@ import { type ComponentType, useEffect, useState } from "react"
 
 import type { Workspace } from "@/components/app/workspace-context"
 import { WorkspaceSwitcher } from "@/components/app/workspace-switcher"
+import { useUserConfig } from "@/components/settings/user-config-context"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
@@ -32,6 +33,9 @@ export function AppSidebar({
   workspace: Workspace
   usage: CurrentUserUsage
 }) {
+  const { config } = useUserConfig()
+  const sidebar = config.common.sidebar
+  const submenuSide = sidebar.side === "left" ? "right" : "left"
   const workspaceRoot = workspacePath(workspace.username)
 
   const primaryItems: NavItem[] = [
@@ -95,7 +99,11 @@ export function AppSidebar({
   ]
 
   return (
-    <Sidebar variant="inset" collapsible="icon">
+    <Sidebar
+      side={sidebar.side}
+      variant={sidebar.variant}
+      collapsible={sidebar.collapsible}
+    >
       <SidebarHeader>
         <WorkspaceSwitcher />
       </SidebarHeader>
@@ -112,6 +120,7 @@ export function AppSidebar({
                 title="Library"
                 icon={LibraryIcon}
                 items={libraryItems}
+                dropdownSide={submenuSide}
               />
             </SidebarMenu>
           </SidebarGroupContent>
@@ -174,10 +183,12 @@ function GroupedNavItem({
   title,
   icon: Icon,
   items,
+  dropdownSide,
 }: {
   title: string
   icon: ComponentType<{ className?: string }>
   items: NavItem[]
+  dropdownSide: "left" | "right"
 }) {
   const pathname = usePathname()
   const { state, isMobile, setOpenMobile } = useSidebar()
@@ -203,7 +214,7 @@ function GroupedNavItem({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            side="right"
+            side={dropdownSide}
             align="start"
             sideOffset={8}
             className="w-48"

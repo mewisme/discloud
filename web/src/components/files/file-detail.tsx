@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { File, Node } from "@/lib/api/models"
-import { fileBrowserPath, folderBrowserPath, workspacePath } from "@/lib/files/navigation"
+import { folderBrowserPath, workspacePath } from "@/lib/files/navigation"
 import { formatBytes, formatDuration, formatNumber } from "@/lib/helpers"
 
 export function FileDetail({

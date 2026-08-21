@@ -1980,6 +1980,23 @@ export type components = {
         readonly SharedItems: {
             readonly items: readonly components["schemas"]["SharedItem"][];
         };
+        readonly SidebarConfig: {
+            /**
+             * @default icon
+             * @enum {string}
+             */
+            readonly collapsible: "offcanvas" | "icon" | "none";
+            /**
+             * @default left
+             * @enum {string}
+             */
+            readonly side: "left" | "right";
+            /**
+             * @default inset
+             * @enum {string}
+             */
+            readonly variant: "sidebar" | "floating" | "inset";
+        };
         readonly StorageOverview: {
             /** Format: int64 */
             readonly activeFileCount: number;
@@ -2097,6 +2114,7 @@ export type components = {
             readonly common: {
                 readonly fileBrowserToolbar: components["schemas"]["FileBrowserToolbarConfig"];
                 readonly filePreview: components["schemas"]["FilePreviewConfig"];
+                readonly sidebar: components["schemas"]["SidebarConfig"];
                 readonly timezone: string;
             };
             /** Format: int64 */
@@ -2929,6 +2947,7 @@ export type components = {
                 readonly "application/json": {
                     readonly fileBrowserToolbar?: components["schemas"]["FileBrowserToolbarConfig"];
                     readonly filePreview?: components["schemas"]["FilePreviewConfig"];
+                    readonly sidebar?: components["schemas"]["SidebarConfig"];
                     readonly timezone: string;
                 };
             };

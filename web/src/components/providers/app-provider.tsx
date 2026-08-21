@@ -10,13 +10,13 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 export function AppProvider({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
         {children}
       </TooltipProvider>
       <RouteFocusManager />
       <NetworkStatus />
-      <Toaster closeButton richColors />
+      <Toaster richColors />
     </ThemeProvider>
   )
 }

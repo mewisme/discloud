@@ -5,6 +5,7 @@ import { filePreviewKind } from "@/lib/files/preview"
 
 const maxConcurrentPreviewWarms = 3
 const maxRememberedWarmAssets = 256
+const maxRetainedMediaWarms = 12
 const previewWarmRangeEnd = 256 * 1024 - 1
 
 export type PreviewPreloadAsset = {
@@ -21,6 +22,7 @@ type PreviewWarmTask = {
 const preloadWindows = new Map<symbol, Set<string>>()
 const warmedPreviewAssets = new Set<string>()
 const activePreviewWarms = new Map<string, Promise<void>>()
+const retainedMediaWarms = new Map<string, HTMLMediaElement>()
 let pendingPreviewWarms: PreviewWarmTask[] = []
 
 export function setPreviewPreloadWindow(
@@ -116,8 +118,10 @@ async function preloadPreviewAsset(task: PreviewWarmTask) {
       await preloadImage(task.source)
       return
     case "video":
+      await preloadMedia(task.source, "video")
+      return
     case "audio":
-      await preloadMedia(task.source, task.kind)
+      await preloadMedia(task.source, "audio")
       return
     case "pdf":
     case "text":
@@ -146,12 +150,19 @@ function preloadImage(source: string) {
 
 async function preloadMedia(source: string, kind: "video" | "audio") {
   const media = document.createElement(kind)
-  media.preload = "metadata"
+  const readyEvent = kind === "video" ? "loadeddata" : "loadedmetadata"
+
+  media.preload = kind === "video" ? "auto" : "metadata"
+
+  if (media instanceof HTMLVideoElement) {
+    media.muted = true
+    media.playsInline = true
+  }
 
   try {
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
-        media.removeEventListener("loadedmetadata", loaded)
+        media.removeEventListener(readyEvent, loaded)
         media.removeEventListener("error", failed)
       }
 
@@ -165,14 +176,18 @@ async function preloadMedia(source: string, kind: "video" | "audio") {
         reject(new Error("Preview media preload failed"))
       }
 
-      media.addEventListener("loadedmetadata", loaded, { once: true })
+      media.addEventListener(readyEvent, loaded, { once: true })
       media.addEventListener("error", failed, { once: true })
       media.src = source
       media.load()
     })
+
+    if (kind === "video") {
+      retainMediaWarm(source, media)
+      return
+    }
   } finally {
-    media.removeAttribute("src")
-    media.load()
+    if (kind !== "video") releaseMedia(media)
   }
 }
 
@@ -191,6 +206,27 @@ async function preloadRange(source: string) {
   await response.arrayBuffer()
 }
 
+function retainMediaWarm(source: string, media: HTMLMediaElement) {
+  const previous = retainedMediaWarms.get(source)
+  if (previous && previous !== media) releaseMedia(previous)
+
+  retainedMediaWarms.delete(source)
+  retainedMediaWarms.set(source, media)
+
+  while (retainedMediaWarms.size > maxRetainedMediaWarms) {
+    const oldest = retainedMediaWarms.entries().next().value as [string, HTMLMediaElement] | undefined
+    if (!oldest) break
+
+    retainedMediaWarms.delete(oldest[0])
+    releaseMedia(oldest[1])
+  }
+}
+
+function releaseMedia(media: HTMLMediaElement) {
+  media.removeAttribute("src")
+  media.load()
+}
+
 function rememberWarmedPreviewAsset(source: string) {
   warmedPreviewAssets.delete(source)
   warmedPreviewAssets.add(source)
@@ -198,6 +234,13 @@ function rememberWarmedPreviewAsset(source: string) {
   while (warmedPreviewAssets.size > maxRememberedWarmAssets) {
     const oldest = warmedPreviewAssets.values().next().value
     if (!oldest) break
+
     warmedPreviewAssets.delete(oldest)
+
+    const media = retainedMediaWarms.get(oldest)
+    if (media) {
+      retainedMediaWarms.delete(oldest)
+      releaseMedia(media)
+    }
   }
 }

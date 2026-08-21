@@ -22,6 +22,7 @@ var (
 	ErrInvalidTimezone           = errors.New("invalid timezone")
 	ErrInvalidFileBrowserToolbar = errors.New("invalid file browser toolbar configuration")
 	ErrInvalidFilePreview        = errors.New("invalid file preview configuration")
+	ErrInvalidSidebar            = errors.New("invalid sidebar configuration")
 	ErrInvalidConfigKey          = errors.New("invalid app config key")
 	ErrInvalidConfigValue        = errors.New("invalid app config value")
 	ErrAppConfigNotFound         = errors.New("app config not found")
@@ -42,16 +43,24 @@ type FilePreviewConfig struct {
 	PreloadNext int `json:"preloadNext"`
 }
 
+type SidebarConfig struct {
+	Side        string `json:"side"`
+	Variant     string `json:"variant"`
+	Collapsible string `json:"collapsible"`
+}
+
 type CommonUserConfig struct {
 	Timezone           string                   `json:"timezone"`
 	FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 	FilePreview        FilePreviewConfig        `json:"filePreview"`
+	Sidebar            SidebarConfig            `json:"sidebar"`
 }
 
 type CommonUserConfigPatch struct {
 	Timezone           string
 	FileBrowserToolbar *FileBrowserToolbarConfig
 	FilePreview        *FilePreviewConfig
+	Sidebar            *SidebarConfig
 }
 
 type UserConfig struct {
@@ -120,6 +129,14 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID string, inp
 			return UserConfig{}, err
 		}
 		commonPatch["filePreview"] = preview
+	}
+
+	if input.Sidebar != nil {
+		sidebar, err := validateSidebarConfig(*input.Sidebar)
+		if err != nil {
+			return UserConfig{}, err
+		}
+		commonPatch["sidebar"] = sidebar
 	}
 
 	patchJSON, err := json.Marshal(commonPatch)
@@ -221,6 +238,7 @@ func (s *Service) GetAppConfig(ctx context.Context, key string) (AppConfigEntry,
 	if err != nil {
 		return AppConfigEntry{}, fmt.Errorf("get app config: %w", err)
 	}
+
 	return entry, nil
 }
 
@@ -279,6 +297,7 @@ func (s *Service) SetAppConfig(ctx context.Context, actorUserID, key string, val
 	if err != nil {
 		return AppConfigEntry{}, err
 	}
+
 	return entry, nil
 }
 
@@ -319,6 +338,7 @@ func defaultUserConfig() UserConfig {
 			Timezone:           "UTC",
 			FileBrowserToolbar: defaultFileBrowserToolbarConfig(),
 			FilePreview:        defaultFilePreviewConfig(),
+			Sidebar:            defaultSidebarConfig(),
 		},
 	}
 }
@@ -336,12 +356,21 @@ func defaultFilePreviewConfig() FilePreviewConfig {
 	}
 }
 
+func defaultSidebarConfig() SidebarConfig {
+	return SidebarConfig{
+		Side:        "left",
+		Variant:     "inset",
+		Collapsible: "icon",
+	}
+}
+
 func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	var stored struct {
 		Common struct {
 			Timezone           string                   `json:"timezone"`
 			FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 			FilePreview        FilePreviewConfig        `json:"filePreview"`
+			Sidebar            SidebarConfig            `json:"sidebar"`
 		} `json:"common"`
 	}
 
@@ -379,11 +408,28 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 		return UserConfig{}, fmt.Errorf("decode file preview config: %w", err)
 	}
 
+	sidebar := defaultSidebarConfig()
+	if strings.TrimSpace(stored.Common.Sidebar.Side) != "" {
+		sidebar.Side = stored.Common.Sidebar.Side
+	}
+	if strings.TrimSpace(stored.Common.Sidebar.Variant) != "" {
+		sidebar.Variant = stored.Common.Sidebar.Variant
+	}
+	if strings.TrimSpace(stored.Common.Sidebar.Collapsible) != "" {
+		sidebar.Collapsible = stored.Common.Sidebar.Collapsible
+	}
+
+	sidebar, err = validateSidebarConfig(sidebar)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("decode sidebar config: %w", err)
+	}
+
 	return UserConfig{
 		Common: CommonUserConfig{
 			Timezone:           timezone,
 			FileBrowserToolbar: toolbar,
 			FilePreview:        preview,
+			Sidebar:            sidebar,
 		},
 		Revision: revision,
 	}, nil
@@ -397,6 +443,7 @@ func validateTimezone(value string) (string, error) {
 	if _, err := time.LoadLocation(value); err != nil {
 		return "", ErrInvalidTimezone
 	}
+
 	return value, nil
 }
 
@@ -418,6 +465,25 @@ func validateFilePreviewConfig(value FilePreviewConfig) (FilePreviewConfig, erro
 	if value.PreloadNext < 3 || value.PreloadNext > 5 {
 		return FilePreviewConfig{}, ErrInvalidFilePreview
 	}
+
+	return value, nil
+}
+
+func validateSidebarConfig(value SidebarConfig) (SidebarConfig, error) {
+	value.Side = strings.TrimSpace(value.Side)
+	value.Variant = strings.TrimSpace(value.Variant)
+	value.Collapsible = strings.TrimSpace(value.Collapsible)
+
+	if value.Side != "left" && value.Side != "right" {
+		return SidebarConfig{}, ErrInvalidSidebar
+	}
+	if value.Variant != "sidebar" && value.Variant != "floating" && value.Variant != "inset" {
+		return SidebarConfig{}, ErrInvalidSidebar
+	}
+	if value.Collapsible != "offcanvas" && value.Collapsible != "icon" && value.Collapsible != "none" {
+		return SidebarConfig{}, ErrInvalidSidebar
+	}
+
 	return value, nil
 }
 
@@ -425,6 +491,7 @@ func validateAppConfigKey(key string) error {
 	if len(key) == 0 || len(key) > 128 || !appConfigKeyPattern.MatchString(key) {
 		return ErrInvalidConfigKey
 	}
+
 	return nil
 }
 

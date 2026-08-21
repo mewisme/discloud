@@ -73,6 +73,36 @@ func TestValidateFilePreviewConfig(t *testing.T) {
 	}
 }
 
+func TestValidateSidebarConfig(t *testing.T) {
+	t.Parallel()
+
+	for _, config := range []SidebarConfig{
+		{Side: "left", Variant: "sidebar", Collapsible: "offcanvas"},
+		{Side: "left", Variant: "floating", Collapsible: "icon"},
+		{Side: "left", Variant: "inset", Collapsible: "none"},
+		{Side: "right", Variant: "sidebar", Collapsible: "icon"},
+		{Side: "right", Variant: "floating", Collapsible: "offcanvas"},
+		{Side: "right", Variant: "inset", Collapsible: "icon"},
+	} {
+		if _, err := validateSidebarConfig(config); err != nil {
+			t.Fatalf("validateSidebarConfig(%+v): %v", config, err)
+		}
+	}
+
+	for _, config := range []SidebarConfig{
+		{Side: "", Variant: "inset", Collapsible: "icon"},
+		{Side: "top", Variant: "inset", Collapsible: "icon"},
+		{Side: "left", Variant: "", Collapsible: "icon"},
+		{Side: "left", Variant: "card", Collapsible: "icon"},
+		{Side: "left", Variant: "inset", Collapsible: ""},
+		{Side: "left", Variant: "inset", Collapsible: "collapsed"},
+	} {
+		if _, err := validateSidebarConfig(config); !errors.Is(err, ErrInvalidSidebar) {
+			t.Fatalf("validateSidebarConfig(%+v) error = %v, want ErrInvalidSidebar", config, err)
+		}
+	}
+}
+
 func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +123,15 @@ func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 	if config.Common.FilePreview.PreloadNext != 3 {
 		t.Fatalf("preview preloadNext = %d, want 3", config.Common.FilePreview.PreloadNext)
 	}
+	if config.Common.Sidebar.Side != "left" {
+		t.Fatalf("sidebar side = %q, want left", config.Common.Sidebar.Side)
+	}
+	if config.Common.Sidebar.Variant != "inset" {
+		t.Fatalf("sidebar variant = %q, want inset", config.Common.Sidebar.Variant)
+	}
+	if config.Common.Sidebar.Collapsible != "icon" {
+		t.Fatalf("sidebar collapsible = %q, want icon", config.Common.Sidebar.Collapsible)
+	}
 	if config.Revision != 7 {
 		t.Fatalf("revision = %d, want 7", config.Revision)
 	}
@@ -108,6 +147,25 @@ func TestDecodeUserConfigFilePreview(t *testing.T) {
 
 	if config.Common.FilePreview.PreloadNext != 5 {
 		t.Fatalf("preview preloadNext = %d, want 5", config.Common.FilePreview.PreloadNext)
+	}
+}
+
+func TestDecodeUserConfigSidebar(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","sidebar":{"side":"right","variant":"floating","collapsible":"offcanvas"}}}`), 4)
+	if err != nil {
+		t.Fatalf("decodeUserConfig: %v", err)
+	}
+
+	if config.Common.Sidebar.Side != "right" {
+		t.Fatalf("sidebar side = %q, want right", config.Common.Sidebar.Side)
+	}
+	if config.Common.Sidebar.Variant != "floating" {
+		t.Fatalf("sidebar variant = %q, want floating", config.Common.Sidebar.Variant)
+	}
+	if config.Common.Sidebar.Collapsible != "offcanvas" {
+		t.Fatalf("sidebar collapsible = %q, want offcanvas", config.Common.Sidebar.Collapsible)
 	}
 }
 

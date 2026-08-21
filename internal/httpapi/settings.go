@@ -16,6 +16,7 @@ type updateCommonConfigRequest struct {
 	Timezone           string                             `json:"timezone"`
 	FileBrowserToolbar *settings.FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 	FilePreview        *settings.FilePreviewConfig        `json:"filePreview"`
+	Sidebar            *settings.SidebarConfig            `json:"sidebar"`
 }
 
 type setAppConfigRequest struct {
@@ -53,6 +54,7 @@ func registerSettingsRoutes(mux *http.ServeMux, service *settings.Service, authS
 				Timezone:           input.Timezone,
 				FileBrowserToolbar: input.FileBrowserToolbar,
 				FilePreview:        input.FilePreview,
+				Sidebar:            input.Sidebar,
 			},
 		)
 		if writeSettingsError(w, r, err) {
@@ -124,6 +126,8 @@ func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) bool 
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file browser toolbar configuration")
 	case errors.Is(err, settings.ErrInvalidFilePreview):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file preview configuration")
+	case errors.Is(err, settings.ErrInvalidSidebar):
+		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid sidebar configuration")
 	case errors.Is(err, settings.ErrInvalidConfigKey):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid app config key")
 	case errors.Is(err, settings.ErrInvalidConfigValue):
@@ -133,6 +137,7 @@ func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) bool 
 	default:
 		WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not process settings")
 	}
+
 	return true
 }
 

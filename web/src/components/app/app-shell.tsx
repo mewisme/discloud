@@ -7,10 +7,12 @@ import { AppHeader } from "@/components/app/app-header"
 import { AppSidebar } from "@/components/app/app-sidebar"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { type Workspace, WorkspaceProvider } from "@/components/app/workspace-context"
+import { useUserConfig } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { UploadManagerButton } from "@/components/uploads/upload-manager-button"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
+import { cn } from "@/lib/utils"
 
 export function AppShell({
   children,
@@ -25,10 +27,16 @@ export function AppShell({
   usage: CurrentUserUsage
   defaultSidebarOpen: boolean
 }) {
+  const { config } = useUserConfig()
+  const sidebarOnRight = config.common.sidebar.side === "right"
+
   return (
     <CurrentUserProvider user={user}>
       <WorkspaceProvider workspace={workspace}>
-        <SidebarProvider defaultOpen={defaultSidebarOpen}>
+        <SidebarProvider
+          defaultOpen={defaultSidebarOpen}
+          className={sidebarOnRight ? "flex-row-reverse" : undefined}
+        >
           <Button
             asChild
             size="sm"
@@ -44,7 +52,12 @@ export function AppShell({
             usage={usage}
           />
 
-          <SidebarInset>
+          <SidebarInset
+            className={cn(
+              "md:peer-data-[variant=inset]:mt-0 md:peer-data-[variant=inset]:rounded-t-none",
+              sidebarOnRight && "md:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:mr-0",
+            )}
+          >
             <AppHeader
               user={user}
               workspace={workspace}
