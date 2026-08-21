@@ -37,6 +37,74 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/admin/bots/{botId}/disable": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Temporarily disable a Discord bot */
+        readonly post: operations["disableAdminBot"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/admin/bots/{botId}/drain": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Drain a Discord bot and disable it after current work */
+        readonly post: operations["drainAdminBot"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/admin/bots/{botId}/enable": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Enable a temporarily disabled Discord bot */
+        readonly post: operations["enableAdminBot"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/admin/bots/{botId}/probe": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Probe and refresh a Discord bot runtime identity */
+        readonly post: operations["probeAdminBot"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/bots/events": {
         readonly parameters: {
             readonly query?: never;
@@ -1526,7 +1594,7 @@ export type components = {
             readonly lease?: components["schemas"]["BotRuntimeLease"];
             readonly metrics: components["schemas"]["BotRuntimeMetrics"];
             /** @enum {string} */
-            readonly state: "idle" | "working" | "cooldown";
+            readonly state: "idle" | "working" | "cooldown" | "draining" | "disabled" | "unhealthy";
             readonly username: string;
             readonly working: boolean;
         };
@@ -2573,6 +2641,7 @@ export type components = {
     parameters: {
         readonly action: string;
         readonly actorUserId: string;
+        readonly botId: string;
         readonly category: string;
         readonly ChunkSHA256: string;
         readonly collectionId: string;
@@ -2909,6 +2978,66 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["BotRuntimeSnapshot"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly disableAdminBot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly botId: components["parameters"]["botId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly drainAdminBot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly botId: components["parameters"]["botId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly enableAdminBot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly botId: components["parameters"]["botId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly probeAdminBot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly botId: components["parameters"]["botId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
             readonly default: components["responses"]["Problem"];
         };
     };

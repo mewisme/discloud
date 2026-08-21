@@ -14,6 +14,7 @@ type Scheduler struct {
 	next             int
 	cooldown         map[string]time.Time
 	busy             map[string]bool
+	controls         map[string]*botControl
 	leases           map[string]leaseRuntime
 	metrics          map[string]*botRuntimeMetrics
 	waiters          map[blobstore.LeaseOperation]map[uint64]time.Time
@@ -37,10 +38,11 @@ func NewScheduler(bots []Bot) *Scheduler {
 }
 
 func newSchedulerWithClock(bots []Bot, now func() time.Time) *Scheduler {
-	return &Scheduler{
+	scheduler := &Scheduler{
 		bots:        append([]Bot(nil), bots...),
 		cooldown:    make(map[string]time.Time),
 		busy:        make(map[string]bool),
+		controls:    make(map[string]*botControl),
 		leases:      make(map[string]leaseRuntime),
 		metrics:     make(map[string]*botRuntimeMetrics),
 		waiters:     make(map[blobstore.LeaseOperation]map[uint64]time.Time),
@@ -49,6 +51,15 @@ func newSchedulerWithClock(bots []Bot, now func() time.Time) *Scheduler {
 		changed:     make(chan struct{}),
 		now:         now,
 	}
+
+	for _, bot := range scheduler.bots {
+		scheduler.controls[bot.UserID] = &botControl{
+			enabled: true,
+			healthy: true,
+		}
+	}
+
+	return scheduler
 }
 
 func (s *Scheduler) Next(excludedBotUserIDs []string) (Bot, error) {
@@ -69,7 +80,9 @@ func (s *Scheduler) Next(excludedBotUserIDs []string) (Bot, error) {
 		if _, skip := excluded[bot.UserID]; skip {
 			continue
 		}
-
+		if !s.controlEligibleLocked(bot.UserID) {
+			continue
+		}
 		if cooling, _ := s.cooldownStateLocked(bot.UserID, now); cooling {
 			continue
 		}
@@ -115,6 +128,9 @@ func (s *Scheduler) Acquire(
 			if _, skip := excluded[bot.UserID]; skip {
 				continue
 			}
+			if !s.controlEligibleLocked(bot.UserID) {
+				continue
+			}
 
 			eligible++
 
@@ -132,44 +148,9 @@ func (s *Scheduler) Acquire(
 
 			s.dequeueLocked(leaseMetadata.Operation, waiterID)
 			waiterID = 0
-
-			s.busy[bot.UserID] = true
-			s.leases[bot.UserID] = leaseRuntime{
-				metadata:  cloneLeaseMetadata(leaseMetadata),
-				startedAt: now,
-			}
 			s.next = (index + 1) % len(s.bots)
 
-			s.emitLocked(runtimeEventFromMetadata(
-				RuntimeEventLeaseStarted,
-				bot.UserID,
-				leaseMetadata,
-			))
-
-			var once sync.Once
-			release := func() {
-				once.Do(func() {
-					s.mu.Lock()
-
-					lease, hasLease := s.leases[bot.UserID]
-					delete(s.leases, bot.UserID)
-					delete(s.busy, bot.UserID)
-
-					if hasLease {
-						event := runtimeEventFromMetadata(
-							RuntimeEventLeaseFinished,
-							bot.UserID,
-							lease.metadata,
-						)
-						event.Duration = s.now().Sub(lease.startedAt)
-						s.emitLocked(event)
-					}
-
-					s.notifyLocked()
-					s.mu.Unlock()
-				})
-			}
-
+			release := s.startLeaseLocked(bot, leaseMetadata, now)
 			s.mu.Unlock()
 			return bot, release, nil
 		}
@@ -203,14 +184,7 @@ func (s *Scheduler) Acquire(
 func (s *Scheduler) Get(userID string) (Bot, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	for _, bot := range s.bots {
-		if bot.UserID == userID {
-			return bot, true
-		}
-	}
-
-	return Bot{}, false
+	return s.findBotLocked(userID)
 }
 
 func (s *Scheduler) Cooldown(userID string, duration time.Duration) {
@@ -238,13 +212,57 @@ func (s *Scheduler) Cooldown(userID string, duration time.Duration) {
 func (s *Scheduler) Capacity() SchedulerCapacity {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.capacityLocked(s.now())
+	return s.controlledCapacityLocked(s.now())
 }
 
 func (s *Scheduler) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.bots)
+}
+
+func (s *Scheduler) startLeaseLocked(
+	bot Bot,
+	metadata blobstore.LeaseMetadata,
+	startedAt time.Time,
+) func() {
+	s.busy[bot.UserID] = true
+	s.leases[bot.UserID] = leaseRuntime{
+		metadata:  cloneLeaseMetadata(metadata),
+		startedAt: startedAt,
+	}
+
+	s.emitLocked(runtimeEventFromMetadata(
+		RuntimeEventLeaseStarted,
+		bot.UserID,
+		metadata,
+	))
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			s.mu.Lock()
+
+			lease, hasLease := s.leases[bot.UserID]
+			delete(s.leases, bot.UserID)
+			delete(s.busy, bot.UserID)
+
+			if hasLease {
+				event := runtimeEventFromMetadata(
+					RuntimeEventLeaseFinished,
+					bot.UserID,
+					lease.metadata,
+				)
+				event.Duration = s.now().Sub(lease.startedAt)
+				s.emitLocked(event)
+			}
+
+			s.completeDrainLocked(bot.UserID)
+			s.notifyLocked()
+			s.mu.Unlock()
+		})
+	}
 }
 
 func (s *Scheduler) notifyLocked() {

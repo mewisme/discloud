@@ -11,12 +11,20 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { BotRuntimeSnapshot } from "@/lib/api/models"
 
-export function AdminBotsView({ initialSnapshot }: { initialSnapshot: BotRuntimeSnapshot }) {
+export function AdminBotsView({
+  initialSnapshot,
+}: {
+  initialSnapshot: BotRuntimeSnapshot
+}) {
   const runtime = useBotRuntime(initialSnapshot)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
+    const timer = setInterval(
+      () => setNow(Date.now()),
+      1000,
+    )
+
     return () => clearInterval(timer)
   }, [])
 
@@ -26,21 +34,49 @@ export function AdminBotsView({ initialSnapshot }: { initialSnapshot: BotRuntime
         <div>
           <div className="flex items-center gap-2">
             <BotIcon className="size-6" />
-            <h1 className="text-2xl font-semibold tracking-tight">Bots</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Bots
+            </h1>
 
-            <Badge variant={runtime.connected ? "secondary" : "outline"} className="gap-1">
-              {runtime.connected ? <WifiIcon /> : <WifiOffIcon />}
-              {runtime.connected ? "Live" : "Reconnecting"}
+            <Badge
+              variant={
+                runtime.connected
+                  ? "secondary"
+                  : "outline"
+              }
+              className="gap-1"
+            >
+              {runtime.connected
+                ? <WifiIcon />
+                : <WifiOffIcon />}
+
+              {runtime.connected
+                ? "Live"
+                : "Reconnecting"}
             </Badge>
           </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
             Realtime Discord storage bot pool, scheduler capacity, leases, queues, and runtime health.
           </p>
+
+          <p className="mt-1 text-xs text-muted-foreground">
+            Drain, disable, enable, and health state are runtime-only and reset when the DisCloud process restarts.
+          </p>
         </div>
 
-        <Button variant="outline" disabled={runtime.refreshing} onClick={() => void runtime.refresh()}>
-          <RefreshCwIcon className={runtime.refreshing ? "animate-spin" : ""} />
+        <Button
+          variant="outline"
+          disabled={runtime.refreshing}
+          onClick={() => void runtime.refresh()}
+        >
+          <RefreshCwIcon
+            className={
+              runtime.refreshing
+                ? "animate-spin"
+                : ""
+            }
+          />
           Refresh
         </Button>
       </div>
@@ -51,9 +87,20 @@ export function AdminBotsView({ initialSnapshot }: { initialSnapshot: BotRuntime
         </div>
       )}
 
-      <BotRuntimeSummary snapshot={runtime.snapshot} />
-      <BotRuntimeTable bots={runtime.snapshot.bots} now={now} />
-      <BotRuntimeEvents events={runtime.events} bots={runtime.snapshot.bots} />
+      <BotRuntimeSummary
+        snapshot={runtime.snapshot}
+      />
+
+      <BotRuntimeTable
+        bots={runtime.snapshot.bots}
+        now={now}
+        onChanged={runtime.refresh}
+      />
+
+      <BotRuntimeEvents
+        events={runtime.events}
+        bots={runtime.snapshot.bots}
+      />
     </div>
   )
 }
