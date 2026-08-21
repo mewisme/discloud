@@ -20,6 +20,40 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/admin/bots": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Current Discord bot runtime state */
+        readonly get: operations["getAdminBotRuntime"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/admin/bots/events": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Realtime Discord bot runtime events */
+        readonly get: operations["streamAdminBotRuntime"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/config": {
         readonly parameters: {
             readonly query?: never;
@@ -1481,6 +1515,80 @@ export type components = {
             readonly avatarRevision: number;
             readonly hasAvatar: boolean;
         };
+        readonly BotRuntimeBot: {
+            /** Format: uri */
+            readonly avatarUrl?: string;
+            /** Format: date-time */
+            readonly cooldownUntil?: string;
+            readonly cooling: boolean;
+            readonly displayName: string;
+            readonly id: string;
+            readonly lease?: components["schemas"]["BotRuntimeLease"];
+            readonly metrics: components["schemas"]["BotRuntimeMetrics"];
+            /** @enum {string} */
+            readonly state: "idle" | "working" | "cooldown";
+            readonly username: string;
+            readonly working: boolean;
+        };
+        readonly BotRuntimeLease: {
+            /** Format: int64 */
+            readonly durationMs: number;
+            readonly fileName?: string;
+            /** @enum {string} */
+            readonly operation: "unknown" | "upload" | "resolve" | "delete" | "probe" | "maintenance";
+            readonly partIndex?: number;
+            readonly resourceId?: string;
+            /** Format: int64 */
+            readonly sizeBytes: number;
+            /** Format: date-time */
+            readonly startedAt: string;
+            readonly uploadId?: string;
+        };
+        readonly BotRuntimeMetrics: {
+            /** Format: int64 */
+            readonly bytesTransferred: number;
+            /** Format: date-time */
+            readonly lastErrorAt?: string;
+            readonly lastErrorClass?: string;
+            readonly lastErrorMessage?: string;
+            /** Format: int64 */
+            readonly lastOperationDurationMs: number;
+            /** Format: date-time */
+            readonly lastSuccessAt?: string;
+            readonly lastThroughputBytesPerSecond: number;
+            /** Format: int64 */
+            readonly operationsFailed: number;
+            /** Format: int64 */
+            readonly operationsSucceeded: number;
+            /** Format: int64 */
+            readonly rateLimitedCount: number;
+        };
+        readonly BotRuntimeQueue: {
+            readonly depth: number;
+            /** Format: int64 */
+            readonly oldestWaitMs: number;
+        };
+        readonly BotRuntimeSnapshot: {
+            readonly bots: readonly components["schemas"]["BotRuntimeBot"][];
+            /** Format: date-time */
+            readonly generatedAt: string;
+            /** Format: int64 */
+            readonly latestEventId: number;
+            readonly queues: {
+                readonly [key: string]: components["schemas"]["BotRuntimeQueue"];
+            };
+            readonly summary: components["schemas"]["BotRuntimeSummary"];
+        };
+        readonly BotRuntimeSummary: {
+            readonly activeLeases: number;
+            readonly availableNow: number;
+            readonly configured: number;
+            readonly cooldown: number;
+            readonly effectiveCapacity: number;
+            readonly idle: number;
+            readonly totalWaiting: number;
+            readonly working: number;
+        };
         readonly Collection: {
             /** @enum {string} */
             readonly accessLevel: "view" | "edit" | "full";
@@ -2022,6 +2130,24 @@ export type components = {
                 readonly "*/*": string;
             };
         };
+        /** @description Server-Sent Events stream of in-memory Discord bot runtime changes. Clients may reconnect using Last-Event-ID; a reset event indicates that a fresh snapshot is required. */
+        readonly BotRuntimeEvents: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "text/event-stream": string;
+            };
+        };
+        /** @description Current in-memory Discord bot and scheduler runtime state. */
+        readonly BotRuntimeSnapshot: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["BotRuntimeSnapshot"];
+            };
+        };
         /** @description Successful response. */
         readonly Breadcrumbs: {
             headers: {
@@ -2467,6 +2593,8 @@ export type components = {
         readonly jobStatus: "queued" | "running" | "completed" | "failed" | "dead";
         readonly jobType: string;
         readonly kind: "file" | "folder";
+        /** @description Last received bot runtime event ID used for SSE replay. */
+        readonly LastEventID: string;
         readonly limit: number;
         readonly maxSize: number;
         readonly mimeType: string;
@@ -2768,6 +2896,35 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["AuditPage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getAdminBotRuntime: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["BotRuntimeSnapshot"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly streamAdminBotRuntime: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: {
+                /** @description Last received bot runtime event ID used for SSE replay. */
+                readonly "Last-Event-ID"?: components["parameters"]["LastEventID"];
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["BotRuntimeEvents"];
             readonly default: components["responses"]["Problem"];
         };
     };

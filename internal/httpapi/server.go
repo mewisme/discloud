@@ -31,6 +31,7 @@ type RouterDependencies struct {
 	Avatars      *avatars.Service
 	AdminUsers   *adminusers.Service
 	AdminOps     *adminops.Service
+	BotRuntime   BotRuntimeProvider
 	Metrics      *observability.Metrics
 	ACL          *acl.Service
 	Nodes        *nodes.Service
@@ -52,6 +53,7 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if deps.Ready == nil {
 			WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "service is not ready")
@@ -80,6 +82,9 @@ func NewRouter(deps RouterDependencies, httpConfig config.HTTPConfig, authConfig
 	}
 	if deps.AdminOps != nil && deps.Auth != nil {
 		registerAdminOpsRoutes(mux, deps.AdminOps, deps.Auth, authConfig)
+	}
+	if deps.BotRuntime != nil && deps.Auth != nil {
+		registerAdminBotRoutes(mux, deps.BotRuntime, deps.Auth, authConfig)
 	}
 	if deps.Metrics != nil && deps.Auth != nil {
 		mux.Handle("GET /api/v1/admin/metrics", requireAdmin(deps.Auth, authConfig, metricsHandler(deps.Metrics)))

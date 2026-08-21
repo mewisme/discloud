@@ -20,7 +20,9 @@
   "operations":{
     "health":[],
     "readiness":[503],
-    "getAdminMetrics":[401,403,500,503],
+    "getAdminMetrics":[401,403,500],
+    "getAdminBotRuntime":[401,403,500],
+    "streamAdminBotRuntime":[400,401,403,500],
     "getSetupStatus":[500],
     "completeSetup":[400,403,409,500],
     "login":[400,401,403,500],

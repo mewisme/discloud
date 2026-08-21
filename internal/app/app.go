@@ -139,6 +139,7 @@ func Run() error {
 			"file.thumbnail": thumbnailService.Handle,
 		},
 	)
+
 	for i := range cfg.Jobs.WorkerCount {
 		go jobWorker.Run(
 			ctx,
@@ -154,6 +155,7 @@ func Run() error {
 			Avatars:      avatarService,
 			AdminUsers:   adminUserService,
 			AdminOps:     adminOpsService,
+			BotRuntime:   blobStore,
 			Metrics:      metrics,
 			ACL:          aclService,
 			Nodes:        nodeService,
