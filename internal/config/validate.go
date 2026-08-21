@@ -51,8 +51,6 @@ func (cfg Config) Validate() error {
 	add(!validSnowflake(cfg.Discord.GuildID), "Discord guild ID must be a valid snowflake")
 	add(!validSnowflake(cfg.Discord.ChannelID), "Discord channel ID must be a valid snowflake")
 	validateDiscordBots(cfg.Discord.Bots, &errs)
-	add(cfg.Discord.MaxConcurrentUploads <= 0, "Discord max concurrent uploads must be greater than zero")
-	add(cfg.Discord.MaxConcurrentDownloads <= 0, "Discord max concurrent downloads must be greater than zero")
 
 	add(cfg.Upload.ChunkSizeBytes <= 0, "upload chunk size must be greater than zero")
 	add(cfg.Upload.ChunkSizeBytes > MaxUploadChunkSize, "upload chunk size cannot exceed %d bytes", MaxUploadChunkSize)

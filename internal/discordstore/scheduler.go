@@ -18,6 +18,12 @@ type Scheduler struct {
 	now      func() time.Time
 }
 
+type SchedulerCapacity struct {
+	Configured int
+	Effective  int
+	Available  int
+}
+
 func NewScheduler(bots []Bot) *Scheduler {
 	return newSchedulerWithClock(bots, time.Now)
 }
@@ -42,6 +48,7 @@ func (s *Scheduler) Next(excludedBotUserIDs []string) (Bot, error) {
 
 	excluded := idSet(excludedBotUserIDs)
 	now := s.now()
+
 	for i := 0; i < len(s.bots); i++ {
 		index := (s.next + i) % len(s.bots)
 		bot := s.bots[index]
@@ -54,6 +61,7 @@ func (s *Scheduler) Next(excludedBotUserIDs []string) (Bot, error) {
 			}
 			delete(s.cooldown, bot.UserID)
 		}
+
 		s.next = (index + 1) % len(s.bots)
 		return bot, nil
 	}
@@ -144,6 +152,7 @@ func (s *Scheduler) Get(userID string) (Bot, bool) {
 			return bot, true
 		}
 	}
+
 	return Bot{}, false
 }
 
@@ -160,6 +169,30 @@ func (s *Scheduler) Cooldown(userID string, duration time.Duration) {
 		s.cooldown[userID] = until
 		s.notifyLocked()
 	}
+}
+
+func (s *Scheduler) Capacity() SchedulerCapacity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now()
+	capacity := SchedulerCapacity{Configured: len(s.bots)}
+
+	for _, bot := range s.bots {
+		if until, cooling := s.cooldown[bot.UserID]; cooling {
+			if now.Before(until) {
+				continue
+			}
+			delete(s.cooldown, bot.UserID)
+		}
+
+		capacity.Effective++
+		if !s.busy[bot.UserID] {
+			capacity.Available++
+		}
+	}
+
+	return capacity
 }
 
 func (s *Scheduler) Len() int {

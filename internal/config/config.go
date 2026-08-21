@@ -82,9 +82,6 @@ type DiscordConfig struct {
 	GuildID   string
 	ChannelID string
 	Bots      []DiscordBotConfig
-
-	MaxConcurrentUploads   int
-	MaxConcurrentDownloads int
 }
 
 type DiscordBotConfig struct {

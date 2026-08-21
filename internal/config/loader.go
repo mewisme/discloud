@@ -12,37 +12,35 @@ import (
 )
 
 const (
-	envHTTPListenAddress             = "DISCLOUD_HTTP_LISTEN_ADDRESS"
-	envPublicBaseURL                 = "DISCLOUD_PUBLIC_BASE_URL"
-	envHTTPReadHeaderTimeout         = "DISCLOUD_HTTP_READ_HEADER_TIMEOUT"
-	envHTTPIdleTimeout               = "DISCLOUD_HTTP_IDLE_TIMEOUT"
-	envHTTPShutdownTimeout           = "DISCLOUD_HTTP_SHUTDOWN_TIMEOUT"
-	envHTTPMaxHeaderBytes            = "DISCLOUD_HTTP_MAX_HEADER_BYTES"
-	envHTTPTrustedProxies            = "DISCLOUD_HTTP_TRUSTED_PROXIES"
-	envHTTPCORSAllowedOrigins        = "DISCLOUD_HTTP_CORS_ALLOWED_ORIGINS"
-	envDatabaseDSN                   = "DISCLOUD_DATABASE_DSN"
-	envDatabaseMinConnections        = "DISCLOUD_DATABASE_MIN_CONNECTIONS"
-	envDatabaseMaxConnections        = "DISCLOUD_DATABASE_MAX_CONNECTIONS"
-	envDatabaseMaxConnectionLife     = "DISCLOUD_DATABASE_MAX_CONNECTION_LIFE"
-	envDatabaseMaxConnectionIdle     = "DISCLOUD_DATABASE_MAX_CONNECTION_IDLE"
-	envDatabaseHealthCheckPeriod     = "DISCLOUD_DATABASE_HEALTH_CHECK_PERIOD"
-	envAuthSessionTTL                = "DISCLOUD_AUTH_SESSION_TTL"
-	envAuthCookieName                = "DISCLOUD_AUTH_COOKIE_NAME"
-	envAuthCookieDomain              = "DISCLOUD_AUTH_COOKIE_DOMAIN"
-	envAuthCookiePath                = "DISCLOUD_AUTH_COOKIE_PATH"
-	envAuthCookieSecure              = "DISCLOUD_AUTH_COOKIE_SECURE"
-	envAuthCookieSameSite            = "DISCLOUD_AUTH_COOKIE_SAME_SITE"
-	envMFAIssuer                     = "DISCLOUD_MFA_ISSUER"
-	envEncryptionMasterKeyBase64     = "DISCLOUD_ENCRYPTION_MASTER_KEY_BASE64"
-	envDiscordGuildID                = "DISCLOUD_DISCORD_GUILD_ID"
-	envDiscordChannelID              = "DISCLOUD_DISCORD_CHANNEL_ID"
-	envDiscordBotTokens              = "DISCLOUD_DISCORD_BOT_TOKENS"
-	envDiscordMaxConcurrentUploads   = "DISCLOUD_DISCORD_MAX_CONCURRENT_UPLOADS"
-	envDiscordMaxConcurrentDownloads = "DISCLOUD_DISCORD_MAX_CONCURRENT_DOWNLOADS"
-	envUploadChunkSize               = "DISCLOUD_UPLOAD_CHUNK_SIZE"
-	envUploadSessionTTL              = "DISCLOUD_UPLOAD_SESSION_TTL"
-	envJobsWorkerCount               = "DISCLOUD_JOBS_WORKER_COUNT"
-	envLogLevel                      = "DISCLOUD_LOG_LEVEL"
+	envHTTPListenAddress         = "DISCLOUD_HTTP_LISTEN_ADDRESS"
+	envPublicBaseURL             = "DISCLOUD_PUBLIC_BASE_URL"
+	envHTTPReadHeaderTimeout     = "DISCLOUD_HTTP_READ_HEADER_TIMEOUT"
+	envHTTPIdleTimeout           = "DISCLOUD_HTTP_IDLE_TIMEOUT"
+	envHTTPShutdownTimeout       = "DISCLOUD_HTTP_SHUTDOWN_TIMEOUT"
+	envHTTPMaxHeaderBytes        = "DISCLOUD_HTTP_MAX_HEADER_BYTES"
+	envHTTPTrustedProxies        = "DISCLOUD_HTTP_TRUSTED_PROXIES"
+	envHTTPCORSAllowedOrigins    = "DISCLOUD_HTTP_CORS_ALLOWED_ORIGINS"
+	envDatabaseDSN               = "DISCLOUD_DATABASE_DSN"
+	envDatabaseMinConnections    = "DISCLOUD_DATABASE_MIN_CONNECTIONS"
+	envDatabaseMaxConnections    = "DISCLOUD_DATABASE_MAX_CONNECTIONS"
+	envDatabaseMaxConnectionLife = "DISCLOUD_DATABASE_MAX_CONNECTION_LIFE"
+	envDatabaseMaxConnectionIdle = "DISCLOUD_DATABASE_MAX_CONNECTION_IDLE"
+	envDatabaseHealthCheckPeriod = "DISCLOUD_DATABASE_HEALTH_CHECK_PERIOD"
+	envAuthSessionTTL            = "DISCLOUD_AUTH_SESSION_TTL"
+	envAuthCookieName            = "DISCLOUD_AUTH_COOKIE_NAME"
+	envAuthCookieDomain          = "DISCLOUD_AUTH_COOKIE_DOMAIN"
+	envAuthCookiePath            = "DISCLOUD_AUTH_COOKIE_PATH"
+	envAuthCookieSecure          = "DISCLOUD_AUTH_COOKIE_SECURE"
+	envAuthCookieSameSite        = "DISCLOUD_AUTH_COOKIE_SAME_SITE"
+	envMFAIssuer                 = "DISCLOUD_MFA_ISSUER"
+	envEncryptionMasterKeyBase64 = "DISCLOUD_ENCRYPTION_MASTER_KEY_BASE64"
+	envDiscordGuildID            = "DISCLOUD_DISCORD_GUILD_ID"
+	envDiscordChannelID          = "DISCLOUD_DISCORD_CHANNEL_ID"
+	envDiscordBotTokens          = "DISCLOUD_DISCORD_BOT_TOKENS"
+	envUploadChunkSize           = "DISCLOUD_UPLOAD_CHUNK_SIZE"
+	envUploadSessionTTL          = "DISCLOUD_UPLOAD_SESSION_TTL"
+	envJobsWorkerCount           = "DISCLOUD_JOBS_WORKER_COUNT"
+	envLogLevel                  = "DISCLOUD_LOG_LEVEL"
 )
 
 type lookupEnvFunc func(string) (string, bool)
@@ -214,22 +212,6 @@ func load(lookup lookupEnvFunc) (Config, error) {
 		cfg.Discord.Bots = botConfigs(value)
 	}
 
-	if cfg.Discord.MaxConcurrentUploads, err = intEnv(
-		lookup,
-		envDiscordMaxConcurrentUploads,
-		cfg.Discord.MaxConcurrentUploads,
-	); err != nil {
-		return Config{}, err
-	}
-
-	if cfg.Discord.MaxConcurrentDownloads, err = intEnv(
-		lookup,
-		envDiscordMaxConcurrentDownloads,
-		cfg.Discord.MaxConcurrentDownloads,
-	); err != nil {
-		return Config{}, err
-	}
-
 	if value, ok := lookup(envUploadChunkSize); ok {
 		cfg.Upload.ChunkSizeBytes, err = parseByteSize(value)
 		if err != nil {
@@ -294,8 +276,7 @@ func defaultConfig() Config {
 			Issuer: "DisCloud",
 		},
 		Discord: DiscordConfig{
-			MaxConcurrentUploads:   8,
-			MaxConcurrentDownloads: 8,
+			Bots: []DiscordBotConfig{},
 		},
 		Upload: UploadConfig{
 			ChunkSizeBytes: DefaultUploadChunkSize,

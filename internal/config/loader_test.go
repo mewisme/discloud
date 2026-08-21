@@ -119,10 +119,6 @@ func TestLoad_EnvironmentOverrides(t *testing.T) {
 
 		envDiscordBotTokens: "bot-a, bot-b\nbot-c",
 
-		envDiscordMaxConcurrentUploads: "12",
-
-		envDiscordMaxConcurrentDownloads: "16",
-
 		envUploadChunkSize: "20MiB",
 
 		envUploadSessionTTL: "72h",
