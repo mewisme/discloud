@@ -22,7 +22,18 @@ The backend includes hierarchical folders, ACLs, resumable uploads, chunk
 deduplication, Range downloads, Trash/restore, collections, public shares,
 search, MFA, quotas, metrics, jobs, and administrative diagnostics.
 
-The web client lives in `web/` and is currently scaffolded with Next.js.
+Discord storage uses a shared bot pool with:
+
+- runtime capacity derived from usable bots;
+- one active Discord operation lease per bot;
+- fair scheduling between competing operation classes;
+- automatic cooldown handling after Discord rate limits;
+- adaptive browser part-upload concurrency;
+- adaptive per-session chunk sizing;
+- realtime administrator bot diagnostics and runtime controls.
+
+The web client lives in `web/` and provides the user and administrator
+interfaces for DisCloud.
 
 ## Quick start
 
@@ -116,7 +127,7 @@ internal/     backend packages
 migrations/   PostgreSQL migrations
 web/          Next.js web client
 desktop/      desktop client workspace
-docs/         API, operations and security documentation
+docs/         API, operations, benchmarking and security documentation
 ```
 
 ## Docker image
@@ -153,5 +164,6 @@ multi-platform GHCR image.
 
 * [OpenAPI](docs/openapi.json)
 * [Operations](docs/OPERATIONS.md)
+* [Storage benchmarking](docs/BENCHMARKING.md)
 * [Security](docs/SECURITY.md)
 * [Release checklist](docs/RELEASE_CHECKLIST.md)

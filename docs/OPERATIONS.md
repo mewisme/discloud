@@ -176,6 +176,199 @@ These values create unbounded metric cardinality.
 If a dedicated Prometheus installation is added later, prefer a dedicated
 authenticated scrape mechanism instead of making operational metrics public.
 
+## Discord bot runtime
+
+Discord storage concurrency is derived from the current usable bot pool.
+
+There are no independent upload/download concurrency configuration values.
+
+Runtime state is available to administrators:
+
+```http
+GET /api/v1/admin/bots
+```
+
+Important summary fields include:
+
+```text
+configured
+effectiveCapacity
+availableNow
+working
+idle
+cooldown
+activeLeases
+totalWaiting
+```
+
+The distinction is important:
+
+```text
+configured
+= resolved bots known to the process
+
+effectiveCapacity
+= bots currently eligible to perform normal Discord work
+
+availableNow
+= effective bots that are not currently holding a lease
+```
+
+A busy bot remains part of effective capacity.
+
+A bot in any of these states is excluded from effective capacity:
+
+```text
+cooldown
+draining
+disabled
+unhealthy
+```
+
+The scheduler enforces:
+
+```text
+one bot <= one Discord operation lease at a time
+```
+
+Normal leased operations include:
+
+```text
+upload
+resolve
+delete
+maintenance
+```
+
+When multiple operation classes are queued, the scheduler rotates between
+assignable classes instead of permanently reserving bots for one type of work.
+
+If only one class has work, that class may consume the full usable bot pool.
+
+### Realtime bot events
+
+Administrators may subscribe using Server-Sent Events:
+
+```http
+GET /api/v1/admin/bots/events
+```
+
+The stream includes process-local events such as:
+
+```text
+bot.lease.started
+bot.lease.finished
+bot.cooldown.started
+bot.cooldown.finished
+bot.state.changed
+bot.identity.updated
+scheduler.queue.changed
+operation.succeeded
+operation.failed
+```
+
+SSE clients may reconnect with `Last-Event-ID`.
+
+If the requested event is older than the in-memory replay window, the server
+emits a reset event and the client must reload the current snapshot.
+
+Runtime events are not an audit log and are not persisted to PostgreSQL.
+
+### Runtime bot controls
+
+Administrator controls include:
+
+```http
+POST /api/v1/admin/bots/{botId}/probe
+POST /api/v1/admin/bots/{botId}/drain
+POST /api/v1/admin/bots/{botId}/disable
+POST /api/v1/admin/bots/{botId}/enable
+```
+
+`probe` calls Discord `/users/@me`, refreshes cached bot identity, and updates
+runtime health.
+
+`drain` prevents new leases while allowing the current lease to finish. The bot
+then becomes disabled.
+
+Disabling a currently working bot also drains it instead of cancelling an
+in-flight Discord request.
+
+Runtime controls are intentionally ephemeral:
+
+```text
+process restart
+→ configured bots resolve again
+→ runtime disabled/draining state is reset
+```
+
+Persistent bot membership remains deployment configuration through
+`DISCLOUD_DISCORD_BOT_TOKENS`.
+
+Bot tokens must never be returned by these endpoints or written to logs.
+
+### Adaptive upload concurrency
+
+Upload-session responses contain:
+
+```text
+recommendedPartConcurrency
+```
+
+The value is derived from effective Discord capacity.
+
+The browser uses the recommendation as an advisory part-upload gate.
+
+It is not an authorization or concurrency guarantee:
+
+```text
+browser gate
+→ reduces unnecessary outstanding requests
+
+backend scheduler
+→ remains the global concurrency authority
+```
+
+When the recommendation decreases, already running browser part uploads are
+allowed to complete. New work waits until concurrency falls below the new
+limit.
+
+### Adaptive upload chunk sizing
+
+`DISCLOUD_UPLOAD_CHUNK_SIZE` is the default and upper chunk target.
+
+At upload-session creation DisCloud may choose a smaller chunk size when the
+default number of parts is insufficient to use available bot capacity.
+
+The current policy targets approximately:
+
+```text
+effective capacity * 2 parts
+```
+
+and currently uses a minimum adaptive chunk candidate of:
+
+```text
+2 MiB
+```
+
+The selected values are persisted in the upload session:
+
+```text
+chunk_size_bytes
+expected_parts
+```
+
+They never change for that session, even if bot capacity changes later.
+
+This guarantees stable resume semantics.
+
+Large files that already contain enough default-sized parts keep the configured
+default chunk size instead of being divided unnecessarily.
+
+See [BENCHMARKING.md](BENCHMARKING.md) before changing the adaptive floor or
+scheduler policy.
+
 ## Admin diagnostics
 
 ### Storage overview
