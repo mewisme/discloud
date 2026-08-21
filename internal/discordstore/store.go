@@ -18,9 +18,10 @@ import (
 )
 
 type Store struct {
-	channelID string
-	client    *Client
-	scheduler *Scheduler
+	channelID  string
+	client     *Client
+	scheduler  *Scheduler
+	configured *configuredBotRegistry
 }
 
 type chunkBodyResult struct {
@@ -37,15 +38,16 @@ func NewWithClient(ctx context.Context, channelID string, tokens []string, clien
 		return nil, errors.New("Discord channel ID is required")
 	}
 
-	bots, err := ResolveBots(ctx, client, tokens)
+	configured, bots, err := resolveConfiguredBots(ctx, client, tokens)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Store{
-		channelID: channelID,
-		client:    client,
-		scheduler: NewScheduler(bots),
+		channelID:  channelID,
+		client:     client,
+		scheduler:  NewScheduler(bots),
+		configured: configured,
 	}, nil
 }
 

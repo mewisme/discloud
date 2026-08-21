@@ -15,42 +15,44 @@ func (f fakeReadyDatabase) Ping(context.Context) error {
 }
 
 type fakeReadyStorage struct {
-	count int
+	capacity int
 }
 
-func (f fakeReadyStorage) BotCount() int {
-	return f.count
+func (f fakeReadyStorage) EffectiveCapacity() int {
+	return f.capacity
 }
 
 func TestReadinessCheck(t *testing.T) {
-	check := readinessCheck(
-		fakeReadyDatabase{},
-		fakeReadyStorage{count: 2},
-	)
-
+	check := readinessCheck(fakeReadyDatabase{}, fakeReadyStorage{capacity: 2})
 	if err := check(context.Background()); err != nil {
 		t.Fatalf("readiness = %v", err)
 	}
 }
 
-func TestReadinessCheckRejectsDatabaseFailure(t *testing.T) {
-	check := readinessCheck(
-		fakeReadyDatabase{err: errors.New("database down")},
-		fakeReadyStorage{count: 1},
-	)
+func TestReadinessCheckAcceptsDegradedBotPool(t *testing.T) {
+	check := readinessCheck(fakeReadyDatabase{}, fakeReadyStorage{capacity: 1})
+	if err := check(context.Background()); err != nil {
+		t.Fatalf("readiness rejected degraded storage: %v", err)
+	}
+}
 
+func TestReadinessCheckRejectsDatabaseFailure(t *testing.T) {
+	check := readinessCheck(fakeReadyDatabase{err: errors.New("database down")}, fakeReadyStorage{capacity: 1})
 	if err := check(context.Background()); err == nil {
 		t.Fatal("readiness accepted failed database")
 	}
 }
 
-func TestReadinessCheckRejectsNoStorageBots(t *testing.T) {
-	check := readinessCheck(
-		fakeReadyDatabase{},
-		fakeReadyStorage{},
-	)
-
+func TestReadinessCheckRejectsZeroEffectiveCapacity(t *testing.T) {
+	check := readinessCheck(fakeReadyDatabase{}, fakeReadyStorage{})
 	if err := check(context.Background()); err == nil {
-		t.Fatal("readiness accepted zero storage bots")
+		t.Fatal("readiness accepted zero effective Discord capacity")
+	}
+}
+
+func TestReadinessCheckRejectsMissingStorage(t *testing.T) {
+	check := readinessCheck(fakeReadyDatabase{}, nil)
+	if err := check(context.Background()); err == nil {
+		t.Fatal("readiness accepted missing storage")
 	}
 }

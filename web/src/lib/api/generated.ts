@@ -105,6 +105,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/admin/bots/config/{configIndex}/probe": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Probe and recover a configured Discord bot */
+        readonly post: operations["probeConfiguredAdminBot"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/bots/events": {
         readonly parameters: {
             readonly query?: never;
@@ -1586,13 +1603,17 @@ export type components = {
         readonly BotRuntimeBot: {
             /** Format: uri */
             readonly avatarUrl?: string;
+            readonly configIndex: number;
             /** Format: date-time */
             readonly cooldownUntil?: string;
             readonly cooling: boolean;
             readonly displayName: string;
-            readonly id: string;
+            readonly id: string | null;
             readonly lease?: components["schemas"]["BotRuntimeLease"];
             readonly metrics: components["schemas"]["BotRuntimeMetrics"];
+            readonly resolved: boolean;
+            readonly resolveErrorClass?: string;
+            readonly resolveErrorMessage?: string;
             /** @enum {string} */
             readonly state: "idle" | "working" | "cooldown" | "draining" | "disabled" | "unhealthy";
             readonly username: string;
@@ -1654,7 +1675,9 @@ export type components = {
             readonly cooldown: number;
             readonly effectiveCapacity: number;
             readonly idle: number;
+            readonly resolved: number;
             readonly totalWaiting: number;
+            readonly unresolved: number;
             readonly working: number;
         };
         readonly Collection: {
@@ -2648,6 +2671,7 @@ export type components = {
         readonly collectionId: string;
         /** @description Collection access context for a collection-only file. */
         readonly collectionIdQuery: string;
+        readonly configIndex: number;
         readonly configKey: string;
         readonly configPrefix: string;
         readonly createdFrom: string;
@@ -3033,6 +3057,21 @@ export interface operations {
             readonly header?: never;
             readonly path: {
                 readonly botId: components["parameters"]["botId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly probeConfiguredAdminBot: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly configIndex: components["parameters"]["configIndex"];
             };
             readonly cookie?: never;
         };

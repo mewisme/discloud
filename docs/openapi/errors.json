@@ -24,6 +24,7 @@
     "getAdminBotRuntime":[401,403,500],
     "streamAdminBotRuntime":[400,401,403,500],
     "probeAdminBot":[401,403,404,409,500,502,503],
+    "probeConfiguredAdminBot":[401,403,404,409,500,502,503],
     "drainAdminBot":[401,403,404,500],
     "disableAdminBot":[401,403,404,500],
     "enableAdminBot":[401,403,404,500],

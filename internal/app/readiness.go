@@ -11,7 +11,7 @@ type readinessDatabase interface {
 }
 
 type readinessStorage interface {
-	BotCount() int
+	EffectiveCapacity() int
 }
 
 func readinessCheck(database readinessDatabase, storage readinessStorage) func(context.Context) error {
@@ -25,7 +25,7 @@ func readinessCheck(database readinessDatabase, storage readinessStorage) func(c
 		if err := database.Ping(ctx); err != nil {
 			return fmt.Errorf("database readiness: %w", err)
 		}
-		if storage.BotCount() < 1 {
+		if storage.EffectiveCapacity() < 1 {
 			return errors.New("storage has no usable Discord bots")
 		}
 		return nil

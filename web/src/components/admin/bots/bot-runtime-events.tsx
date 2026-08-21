@@ -9,7 +9,11 @@ export function BotRuntimeEvents({
   events: readonly BotRuntimeEvent[]
   bots: readonly BotRuntimeBot[]
 }) {
-  const names = new Map(bots.map((bot) => [bot.id, bot.displayName || bot.username]))
+  const names = new Map<string, string>()
+  for (const bot of bots) {
+    if (!bot.id) continue
+    names.set(bot.id, bot.displayName || bot.username || bot.id)
+  }
 
   return (
     <section className="space-y-3">
@@ -22,9 +26,7 @@ export function BotRuntimeEvents({
 
       <div className="overflow-hidden rounded-xl border">
         {events.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-            No runtime activity yet.
-          </div>
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">No runtime activity yet.</div>
         ) : (
           <div className="divide-y">
             {events.map((event) => (
@@ -36,15 +38,11 @@ export function BotRuntimeEvents({
                   </div>
 
                   {eventDescription(event) && (
-                    <p className="mt-1 break-words text-xs text-muted-foreground">
-                      {eventDescription(event)}
-                    </p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{eventDescription(event)}</p>
                   )}
                 </div>
 
-                <time className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                  {formatDateTime(event.at)}
-                </time>
+                <time className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDateTime(event.at)}</time>
               </div>
             ))}
           </div>
@@ -60,6 +58,8 @@ function eventLabel(type: string) {
     case "bot.lease.finished": return "Released"
     case "bot.cooldown.started": return "Cooldown"
     case "bot.cooldown.finished": return "Recovered"
+    case "bot.state.changed": return "State"
+    case "bot.identity.updated": return "Identity"
     case "scheduler.queue.changed": return "Queue"
     case "operation.succeeded": return "Success"
     case "operation.failed": return "Failed"
@@ -72,34 +72,26 @@ function eventTitle(event: BotRuntimeEvent, names: Map<string, string>) {
   const operation = event.operation && event.operation !== "unknown" ? event.operation : "operation"
 
   switch (event.type) {
-    case "bot.lease.started":
-      return `${bot || "Bot"} started ${operation}`
-    case "bot.lease.finished":
-      return `${bot || "Bot"} released ${operation}`
-    case "bot.cooldown.started":
-      return `${bot || "Bot"} entered cooldown`
-    case "bot.cooldown.finished":
-      return `${bot || "Bot"} returned to the pool`
-    case "scheduler.queue.changed":
-      return `${capitalize(operation)} queue: ${event.queueDepth ?? 0} waiting`
-    case "operation.succeeded":
-      return `${bot || "Bot"} completed ${operation}`
-    case "operation.failed":
-      return `${bot || "Bot"} failed ${operation}`
-    default:
-      return event.type
+    case "bot.lease.started": return `${bot || "Bot"} started ${operation}`
+    case "bot.lease.finished": return `${bot || "Bot"} released ${operation}`
+    case "bot.cooldown.started": return `${bot || "Bot"} entered cooldown`
+    case "bot.cooldown.finished": return `${bot || "Bot"} returned to the pool`
+    case "bot.state.changed": return `${bot || "Bot"} runtime state changed`
+    case "bot.identity.updated": return `${bot || "Bot"} identity refreshed`
+    case "scheduler.queue.changed": return `${capitalize(operation)} queue: ${event.queueDepth ?? 0} waiting`
+    case "operation.succeeded": return `${bot || "Bot"} completed ${operation}`
+    case "operation.failed": return `${bot || "Bot"} failed ${operation}`
+    default: return event.type
   }
 }
 
 function eventDescription(event: BotRuntimeEvent) {
-  const values = [
+  return [
     event.fileName,
     event.partIndex !== undefined ? `part ${event.partIndex + 1}` : "",
     event.errorClass,
     event.message,
-  ].filter(Boolean)
-
-  return values.join(" · ")
+  ].filter(Boolean).join(" · ")
 }
 
 function capitalize(value: string) {

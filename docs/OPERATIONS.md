@@ -369,6 +369,53 @@ default chunk size instead of being divided unnecessarily.
 See [BENCHMARKING.md](BENCHMARKING.md) before changing the adaptive floor or
 scheduler policy.
 
+## Degraded Discord bot startup
+
+DisCloud resolves each configured Discord bot token independently during startup.
+A failed identity resolution does not abort startup while other bots remain usable.
+
+```text
+8 configured
+7 resolved
+1 unresolved
+→ application starts
+→ effective capacity is derived from the 7 resolved bots
+```
+
+If all configured bots are unresolved, the process may still start so administrators
+can inspect runtime diagnostics, but `/readyz` returns `503 Service Unavailable`
+because effective Discord capacity is zero.
+
+Unresolved entries are identified only by their zero-based deployment
+`configIndex`. DisCloud never creates a token-derived or synthetic Discord ID.
+The runtime snapshot exposes `resolved`, `configIndex`, and sanitized
+`resolveErrorClass` / `resolveErrorMessage` fields. Bot tokens and token hashes
+must never appear in API responses, SSE events, diagnostics, or logs.
+
+Administrators can retry an unresolved configured entry:
+
+```http
+POST /api/v1/admin/bots/config/{configIndex}/probe
+```
+
+A successful probe promotes the resolved Discord identity into the live scheduler
+and effective capacity increases immediately. A duplicate Discord User ID is
+rejected and remains unresolved. Correcting an invalid deployment token still
+requires updating deployment configuration and restarting; runtime probe is for
+recovering transient resolution failures using the already configured token.
+
+Resolved bots continue to use Discord User ID controls:
+
+```http
+POST /api/v1/admin/bots/{botId}/probe
+POST /api/v1/admin/bots/{botId}/drain
+POST /api/v1/admin/bots/{botId}/disable
+POST /api/v1/admin/bots/{botId}/enable
+```
+
+Resolution and runtime control state are process-local and are rebuilt from
+configuration on restart.
+
 ## Admin diagnostics
 
 ### Storage overview

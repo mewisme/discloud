@@ -22,7 +22,7 @@ const (
 )
 
 type BotRuntimeProvider interface {
-	RuntimeSnapshot() discordstore.SchedulerRuntimeSnapshot
+	RuntimeSnapshot() discordstore.BotRuntimeSnapshot
 	RuntimeEventsSince(after uint64) discordstore.RuntimeEventWindow
 	SubscribeRuntime(buffer int) (<-chan discordstore.RuntimeEvent, func())
 }
@@ -37,6 +37,8 @@ type adminBotRuntimeResponse struct {
 
 type adminBotRuntimeSummary struct {
 	Configured        int `json:"configured"`
+	Resolved          int `json:"resolved"`
+	Unresolved        int `json:"unresolved"`
 	EffectiveCapacity int `json:"effectiveCapacity"`
 	AvailableNow      int `json:"availableNow"`
 	Working           int `json:"working"`
@@ -52,16 +54,20 @@ type adminBotRuntimeQueue struct {
 }
 
 type adminBotRuntimeBot struct {
-	ID            string                 `json:"id"`
-	Username      string                 `json:"username"`
-	DisplayName   string                 `json:"displayName"`
-	AvatarURL     string                 `json:"avatarUrl,omitempty"`
-	State         string                 `json:"state"`
-	Working       bool                   `json:"working"`
-	Cooling       bool                   `json:"cooling"`
-	CooldownUntil *time.Time             `json:"cooldownUntil,omitempty"`
-	Lease         *adminBotRuntimeLease  `json:"lease,omitempty"`
-	Metrics       adminBotRuntimeMetrics `json:"metrics"`
+	ConfigIndex         int                    `json:"configIndex"`
+	Resolved            bool                   `json:"resolved"`
+	ID                  *string                `json:"id"`
+	Username            string                 `json:"username"`
+	DisplayName         string                 `json:"displayName"`
+	AvatarURL           string                 `json:"avatarUrl,omitempty"`
+	State               string                 `json:"state"`
+	Working             bool                   `json:"working"`
+	Cooling             bool                   `json:"cooling"`
+	CooldownUntil       *time.Time             `json:"cooldownUntil,omitempty"`
+	ResolveErrorClass   string                 `json:"resolveErrorClass,omitempty"`
+	ResolveErrorMessage string                 `json:"resolveErrorMessage,omitempty"`
+	Lease               *adminBotRuntimeLease  `json:"lease,omitempty"`
+	Metrics             adminBotRuntimeMetrics `json:"metrics"`
 }
 
 type adminBotRuntimeLease struct {
@@ -111,12 +117,7 @@ type botRuntimeSSEControl struct {
 	LatestEventID uint64 `json:"latestEventId"`
 }
 
-func registerAdminBotRoutes(
-	mux *http.ServeMux,
-	provider BotRuntimeProvider,
-	authService *auth.Service,
-	cfg config.AuthConfig,
-) {
+func registerAdminBotRoutes(mux *http.ServeMux, provider BotRuntimeProvider, authService *auth.Service, cfg config.AuthConfig) {
 	admin := func(pattern string, handler http.Handler) {
 		mux.Handle(pattern, requireAdmin(authService, cfg, handler))
 	}
@@ -175,12 +176,7 @@ func botRuntimeEventsHandler(provider BotRuntimeProvider) http.Handler {
 				if event.ID <= lastSentID {
 					continue
 				}
-				if err := writeRuntimeSSEJSON(
-					w,
-					string(event.Type),
-					event.ID,
-					projectBotRuntimeEvent(event),
-				); err != nil {
+				if err := writeRuntimeSSEJSON(w, string(event.Type), event.ID, projectBotRuntimeEvent(event)); err != nil {
 					return
 				}
 				lastSentID = event.ID
@@ -198,7 +194,6 @@ func botRuntimeEventsHandler(provider BotRuntimeProvider) http.Handler {
 			select {
 			case <-r.Context().Done():
 				return
-
 			case event, ok := <-events:
 				if !ok {
 					return
@@ -207,9 +202,7 @@ func botRuntimeEventsHandler(provider BotRuntimeProvider) http.Handler {
 					continue
 				}
 
-				if lastSentID > 0 &&
-					event.ID > lastSentID &&
-					event.ID-lastSentID > 1 {
+				if lastSentID > 0 && event.ID-lastSentID > 1 {
 					if err := writeRuntimeSSEJSON(w, "reset", 0, botRuntimeSSEControl{
 						Version:       botRuntimeSSEVersion,
 						LatestEventID: event.ID,
@@ -217,28 +210,19 @@ func botRuntimeEventsHandler(provider BotRuntimeProvider) http.Handler {
 						return
 					}
 					lastSentID = event.ID
-
 					if err := controller.Flush(); err != nil {
 						return
 					}
 					continue
 				}
 
-				if err := writeRuntimeSSEJSON(
-					w,
-					string(event.Type),
-					event.ID,
-					projectBotRuntimeEvent(event),
-				); err != nil {
+				if err := writeRuntimeSSEJSON(w, string(event.Type), event.ID, projectBotRuntimeEvent(event)); err != nil {
 					return
 				}
-
 				lastSentID = event.ID
-
 				if err := controller.Flush(); err != nil {
 					return
 				}
-
 			case <-heartbeat.C:
 				if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
 					return
@@ -251,9 +235,7 @@ func botRuntimeEventsHandler(provider BotRuntimeProvider) http.Handler {
 	})
 }
 
-func projectBotRuntimeSnapshot(
-	snapshot discordstore.SchedulerRuntimeSnapshot,
-) adminBotRuntimeResponse {
+func projectBotRuntimeSnapshot(snapshot discordstore.BotRuntimeSnapshot) adminBotRuntimeResponse {
 	queues := make(map[string]adminBotRuntimeQueue, len(snapshot.Queues))
 	for operation, queue := range snapshot.Queues {
 		queues[string(operation)] = adminBotRuntimeQueue{
@@ -271,6 +253,8 @@ func projectBotRuntimeSnapshot(
 		GeneratedAt: snapshot.GeneratedAt,
 		Summary: adminBotRuntimeSummary{
 			Configured:        snapshot.Capacity.Configured,
+			Resolved:          snapshot.Resolved,
+			Unresolved:        snapshot.Unresolved,
 			EffectiveCapacity: snapshot.Capacity.Effective,
 			AvailableNow:      snapshot.Capacity.Available,
 			Working:           snapshot.Working,
@@ -285,16 +269,18 @@ func projectBotRuntimeSnapshot(
 	}
 }
 
-func projectBotRuntimeBot(bot discordstore.RuntimeBot) adminBotRuntimeBot {
+func projectBotRuntimeBot(bot discordstore.BotRuntimeEntry) adminBotRuntimeBot {
 	result := adminBotRuntimeBot{
-		ID:            bot.UserID,
-		Username:      bot.Username,
-		DisplayName:   bot.DisplayName,
-		AvatarURL:     discordBotAvatarURL(bot.UserID, bot.Avatar),
-		State:         string(bot.State),
-		Working:       bot.Working,
-		Cooling:       bot.Cooling,
-		CooldownUntil: bot.CooldownUntil,
+		ConfigIndex:         bot.ConfigIndex,
+		Resolved:            bot.Resolved,
+		Username:            bot.Username,
+		DisplayName:         bot.DisplayName,
+		State:               string(bot.State),
+		Working:             bot.Working,
+		Cooling:             bot.Cooling,
+		CooldownUntil:       bot.CooldownUntil,
+		ResolveErrorClass:   bot.ResolveErrorClass,
+		ResolveErrorMessage: bot.ResolveErrorMessage,
 		Metrics: adminBotRuntimeMetrics{
 			OperationsSucceeded:          bot.Metrics.OperationsSucceeded,
 			OperationsFailed:             bot.Metrics.OperationsFailed,
@@ -307,6 +293,12 @@ func projectBotRuntimeBot(bot discordstore.RuntimeBot) adminBotRuntimeBot {
 			LastOperationDurationMS:      durationMilliseconds(bot.Metrics.LastOperationDuration),
 			LastThroughputBytesPerSecond: bot.Metrics.LastThroughputBytesPerSecond,
 		},
+	}
+
+	if bot.UserID != "" {
+		id := bot.UserID
+		result.ID = &id
+		result.AvatarURL = discordBotAvatarURL(bot.UserID, bot.Avatar)
 	}
 
 	if bot.Lease != nil {
@@ -363,14 +355,10 @@ func parseLastEventID(value string) (uint64, error) {
 	if value == "" {
 		return 0, nil
 	}
-
 	return strconv.ParseUint(value, 10, 64)
 }
 
-func runtimeReplayGap(
-	after uint64,
-	window discordstore.RuntimeEventWindow,
-) bool {
+func runtimeReplayGap(after uint64, window discordstore.RuntimeEventWindow) bool {
 	if after == 0 {
 		return false
 	}
@@ -380,16 +368,10 @@ func runtimeReplayGap(
 	if window.OldestID == 0 || window.OldestID <= after {
 		return false
 	}
-
 	return window.OldestID-after > 1
 }
 
-func writeRuntimeSSEJSON(
-	w http.ResponseWriter,
-	eventName string,
-	id uint64,
-	value any,
-) error {
+func writeRuntimeSSEJSON(w http.ResponseWriter, eventName string, id uint64, value any) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return err
@@ -400,7 +382,6 @@ func writeRuntimeSSEJSON(
 			return err
 		}
 	}
-
 	if eventName != "" {
 		if _, err := fmt.Fprintf(w, "event: %s\n", eventName); err != nil {
 			return err

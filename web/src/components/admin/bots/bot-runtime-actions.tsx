@@ -25,26 +25,36 @@ export function BotRuntimeActions({
     setPending(action)
 
     try {
-      await apiJSON<void>(
-        `/admin/bots/${encodeURIComponent(bot.id)}/${action}`,
-        { method: "POST" },
-      )
-
-      toast.success(actionSuccess(action, bot.displayName))
+      await apiJSON<void>(actionPath(bot, action), { method: "POST" })
+      toast.success(actionSuccess(action, botDisplayName(bot)))
       await onChanged()
     } catch (error) {
-      toast.error(
-        apiErrorMessage(
-          error,
-          `Could not ${action} ${bot.displayName}.`,
-        ),
-      )
+      toast.error(apiErrorMessage(error, `Could not ${action} ${botDisplayName(bot)}.`))
+      await onChanged().catch(() => undefined)
     } finally {
       setPending(null)
     }
   }
 
   const disabled = pending !== null
+
+  if (!bot.resolved) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => void run("probe")}
+        >
+          {pending === "probe"
+            ? <Loader2Icon className="animate-spin" />
+            : <ActivityIcon />}
+          Probe & recover
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -61,11 +71,7 @@ export function BotRuntimeActions({
       </Button>
 
       {bot.state === "disabled" ? (
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => void run("enable")}
-        >
+        <Button size="sm" disabled={disabled} onClick={() => void run("enable")}>
           {pending === "enable"
             ? <Loader2Icon className="animate-spin" />
             : <PlayIcon />}
@@ -77,24 +83,14 @@ export function BotRuntimeActions({
           Draining
         </Button>
       ) : bot.working ? (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => void run("drain")}
-        >
+        <Button size="sm" variant="outline" disabled={disabled} onClick={() => void run("drain")}>
           {pending === "drain"
             ? <Loader2Icon className="animate-spin" />
             : <PowerIcon />}
           Drain
         </Button>
       ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => void run("disable")}
-        >
+        <Button size="sm" variant="outline" disabled={disabled} onClick={() => void run("disable")}>
           {pending === "disable"
             ? <Loader2Icon className="animate-spin" />
             : <BanIcon />}
@@ -103,6 +99,20 @@ export function BotRuntimeActions({
       )}
     </div>
   )
+}
+
+function actionPath(bot: BotRuntimeBot, action: BotAction) {
+  if (!bot.resolved) {
+    if (action !== "probe") throw new Error("Unresolved Discord bots can only be probed.")
+    return `/admin/bots/config/${bot.configIndex}/probe`
+  }
+
+  if (!bot.id) throw new Error("Resolved Discord bot has no user ID.")
+  return `/admin/bots/${encodeURIComponent(bot.id)}/${action}`
+}
+
+function botDisplayName(bot: BotRuntimeBot) {
+  return bot.displayName || bot.username || `configured bot #${bot.configIndex + 1}`
 }
 
 function actionSuccess(action: BotAction, name: string) {
