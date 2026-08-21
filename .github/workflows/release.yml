@@ -12,6 +12,10 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  DISCLOUD_BACKEND_DOCKER_IMAGE: ghcr.io/mewisme/dcbe
+  DISCLOUD_FRONTEND_DOCKER_IMAGE: ghcr.io/mewisme/dcfe
+
 jobs:
   verify-backend:
     name: Verify backend
@@ -34,7 +38,6 @@ jobs:
 
     env:
       DISCLOUD_TEST_DATABASE_DSN: postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable
-      DISCLOUD_DOCKER_IMAGE: ghcr.io/mewisme/discloud
 
     steps:
       - name: Checkout
@@ -65,7 +68,7 @@ jobs:
           args: check
 
       - name: Build local container
-        run: docker build --pull -t discloud:test .
+        run: docker build --pull -t dcbe:test .
 
       - name: Build release container target
         shell: bash
@@ -87,7 +90,7 @@ jobs:
             --target release \
             --build-arg TARGETPLATFORM=linux/amd64 \
             --file Dockerfile \
-            --tag discloud:release-test \
+            --tag dcbe:release-test \
             "$context"
 
   verify-web:
@@ -123,6 +126,9 @@ jobs:
         working-directory: web
         run: pnpm build
 
+      - name: Build local container
+        run: docker build --pull -t dcfe:test web
+
   release:
     name: Release
     needs:
@@ -147,12 +153,6 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
-      - name: Resolve GHCR image
-        id: image
-        shell: bash
-        run: |
-          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -163,7 +163,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Release
+      - name: Release backend
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -171,4 +171,14 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCLOUD_DOCKER_IMAGE: ${{ steps.image.outputs.name }}
+
+      - name: Release web
+        shell: bash
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file web/Dockerfile \
+            --tag "${DISCLOUD_FRONTEND_DOCKER_IMAGE}:${GITHUB_REF_NAME}" \
+            --tag "${DISCLOUD_FRONTEND_DOCKER_IMAGE}:latest" \
+            --push \
+            web

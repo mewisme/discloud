@@ -58,7 +58,7 @@ dockers_v2:
       - discloud
     dockerfile: Dockerfile
     images:
-      - "{{ .Env.DISCLOUD_DOCKER_IMAGE }}"
+      - "{{ .Env.DISCLOUD_BACKEND_DOCKER_IMAGE }}"
     tags:
       - "{{ .Tag }}"
       - latest
@@ -68,8 +68,8 @@ dockers_v2:
     flags:
       - "--target=release"
     labels:
-      "org.opencontainers.image.title": "DisCloud"
-      "org.opencontainers.image.description": "Self-hosted Discord-backed file storage"
+      "org.opencontainers.image.title": "DisCloud Backend"
+      "org.opencontainers.image.description": "Self-hosted Discord-backed file storage backend"
       "org.opencontainers.image.version": "{{ .Tag }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "{{ .GitURL }}"

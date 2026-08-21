@@ -13,6 +13,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DISCLOUD_BACKEND_DOCKER_IMAGE: ghcr.io/mewisme/dcbe
+
 jobs:
   backend:
     name: Backend
@@ -35,7 +38,6 @@ jobs:
 
     env:
       DISCLOUD_TEST_DATABASE_DSN: postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable
-      DISCLOUD_DOCKER_IMAGE: ghcr.io/mewisme/discloud
 
     steps:
       - name: Checkout
@@ -69,7 +71,7 @@ jobs:
           args: check
 
       - name: Build local container
-        run: docker build --pull -t discloud:test .
+        run: docker build --pull -t dcbe:test .
 
       - name: Build release container target
         shell: bash
@@ -91,7 +93,7 @@ jobs:
             --target release \
             --build-arg TARGETPLATFORM=linux/amd64 \
             --file Dockerfile \
-            --tag discloud:release-test \
+            --tag dcbe:release-test \
             "$context"
 
       - name: Validate Compose
@@ -127,7 +129,7 @@ jobs:
 
       - name: Generate Next.js types
         working-directory: web
-        run: pnpm next typegen        
+        run: pnpm next typegen
 
       - name: Lint
         working-directory: web
@@ -140,3 +142,6 @@ jobs:
       - name: Build
         working-directory: web
         run: pnpm build
+
+      - name: Build local container
+        run: docker build --pull -t dcfe:test web

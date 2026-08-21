@@ -6,7 +6,8 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/mewisme/discloud/ci.yml?branch=main&label=CI&logo=github)](https://github.com/mewisme/discloud/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mewisme/discloud?display_name=tag&sort=semver&logo=github)](https://github.com/mewisme/discloud/releases)
-[![GHCR](https://img.shields.io/badge/GHCR-ghcr.io%2Fmewisme%2Fdiscloud-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/discloud)
+[![Backend](https://img.shields.io/badge/GHCR-dcbe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcbe)
+[![Frontend](https://img.shields.io/badge/GHCR-dcfe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcfe)
 [![Go](https://img.shields.io/github/go-mod/go-version/mewisme/discloud?logo=go)](go.mod)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](compose.yml)
@@ -64,17 +65,23 @@ DISCLOUD_DISCORD_CHANNEL_ID
 DISCLOUD_DISCORD_BOT_TOKENS
 ```
 
-Start the prebuilt image:
+Start the prebuilt images:
 
 ```bash
 docker compose pull
 docker compose up -d --no-build
 ```
 
-Or build the backend from source:
+Or build the backend and web images from source:
 
 ```bash
 docker compose up -d --build
+```
+
+The web client is available on:
+
+```text
+http://localhost:3000
 ```
 
 The API listens on:
@@ -130,23 +137,34 @@ desktop/      desktop client workspace
 docs/         API, operations, benchmarking and security documentation
 ```
 
-## Docker image
+## Docker images
 
 Published releases are available from:
 
-```text
-ghcr.io/mewisme/discloud
-```
-
-Every release tag publishes both the exact Git tag and `latest`:
+Backend:
 
 ```text
-ghcr.io/mewisme/discloud:v1.2.3
-ghcr.io/mewisme/discloud:latest
+ghcr.io/mewisme/dcbe
 ```
 
-For reproducible deployments, replace the backend `image` in `compose.yml`
-with an exact release tag.
+Frontend:
+
+```text
+ghcr.io/mewisme/dcfe
+```
+
+Every release tag publishes both the exact Git tag and `latest` for both images:
+
+```text
+ghcr.io/mewisme/dcbe:v1.2.3
+ghcr.io/mewisme/dcbe:latest
+
+ghcr.io/mewisme/dcfe:v1.2.3
+ghcr.io/mewisme/dcfe:latest
+```
+
+For reproducible deployments, replace the `latest` tags in `compose.yml` with
+the same exact release tag for both images.
 
 ## Releases
 
@@ -158,7 +176,8 @@ git push origin v1.0.0
 ```
 
 GoReleaser creates the GitHub Release, binary archives, checksums, and the
-multi-platform GHCR image.
+multi-platform backend image. The release workflow also builds and publishes
+the multi-platform web image using the same release tag.
 
 ## Documentation
 
