@@ -329,10 +329,10 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="self-hosted" className="border-y bg-foreground text-background">
+      <section id="self-hosted" className="border-y bg-muted/25">
         <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <div className="mb-4 flex items-center gap-2 text-xs font-medium text-background/60">
+            <div className="mb-4 flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <ServerIcon className="size-3.5" />
               SELF-HOSTED
             </div>
@@ -341,30 +341,21 @@ export default async function Home() {
               Run the complete stack on infrastructure you control.
             </h2>
 
-            <p className="mt-4 max-w-2xl leading-7 text-background/65">
+            <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
               Backend and frontend ship as separate container images, with PostgreSQL
               as the canonical database and runtime configuration for your deployment.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button
-              variant="secondary"
-              size="lg"
-              className="bg-background text-foreground hover:bg-background/90"
-              asChild
-            >
+            <Button size="lg" asChild>
               <Link href={appHref}>
                 {appLabel}
                 <ArrowRightIcon data-icon="inline-end" />
               </Link>
             </Button>
 
-            <Button
-              size="lg"
-              className="border-background/20 bg-transparent text-background hover:bg-background/10"
-              asChild
-            >
+            <Button variant="outline" size="lg" asChild>
               <a href="https://github.com/mewisme/discloud" target="_blank" rel="noreferrer">
                 <GitHub data-icon="inline-start" />
                 GitHub
