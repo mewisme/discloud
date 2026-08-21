@@ -1,8 +1,9 @@
-import { CircleIcon, DiamondIcon, PaletteIcon, TriangleIcon } from "lucide-react"
+import { BracesIcon, CircleIcon, DiamondIcon, PaletteIcon, TriangleIcon } from "lucide-react"
 
 import { SettingsRow } from "@/components/settings/common/settings-row"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { type ThemeEffect, themeEffects } from "@/lib/theme-transition"
 
 const effectIcons: Record<ThemeEffect, typeof CircleIcon> = {
@@ -13,14 +14,19 @@ const effectIcons: Record<ThemeEffect, typeof CircleIcon> = {
   "circle-blur-top-left": CircleIcon,
   polygon: DiamondIcon,
   "polygon-gradient": DiamondIcon,
+  custom: BracesIcon,
 }
 
 export function ThemeSettings({
   effect,
+  customCSS,
   onEffectChange,
+  onCustomCSSChange,
 }: {
   effect: ThemeEffect
+  customCSS: string
   onEffectChange: (effect: ThemeEffect) => void
+  onCustomCSSChange: (css: string) => void
 }) {
   return (
     <Card id="theme" className="scroll-mt-24">
@@ -38,7 +44,7 @@ export function ThemeSettings({
         <SettingsRow
           title="Transition effect"
           description="Choose how the next theme is revealed when changing the appearance."
-          last
+          last={effect !== "custom"}
         >
           <Select value={effect} onValueChange={(value) => onEffectChange(value as ThemeEffect)}>
             <SelectTrigger className="w-full sm:w-56" aria-label="Theme transition effect">
@@ -48,14 +54,16 @@ export function ThemeSettings({
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>Effect</SelectLabel>
+
                 {Object.entries(themeEffects).map(([key, item]) => {
                   const effectKey = key as ThemeEffect
                   const Icon = effectIcons[effectKey]
+                  const label = effectKey === "custom" ? "Custom" : "title" in item ? item.title : effectKey
 
                   return (
                     <SelectItem key={effectKey} value={effectKey}>
                       <Icon />
-                      {item.title}
+                      {label}
                     </SelectItem>
                   )
                 })}
@@ -63,6 +71,28 @@ export function ThemeSettings({
             </SelectContent>
           </Select>
         </SettingsRow>
+
+        {effect === "custom" && (
+          <SettingsRow
+            title="Custom CSS"
+            description="CSS applied to the View Transition pseudo-elements when switching themes."
+            last
+          >
+            <div className="w-full space-y-2 sm:w-[32rem]">
+              <Textarea
+                value={customCSS}
+                onChange={(event) => onCustomCSSChange(event.target.value)}
+                placeholder={`::view-transition-new(root) {\n  animation: reveal 500ms ease-out;\n}`}
+                spellCheck={false}
+                className="min-h-56 resize-y font-mono text-xs"
+              />
+
+              <div className="text-xs text-muted-foreground">
+                Use standard View Transition selectors such as ::view-transition-old(root) and ::view-transition-new(root).
+              </div>
+            </div>
+          </SettingsRow>
+        )}
       </CardContent>
     </Card>
   )

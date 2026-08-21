@@ -12,12 +12,12 @@ import { applyThemeTransitionEffect, removeThemeTransitionEffect, startThemeTran
 export function ModeToggle() {
   const { setTheme } = useTheme()
   const { config } = useUserConfig()
-  const effect = config.common.theme.effect
+  const { effect, custom } = config.common.theme
 
   useLayoutEffect(() => {
-    applyThemeTransitionEffect(effect)
+    applyThemeTransitionEffect(effect, custom.css)
     return removeThemeTransitionEffect
-  }, [effect])
+  }, [effect, custom.css])
 
   function changeTheme(theme: "light" | "dark" | "system") {
     startThemeTransition(() => setTheme(theme))

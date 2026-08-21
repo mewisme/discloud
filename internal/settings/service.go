@@ -29,6 +29,8 @@ var (
 	ErrAppConfigNotFound         = errors.New("app config not found")
 )
 
+const maxCustomThemeCSSBytes = 32 << 10
+
 var appConfigKeyPattern = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 
 type Service struct {
@@ -44,8 +46,13 @@ type FilePreviewConfig struct {
 	PreloadNext int `json:"preloadNext"`
 }
 
+type CustomThemeEffectConfig struct {
+	CSS string `json:"css"`
+}
+
 type ThemeConfig struct {
-	Effect string `json:"effect"`
+	Effect string                  `json:"effect"`
+	Custom CustomThemeEffectConfig `json:"custom"`
 }
 
 type SidebarConfig struct {
@@ -359,6 +366,15 @@ func defaultUserConfig() UserConfig {
 	}
 }
 
+func defaultThemeConfig() ThemeConfig {
+	return ThemeConfig{
+		Effect: "triangle",
+		Custom: CustomThemeEffectConfig{
+			CSS: "",
+		},
+	}
+}
+
 func defaultFileBrowserToolbarConfig() FileBrowserToolbarConfig {
 	return FileBrowserToolbarConfig{
 		Variant:      "inline",
@@ -377,12 +393,6 @@ func defaultSidebarConfig() SidebarConfig {
 		Side:        "left",
 		Variant:     "inset",
 		Collapsible: "icon",
-	}
-}
-
-func defaultThemeConfig() ThemeConfig {
-	return ThemeConfig{
-		Effect: "triangle",
 	}
 }
 
@@ -448,9 +458,12 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	}
 
 	theme := defaultThemeConfig()
+
 	if strings.TrimSpace(stored.Common.Theme.Effect) != "" {
 		theme.Effect = stored.Common.Theme.Effect
 	}
+
+	theme.Custom.CSS = stored.Common.Theme.Custom.CSS
 
 	theme, err = validateThemeConfig(theme)
 	if err != nil {
@@ -531,11 +544,17 @@ func validateThemeConfig(value ThemeConfig) (ThemeConfig, error) {
 		"circle-blur",
 		"circle-blur-top-left",
 		"polygon",
-		"polygon-gradient":
-		return value, nil
+		"polygon-gradient",
+		"custom":
 	default:
 		return ThemeConfig{}, ErrInvalidTheme
 	}
+
+	if len([]byte(value.Custom.CSS)) > maxCustomThemeCSSBytes {
+		return ThemeConfig{}, ErrInvalidTheme
+	}
+
+	return value, nil
 }
 
 func validateAppConfigKey(key string) error {

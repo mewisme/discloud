@@ -175,6 +175,9 @@ export const themeEffects = {
       }
     `,
   },
+  custom: {
+    css: "",
+  },
 } as const
 
 export type ThemeEffect = keyof typeof themeEffects
@@ -183,7 +186,7 @@ type ViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void) => unknown
 }
 
-export function applyThemeTransitionEffect(effect: ThemeEffect) {
+export function applyThemeTransitionEffect(effect: ThemeEffect, customCSS: string) {
   let style = document.getElementById(themeEffectStyleId) as HTMLStyleElement | null
 
   if (!style) {
@@ -192,7 +195,7 @@ export function applyThemeTransitionEffect(effect: ThemeEffect) {
     document.head.appendChild(style)
   }
 
-  style.textContent = themeEffects[effect].css
+  style.textContent = effect === "custom" ? customCSS : themeEffects[effect].css
 }
 
 export function removeThemeTransitionEffect() {

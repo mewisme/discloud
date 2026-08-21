@@ -1731,6 +1731,10 @@ export type components = {
             /** Format: int64 */
             readonly size: number;
         };
+        readonly CustomThemeEffectConfig: {
+            /** @default  */
+            readonly css: string;
+        };
         readonly File: {
             /** Format: int64 */
             readonly bitrateBps?: number;
@@ -2030,11 +2034,12 @@ export type components = {
             readonly userCount: number;
         };
         readonly ThemeConfig: {
+            readonly custom: components["schemas"]["CustomThemeEffectConfig"];
             /**
              * @default triangle
              * @enum {string}
              */
-            readonly effect: "triangle" | "triangle-blur" | "circle" | "circle-blur" | "circle-blur-top-left" | "polygon" | "polygon-gradient";
+            readonly effect: "triangle" | "triangle-blur" | "circle" | "circle-blur" | "circle-blur-top-left" | "polygon" | "polygon-gradient" | "custom";
         };
         readonly UploadDiagnostic: {
             readonly actorName: string;

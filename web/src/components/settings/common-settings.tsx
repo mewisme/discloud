@@ -22,6 +22,7 @@ export function CommonSettings() {
   const { config, setConfig } = useUserConfig()
   const [timezone, setTimezone] = useState(config.common.timezone || "UTC")
   const [themeEffect, setThemeEffect] = useState<ThemeEffect>(config.common.theme.effect)
+  const [themeCustomCSS, setThemeCustomCSS] = useState(config.common.theme.custom.css)
   const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(config.common.fileBrowserToolbar.variant)
   const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(config.common.fileBrowserToolbar.dockPosition)
   const [previewPreloadNext, setPreviewPreloadNext] = useState(config.common.filePreview.preloadNext)
@@ -31,6 +32,7 @@ export function CommonSettings() {
   const [pending, setPending] = useState(false)
   const dirty = timezone !== config.common.timezone
     || themeEffect !== config.common.theme.effect
+    || themeCustomCSS !== config.common.theme.custom.css
     || toolbarVariant !== config.common.fileBrowserToolbar.variant
     || toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition
     || previewPreloadNext !== config.common.filePreview.preloadNext
@@ -41,6 +43,7 @@ export function CommonSettings() {
   useEffect(() => {
     setTimezone(config.common.timezone || "UTC")
     setThemeEffect(config.common.theme.effect)
+    setThemeCustomCSS(config.common.theme.custom.css)
     setToolbarVariant(config.common.fileBrowserToolbar.variant)
     setToolbarDockPosition(config.common.fileBrowserToolbar.dockPosition)
     setPreviewPreloadNext(config.common.filePreview.preloadNext)
@@ -50,6 +53,7 @@ export function CommonSettings() {
   }, [
     config.common.timezone,
     config.common.theme.effect,
+    config.common.theme.custom.css,
     config.common.fileBrowserToolbar.variant,
     config.common.fileBrowserToolbar.dockPosition,
     config.common.filePreview.preloadNext,
@@ -66,6 +70,9 @@ export function CommonSettings() {
         timezone,
         theme: {
           effect: themeEffect,
+          custom: {
+            css: themeCustomCSS,
+          },
         },
         fileBrowserToolbar: {
           variant: toolbarVariant,
@@ -98,7 +105,12 @@ export function CommonSettings() {
 
   return (
     <div className="min-w-0 space-y-6">
-      <ThemeSettings effect={themeEffect} onEffectChange={setThemeEffect} />
+      <ThemeSettings
+        effect={themeEffect}
+        customCSS={themeCustomCSS}
+        onEffectChange={setThemeEffect}
+        onCustomCSSChange={setThemeCustomCSS}
+      />
 
       <SidebarSettings
         side={sidebarSide}
@@ -116,11 +128,21 @@ export function CommonSettings() {
         onDockPositionChange={setToolbarDockPosition}
       />
 
-      <FilePreviewSettings preloadNext={previewPreloadNext} onPreloadNextChange={setPreviewPreloadNext} />
+      <FilePreviewSettings
+        preloadNext={previewPreloadNext}
+        onPreloadNextChange={setPreviewPreloadNext}
+      />
 
-      <DateTimeSettings timezone={timezone} onTimezoneChange={setTimezone} />
+      <DateTimeSettings
+        timezone={timezone}
+        onTimezoneChange={setTimezone}
+      />
 
-      <SettingsSaveBar dirty={dirty} pending={pending} onSave={() => void save()} />
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={pending}
+        onSave={() => void save()}
+      />
     </div>
   )
 }
