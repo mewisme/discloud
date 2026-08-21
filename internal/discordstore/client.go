@@ -25,8 +25,11 @@ type Client struct {
 }
 
 type User struct {
-	ID  string `json:"id"`
-	Bot bool   `json:"bot"`
+	ID         string `json:"id"`
+	Username   string `json:"username"`
+	GlobalName string `json:"global_name"`
+	Avatar     string `json:"avatar"`
+	Bot        bool   `json:"bot"`
 }
 
 type Attachment struct {

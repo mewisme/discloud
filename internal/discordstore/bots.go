@@ -13,8 +13,11 @@ var (
 )
 
 type Bot struct {
-	UserID string
-	Token  string
+	UserID      string
+	Username    string
+	DisplayName string
+	Avatar      string
+	Token       string
 }
 
 func ResolveBots(ctx context.Context, client *Client, tokens []string) ([]Bot, error) {
@@ -37,10 +40,18 @@ func ResolveBots(ctx context.Context, client *Client, tokens []string) ([]Bot, e
 			return nil, fmt.Errorf("%w: %s", ErrDuplicateBotUser, user.ID)
 		}
 
+		displayName := user.GlobalName
+		if displayName == "" {
+			displayName = user.Username
+		}
+
 		seen[user.ID] = struct{}{}
 		bots = append(bots, Bot{
-			UserID: user.ID,
-			Token:  token,
+			UserID:      user.ID,
+			Username:    user.Username,
+			DisplayName: displayName,
+			Avatar:      user.Avatar,
+			Token:       token,
 		})
 	}
 
