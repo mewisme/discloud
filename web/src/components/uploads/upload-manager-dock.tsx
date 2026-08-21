@@ -2,51 +2,52 @@
 
 import { ArrowUpRightIcon, CheckIcon, CircleAlertIcon, Loader2Icon } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { BottomDock } from "@/components/app/bottom-dock-stack"
-import { useCurrentUser } from "@/components/app/current-user-context"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useUploads } from "@/components/uploads/upload-provider"
-import { isActiveUploadTask } from "@/components/uploads/upload-task"
+import { isActiveUploadTask, uploadTaskPercent } from "@/components/uploads/upload-task"
 import { formatBytes } from "@/lib/helpers"
 import { workspacePath } from "@/lib/workspace/navigation"
 
 const completionHideDelayMs = 3000
 
-export function UploadManagerDock() {
-  const pathname = usePathname()
-  const currentUser = useCurrentUser()
+export function UploadManagerDock({ username }: { username: string }) {
   const { tasks } = useUploads()
   const [hovered, setHovered] = useState(false)
   const [completionVisible, setCompletionVisible] = useState(false)
-  const previousActiveCountRef = useRef(0)
+  const previousActiveIdsRef = useRef<Set<string>>(new Set())
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const href = workspacePath(currentUser.username, "uploads")
-  const onUploadsPage = pathname === href || pathname === `${href}/`
   const activeTasks = tasks.filter(isActiveUploadTask)
   const failedTasks = tasks.filter((task) => task.status === "error")
-  const completedTasks = tasks.filter((task) => task.status === "completed")
   const activeCount = activeTasks.length
   const failedCount = failedTasks.length
   const needsAttention = activeCount > 0 || failedCount > 0
+  const previousActiveIds = previousActiveIdsRef.current
+  const justCompleted = !needsAttention
+    && previousActiveIds.size > 0
+    && [...previousActiveIds].every((id) => tasks.find((task) => task.id === id)?.status === "completed")
+  const showCompletion = completionVisible || justCompleted
 
   useEffect(() => {
-    const previousActiveCount = previousActiveCountRef.current
-    previousActiveCountRef.current = activeCount
+    const previousIds = previousActiveIdsRef.current
+    const completed = activeCount === 0
+      && failedCount === 0
+      && previousIds.size > 0
+      && [...previousIds].every((id) => tasks.find((task) => task.id === id)?.status === "completed")
 
-    if (needsAttention) {
+    previousActiveIdsRef.current = new Set(activeTasks.map((task) => task.id))
+
+    if (activeCount > 0 || failedCount > 0) {
       setCompletionVisible(false)
       return
     }
 
-    if (previousActiveCount > 0 && completedTasks.length > 0) {
-      setCompletionVisible(true)
-    }
-  }, [activeCount, completedTasks.length, needsAttention])
+    if (completed) setCompletionVisible(true)
+  }, [activeCount, activeTasks, failedCount, tasks])
 
   useEffect(() => {
     if (hideTimerRef.current) {
@@ -54,7 +55,7 @@ export function UploadManagerDock() {
       hideTimerRef.current = undefined
     }
 
-    if (!completionVisible || hovered || onUploadsPage) return
+    if (!completionVisible || hovered) return
 
     hideTimerRef.current = setTimeout(() => {
       setCompletionVisible(false)
@@ -66,32 +67,23 @@ export function UploadManagerDock() {
       clearTimeout(hideTimerRef.current)
       hideTimerRef.current = undefined
     }
-  }, [completionVisible, hovered, onUploadsPage])
+  }, [completionVisible, hovered])
 
-  useEffect(() => {
-    if (onUploadsPage) setCompletionVisible(false)
-  }, [onUploadsPage])
+  if (!needsAttention && !showCompletion) return null
 
-  if (onUploadsPage) return null
-  if (!needsAttention && !completionVisible) return null
-
-  const finished = !needsAttention && completionVisible
+  const finished = !needsAttention && showCompletion
   const currentTask = activeTasks.find((task) => task.status === "uploading")
     ?? activeTasks.find((task) => task.status === "finalizing")
     ?? activeTasks[0]
-    ?? completedTasks.at(-1)
-
-  const relevantTasks = tasks.filter((task) => !["cancelled", "skipped"].includes(task.status))
-  const totalBytes = relevantTasks.reduce((total, task) => total + Math.max(0, task.file.size), 0)
-  const uploadedBytes = relevantTasks.reduce((total, task) => {
-    if (task.status === "completed") return total + Math.max(0, task.file.size)
-    return total + Math.min(Math.max(0, task.uploadedBytes), Math.max(0, task.file.size))
-  }, 0)
-  const progress = totalBytes > 0
-    ? Math.min(100, uploadedBytes / totalBytes * 100)
-    : finished
-      ? 100
+    ?? failedTasks.at(-1)
+  const progress = finished
+    ? 100
+    : currentTask
+      ? uploadTaskPercent(currentTask)
       : 0
+  const uploadedBytes = currentTask?.uploadedBytes ?? 0
+  const totalBytes = currentTask?.file.size ?? 0
+  const href = workspacePath(username, "uploads")
 
   return (
     <BottomDock slot="uploads">
@@ -133,11 +125,13 @@ export function UploadManagerDock() {
           {Math.round(progress)}%
         </span>
 
-        <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground md:block">
-          {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
-        </span>
+        {!finished && currentTask && (
+          <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground md:block">
+            {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
+          </span>
+        )}
 
-        {!finished && activeCount > 1 && (
+        {activeCount > 1 && (
           <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
             {activeCount} active
           </span>
