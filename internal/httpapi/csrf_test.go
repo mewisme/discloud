@@ -15,7 +15,15 @@ func TestCSRFMiddleware(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := config.HTTPConfig{PublicBaseURL: publicURL}
+	cfg := config.HTTPConfig{
+		PublicBaseURL: publicURL,
+		CORS: config.CORSConfig{
+			AllowedOrigins: []string{
+				"https://app.example.com",
+				"https://external.example.net",
+			},
+		},
+	}
 
 	tests := []struct {
 		name    string
@@ -50,6 +58,24 @@ func TestCSRFMiddleware(t *testing.T) {
 			want: http.StatusNoContent,
 		},
 		{
+			name:   "allowed same site CORS origin",
+			method: http.MethodPost,
+			headers: map[string]string{
+				"Origin":         "https://app.example.com",
+				"Sec-Fetch-Site": "same-site",
+			},
+			want: http.StatusNoContent,
+		},
+		{
+			name:   "allowed cross site CORS origin",
+			method: http.MethodPut,
+			headers: map[string]string{
+				"Origin":         "https://external.example.net",
+				"Sec-Fetch-Site": "cross-site",
+			},
+			want: http.StatusNoContent,
+		},
+		{
 			name:   "cross origin",
 			method: http.MethodPost,
 			headers: map[string]string{
@@ -74,23 +100,16 @@ func TestCSRFMiddleware(t *testing.T) {
 			want: http.StatusForbidden,
 		},
 		{
-			name:   "cross site fetch",
+			name:   "same site sibling not allowed",
 			method: http.MethodPost,
 			headers: map[string]string{
-				"Sec-Fetch-Site": "cross-site",
-			},
-			want: http.StatusForbidden,
-		},
-		{
-			name:   "same site sibling",
-			method: http.MethodPost,
-			headers: map[string]string{
+				"Origin":         "https://sibling.example.com",
 				"Sec-Fetch-Site": "same-site",
 			},
 			want: http.StatusForbidden,
 		},
 		{
-			name:   "cross site wins over spoofed origin",
+			name:   "cross site wins over spoofed same origin",
 			method: http.MethodPost,
 			headers: map[string]string{
 				"Origin":         "https://files.example.com",
@@ -132,6 +151,7 @@ func TestCSRFMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+
 	handler := RequestIDMiddleware(csrfMiddleware(cfg, next))
 
 	for _, tt := range tests {
@@ -150,12 +170,9 @@ func TestCSRFMiddleware(t *testing.T) {
 			handler.ServeHTTP(rec, req)
 
 			if rec.Code != tt.want {
-				t.Fatalf(
-					"status = %d, want %d",
-					rec.Code,
-					tt.want,
-				)
+				t.Fatalf("status = %d, want %d", rec.Code, tt.want)
 			}
+
 			if rec.Header().Get(RequestIDHeader) == "" {
 				t.Fatal("request ID is missing")
 			}
@@ -169,6 +186,7 @@ func TestCSRFUsesRequestOriginWithoutPublicURL(t *testing.T) {
 		"https://files.example.com/api/v1/test",
 		nil,
 	)
+
 	req.Header.Set("Origin", "https://files.example.com")
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 
@@ -182,10 +200,6 @@ func TestCSRFUsesRequestOriginWithoutPublicURL(t *testing.T) {
 	).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf(
-			"status = %d, want %d",
-			rec.Code,
-			http.StatusNoContent,
-		)
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
 	}
 }

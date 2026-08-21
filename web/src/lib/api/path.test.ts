@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { apiBackendPath, apiBackendSegments, apiProxyPath, apiURL } from "@/lib/api/path"
+import { apiBackendPath, apiBackendSegments, apiDirectURL, apiProxyPath, apiURL } from "@/lib/api/path"
+
+const publicAPIURL = process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+
+beforeEach(() => {
+  delete process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+})
+
+afterEach(() => {
+  if (publicAPIURL === undefined) {
+    delete process.env.NEXT_PUBLIC_DISCLOUD_API_URL
+    return
+  }
+
+  process.env.NEXT_PUBLIC_DISCLOUD_API_URL = publicAPIURL
+})
 
 describe("apiURL", () => {
   it("builds proxy URLs from versioned API paths", () => {
@@ -30,6 +45,39 @@ describe("apiURL", () => {
   })
 })
 
+describe("apiDirectURL", () => {
+  it("falls back to the proxy when a public backend URL is not configured", () => {
+    expect(apiDirectURL("/api/v1/folders/123")).toBe("/api/backend/folders/123")
+  })
+
+  it("builds direct backend URLs", () => {
+    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080"
+
+    expect(apiDirectURL("/api/v1/folders/123")).toBe(
+      "http://localhost:8080/api/v1/folders/123",
+    )
+  })
+
+  it("normalizes trailing slashes", () => {
+    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080/"
+
+    expect(apiDirectURL("/folders/123")).toBe(
+      "http://localhost:8080/api/v1/folders/123",
+    )
+  })
+
+  it("adds direct query parameters", () => {
+    process.env.NEXT_PUBLIC_DISCLOUD_API_URL = "http://localhost:8080"
+
+    expect(apiDirectURL("/search", {
+      q: "hello world",
+      limit: 25,
+    })).toBe(
+      "http://localhost:8080/api/v1/search?q=hello+world&limit=25",
+    )
+  })
+})
+
 describe("apiProxyPath", () => {
   it("removes the API version prefix", () => {
     expect(apiProxyPath("/api/v1/folders/123")).toBe("/folders/123")
@@ -56,10 +104,20 @@ describe("apiBackendPath", () => {
 
 describe("apiBackendSegments", () => {
   it("adds API version segments when missing", () => {
-    expect(apiBackendSegments(["folders", "123"])).toEqual(["api", "v1", "folders", "123"])
+    expect(apiBackendSegments(["folders", "123"])).toEqual([
+      "api",
+      "v1",
+      "folders",
+      "123",
+    ])
   })
 
   it("does not duplicate existing API version segments", () => {
-    expect(apiBackendSegments(["api", "v1", "folders", "123"])).toEqual(["api", "v1", "folders", "123"])
+    expect(apiBackendSegments(["api", "v1", "folders", "123"])).toEqual([
+      "api",
+      "v1",
+      "folders",
+      "123",
+    ])
   })
 })

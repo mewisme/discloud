@@ -20,24 +20,35 @@ func csrfMiddleware(cfg config.HTTPConfig, next http.Handler) http.Handler {
 }
 
 func validRequestOrigin(r *http.Request, cfg config.HTTPConfig) bool {
-	switch strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))) {
-	case "cross-site", "same-site":
-		return false
-	case "", "same-origin", "none":
+	site := strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")))
+
+	switch site {
+	case "", "same-origin", "same-site", "cross-site", "none":
 	default:
 		return false
 	}
 
 	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
-		return sameOrigin(r, cfg, origin)
-	}
-	if referer := strings.TrimSpace(r.Header.Get("Referer")); referer != "" {
-		return sameOrigin(r, cfg, referer)
+		return validBrowserRequestOrigin(r, cfg, origin, site)
 	}
 
-	// ponytail: requests without browser fetch metadata are treated as
-	// non-browser clients; session authentication still applies downstream.
-	return true
+	if referer := strings.TrimSpace(r.Header.Get("Referer")); referer != "" {
+		return validBrowserRequestOrigin(r, cfg, referer, site)
+	}
+
+	return site == "" || site == "same-origin" || site == "none"
+}
+
+func validBrowserRequestOrigin(r *http.Request, cfg config.HTTPConfig, rawOrigin, site string) bool {
+	if sameOrigin(r, cfg, rawOrigin) {
+		return site == "" || site == "same-origin" || site == "none"
+	}
+
+	if corsOriginAllowed(cfg, rawOrigin) {
+		return site == "" || site == "same-site" || site == "cross-site" || site == "none"
+	}
+
+	return false
 }
 
 func sameOrigin(r *http.Request, cfg config.HTTPConfig, raw string) bool {
@@ -55,6 +66,7 @@ func sameOrigin(r *http.Request, cfg config.HTTPConfig, raw string) bool {
 	if r.TLS != nil {
 		scheme = "https"
 	}
+
 	return strings.EqualFold(got, scheme+"://"+r.Host)
 }
 
@@ -67,6 +79,7 @@ func parseOrigin(raw string) (string, bool) {
 	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
 		return "", false
 	}
+
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return "", false
 	}
