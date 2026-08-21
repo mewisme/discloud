@@ -9,16 +9,19 @@ import { FileBrowserSettings } from "@/components/settings/common/file-browser-s
 import { FilePreviewSettings } from "@/components/settings/common/file-preview-settings"
 import { SettingsSaveBar } from "@/components/settings/common/settings-save-bar"
 import { type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant } from "@/components/settings/common/sidebar-settings"
+import { ThemeSettings } from "@/components/settings/common/theme-settings"
 import type { ToolbarDockPosition, ToolbarVariant } from "@/components/settings/common/toolbar-preview"
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"
+import type { ThemeEffect } from "@/lib/theme-transition"
 
 export function CommonSettings() {
   const router = useRouter()
   const { config, setConfig } = useUserConfig()
   const [timezone, setTimezone] = useState(config.common.timezone || "UTC")
+  const [themeEffect, setThemeEffect] = useState<ThemeEffect>(config.common.theme.effect)
   const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(config.common.fileBrowserToolbar.variant)
   const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(config.common.fileBrowserToolbar.dockPosition)
   const [previewPreloadNext, setPreviewPreloadNext] = useState(config.common.filePreview.preloadNext)
@@ -27,6 +30,7 @@ export function CommonSettings() {
   const [sidebarCollapsible, setSidebarCollapsible] = useState<SidebarCollapsible>(config.common.sidebar.collapsible)
   const [pending, setPending] = useState(false)
   const dirty = timezone !== config.common.timezone
+    || themeEffect !== config.common.theme.effect
     || toolbarVariant !== config.common.fileBrowserToolbar.variant
     || toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition
     || previewPreloadNext !== config.common.filePreview.preloadNext
@@ -36,6 +40,7 @@ export function CommonSettings() {
 
   useEffect(() => {
     setTimezone(config.common.timezone || "UTC")
+    setThemeEffect(config.common.theme.effect)
     setToolbarVariant(config.common.fileBrowserToolbar.variant)
     setToolbarDockPosition(config.common.fileBrowserToolbar.dockPosition)
     setPreviewPreloadNext(config.common.filePreview.preloadNext)
@@ -44,6 +49,7 @@ export function CommonSettings() {
     setSidebarCollapsible(config.common.sidebar.collapsible)
   }, [
     config.common.timezone,
+    config.common.theme.effect,
     config.common.fileBrowserToolbar.variant,
     config.common.fileBrowserToolbar.dockPosition,
     config.common.filePreview.preloadNext,
@@ -58,6 +64,9 @@ export function CommonSettings() {
     try {
       const input = {
         timezone,
+        theme: {
+          effect: themeEffect,
+        },
         fileBrowserToolbar: {
           variant: toolbarVariant,
           dockPosition: toolbarDockPosition,
@@ -89,6 +98,8 @@ export function CommonSettings() {
 
   return (
     <div className="min-w-0 space-y-6">
+      <ThemeSettings effect={themeEffect} onEffectChange={setThemeEffect} />
+
       <SidebarSettings
         side={sidebarSide}
         variant={sidebarVariant}
@@ -105,21 +116,11 @@ export function CommonSettings() {
         onDockPositionChange={setToolbarDockPosition}
       />
 
-      <FilePreviewSettings
-        preloadNext={previewPreloadNext}
-        onPreloadNextChange={setPreviewPreloadNext}
-      />
+      <FilePreviewSettings preloadNext={previewPreloadNext} onPreloadNextChange={setPreviewPreloadNext} />
 
-      <DateTimeSettings
-        timezone={timezone}
-        onTimezoneChange={setTimezone}
-      />
+      <DateTimeSettings timezone={timezone} onTimezoneChange={setTimezone} />
 
-      <SettingsSaveBar
-        dirty={dirty}
-        pending={pending}
-        onSave={() => void save()}
-      />
+      <SettingsSaveBar dirty={dirty} pending={pending} onSave={() => void save()} />
     </div>
   )
 }

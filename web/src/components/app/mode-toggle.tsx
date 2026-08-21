@@ -2,12 +2,26 @@
 
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useLayoutEffect } from "react"
 
+import { useUserConfig } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { applyThemeTransitionEffect, removeThemeTransitionEffect, startThemeTransition } from "@/lib/theme-transition"
 
 export function ModeToggle() {
   const { setTheme } = useTheme()
+  const { config } = useUserConfig()
+  const effect = config.common.theme.effect
+
+  useLayoutEffect(() => {
+    applyThemeTransitionEffect(effect)
+    return removeThemeTransitionEffect
+  }, [effect])
+
+  function changeTheme(theme: "light" | "dark" | "system") {
+    startThemeTransition(() => setTheme(theme))
+  }
 
   return (
     <DropdownMenu>
@@ -20,13 +34,13 @@ export function ModeToggle() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
+        <DropdownMenuItem onClick={() => changeTheme("light")}>
           Light
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
+        <DropdownMenuItem onClick={() => changeTheme("dark")}>
           Dark
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
+        <DropdownMenuItem onClick={() => changeTheme("system")}>
           System
         </DropdownMenuItem>
       </DropdownMenuContent>

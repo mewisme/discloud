@@ -25,6 +25,7 @@ var (
 	ErrInvalidSidebar            = errors.New("invalid sidebar configuration")
 	ErrInvalidConfigKey          = errors.New("invalid app config key")
 	ErrInvalidConfigValue        = errors.New("invalid app config value")
+	ErrInvalidTheme              = errors.New("invalid theme configuration")
 	ErrAppConfigNotFound         = errors.New("app config not found")
 )
 
@@ -43,6 +44,10 @@ type FilePreviewConfig struct {
 	PreloadNext int `json:"preloadNext"`
 }
 
+type ThemeConfig struct {
+	Effect string `json:"effect"`
+}
+
 type SidebarConfig struct {
 	Side        string `json:"side"`
 	Variant     string `json:"variant"`
@@ -51,6 +56,7 @@ type SidebarConfig struct {
 
 type CommonUserConfig struct {
 	Timezone           string                   `json:"timezone"`
+	Theme              ThemeConfig              `json:"theme"`
 	FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 	FilePreview        FilePreviewConfig        `json:"filePreview"`
 	Sidebar            SidebarConfig            `json:"sidebar"`
@@ -58,6 +64,7 @@ type CommonUserConfig struct {
 
 type CommonUserConfigPatch struct {
 	Timezone           string
+	Theme              *ThemeConfig
 	FileBrowserToolbar *FileBrowserToolbarConfig
 	FilePreview        *FilePreviewConfig
 	Sidebar            *SidebarConfig
@@ -137,6 +144,14 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID string, inp
 			return UserConfig{}, err
 		}
 		commonPatch["sidebar"] = sidebar
+	}
+
+	if input.Theme != nil {
+		theme, err := validateThemeConfig(*input.Theme)
+		if err != nil {
+			return UserConfig{}, err
+		}
+		commonPatch["theme"] = theme
 	}
 
 	patchJSON, err := json.Marshal(commonPatch)
@@ -336,6 +351,7 @@ func defaultUserConfig() UserConfig {
 	return UserConfig{
 		Common: CommonUserConfig{
 			Timezone:           "UTC",
+			Theme:              defaultThemeConfig(),
 			FileBrowserToolbar: defaultFileBrowserToolbarConfig(),
 			FilePreview:        defaultFilePreviewConfig(),
 			Sidebar:            defaultSidebarConfig(),
@@ -364,10 +380,17 @@ func defaultSidebarConfig() SidebarConfig {
 	}
 }
 
+func defaultThemeConfig() ThemeConfig {
+	return ThemeConfig{
+		Effect: "triangle",
+	}
+}
+
 func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	var stored struct {
 		Common struct {
 			Timezone           string                   `json:"timezone"`
+			Theme              ThemeConfig              `json:"theme"`
 			FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
 			FilePreview        FilePreviewConfig        `json:"filePreview"`
 			Sidebar            SidebarConfig            `json:"sidebar"`
@@ -424,9 +447,20 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 		return UserConfig{}, fmt.Errorf("decode sidebar config: %w", err)
 	}
 
+	theme := defaultThemeConfig()
+	if strings.TrimSpace(stored.Common.Theme.Effect) != "" {
+		theme.Effect = stored.Common.Theme.Effect
+	}
+
+	theme, err = validateThemeConfig(theme)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("decode theme config: %w", err)
+	}
+
 	return UserConfig{
 		Common: CommonUserConfig{
 			Timezone:           timezone,
+			Theme:              theme,
 			FileBrowserToolbar: toolbar,
 			FilePreview:        preview,
 			Sidebar:            sidebar,
@@ -485,6 +519,23 @@ func validateSidebarConfig(value SidebarConfig) (SidebarConfig, error) {
 	}
 
 	return value, nil
+}
+
+func validateThemeConfig(value ThemeConfig) (ThemeConfig, error) {
+	value.Effect = strings.TrimSpace(value.Effect)
+
+	switch value.Effect {
+	case "triangle",
+		"triangle-blur",
+		"circle",
+		"circle-blur",
+		"circle-blur-top-left",
+		"polygon",
+		"polygon-gradient":
+		return value, nil
+	default:
+		return ThemeConfig{}, ErrInvalidTheme
+	}
 }
 
 func validateAppConfigKey(key string) error {

@@ -2029,6 +2029,13 @@ export type components = {
             /** Format: int64 */
             readonly userCount: number;
         };
+        readonly ThemeConfig: {
+            /**
+             * @default triangle
+             * @enum {string}
+             */
+            readonly effect: "triangle" | "triangle-blur" | "circle" | "circle-blur" | "circle-blur-top-left" | "polygon" | "polygon-gradient";
+        };
         readonly UploadDiagnostic: {
             readonly actorName: string;
             /** Format: uuid */
@@ -2115,6 +2122,7 @@ export type components = {
                 readonly fileBrowserToolbar: components["schemas"]["FileBrowserToolbarConfig"];
                 readonly filePreview: components["schemas"]["FilePreviewConfig"];
                 readonly sidebar: components["schemas"]["SidebarConfig"];
+                readonly theme: components["schemas"]["ThemeConfig"];
                 readonly timezone: string;
             };
             /** Format: int64 */
@@ -2948,6 +2956,7 @@ export type components = {
                     readonly fileBrowserToolbar?: components["schemas"]["FileBrowserToolbarConfig"];
                     readonly filePreview?: components["schemas"]["FilePreviewConfig"];
                     readonly sidebar?: components["schemas"]["SidebarConfig"];
+                    readonly theme?: components["schemas"]["ThemeConfig"];
                     readonly timezone: string;
                 };
             };
