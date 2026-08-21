@@ -56,7 +56,7 @@ func TestValidateFileBrowserToolbarConfig(t *testing.T) {
 func TestValidateFilePreviewConfig(t *testing.T) {
 	t.Parallel()
 
-	for _, preloadNext := range []int{3, 4, 5} {
+	for preloadNext := 3; preloadNext <= 10; preloadNext++ {
 		config, err := validateFilePreviewConfig(FilePreviewConfig{PreloadNext: preloadNext})
 		if err != nil {
 			t.Fatalf("validateFilePreviewConfig(%d): %v", preloadNext, err)
@@ -66,7 +66,7 @@ func TestValidateFilePreviewConfig(t *testing.T) {
 		}
 	}
 
-	for _, preloadNext := range []int{0, 1, 2, 6, 10} {
+	for _, preloadNext := range []int{0, 1, 2, 11, 20} {
 		if _, err := validateFilePreviewConfig(FilePreviewConfig{PreloadNext: preloadNext}); !errors.Is(err, ErrInvalidFilePreview) {
 			t.Fatalf("validateFilePreviewConfig(%d) error = %v, want ErrInvalidFilePreview", preloadNext, err)
 		}
@@ -140,13 +140,13 @@ func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 func TestDecodeUserConfigFilePreview(t *testing.T) {
 	t.Parallel()
 
-	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","filePreview":{"preloadNext":5}}}`), 2)
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","filePreview":{"preloadNext":10}}}`), 2)
 	if err != nil {
 		t.Fatalf("decodeUserConfig: %v", err)
 	}
 
-	if config.Common.FilePreview.PreloadNext != 5 {
-		t.Fatalf("preview preloadNext = %d, want 5", config.Common.FilePreview.PreloadNext)
+	if config.Common.FilePreview.PreloadNext != 10 {
+		t.Fatalf("preview preloadNext = %d, want 10", config.Common.FilePreview.PreloadNext)
 	}
 }
 

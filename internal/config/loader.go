@@ -38,6 +38,7 @@ const (
 	envDiscordChannelID          = "DISCLOUD_DISCORD_CHANNEL_ID"
 	envDiscordBotTokens          = "DISCLOUD_DISCORD_BOT_TOKENS"
 	envUploadChunkSize           = "DISCLOUD_UPLOAD_CHUNK_SIZE"
+	envUploadMediaChunkSize      = "DISCLOUD_UPLOAD_MEDIA_CHUNK_SIZE"
 	envUploadSessionTTL          = "DISCLOUD_UPLOAD_SESSION_TTL"
 	envJobsWorkerCount           = "DISCLOUD_JOBS_WORKER_COUNT"
 	envLogLevel                  = "DISCLOUD_LOG_LEVEL"
@@ -222,6 +223,16 @@ func load(lookup lookupEnvFunc) (Config, error) {
 		}
 	}
 
+	if value, ok := lookup(envUploadMediaChunkSize); ok {
+		cfg.Upload.MediaChunkSizeBytes, err = parseByteSize(value)
+		if err != nil {
+			return Config{}, envParseError(
+				envUploadMediaChunkSize,
+				err,
+			)
+		}
+	}
+
 	if cfg.Upload.SessionTTL, err = durationEnv(
 		lookup,
 		envUploadSessionTTL,
@@ -279,8 +290,9 @@ func defaultConfig() Config {
 			Bots: []DiscordBotConfig{},
 		},
 		Upload: UploadConfig{
-			ChunkSizeBytes: DefaultUploadChunkSize,
-			SessionTTL:     48 * time.Hour,
+			ChunkSizeBytes:      DefaultUploadChunkSize,
+			MediaChunkSizeBytes: DefaultUploadMediaChunkSize,
+			SessionTTL:          48 * time.Hour,
 		},
 		Jobs: JobsConfig{
 			WorkerCount: 4,

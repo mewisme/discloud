@@ -6,9 +6,12 @@ import (
 )
 
 const (
-	DefaultUploadChunkSize  int64 = 10 * 1024 * 1024
-	MaxUploadChunkSize      int64 = 20 * 1024 * 1024
-	EncryptionMasterKeySize       = 32
+	DefaultUploadChunkSize      int64 = 10 * 1024 * 1024
+	MaxUploadChunkSize          int64 = 20 * 1024 * 1024
+	DefaultUploadMediaChunkSize int64 = 5 * 1024 * 1024
+	MinUploadMediaChunkSize     int64 = 1 * 1024 * 1024
+	MaxUploadMediaChunkSize     int64 = 5 * 1024 * 1024
+	EncryptionMasterKeySize           = 32
 )
 
 type Config struct {
@@ -89,8 +92,9 @@ type DiscordBotConfig struct {
 }
 
 type UploadConfig struct {
-	ChunkSizeBytes int64
-	SessionTTL     time.Duration
+	ChunkSizeBytes      int64
+	MediaChunkSizeBytes int64
+	SessionTTL          time.Duration
 }
 
 type JobsConfig struct {

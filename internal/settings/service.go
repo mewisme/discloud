@@ -509,7 +509,7 @@ func validateFileBrowserToolbarConfig(value FileBrowserToolbarConfig) (FileBrows
 }
 
 func validateFilePreviewConfig(value FilePreviewConfig) (FilePreviewConfig, error) {
-	if value.PreloadNext < 3 || value.PreloadNext > 5 {
+	if value.PreloadNext < 3 || value.PreloadNext > 10 {
 		return FilePreviewConfig{}, ErrInvalidFilePreview
 	}
 

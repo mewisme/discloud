@@ -74,11 +74,13 @@ type CreateInput struct {
 }
 
 type Service struct {
-	pool             *pgxpool.Pool
-	acl              *acl.Service
-	defaultChunkSize int64
-	chunkPlanner     *chunkPlanner
-	sessionTTL       time.Duration
+	pool              *pgxpool.Pool
+	acl               *acl.Service
+	defaultChunkSize  int64
+	mediaChunkSize    int64
+	chunkPlanner      *chunkPlanner
+	mediaChunkPlanner *chunkPlanner
+	sessionTTL        time.Duration
 }
 
 type scanner interface {
@@ -126,12 +128,30 @@ func NewWithCapacityProvider(
 	sessionTTL time.Duration,
 	capacity CapacityProvider,
 ) *Service {
+	return NewWithChunkSizes(
+		pool,
+		chunkSize,
+		chunkSize,
+		sessionTTL,
+		capacity,
+	)
+}
+
+func NewWithChunkSizes(
+	pool *pgxpool.Pool,
+	chunkSize int64,
+	mediaChunkSize int64,
+	sessionTTL time.Duration,
+	capacity CapacityProvider,
+) *Service {
 	return &Service{
-		pool:             pool,
-		acl:              acl.New(pool),
-		defaultChunkSize: chunkSize,
-		chunkPlanner:     newChunkPlanner(chunkSize, capacity),
-		sessionTTL:       sessionTTL,
+		pool:              pool,
+		acl:               acl.New(pool),
+		defaultChunkSize:  chunkSize,
+		mediaChunkSize:    mediaChunkSize,
+		chunkPlanner:      newChunkPlanner(chunkSize, capacity),
+		mediaChunkPlanner: newMediaChunkPlanner(mediaChunkSize, capacity),
+		sessionTTL:        sessionTTL,
 	}
 }
 
@@ -143,13 +163,22 @@ func (s *Service) Create(
 	if input.SizeBytes < 0 ||
 		s.defaultChunkSize <= 0 ||
 		s.defaultChunkSize > math.MaxInt32 ||
+		s.mediaChunkSize <= 0 ||
+		s.mediaChunkSize > math.MaxInt32 ||
 		s.sessionTTL <= 0 {
 		return Session{}, ErrInvalidUpload
 	}
 
 	chunkSize := s.defaultChunkSize
-	if s.chunkPlanner != nil {
-		chunkSize = s.chunkPlanner.Plan(input.SizeBytes)
+	planner := s.chunkPlanner
+
+	if isMediaUpload(input.Name, input.MIMETypeHint) {
+		chunkSize = s.mediaChunkSize
+		planner = s.mediaChunkPlanner
+	}
+
+	if planner != nil {
+		chunkSize = planner.Plan(input.SizeBytes)
 	}
 	if chunkSize <= 0 || chunkSize > math.MaxInt32 {
 		return Session{}, ErrInvalidUpload

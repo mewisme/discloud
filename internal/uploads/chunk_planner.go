@@ -4,7 +4,8 @@ import "math"
 
 const (
 	adaptivePartsPerSlot        int64 = 2
-	initialMinAdaptiveChunkSize int64 = 2 * 1024 * 1024
+	defaultMinAdaptiveChunkSize int64 = 2 * 1024 * 1024
+	mediaMinAdaptiveChunkSize   int64 = 1 * 1024 * 1024
 )
 
 type CapacityProvider interface {
@@ -18,8 +19,18 @@ type chunkPlanner struct {
 }
 
 func newChunkPlanner(defaultChunkSize int64, capacity CapacityProvider) *chunkPlanner {
-	minChunkSize := initialMinAdaptiveChunkSize
-	if defaultChunkSize < minChunkSize {
+	return newChunkPlannerWithMinimum(defaultChunkSize, defaultMinAdaptiveChunkSize, capacity)
+}
+
+func newMediaChunkPlanner(defaultChunkSize int64, capacity CapacityProvider) *chunkPlanner {
+	return newChunkPlannerWithMinimum(defaultChunkSize, mediaMinAdaptiveChunkSize, capacity)
+}
+
+func newChunkPlannerWithMinimum(defaultChunkSize, minChunkSize int64, capacity CapacityProvider) *chunkPlanner {
+	if minChunkSize <= 0 {
+		minChunkSize = defaultChunkSize
+	}
+	if defaultChunkSize > 0 && minChunkSize > defaultChunkSize {
 		minChunkSize = defaultChunkSize
 	}
 

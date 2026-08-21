@@ -54,6 +54,8 @@ func (cfg Config) Validate() error {
 
 	add(cfg.Upload.ChunkSizeBytes <= 0, "upload chunk size must be greater than zero")
 	add(cfg.Upload.ChunkSizeBytes > MaxUploadChunkSize, "upload chunk size cannot exceed %d bytes", MaxUploadChunkSize)
+	add(cfg.Upload.MediaChunkSizeBytes < MinUploadMediaChunkSize, "media upload chunk size must be at least %d bytes", MinUploadMediaChunkSize)
+	add(cfg.Upload.MediaChunkSizeBytes > MaxUploadMediaChunkSize, "media upload chunk size cannot exceed %d bytes", MaxUploadMediaChunkSize)
 	add(cfg.Upload.SessionTTL <= 0, "upload session TTL must be greater than zero")
 	add(cfg.Jobs.WorkerCount <= 0, "job worker count must be greater than zero")
 	add(!validLogLevel(cfg.Log.Level), "invalid log level %q", cfg.Log.Level)

@@ -4,6 +4,8 @@ import { SettingsRow } from "@/components/settings/common/settings-row"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 
+const preloadOptions = [3, 4, 5, 6, 7, 8, 9, 10] as const
+
 export function FilePreviewSettings({
   preloadNext,
   onPreloadNextChange,
@@ -46,9 +48,12 @@ export function FilePreviewSettings({
               <SelectContent>
                 <SelectGroup>
                   <SelectLabel>Upcoming previews</SelectLabel>
-                  <SelectItem value="3">3 items</SelectItem>
-                  <SelectItem value="4">4 items</SelectItem>
-                  <SelectItem value="5">5 items</SelectItem>
+
+                  {preloadOptions.map((count) => (
+                    <SelectItem key={count} value={String(count)}>
+                      {count} items
+                    </SelectItem>
+                  ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
