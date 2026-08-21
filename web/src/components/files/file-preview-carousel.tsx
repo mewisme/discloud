@@ -18,6 +18,7 @@ export type PreviewCarouselFile = {
   id: string
   name: string
   size: number
+  chunkSize?: number
   mimeType: string
   category?: string
 }
@@ -35,47 +36,84 @@ export function FilePreviewCarousel({
 }) {
   const router = useRouter()
   const { config } = useUserConfig()
-  const preloadOwnerRef = useRef(Symbol("file-preview-carousel"))
+  const preloadOwnerRef = useRef(
+    Symbol("file-preview-carousel"),
+  )
   const [api, setApi] = useState<CarouselApi>()
-  const [infoVisible, setInfoVisible] = useState(true)
-  const navigatingToRef = useRef<string | undefined>(undefined)
-  const infoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [infoVisible, setInfoVisible] =
+    useState(true)
+  const navigatingToRef =
+    useRef<string | undefined>(undefined)
+  const infoTimerRef =
+    useRef<
+      ReturnType<typeof setTimeout> | undefined
+    >(undefined)
+
+  const preloadNext =
+    config.common.filePreview.preloadNext
+
   const slides = useMemo(() => {
     const seen = new Set<string>()
 
     return files.filter((file) => {
-      if (seen.has(file.id) || filePreviewKind(file.mimeType, file.category) === "unsupported") return false
+      if (
+        seen.has(file.id) ||
+        filePreviewKind(
+          file.mimeType,
+          file.category,
+        ) === "unsupported"
+      ) {
+        return false
+      }
+
       seen.add(file.id)
       return true
     })
   }, [files])
-  const currentIndex = slides.findIndex((file) => file.id === currentFile.id)
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, currentIndex))
+
+  const currentIndex = slides.findIndex(
+    (file) => file.id === currentFile.id,
+  )
+  const [selectedIndex, setSelectedIndex] =
+    useState(Math.max(0, currentIndex))
+
   const preloadTargets = useMemo(
-    () => slides.slice(
-      selectedIndex + 1,
-      selectedIndex + 1 + config.common.filePreview.preloadNext,
-    ),
-    [config.common.filePreview.preloadNext, selectedIndex, slides],
+    () =>
+      slides.slice(
+        selectedIndex + 1,
+        selectedIndex + 1 + preloadNext,
+      ),
+    [
+      preloadNext,
+      selectedIndex,
+      slides,
+    ],
   )
 
   const clearInfoTimer = useCallback(() => {
     if (!infoTimerRef.current) return
+
     clearTimeout(infoTimerRef.current)
     infoTimerRef.current = undefined
   }, [])
 
-  const showInfo = useCallback((autoHide = false) => {
-    clearInfoTimer()
-    setInfoVisible(true)
+  const showInfo = useCallback(
+    (autoHide = false) => {
+      clearInfoTimer()
+      setInfoVisible(true)
 
-    if (autoHide) {
-      infoTimerRef.current = setTimeout(() => {
-        setInfoVisible(false)
-        infoTimerRef.current = undefined
-      }, infoAutoHideMs)
-    }
-  }, [clearInfoTimer])
+      if (autoHide) {
+        infoTimerRef.current = setTimeout(
+          () => {
+            setInfoVisible(false)
+            infoTimerRef.current = undefined
+          },
+          infoAutoHideMs,
+        )
+      }
+    },
+    [clearInfoTimer],
+  )
 
   const hideInfo = useCallback(() => {
     clearInfoTimer()
@@ -91,10 +129,13 @@ export function FilePreviewCarousel({
   }, [collectionId, preloadTargets])
 
   useEffect(() => {
-    const preloadOwner = preloadOwnerRef.current
+    const preloadOwner =
+      preloadOwnerRef.current
 
     return () => {
-      clearPreviewPreloadWindow(preloadOwner)
+      clearPreviewPreloadWindow(
+        preloadOwner,
+      )
       clearInfoTimer()
     }
   }, [clearInfoTimer])
@@ -107,27 +148,46 @@ export function FilePreviewCarousel({
 
     setSelectedIndex(currentIndex)
     api.scrollTo(currentIndex, true)
-  }, [api, currentFile.id, currentIndex, showInfo])
+  }, [
+    api,
+    currentFile.id,
+    currentIndex,
+    showInfo,
+  ])
 
   useEffect(() => {
     if (!api) return
 
     const select = () => {
-      const index = api.selectedScrollSnap()
+      const index =
+        api.selectedScrollSnap()
       const selected = slides[index]
 
       setSelectedIndex(index)
       showInfo(true)
 
-      if (!selected || selected.id === currentFile.id) {
+      if (
+        !selected ||
+        selected.id === currentFile.id
+      ) {
         navigatingToRef.current = undefined
         return
       }
 
-      if (navigatingToRef.current === selected.id) return
+      if (
+        navigatingToRef.current ===
+        selected.id
+      ) {
+        return
+      }
 
-      navigatingToRef.current = selected.id
-      router.replace(`${routeBase}/${encodeURIComponent(selected.id)}`, { scroll: false })
+      navigatingToRef.current =
+        selected.id
+
+      router.replace(
+        `${routeBase}/${encodeURIComponent(selected.id)}`,
+        { scroll: false },
+      )
     }
 
     api.on("select", select)
@@ -135,10 +195,26 @@ export function FilePreviewCarousel({
     return () => {
       api.off("select", select)
     }
-  }, [api, currentFile.id, routeBase, router, showInfo, slides])
+  }, [
+    api,
+    currentFile.id,
+    routeBase,
+    router,
+    showInfo,
+    slides,
+  ])
 
-  if (currentIndex < 0 || slides.length < 2) {
-    return <FilePreview file={currentFile} collectionId={collectionId} />
+  if (
+    currentIndex < 0 ||
+    slides.length < 2
+  ) {
+    return (
+      <FilePreview
+        file={currentFile}
+        collectionId={collectionId}
+        preloadNext={preloadNext}
+      />
+    )
   }
 
   const selected = slides[selectedIndex]
@@ -163,11 +239,23 @@ export function FilePreviewCarousel({
     >
       <CarouselContent className="ml-0">
         {slides.map((file, index) => (
-          <CarouselItem key={file.id} className="pl-0">
+          <CarouselItem
+            key={file.id}
+            className="pl-0"
+          >
             {file.id === currentFile.id ? (
-              <FilePreview file={currentFile} collectionId={collectionId} />
+              <FilePreview
+                file={currentFile}
+                collectionId={collectionId}
+                preloadNext={preloadNext}
+              />
             ) : (
-              <PendingPreview file={file} active={index === selectedIndex} />
+              <PendingPreview
+                file={file}
+                active={
+                  index === selectedIndex
+                }
+              />
             )}
           </CarouselItem>
         ))}
@@ -185,20 +273,31 @@ export function FilePreviewCarousel({
 
       {selected && (
         <>
-          <p className="sr-only" role="status" aria-live="polite">
-            {selected.name}, {selectedIndex + 1} of {slides.length}
+          <p
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+          >
+            {selected.name},{" "}
+            {selectedIndex + 1} of{" "}
+            {slides.length}
           </p>
 
           <div
             aria-hidden
             className={cn(
               "pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 rounded-full border bg-background/85 px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-md transition-[opacity,transform] duration-200",
-              infoVisible ? "-translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+              infoVisible
+                ? "-translate-y-0 opacity-100"
+                : "translate-y-2 opacity-0",
             )}
           >
-            <span className="block truncate">{selected.name}</span>
+            <span className="block truncate">
+              {selected.name}
+            </span>
             <span className="text-muted-foreground">
-              {selectedIndex + 1} / {slides.length}
+              {selectedIndex + 1} /{" "}
+              {slides.length}
             </span>
           </div>
         </>
@@ -217,11 +316,22 @@ function PendingPreview({
   return (
     <div className="grid min-h-80 place-items-center overflow-hidden rounded-xl border bg-muted/20 sm:h-[70vh]">
       <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
-        {active ? <Spinner className="size-6" /> : <FileIcon className="size-8 text-muted-foreground" />}
+        {active ? (
+          <Spinner className="size-6" />
+        ) : (
+          <FileIcon className="size-8 text-muted-foreground" />
+        )}
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{file.name}</p>
-          {active && <p className="mt-1 text-xs text-muted-foreground">Opening preview…</p>}
+          <p className="truncate text-sm font-medium">
+            {file.name}
+          </p>
+
+          {active && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Opening preview…
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -2,13 +2,14 @@
 
 import { DownloadIcon, FileIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import Image from "next/image"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { apiRequest, apiURL } from "@/lib/api/client"
 import { filePreviewKind } from "@/lib/files/preview"
+import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@/lib/files/preview-preload"
 import { cn } from "@/lib/utils"
 
 const textPreviewLimit = 256 * 1024
@@ -17,6 +18,7 @@ type PreviewFile = {
   id: string
   name: string
   size: number
+  chunkSize?: number
   mimeType: string
   category?: string
 }
@@ -26,36 +28,234 @@ export type FilePreviewSource = {
   downloadPath: string
 }
 
-export function FilePreview({ file, collectionId, source: customSource }: { file: PreviewFile; collectionId?: string; source?: FilePreviewSource }) {
-  const kind = filePreviewKind(file.mimeType, file.category)
-  const source = customSource ?? structuralSource(file.id, collectionId)
+export function FilePreview({
+  file,
+  collectionId,
+  source: customSource,
+  preloadNext = 3,
+}: {
+  file: PreviewFile
+  collectionId?: string
+  source?: FilePreviewSource
+  preloadNext?: number
+}) {
+  const kind = filePreviewKind(
+    file.mimeType,
+    file.category,
+  )
+  const source =
+    customSource ??
+    structuralSource(file.id, collectionId)
   const contentURL = apiURL(source.contentPath)
 
   switch (kind) {
     case "image":
-      return <ImagePreview file={file} contentURL={contentURL} />
+      return (
+        <ImagePreview
+          file={file}
+          contentURL={contentURL}
+        />
+      )
+
     case "video":
       return (
-        <div className="grid min-h-64 place-items-center overflow-hidden rounded-xl border bg-black">
-          <video src={contentURL} controls preload="metadata" className="max-h-[75vh] w-full" />
-        </div>
+        <VideoPreview
+          file={file}
+          contentURL={contentURL}
+          preloadNext={preloadNext}
+        />
       )
+
     case "audio":
       return (
         <div className="grid min-h-48 place-items-center rounded-xl border bg-muted/20 p-6">
-          <audio src={contentURL} controls preload="metadata" className="w-full max-w-2xl" />
+          <audio
+            src={contentURL}
+            controls
+            preload="metadata"
+            className="w-full max-w-2xl"
+          />
         </div>
       )
+
     case "pdf":
-      return <iframe src={contentURL} title={file.name} className="h-[75vh] w-full rounded-xl border bg-background" />
+      return (
+        <iframe
+          src={contentURL}
+          title={file.name}
+          className="h-[75vh] w-full rounded-xl border bg-background"
+        />
+      )
+
     case "text":
-      return <TextPreview file={file} source={source} />
+      return (
+        <TextPreview
+          file={file}
+          source={source}
+        />
+      )
+
     default:
-      return <UnsupportedPreview file={file} source={source} />
+      return (
+        <UnsupportedPreview
+          file={file}
+          source={source}
+        />
+      )
   }
 }
 
-function ImagePreview({ file, contentURL }: { file: PreviewFile; contentURL: string }) {
+function VideoPreview({
+  file,
+  contentURL,
+  preloadNext,
+}: {
+  file: PreviewFile
+  contentURL: string
+  preloadNext: number
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const preloadOwnerRef = useRef(
+    Symbol("video-chunk-preload"),
+  )
+  const currentChunkRef = useRef(-1)
+
+  const syncWarmWindow = useCallback(
+    (video: HTMLVideoElement) => {
+      const chunkSize = file.chunkSize ?? 0
+
+      if (
+        file.size <= 0 ||
+        chunkSize <= 0
+      ) {
+        clearPreviewPreloadWindow(
+          preloadOwnerRef.current,
+        )
+        return
+      }
+
+      const currentChunk = videoPlaybackChunk(
+        video,
+        file.size,
+        chunkSize,
+      )
+
+      if (
+        currentChunk == null ||
+        currentChunk === currentChunkRef.current
+      ) {
+        return
+      }
+
+      currentChunkRef.current = currentChunk
+
+      setVideoChunkPreloadWindow(
+        preloadOwnerRef.current,
+        contentURL,
+        file.size,
+        chunkSize,
+        currentChunk,
+        preloadNext,
+      )
+    },
+    [
+      contentURL,
+      file.chunkSize,
+      file.size,
+      preloadNext,
+    ],
+  )
+
+  useEffect(() => {
+    currentChunkRef.current = -1
+
+    const video = videoRef.current
+    if (video && video.readyState >= 1) {
+      syncWarmWindow(video)
+    }
+
+    const owner = preloadOwnerRef.current
+
+    return () => {
+      clearPreviewPreloadWindow(owner)
+    }
+  }, [syncWarmWindow])
+
+  return (
+    <div className="grid min-h-64 place-items-center overflow-hidden rounded-xl border bg-black">
+      <video
+        ref={videoRef}
+        src={contentURL}
+        controls
+        preload="metadata"
+        className="max-h-[75vh] w-full"
+        onLoadedMetadata={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onDurationChange={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onPlay={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onTimeUpdate={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onSeeking={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onSeeked={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+        onEnded={(event) =>
+          syncWarmWindow(event.currentTarget)
+        }
+      />
+    </div>
+  )
+}
+
+function videoPlaybackChunk(
+  video: HTMLVideoElement,
+  fileSize: number,
+  chunkSize: number,
+): number | null {
+  if (
+    fileSize <= 0 ||
+    chunkSize <= 0 ||
+    !Number.isFinite(video.duration) ||
+    video.duration <= 0
+  ) {
+    return null
+  }
+
+  const totalChunks = Math.ceil(
+    fileSize / chunkSize,
+  )
+
+  if (totalChunks <= 0) return null
+
+  const progress = Math.max(
+    0,
+    Math.min(
+      1,
+      video.currentTime / video.duration,
+    ),
+  )
+
+  return Math.min(
+    totalChunks - 1,
+    Math.floor(progress * totalChunks),
+  )
+}
+
+function ImagePreview({
+  file,
+  contentURL,
+}: {
+  file: PreviewFile
+  contentURL: string
+}) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
@@ -82,14 +282,22 @@ function ImagePreview({ file, contentURL }: { file: PreviewFile; contentURL: str
             <TriangleAlertIcon className="size-8 text-muted-foreground" />
 
             <div className="space-y-1">
-              <p className="font-medium">Preview unavailable</p>
-              <p className="text-sm text-muted-foreground">The image could not be loaded.</p>
+              <p className="font-medium">
+                Preview unavailable
+              </p>
+              <p className="text-sm text-muted-foreground">
+                The image could not be loaded.
+              </p>
             </div>
 
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setRetryKey((current) => current + 1)}
+              onClick={() =>
+                setRetryKey(
+                  (current) => current + 1,
+                )
+              }
             >
               <RefreshCwIcon />
               Try again
@@ -107,7 +315,9 @@ function ImagePreview({ file, contentURL }: { file: PreviewFile; contentURL: str
           loading="eager"
           className={cn(
             "object-contain transition-opacity duration-200",
-            loading ? "opacity-0" : "opacity-100",
+            loading
+              ? "opacity-0"
+              : "opacity-100",
           )}
           onLoad={() => setLoading(false)}
           onError={() => {
@@ -120,12 +330,22 @@ function ImagePreview({ file, contentURL }: { file: PreviewFile; contentURL: str
   )
 }
 
-function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
+function TextPreview({
+  file,
+  source,
+}: {
+  file: PreviewFile
+  source: FilePreviewSource
+}) {
   const [text, setText] = useState("")
-  const [loading, setLoading] = useState(file.size > 0)
-  const [error, setError] = useState<string>()
+  const [loading, setLoading] = useState(
+    file.size > 0,
+  )
+  const [error, setError] =
+    useState<string>()
   const [retryKey, setRetryKey] = useState(0)
-  const truncated = file.size > textPreviewLimit
+  const truncated =
+    file.size > textPreviewLimit
 
   useEffect(() => {
     if (file.size === 0) {
@@ -136,33 +356,57 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
     }
 
     const controller = new AbortController()
-    const end = Math.min(file.size, textPreviewLimit) - 1
+    const end =
+      Math.min(file.size, textPreviewLimit) - 1
+
     setLoading(true)
     setError(undefined)
 
     async function load() {
       try {
-        const response = await apiRequest(source.contentPath, {
-          headers: { Range: `bytes=0-${end}` },
-          signal: controller.signal,
-        })
+        const response = await apiRequest(
+          source.contentPath,
+          {
+            headers: {
+              Range: `bytes=0-${end}`,
+            },
+            signal: controller.signal,
+          },
+        )
+
         setText(await response.text())
       } catch (cause) {
         if (controller.signal.aborted) return
-        setError(cause instanceof Error ? cause.message : "Could not preview this file")
+
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not preview this file",
+        )
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
       }
     }
 
     void load()
+
     return () => controller.abort()
-  }, [file.size, retryKey, source.contentPath])
+  }, [
+    file.size,
+    retryKey,
+    source.contentPath,
+  ])
 
   if (loading) {
     return (
       <div className="grid min-h-72 place-items-center rounded-xl border">
-        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
           <Spinner aria-hidden />
           Loading preview…
         </div>
@@ -174,10 +418,20 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
     return (
       <Alert variant="destructive">
         <TriangleAlertIcon />
-        <AlertTitle>Preview unavailable</AlertTitle>
+        <AlertTitle>
+          Preview unavailable
+        </AlertTitle>
         <AlertDescription className="space-y-3">
           <p>{error}</p>
-          <Button size="sm" variant="outline" onClick={() => setRetryKey((current) => current + 1)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setRetryKey(
+                (current) => current + 1,
+              )
+            }
+          >
             <RefreshCwIcon />
             Try again
           </Button>
@@ -188,21 +442,41 @@ function TextPreview({ file, source }: { file: PreviewFile; source: FilePreviewS
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
-      {truncated && <div className="border-b bg-muted/50 px-4 py-2 text-xs text-muted-foreground">Showing the first 256 KiB.</div>}
-      <pre className="max-h-[75vh] overflow-auto whitespace-pre-wrap wrap-break-word p-4 font-mono text-xs leading-relaxed">{text || "Empty file"}</pre>
+      {truncated && (
+        <div className="border-b bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
+          Showing the first 256 KiB.
+        </div>
+      )}
+
+      <pre className="max-h-[75vh] overflow-auto whitespace-pre-wrap wrap-break-word p-4 font-mono text-xs leading-relaxed">
+        {text || "Empty file"}
+      </pre>
     </div>
   )
 }
 
-function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FilePreviewSource }) {
+function UnsupportedPreview({
+  file,
+  source,
+}: {
+  file: PreviewFile
+  source: FilePreviewSource
+}) {
   return (
     <div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center">
       <div className="space-y-4">
         <FileIcon className="mx-auto size-10 text-muted-foreground" />
+
         <div>
-          <p className="font-medium">Preview unavailable</p>
-          <p className="text-sm text-muted-foreground">{file.name} cannot be previewed in the browser.</p>
+          <p className="font-medium">
+            Preview unavailable
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {file.name} cannot be previewed in
+            the browser.
+          </p>
         </div>
+
         <Button asChild>
           <a href={apiURL(source.downloadPath)}>
             <DownloadIcon />
@@ -214,12 +488,19 @@ function UnsupportedPreview({ file, source }: { file: PreviewFile; source: FileP
   )
 }
 
-function structuralSource(fileId: string, collectionId?: string): FilePreviewSource {
-  const suffix = collectionId ? `?collectionId=${encodeURIComponent(collectionId)}` : ""
+function structuralSource(
+  fileId: string,
+  collectionId?: string,
+): FilePreviewSource {
+  const suffix = collectionId
+    ? `?collectionId=${encodeURIComponent(collectionId)}`
+    : ""
   const encoded = encodeURIComponent(fileId)
 
   return {
-    contentPath: `/api/v1/files/${encoded}/content${suffix}`,
-    downloadPath: `/api/v1/files/${encoded}/download${suffix}`,
+    contentPath:
+      `/api/v1/files/${encoded}/content${suffix}`,
+    downloadPath:
+      `/api/v1/files/${encoded}/download${suffix}`,
   }
 }
