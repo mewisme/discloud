@@ -1,7 +1,8 @@
 "use client"
 
-import { FolderIcon, FolderPlusIcon, HeartIcon, LibraryIcon, Loader2Icon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, Trash2Icon, UploadIcon } from "lucide-react"
+import { FolderIcon, FolderPlusIcon, HeartIcon, LibraryIcon, Loader2Icon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon, UploadIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
@@ -13,10 +14,12 @@ import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { FILE_BROWSER_CREATE_FOLDER_EVENT, FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
 import { folderBrowserPath, folderIdFromBrowserPath, workspacePath } from "@/lib/files/navigation"
+import { startThemeTransition } from "@/lib/theme-transition"
 
 export function CommandPalette() {
   const router = useRouter()
   const pathname = usePathname()
+  const { resolvedTheme, setTheme } = useTheme()
   const user = useCurrentUser()
   const workspace = useWorkspace()
   const [open, setOpen] = useState(false)
@@ -26,6 +29,7 @@ export function CommandPalette() {
   const [folderError, setFolderError] = useState(false)
   const value = query.trim()
   const inFileBrowser = folderIdFromBrowserPath(pathname, workspace.username) !== null
+  const dark = resolvedTheme === "dark"
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -110,6 +114,14 @@ export function CommandPalette() {
     window.dispatchEvent(new Event(eventName))
   }
 
+  function toggleTheme() {
+    close()
+
+    requestAnimationFrame(() => {
+      startThemeTransition(() => setTheme(dark ? "light" : "dark"))
+    })
+  }
+
   return (
     <>
       <Button variant="outline" className="h-8 w-full justify-start gap-2 px-2.5 text-muted-foreground" onClick={() => setOpen(true)}>
@@ -175,6 +187,13 @@ export function CommandPalette() {
                 </CommandItem>
               </CommandGroup>
             )}
+
+            <CommandGroup heading="Appearance">
+              <CommandItem value="toggle-theme appearance light dark" onSelect={toggleTheme}>
+                {dark ? <SunIcon /> : <MoonIcon />}
+                {dark ? "Light mode" : "Dark mode"}
+              </CommandItem>
+            </CommandGroup>
 
             <CommandGroup heading="Navigate">
               <CommandItem onSelect={() => navigate(workspacePath(workspace.username))}>
