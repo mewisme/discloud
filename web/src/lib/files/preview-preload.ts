@@ -5,8 +5,8 @@ import { filePreviewKind } from "@/lib/files/preview"
 
 const maxConcurrentPreviewWarms = 3
 const maxRememberedWarmAssets = 256
-const maxRetainedMediaWarms = 12
 const previewWarmRangeEnd = 256 * 1024 - 1
+const previewWarmTimeoutMs = 8000
 
 export type PreviewPreloadAsset = {
   id: string
@@ -22,7 +22,6 @@ type PreviewWarmTask = {
 const preloadWindows = new Map<symbol, Set<string>>()
 const warmedPreviewAssets = new Set<string>()
 const activePreviewWarms = new Map<string, Promise<void>>()
-const retainedMediaWarms = new Map<string, HTMLMediaElement>()
 let pendingPreviewWarms: PreviewWarmTask[] = []
 
 export function setPreviewPreloadWindow(
@@ -31,10 +30,17 @@ export function setPreviewPreloadWindow(
   collectionId?: string,
 ) {
   const tasks = files.map((file) => previewWarmTask(file, collectionId))
-  preloadWindows.set(owner, new Set(tasks.map((task) => task.source)))
+
+  preloadWindows.set(
+    owner,
+    new Set(tasks.map((task) => task.source)),
+  )
+
   removeUndesiredPendingWarms()
 
-  const pendingSources = new Set(pendingPreviewWarms.map((task) => task.source))
+  const pendingSources = new Set(
+    pendingPreviewWarms.map((task) => task.source),
+  )
 
   for (const task of tasks) {
     if (
@@ -72,14 +78,19 @@ function previewWarmTask(
 
 function removeUndesiredPendingWarms() {
   const desired = desiredPreviewSources()
-  pendingPreviewWarms = pendingPreviewWarms.filter((task) => desired.has(task.source))
+
+  pendingPreviewWarms = pendingPreviewWarms.filter(
+    (task) => desired.has(task.source),
+  )
 }
 
 function desiredPreviewSources() {
   const desired = new Set<string>()
 
   for (const window of preloadWindows.values()) {
-    for (const source of window) desired.add(source)
+    for (const source of window) {
+      desired.add(source)
+    }
   }
 
   return desired
@@ -91,7 +102,10 @@ function drainPreviewWarmQueue() {
     pendingPreviewWarms.length > 0
   ) {
     const task = pendingPreviewWarms.shift()
-    if (!task) return
+
+    if (!task) {
+      return
+    }
 
     if (
       warmedPreviewAssets.has(task.source) ||
@@ -101,7 +115,9 @@ function drainPreviewWarmQueue() {
     }
 
     const warm = preloadPreviewAsset(task)
-      .then(() => rememberWarmedPreviewAsset(task.source))
+      .then(() => {
+        rememberWarmedPreviewAsset(task.source)
+      })
       .catch(() => { })
       .finally(() => {
         activePreviewWarms.delete(task.source)
@@ -117,12 +133,15 @@ async function preloadPreviewAsset(task: PreviewWarmTask) {
     case "image":
       await preloadImage(task.source)
       return
+
     case "video":
       await preloadMedia(task.source, "video")
       return
+
     case "audio":
       await preloadMedia(task.source, "audio")
       return
+
     case "pdf":
     case "text":
       await preloadRange(task.source)
@@ -134,25 +153,65 @@ function preloadImage(source: string) {
   return new Promise<void>((resolve, reject) => {
     const image = new window.Image()
 
-    const finish = (error?: Error) => {
+    let settled = false
+
+    const timeout = window.setTimeout(() => {
+      finish(
+        new Error("Preview image preload timed out"),
+      )
+    }, previewWarmTimeoutMs)
+
+    function finish(error?: Error) {
+      if (settled) {
+        return
+      }
+
+      settled = true
+
+      window.clearTimeout(timeout)
+
       image.onload = null
       image.onerror = null
-      if (error) reject(error)
-      else resolve()
+
+      if (error) {
+        reject(error)
+        return
+      }
+
+      resolve()
     }
 
     image.decoding = "async"
-    image.onload = () => finish()
-    image.onerror = () => finish(new Error("Preview image preload failed"))
+
+    image.onload = () => {
+      finish()
+    }
+
+    image.onerror = () => {
+      finish(
+        new Error("Preview image preload failed"),
+      )
+    }
+
     image.src = source
   })
 }
 
-async function preloadMedia(source: string, kind: "video" | "audio") {
+async function preloadMedia(
+  source: string,
+  kind: "video" | "audio",
+) {
   const media = document.createElement(kind)
-  const readyEvent = kind === "video" ? "loadeddata" : "loadedmetadata"
 
-  media.preload = kind === "video" ? "auto" : "metadata"
+  const readyEvent =
+    kind === "video"
+      ? "loadeddata"
+      : "loadedmetadata"
+
+  media.preload =
+    kind === "video"
+      ? "auto"
+      : "metadata"
 
   if (media instanceof HTMLVideoElement) {
     media.muted = true
@@ -161,68 +220,104 @@ async function preloadMedia(source: string, kind: "video" | "audio") {
 
   try {
     await new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        media.removeEventListener(readyEvent, loaded)
-        media.removeEventListener("error", failed)
+      let settled = false
+
+      const timeout = window.setTimeout(() => {
+        finish(
+          new Error("Preview media preload timed out"),
+        )
+      }, previewWarmTimeoutMs)
+
+      function cleanup() {
+        window.clearTimeout(timeout)
+
+        media.removeEventListener(
+          readyEvent,
+          loaded,
+        )
+
+        media.removeEventListener(
+          "error",
+          failed,
+        )
       }
 
-      const loaded = () => {
+      function finish(error?: Error) {
+        if (settled) {
+          return
+        }
+
+        settled = true
         cleanup()
+
+        if (error) {
+          reject(error)
+          return
+        }
+
         resolve()
       }
 
-      const failed = () => {
-        cleanup()
-        reject(new Error("Preview media preload failed"))
+      function loaded() {
+        finish()
       }
 
-      media.addEventListener(readyEvent, loaded, { once: true })
-      media.addEventListener("error", failed, { once: true })
+      function failed() {
+        finish(
+          new Error("Preview media preload failed"),
+        )
+      }
+
+      media.addEventListener(
+        readyEvent,
+        loaded,
+        { once: true },
+      )
+
+      media.addEventListener(
+        "error",
+        failed,
+        { once: true },
+      )
+
       media.src = source
       media.load()
     })
-
-    if (kind === "video") {
-      retainMediaWarm(source, media)
-      return
-    }
   } finally {
-    if (kind !== "video") releaseMedia(media)
+    releaseMedia(media)
   }
 }
 
 async function preloadRange(source: string) {
-  const response = await fetch(source, {
-    credentials: "include",
-    headers: {
-      Range: `bytes=0-${previewWarmRangeEnd}`,
-    },
-  })
+  const controller = new AbortController()
 
-  if (!response.ok) {
-    throw new Error(`Preview range preload failed with ${response.status}`)
-  }
+  const timeout = window.setTimeout(() => {
+    controller.abort()
+  }, previewWarmTimeoutMs)
 
-  await response.arrayBuffer()
-}
+  try {
+    const response = await fetch(source, {
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        Range: `bytes=0-${previewWarmRangeEnd}`,
+      },
+    })
 
-function retainMediaWarm(source: string, media: HTMLMediaElement) {
-  const previous = retainedMediaWarms.get(source)
-  if (previous && previous !== media) releaseMedia(previous)
+    if (!response.ok) {
+      throw new Error(
+        `Preview range preload failed with ${response.status}`,
+      )
+    }
 
-  retainedMediaWarms.delete(source)
-  retainedMediaWarms.set(source, media)
-
-  while (retainedMediaWarms.size > maxRetainedMediaWarms) {
-    const oldest = retainedMediaWarms.entries().next().value as [string, HTMLMediaElement] | undefined
-    if (!oldest) break
-
-    retainedMediaWarms.delete(oldest[0])
-    releaseMedia(oldest[1])
+    await response.arrayBuffer()
+  } finally {
+    window.clearTimeout(timeout)
   }
 }
 
 function releaseMedia(media: HTMLMediaElement) {
+  media.pause()
   media.removeAttribute("src")
   media.load()
 }
@@ -231,16 +326,17 @@ function rememberWarmedPreviewAsset(source: string) {
   warmedPreviewAssets.delete(source)
   warmedPreviewAssets.add(source)
 
-  while (warmedPreviewAssets.size > maxRememberedWarmAssets) {
-    const oldest = warmedPreviewAssets.values().next().value
-    if (!oldest) break
+  while (
+    warmedPreviewAssets.size >
+    maxRememberedWarmAssets
+  ) {
+    const oldest =
+      warmedPreviewAssets.values().next().value
+
+    if (!oldest) {
+      break
+    }
 
     warmedPreviewAssets.delete(oldest)
-
-    const media = retainedMediaWarms.get(oldest)
-    if (media) {
-      retainedMediaWarms.delete(oldest)
-      releaseMedia(media)
-    }
   }
 }
