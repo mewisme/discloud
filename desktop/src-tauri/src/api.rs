@@ -83,6 +83,7 @@ struct Problem {
 }
 
 impl DesktopApiClient {
+    #[allow(dead_code)]
     fn new(server_url: &str) -> Result<Self, ApiCommandError> {
         Self::from_base_url(normalize_server_url(server_url)?)
     }

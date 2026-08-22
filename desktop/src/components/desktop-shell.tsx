@@ -14,6 +14,7 @@ import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router"
 import { useDesktopSession } from "#components/desktop-session"
 import { errorMessage } from "#lib/instance"
 
+import { DesktopAdminSurface } from "../features/admin/ui/admin-surface"
 import { useDesktopUserConfig } from "../features/settings/ui/user-config-provider"
 import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
 
@@ -26,6 +27,9 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
   const workspaceUsername = params.username ?? user.username
   const sidebar = config?.common.sidebar
   const navigation = createAppNavigation({ actorUsername: user.username, workspaceUsername, isAdmin: user.role === "admin" })
+  const adminSurface = user.role === "admin" && workspaceUsername === user.username
+    ? <DesktopAdminSurface pathname={location.pathname} username={user.username} />
+    : null
 
   return (
     <AppShellFrame
@@ -45,7 +49,7 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
       }
       header={<AppHeaderView title={appRouteTitle(location.pathname, workspaceUsername)} actions={<DesktopHeaderActions user={user} serverUrl={serverUrl} />} />}
     >
-      <Outlet />
+      {adminSurface ?? <Outlet />}
     </AppShellFrame>
   )
 }

@@ -9,6 +9,7 @@
     "web:dev": "pnpm --filter @discloud/web dev",
     "web:build": "pnpm --filter @discloud/web build",
     "web:lint": "pnpm --filter @discloud/web lint",
+    "web:lint:fix": "pnpm --filter @discloud/web lint:fix",
     "web:typecheck": "pnpm --filter @discloud/web typecheck",
     "web:test": "pnpm --filter @discloud/web test",
     "desktop:dev": "pnpm --filter @discloud/desktop dev",
