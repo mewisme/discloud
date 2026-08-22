@@ -508,6 +508,7 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 			Timezone:           timezone,
 			Theme:              theme,
 			FileBrowserToolbar: toolbar,
+			Pagination:         pagination,
 			FilePreview:        preview,
 			Sidebar:            sidebar,
 		},

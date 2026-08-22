@@ -14,109 +14,163 @@
 
 </div>
 
-## About
+## Overview
 
-DisCloud stores canonical application state in PostgreSQL and uses Discord
-attachments as physical blob storage.
+DisCloud is a self-hosted file storage application that keeps application state and metadata in PostgreSQL while using Discord attachments as blob storage.
 
-The backend includes hierarchical folders, ACLs, resumable uploads, chunk
-deduplication, Range downloads, Trash/restore, collections, public shares,
-search, MFA, quotas, metrics, jobs, and administrative diagnostics.
+It provides a web interface for managing personal and shared files, together with administration and diagnostics for the underlying storage system.
 
-Discord storage uses a shared bot pool with:
+### Features
 
-- runtime capacity derived from usable bots;
-- one active Discord operation lease per bot;
-- fair scheduling between competing operation classes;
-- automatic cooldown handling after Discord rate limits;
-- adaptive browser part-upload concurrency;
-- adaptive per-session chunk sizing;
-- realtime administrator bot diagnostics and runtime controls.
+- Multi-user workspaces with hierarchical files and folders
+- Resumable and chunked uploads with deduplication
+- File previews, downloads and HTTP Range support
+- Search, favorites, collections and Trash
+- Folder and collection sharing with access control
+- Public file, folder and collection shares
+- Multiple Discord storage bots with adaptive upload concurrency
+- MFA, storage quotas and session management
+- Administration for users, bots, jobs and runtime diagnostics
 
-The web client lives in `web/` and provides the user and administrator
-interfaces for DisCloud.
+## Architecture
+
+| Component | Purpose |
+| --- | --- |
+| **Web** | Next.js user and administration interface |
+| **Backend** | Go API, storage coordination and background jobs |
+| **PostgreSQL** | Users, metadata, permissions and application state |
+| **Discord** | Physical chunk and attachment storage |
+
+PostgreSQL remains the canonical source of application state. Discord is used only for physical blob storage.
 
 ## Quick start
 
-Requirements:
+### Requirements
 
-- Docker and Docker Compose
-- a Discord guild and storage channel
-- one or more Discord bot tokens
+- Docker with Docker Compose
+- A Discord guild and storage channel
+- One or more Discord bot tokens with access to the storage channel
 
-Create the environment file:
+Clone the repository and create the environment file:
 
 ```bash
+git clone https://github.com/mewisme/discloud.git
+cd discloud
 cp .env.example .env
 ```
 
-Generate the application encryption key:
+Generate a 32-byte encryption key:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Set these values in `.env`:
+Configure at least these values in `.env`:
 
-```text
-DISCLOUD_ENCRYPTION_MASTER_KEY_BASE64
-DISCLOUD_DISCORD_GUILD_ID
-DISCLOUD_DISCORD_CHANNEL_ID
-DISCLOUD_DISCORD_BOT_TOKENS
+```env
+DISCLOUD_ENCRYPTION_MASTER_KEY_BASE64=
+DISCLOUD_DISCORD_GUILD_ID=
+DISCLOUD_DISCORD_CHANNEL_ID=
+DISCLOUD_DISCORD_BOT_TOKENS=
 ```
 
-Start the prebuilt images:
+Pull and start the containers:
 
 ```bash
 docker compose pull
 docker compose up -d --no-build
 ```
 
-Or build the backend and web images from source:
-
-```bash
-docker compose up -d --build
-```
-
-The web client is available on:
+Open:
 
 ```text
 http://localhost:3000
 ```
 
-The API listens on:
+A new installation will guide you through creating the first administrator at `/setup`.
 
-```text
-http://localhost:8080
+### Build from source
+
+To build the backend and frontend images locally instead:
+
+```bash
+docker compose up -d --build
 ```
 
-Check readiness:
+## Configuration
+
+The complete backend configuration is documented in `.env.example`.
+
+The most important groups are:
+
+* HTTP and CORS
+* PostgreSQL
+* authentication and MFA
+* encryption
+* Discord storage
+* upload and chunk sizing
+* background workers
+* logging
+
+For production deployments, review cookie security, public URLs, CORS origins and database credentials before exposing the instance publicly.
+
+## Docker images
+
+Multi-platform images are published to GitHub Container Registry:
 
 ```text
-GET /readyz
+ghcr.io/mewisme/dcbe
+ghcr.io/mewisme/dcfe
 ```
 
-On a new installation, create the first administrator through:
+Every release publishes its exact Git tag together with a release channel:
+
+| Git tag          | Channel  |
+| ---------------- | -------- |
+| `v1.0.0`         | `latest` |
+| `v1.1.0-alpha.1` | `alpha`  |
+| `v1.1.0-beta.1`  | `beta`   |
+| `v1.1.0-rc.1`    | `rc`     |
+
+For example:
 
 ```text
-POST /api/v1/setup
+ghcr.io/mewisme/dcbe:v1.1.0-beta.1
+ghcr.io/mewisme/dcbe:beta
+
+ghcr.io/mewisme/dcfe:v1.1.0-beta.1
+ghcr.io/mewisme/dcfe:beta
 ```
+
+`compose.yml` currently tracks the `beta` channel.
+
+For reproducible deployments, pin both images to the same exact release tag.
 
 ## Development
 
-Backend:
+### Backend
+
+Start PostgreSQL:
 
 ```bash
 docker compose up -d postgres
+```
 
+Set the test database:
+
+```bash
 export DISCLOUD_TEST_DATABASE_DSN="postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable"
+```
 
+Run the backend checks:
+
+```bash
 go test -race ./...
 go vet ./...
 go build ./cmd/discloud
 ```
 
-Web:
+### Web
 
 ```bash
 cd web
@@ -124,65 +178,16 @@ pnpm install
 pnpm dev
 ```
 
-The development client runs on `http://localhost:3000`.
-
-## Project layout
-
-```text
-cmd/          backend entrypoint
-internal/     backend packages
-migrations/   PostgreSQL migrations
-web/          Next.js web client
-desktop/      desktop client workspace
-docs/         API, operations, benchmarking and security documentation
-```
-
-## Docker images
-
-Published releases are available from:
-
-Backend:
-
-```text
-ghcr.io/mewisme/dcbe
-```
-
-Frontend:
-
-```text
-ghcr.io/mewisme/dcfe
-```
-
-Every release tag publishes both the exact Git tag and `latest` for both images:
-
-```text
-ghcr.io/mewisme/dcbe:v1.2.3
-ghcr.io/mewisme/dcbe:latest
-
-ghcr.io/mewisme/dcfe:v1.2.3
-ghcr.io/mewisme/dcfe:latest
-```
-
-For reproducible deployments, replace the `latest` tags in `compose.yml` with
-the same exact release tag for both images.
-
-## Releases
-
-Releases are tag-driven:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-GoReleaser creates the GitHub Release, binary archives, checksums, and the
-multi-platform backend image. The release workflow also builds and publishes
-the multi-platform web image using the same release tag.
+The development server runs at `http://localhost:3000`.
 
 ## Documentation
 
 * [OpenAPI](docs/openapi.json)
 * [Operations](docs/OPERATIONS.md)
-* [Storage benchmarking](docs/BENCHMARKING.md)
 * [Security](docs/SECURITY.md)
+* [Storage benchmarking](docs/BENCHMARKING.md)
 * [Release checklist](docs/RELEASE_CHECKLIST.md)
+
+## License
+
+DisCloud is licensed under the [MIT License](LICENSE).
