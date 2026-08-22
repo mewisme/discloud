@@ -2,7 +2,7 @@ name: discloud
 
 services:
   backend:
-    image: ghcr.io/mewisme/dcbe:latest
+    image: ghcr.io/mewisme/dcbe:beta
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,7 +24,7 @@ services:
       - network
 
   web:
-    image: ghcr.io/mewisme/dcfe:latest
+    image: ghcr.io/mewisme/dcfe:beta
     build:
       context: ./web
       dockerfile: Dockerfile
