@@ -7,39 +7,39 @@ import { useEffect, useRef, useState } from "react"
 import { BottomDock } from "@/components/app/bottom-dock-stack"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { useUploads } from "@/components/uploads/upload-provider"
-import { isActiveUploadTask, uploadTaskPercent } from "@/components/uploads/upload-task"
+import { useUploadDockState } from "@/components/uploads/upload-provider"
+import { uploadTaskPercent } from "@/components/uploads/upload-task"
 import { formatBytes } from "@/lib/helpers"
 import { workspacePath } from "@/lib/workspace/navigation"
 
 const completionHideDelayMs = 3000
 
-export function UploadManagerDock({ username }: { username: string }) {
-  const { tasks } = useUploads()
+export function UploadManagerDock({
+  username,
+}: {
+  username: string
+}) {
+  const {
+    activeCount,
+    failedCount,
+    currentTask,
+    completionVersion,
+  } = useUploadDockState()
   const [hovered, setHovered] = useState(false)
   const [completionVisible, setCompletionVisible] = useState(false)
-  const previousActiveIdsRef = useRef<Set<string>>(new Set())
+  const previousCompletionVersionRef = useRef(completionVersion)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const activeTasks = tasks.filter(isActiveUploadTask)
-  const failedTasks = tasks.filter((task) => task.status === "error")
-  const activeCount = activeTasks.length
-  const failedCount = failedTasks.length
   const needsAttention = activeCount > 0 || failedCount > 0
-  const previousActiveIds = previousActiveIdsRef.current
   const justCompleted = !needsAttention
-    && previousActiveIds.size > 0
-    && [...previousActiveIds].every((id) => tasks.find((task) => task.id === id)?.status === "completed")
+    && completionVersion !== previousCompletionVersionRef.current
   const showCompletion = completionVisible || justCompleted
 
   useEffect(() => {
-    const previousIds = previousActiveIdsRef.current
-    const completed = activeCount === 0
-      && failedCount === 0
-      && previousIds.size > 0
-      && [...previousIds].every((id) => tasks.find((task) => task.id === id)?.status === "completed")
+    const completed = completionVersion
+      !== previousCompletionVersionRef.current
 
-    previousActiveIdsRef.current = new Set(activeTasks.map((task) => task.id))
+    previousCompletionVersionRef.current = completionVersion
 
     if (activeCount > 0 || failedCount > 0) {
       setCompletionVisible(false)
@@ -47,7 +47,7 @@ export function UploadManagerDock({ username }: { username: string }) {
     }
 
     if (completed) setCompletionVisible(true)
-  }, [activeCount, activeTasks, failedCount, tasks])
+  }, [activeCount, completionVersion, failedCount])
 
   useEffect(() => {
     if (hideTimerRef.current) {
@@ -72,10 +72,6 @@ export function UploadManagerDock({ username }: { username: string }) {
   if (!needsAttention && !showCompletion) return null
 
   const finished = !needsAttention && showCompletion
-  const currentTask = activeTasks.find((task) => task.status === "uploading")
-    ?? activeTasks.find((task) => task.status === "finalizing")
-    ?? activeTasks[0]
-    ?? failedTasks.at(-1)
   const progress = finished
     ? 100
     : currentTask
@@ -174,7 +170,10 @@ function StatusIcon({
   if (active > 0) {
     return (
       <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-        <Loader2Icon className="size-4 animate-spin" />
+        <Loader2Icon
+          className="size-4 animate-spin"
+          aria-hidden
+        />
       </div>
     )
   }
@@ -182,7 +181,10 @@ function StatusIcon({
   if (failed > 0) {
     return (
       <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive/10 text-destructive">
-        <CircleAlertIcon className="size-4" />
+        <CircleAlertIcon
+          className="size-4"
+          aria-hidden
+        />
       </div>
     )
   }
@@ -190,7 +192,10 @@ function StatusIcon({
   if (finished) {
     return (
       <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
-        <CheckIcon className="size-4" />
+        <CheckIcon
+          className="size-4"
+          aria-hidden
+        />
       </div>
     )
   }

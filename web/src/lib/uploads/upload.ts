@@ -6,8 +6,10 @@ import { APIError } from "@/lib/api/types"
 import { planUploadParts } from "@/lib/uploads/chunks"
 import { AdaptiveConcurrencyGate, ConcurrencyGate } from "@/lib/uploads/gate"
 
+export const uploadFileConcurrency = 3
+
 const partGate = new AdaptiveConcurrencyGate()
-const fileGate = new ConcurrencyGate(3)
+const fileGate = new ConcurrencyGate(uploadFileConcurrency)
 
 export type UploadCallbacks = {
   onSession: (sessionId: string) => void
@@ -44,38 +46,81 @@ export async function uploadFile({
     callbacks.onProgress(file.size)
     return
   }
-  if (session.status !== "open") throw new Error(`Upload session is ${session.status}`)
-  if (session.parentFolderId !== folderId || session.size !== file.size) throw new Error("Upload session no longer matches this file")
+  if (session.status !== "open") {
+    throw new Error(`Upload session is ${session.status}`)
+  }
+  if (session.parentFolderId !== folderId || session.size !== file.size) {
+    throw new Error("Upload session no longer matches this file")
+  }
 
   const plan = planUploadParts(file.size, session.chunkSize)
-  if (plan.length !== session.expectedParts) throw new Error("Upload session part count is inconsistent")
+  if (plan.length !== session.expectedParts) {
+    throw new Error("Upload session part count is inconsistent")
+  }
 
-  const uploadedParts = new Set((session.parts ?? []).map((part) => part.partIndex))
-  let uploadedBytes = (session.parts ?? []).reduce((total, part) => total + part.size, 0)
+  const uploadedParts = new Set(
+    (session.parts ?? []).map((part) => part.partIndex),
+  )
+  let uploadedBytes = (session.parts ?? []).reduce(
+    (total, part) => total + part.size,
+    0,
+  )
   callbacks.onProgress(uploadedBytes)
 
-  const results = await Promise.allSettled(plan.filter((part) => !uploadedParts.has(part.index)).map((part) => partGate.run(async () => {
-    throwIfAborted(signal)
-    const blob = file.slice(part.start, part.end)
-    const digest = await sha256Hex(blob)
-    throwIfAborted(signal)
-    await putPart(session.id, part.index, blob, digest, signal)
-    uploadedBytes += part.size
-    callbacks.onProgress(uploadedBytes)
-  }, signal)))
+  const results = await Promise.allSettled(
+    plan
+      .filter((part) => !uploadedParts.has(part.index))
+      .map((part) => partGate.run(async () => {
+        throwIfAborted(signal)
 
-  const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected" && !isAbortError(result.reason))
-    ?? results.find((result): result is PromiseRejectedResult => result.status === "rejected")
+        const blob = file.slice(part.start, part.end)
+        const digest = await sha256Hex(blob)
+
+        throwIfAborted(signal)
+
+        await putPart(
+          session.id,
+          part.index,
+          blob,
+          digest,
+          signal,
+        )
+
+        uploadedBytes += part.size
+        callbacks.onProgress(uploadedBytes)
+      }, signal)),
+  )
+
+  const failure = results.find(
+    (result): result is PromiseRejectedResult =>
+      result.status === "rejected" && !isAbortError(result.reason),
+  ) ?? results.find(
+    (result): result is PromiseRejectedResult =>
+      result.status === "rejected",
+  )
+
   if (failure) throw failure.reason
 
   callbacks.onFinalizing()
-  const completedFile = await apiJSON<CompletedFile>(`/api/v1/uploads/${session.id}/complete`, { method: "POST", signal })
+
+  const completedFile = await apiJSON<CompletedFile>(
+    `/api/v1/uploads/${session.id}/complete`,
+    {
+      method: "POST",
+      signal,
+    },
+  )
+
   callbacks.onProgress(file.size)
   callbacks.onCompleted?.(completedFile)
   return completedFile
 }
 
-async function createSession(file: File, folderId: string, signal: AbortSignal) {
+async function createSession(
+  file: File,
+  folderId: string,
+  signal: AbortSignal,
+) {
   // ponytail: whole-file SHA stays optional to avoid buffering very large files in browser memory.
   const input: CreateUploadInput = {
     parentFolderId: folderId,
@@ -91,7 +136,13 @@ async function createSession(file: File, folderId: string, signal: AbortSignal) 
   })
 }
 
-async function putPart(uploadId: string, index: number, body: Blob, sha256: string, signal: AbortSignal) {
+async function putPart(
+  uploadId: string,
+  index: number,
+  body: Blob,
+  sha256: string,
+  signal: AbortSignal,
+) {
   const headers = new Headers({
     "Content-Type": "application/octet-stream",
     "X-Chunk-SHA256": sha256,
@@ -101,27 +152,39 @@ async function putPart(uploadId: string, index: number, body: Blob, sha256: stri
     const startedAt = performance.now()
 
     try {
-      await apiRequest(`/api/v1/uploads/${uploadId}/parts/${index}`, {
-        method: "PUT",
-        headers,
-        body,
-        signal,
-        timeoutMs: 0,
-      })
+      await apiRequest(
+        `/api/v1/uploads/${uploadId}/parts/${index}`,
+        {
+          method: "PUT",
+          headers,
+          body,
+          signal,
+          timeoutMs: 0,
+        },
+      )
+
       partGate.recordSuccess(performance.now() - startedAt)
       return
     } catch (error) {
       const retryable = retryablePartError(error)
       if (retryable && !signal.aborted) partGate.recordCongestion()
       if (signal.aborted || attempt >= 2 || !retryable) throw error
+
       await delay(500 * 2 ** attempt, signal)
     }
   }
 }
 
 async function sha256Hex(blob: Blob) {
-  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    await blob.arrayBuffer(),
+  )
+
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("")
 }
 
 function normalizePartConcurrency(value: number) {
@@ -129,7 +192,9 @@ function normalizePartConcurrency(value: number) {
 }
 
 function retryablePartError(error: unknown) {
-  return error instanceof TypeError || error instanceof APIError && [408, 429, 502, 503, 504].includes(error.status)
+  return error instanceof TypeError
+    || error instanceof APIError
+    && [408, 429, 502, 503, 504].includes(error.status)
 }
 
 function isAbortError(error: unknown) {
@@ -149,7 +214,11 @@ function delay(ms: number, signal: AbortSignal) {
     function abort() {
       clearTimeout(timeout)
       signal.removeEventListener("abort", abort)
-      reject(signal.reason instanceof Error ? signal.reason : new DOMException("Upload cancelled", "AbortError"))
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("Upload cancelled", "AbortError"),
+      )
     }
 
     function done() {
