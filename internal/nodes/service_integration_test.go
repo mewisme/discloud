@@ -166,25 +166,39 @@ func TestNodeTreeIntegration(t *testing.T) {
 		t.Fatal("unexpected additional browser children")
 	}
 
-	sizes := make(map[string]int64, len(browserChildren))
+	childrenByID := make(map[string]BrowserNode, len(browserChildren))
 	for _, child := range browserChildren {
-		if child.SizeBytes == nil {
-			t.Fatalf("browser child %q has no size", child.Name)
+		childrenByID[child.ID] = child
+
+		if child.Kind == "folder" {
+			if child.SizeBytes != nil {
+				t.Fatalf("folder %q size = %d, want nil", child.Name, *child.SizeBytes)
+			}
+			continue
 		}
-		sizes[child.ID] = *child.SizeBytes
+
+		if child.SizeBytes == nil {
+			t.Fatalf("file %q has no size", child.Name)
+		}
 	}
 
-	if got := sizes[a.ID]; got != 350 {
-		t.Fatalf("folder A size = %d, want 350", got)
+	if child := childrenByID[a.ID]; child.SizeBytes != nil {
+		t.Fatalf("folder A size = %d, want nil", *child.SizeBytes)
 	}
-	if got := sizes[empty.ID]; got != 0 {
-		t.Fatalf("empty folder size = %d, want 0", got)
+	if child := childrenByID[empty.ID]; child.SizeBytes != nil {
+		t.Fatalf("empty folder size = %d, want nil", *child.SizeBytes)
 	}
-	if got := sizes[rootFileID]; got != 200 {
-		t.Fatalf("root file size = %d, want 200", got)
+
+	rootFile, ok := childrenByID[rootFileID]
+	if !ok {
+		t.Fatal("root file missing from browser children")
 	}
-	if len(browserChildren) == 0 || browserChildren[0].ID != a.ID {
-		t.Fatalf("largest browser child = %+v, want folder A", browserChildren)
+	if rootFile.SizeBytes == nil || *rootFile.SizeBytes != 200 {
+		t.Fatalf("root file size = %v, want 200", rootFile.SizeBytes)
+	}
+
+	if len(browserChildren) == 0 || browserChildren[0].ID != rootFileID {
+		t.Fatalf("largest browser child = %+v, want root file", browserChildren)
 	}
 
 	children, hasMore, err := service.ListChildren(ctx, user, rootID, 2, "", "")
