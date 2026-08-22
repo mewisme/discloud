@@ -1,8 +1,5 @@
 import type { User } from "@discloud/api/models"
 import { AuthShell } from "@discloud/app-ui/auth/auth-shell"
-import { ChangePasswordForm } from "@discloud/app-ui/auth/change-password-form"
-import { LoginForm } from "@discloud/app-ui/auth/login-form"
-import { SetupForm } from "@discloud/app-ui/auth/setup-form"
 import {
   appRouteTitle,
   workspacePath,
@@ -16,27 +13,60 @@ import {
   CardTitle,
 } from "@discloud/ui/components/card"
 import { LoaderCircle } from "lucide-react"
-import type { ReactNode } from "react"
 import {
+  lazy,
+  type ReactNode,
+  Suspense,
+} from "react"
+import {
+  createHashRouter,
   Navigate,
   Outlet,
-  createHashRouter,
   useLocation,
   useNavigate,
   useParams,
 } from "react-router"
+
 import {
   type ConnectedDesktopSessionState,
   useDesktopSession,
 } from "#components/desktop-session"
-import { DesktopAppLayout } from "#components/desktop-shell"
-import { ServerConnectionScreen } from "#components/server-connection"
 import {
   changePassword,
   completeSetup,
   login,
   verifyMFA,
 } from "#lib/auth"
+
+const ChangePasswordForm = lazy(() =>
+  import("@discloud/app-ui/auth/change-password-form").then((module) => ({
+    default: module.ChangePasswordForm,
+  })),
+)
+
+const LoginForm = lazy(() =>
+  import("@discloud/app-ui/auth/login-form").then((module) => ({
+    default: module.LoginForm,
+  })),
+)
+
+const SetupForm = lazy(() =>
+  import("@discloud/app-ui/auth/setup-form").then((module) => ({
+    default: module.SetupForm,
+  })),
+)
+
+const DesktopAppLayout = lazy(() =>
+  import("#components/desktop-shell").then((module) => ({
+    default: module.DesktopAppLayout,
+  })),
+)
+
+const ServerConnectionScreen = lazy(() =>
+  import("#components/server-connection").then((module) => ({
+    default: module.ServerConnectionScreen,
+  })),
+)
 
 export const router = createHashRouter([
   {
@@ -153,6 +183,7 @@ function RootRoute() {
   const { state } = useDesktopSession()
 
   if (state.status === "loading") return <LoadingScreen />
+
   if (state.status === "disconnected") {
     return <Navigate to="/connect" replace />
   }
@@ -183,13 +214,15 @@ function ConnectRoute() {
   }
 
   return (
-    <ServerConnectionScreen
-      initialServerUrl={state.serverUrl}
-      initialError={state.error}
-      onConnected={(connection) =>
-        void acceptConnection(connection)
-      }
-    />
+    <Suspense fallback={<LoadingScreen label="Loading connection screen" />}>
+      <ServerConnectionScreen
+        initialServerUrl={state.serverUrl}
+        initialError={state.error}
+        onConnected={(connection) =>
+          void acceptConnection(connection)
+        }
+      />
+    </Suspense>
   )
 }
 
@@ -201,6 +234,7 @@ function SetupRoute() {
   const navigate = useNavigate()
 
   if (state.status === "loading") return <LoadingScreen />
+
   if (state.status === "disconnected") {
     return <Navigate to="/connect" replace />
   }
@@ -221,11 +255,13 @@ function SetupRoute() {
 
   return (
     <AuthRouteFrame serverUrl={state.serverUrl}>
-      <SetupForm
-        completeSetup={completeSetup}
-        onCompleted={completed}
-        onAlreadyCompleted={completed}
-      />
+      <Suspense fallback={<AuthContentLoading />}>
+        <SetupForm
+          completeSetup={completeSetup}
+          onCompleted={completed}
+          onAlreadyCompleted={completed}
+        />
+      </Suspense>
     </AuthRouteFrame>
   )
 }
@@ -238,6 +274,7 @@ function LoginRoute() {
   const navigate = useNavigate()
 
   if (state.status === "loading") return <LoadingScreen />
+
   if (state.status === "disconnected") {
     return <Navigate to="/connect" replace />
   }
@@ -264,11 +301,13 @@ function LoginRoute() {
 
   return (
     <AuthRouteFrame serverUrl={state.serverUrl}>
-      <LoginForm
-        login={login}
-        verifyMFA={verifyMFA}
-        onAuthenticated={authenticated}
-      />
+      <Suspense fallback={<AuthContentLoading />}>
+        <LoginForm
+          login={login}
+          verifyMFA={verifyMFA}
+          onAuthenticated={authenticated}
+        />
+      </Suspense>
     </AuthRouteFrame>
   )
 }
@@ -281,6 +320,7 @@ function ChangePasswordRoute() {
   const navigate = useNavigate()
 
   if (state.status === "loading") return <LoadingScreen />
+
   if (state.status === "disconnected") {
     return <Navigate to="/connect" replace />
   }
@@ -304,19 +344,21 @@ function ChangePasswordRoute() {
 
   return (
     <AuthRouteFrame serverUrl={state.serverUrl}>
-      <ChangePasswordForm
-        changePassword={changePassword}
-        onChanged={async () => {
-          const user = await refreshUser()
+      <Suspense fallback={<AuthContentLoading />}>
+        <ChangePasswordForm
+          changePassword={changePassword}
+          onChanged={async () => {
+            const user = await refreshUser()
 
-          navigate(
-            user
-              ? authenticatedPath(user)
-              : "/login",
-            { replace: true },
-          )
-        }}
-      />
+            navigate(
+              user
+                ? authenticatedPath(user)
+                : "/login",
+              { replace: true },
+            )
+          }}
+        />
+      </Suspense>
     </AuthRouteFrame>
   )
 }
@@ -325,6 +367,7 @@ function AuthenticatedRoute() {
   const { state } = useDesktopSession()
 
   if (state.status === "loading") return <LoadingScreen />
+
   if (state.status === "disconnected") {
     return <Navigate to="/connect" replace />
   }
@@ -347,10 +390,12 @@ function AuthenticatedRoute() {
   }
 
   return (
-    <DesktopAppLayout
-      serverUrl={state.serverUrl}
-      user={state.user}
-    />
+    <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
+      <DesktopAppLayout
+        serverUrl={state.serverUrl}
+        user={state.user}
+      />
+    </Suspense>
   )
 }
 
@@ -422,6 +467,7 @@ function RoutePlaceholder() {
 
   const workspaceUsername =
     params.username ?? state.user.username
+
   const title = appRouteTitle(
     location.pathname,
     workspaceUsername,
@@ -437,6 +483,7 @@ function RoutePlaceholder() {
             : "This desktop route is wired and ready for its feature implementation."}
         </CardDescription>
       </CardHeader>
+
       <CardContent>
         <p className="text-sm text-muted-foreground">
           Workspace: @{workspaceUsername}
@@ -453,9 +500,7 @@ function AuthRouteFrame({
   serverUrl: string
   children: ReactNode
 }) {
-  const {
-    changeServer,
-  } = useDesktopSession()
+  const { changeServer } = useDesktopSession()
   const navigate = useNavigate()
 
   return (
@@ -468,6 +513,7 @@ function AuthRouteFrame({
           >
             {serverUrl}
           </span>
+
           <Button
             type="button"
             variant="ghost"
@@ -491,16 +537,31 @@ function AuthRouteFrame({
   )
 }
 
-function LoadingScreen() {
+function LoadingScreen({
+  label = "Connecting to DisCloud",
+}: {
+  label?: string
+}) {
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-6">
       <div className="flex flex-col items-center gap-3 text-muted-foreground">
         <LoaderCircle className="size-5 animate-spin" />
-        <span className="text-sm">
-          Connecting to DisCloud
-        </span>
+        <span className="text-sm">{label}</span>
       </div>
     </main>
+  )
+}
+
+function AuthContentLoading() {
+  return (
+    <Card>
+      <CardContent className="grid min-h-40 place-items-center">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin" />
+          Loading
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
