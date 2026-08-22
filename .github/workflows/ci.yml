@@ -113,35 +113,29 @@ jobs:
       - name: Set up pnpm and Node
         uses: pnpm/setup@v2
         with:
-          package-json-file: web/package.json
-          cache-dependency-path: web/pnpm-lock.yaml
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
           runtime: node@24
           cache: true
           install: false
 
       - name: Install dependencies
-        working-directory: web
         run: pnpm install --frozen-lockfile
 
       - name: Check API contracts
-        working-directory: web
-        run: pnpm api:types:check
+        run: pnpm --filter @discloud/web api:types:check
 
       - name: Generate Next.js types
-        working-directory: web
-        run: pnpm next typegen
+        run: pnpm --filter @discloud/web typegen
 
       - name: Lint
-        working-directory: web
-        run: pnpm lint
+        run: pnpm --filter @discloud/web lint
 
       - name: Type check
-        working-directory: web
-        run: pnpm typecheck
+        run: pnpm --filter @discloud/web typecheck
 
       - name: Build
-        working-directory: web
-        run: pnpm build
+        run: pnpm --filter @discloud/web build
 
       - name: Build local container
-        run: docker build --pull -t dcfe:test web
+        run: docker build --pull --file web/Dockerfile --tag dcfe:test .

@@ -1,0 +1,8 @@
+packages:
+  - web
+  - desktop
+  - packages/*
+
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

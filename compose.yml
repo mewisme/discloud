@@ -26,8 +26,8 @@ services:
   web:
     image: ghcr.io/mewisme/dcfe:beta
     build:
-      context: ./web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: web/Dockerfile
     container_name: web
     restart: unless-stopped
     environment:

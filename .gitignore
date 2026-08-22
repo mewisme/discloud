@@ -3,6 +3,9 @@
 /dist/
 /tmp/
 
+# Node
+/node_modules/
+
 # Go
 *.test
 *.out

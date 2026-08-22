@@ -12,16 +12,20 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json ./web/package.json
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --filter @discloud/web...
 
 FROM base AS build
 
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /app/web/node_modules ./web/node_modules
+COPY web ./web
+
+WORKDIR /app/web
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -37,9 +41,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
-COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/web/.next/standalone ./
+COPY --from=build --chown=node:node /app/web/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/web/public ./public
 
 USER node
 

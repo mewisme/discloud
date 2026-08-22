@@ -1,0 +1,15 @@
+{
+  "name": "discloud",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "web:dev": "pnpm --filter @discloud/web dev",
+    "web:build": "pnpm --filter @discloud/web build",
+    "web:lint": "pnpm --filter @discloud/web lint",
+    "web:typecheck": "pnpm --filter @discloud/web typecheck",
+    "web:test": "pnpm --filter @discloud/web test"
+  }
+}

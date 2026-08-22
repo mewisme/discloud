@@ -87,35 +87,29 @@ jobs:
       - name: Set up pnpm and Node
         uses: pnpm/setup@v2
         with:
-          package-json-file: web/package.json
-          cache-dependency-path: web/pnpm-lock.yaml
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
           runtime: node@24
           cache: true
           install: false
 
       - name: Install dependencies
-        working-directory: web
         run: pnpm install --frozen-lockfile
 
       - name: Check API contracts
-        working-directory: web
-        run: pnpm api:types:check
+        run: pnpm --filter @discloud/web api:types:check
 
       - name: Generate Next.js types
-        working-directory: web
-        run: pnpm next typegen
+        run: pnpm --filter @discloud/web typegen
 
       - name: Lint
-        working-directory: web
-        run: pnpm lint
+        run: pnpm --filter @discloud/web lint
 
       - name: Type check
-        working-directory: web
-        run: pnpm exec tsc --noEmit
+        run: pnpm --filter @discloud/web typecheck
 
       - name: Build
-        working-directory: web
-        run: pnpm build
+        run: pnpm --filter @discloud/web build
 
   release-backend:
     name: Release backend
@@ -189,7 +183,8 @@ jobs:
     with:
       output: image
       push: true
-      context: web
+      context: .
+      file: web/Dockerfile
       platforms: linux/amd64,linux/arm64
       cache: true
       cache-scope: dcfe
