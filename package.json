@@ -10,6 +10,10 @@
     "web:build": "pnpm --filter @discloud/web build",
     "web:lint": "pnpm --filter @discloud/web lint",
     "web:typecheck": "pnpm --filter @discloud/web typecheck",
-    "web:test": "pnpm --filter @discloud/web test"
+    "web:test": "pnpm --filter @discloud/web test",
+    "desktop:dev": "pnpm --filter @discloud/desktop dev",
+    "desktop:build": "pnpm --filter @discloud/desktop build",
+    "desktop:typecheck": "pnpm --filter @discloud/desktop typecheck",
+    "desktop:tauri": "pnpm --filter @discloud/desktop tauri"
   }
 }
