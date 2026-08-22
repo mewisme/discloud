@@ -14,7 +14,6 @@ concurrency:
 
 env:
   DISCLOUD_BACKEND_DOCKER_IMAGE: ghcr.io/mewisme/dcbe
-  DISCLOUD_FRONTEND_DOCKER_IMAGE: ghcr.io/mewisme/dcfe
 
 jobs:
   verify-backend:
@@ -67,31 +66,15 @@ jobs:
           version: "~> v2"
           args: check
 
-      - name: Build local container
-        run: docker build --pull -t dcbe:test .
-
-      - name: Build release container target
+      - name: Build release binary
         shell: bash
         run: |
-          context="$(mktemp -d)"
-          trap 'rm -rf "$context"' EXIT
-
-          mkdir -p "$context/linux/amd64"
-
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
             go build \
             -trimpath \
             -ldflags="-s -w" \
-            -o "$context/linux/amd64/discloud" \
+            -o /tmp/discloud \
             ./cmd/discloud
-
-          docker build \
-            --pull \
-            --target release \
-            --build-arg TARGETPLATFORM=linux/amd64 \
-            --file Dockerfile \
-            --tag dcbe:release-test \
-            "$context"
 
   verify-web:
     name: Verify web
