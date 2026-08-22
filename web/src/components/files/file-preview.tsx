@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { apiDirectURL, apiRequest } from "@/lib/api/client"
 import type { Query } from "@/lib/api/types"
-import { filePreviewKind } from "@/lib/files/preview"
-import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@/lib/files/preview-preload"
+import { filePreviewKind } from "@discloud/shared/file-preview"
+import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@discloud/shared/file-preview-preload"
 import { cn } from "@/lib/utils"
 
 const textPreviewLimit = 256 * 1024

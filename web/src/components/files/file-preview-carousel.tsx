@@ -8,8 +8,8 @@ import { FilePreview } from "@/components/files/file-preview"
 import { useUserConfigSelector } from "@/components/settings/user-config-context"
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Spinner } from "@/components/ui/spinner"
-import { filePreviewKind } from "@/lib/files/preview"
-import { clearPreviewPreloadWindow, setPreviewPreloadWindow } from "@/lib/files/preview-preload"
+import { filePreviewKind } from "@discloud/shared/file-preview"
+import { clearPreviewPreloadWindow, setPreviewPreloadWindow } from "@discloud/shared/file-preview-preload"
 import { cn } from "@/lib/utils"
 
 const infoAutoHideMs = 2200

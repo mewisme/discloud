@@ -15,6 +15,7 @@ const LoginForm = lazy(() => import("@discloud/app-ui/auth/login-form").then((mo
 const SetupForm = lazy(() => import("@discloud/app-ui/auth/setup-form").then((module) => ({ default: module.SetupForm })))
 const DesktopAppLayout = lazy(() => import("#components/desktop-shell").then((module) => ({ default: module.DesktopAppLayout })))
 const ServerConnectionScreen = lazy(() => import("#components/server-connection").then((module) => ({ default: module.ServerConnectionScreen })))
+const DesktopFilePage = lazy(() => import("./features/files/file-page").then((module) => ({ default: module.DesktopFilePage })))
 const DesktopFilesPage = lazy(() => import("./features/files/files-page").then((module) => ({ default: module.DesktopFilesPage })))
 
 export const router = createHashRouter([
@@ -29,7 +30,7 @@ export const router = createHashRouter([
     children: [
       { index: true, Component: FilesRoute },
       { path: "folders/:folderId", Component: FilesRoute },
-      { path: "files/:fileId", Component: RoutePlaceholder },
+      { path: "files/:fileId", Component: FileRoute },
       { path: "search", Component: RoutePlaceholder },
       { path: "favorites", Component: RoutePlaceholder },
       { path: "collections", Component: RoutePlaceholder },
@@ -165,6 +166,14 @@ function FilesRoute() {
   return (
     <Suspense fallback={<RouteContentLoading label="Loading files" />}>
       <DesktopFilesPage />
+    </Suspense>
+  )
+}
+
+function FileRoute() {
+  return (
+    <Suspense fallback={<RouteContentLoading label="Loading file" />}>
+      <DesktopFilePage />
     </Suspense>
   )
 }

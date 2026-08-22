@@ -1,17 +1,10 @@
 "use client"
 
 import type { Node } from "@discloud/api/models"
-import { handleClientNavigation } from "@discloud/shared/dom"
-import { Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@discloud/ui/components/breadcrumb"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
-import { Fragment, type ReactNode } from "react"
+import type { ReactNode } from "react"
+import { FileBreadcrumbs, type FileBreadcrumbItem } from "./file-breadcrumbs"
 
-export type FileBrowserBreadcrumbItem = {
-  id: string
-  label: string
-  href?: string
-  isRoot?: boolean
-}
+export type FileBrowserBreadcrumbItem = FileBreadcrumbItem
 
 export function FileBrowserHeader({
   folder,
@@ -30,7 +23,7 @@ export function FileBrowserHeader({
 }) {
   return (
     <>
-      <FileBrowserBreadcrumbs items={breadcrumbs} onNavigate={onNavigate} />
+      <FileBreadcrumbs items={breadcrumbs} onNavigate={onNavigate} />
 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0">
@@ -40,87 +33,5 @@ export function FileBrowserHeader({
         {actions}
       </div>
     </>
-  )
-}
-
-function FileBrowserBreadcrumbs({ items, onNavigate }: { items: readonly FileBrowserBreadcrumbItem[]; onNavigate?: (item: FileBrowserBreadcrumbItem) => void }) {
-  if (items.length === 0) return null
-
-  const collapsed = items.length > 4
-  const first = items[0]
-  const middle = collapsed ? items.slice(1, -2) : []
-  const visible = collapsed ? items.slice(-2) : items
-
-  return (
-    <Breadcrumb className="min-w-0">
-      <BreadcrumbList className="flex-nowrap overflow-hidden">
-        {collapsed ? (
-          <>
-            <BreadcrumbEntry item={first} current={false} onNavigate={onNavigate} />
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-md outline-none hover:text-foreground">
-                  <BreadcrumbEllipsis />
-                  <span className="sr-only">Show hidden folders</span>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {middle.map((item) => <BreadcrumbMenuEntry key={item.id} item={item} onNavigate={onNavigate} />)}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-          </>
-        ) : null}
-
-        {visible.map((item, index) => {
-          const current = item.id === items[items.length - 1].id
-          return (
-            <Fragment key={item.id}>
-              {index > 0 ? <BreadcrumbSeparator /> : null}
-              <BreadcrumbEntry item={item} current={current} onNavigate={onNavigate} />
-            </Fragment>
-          )
-        })}
-      </BreadcrumbList>
-    </Breadcrumb>
-  )
-}
-
-function BreadcrumbEntry({ item, current, onNavigate }: { item: FileBrowserBreadcrumbItem; current: boolean; onNavigate?: (item: FileBrowserBreadcrumbItem) => void }) {
-  if (current || (!item.href && !onNavigate)) {
-    return (
-      <BreadcrumbItem className="min-w-0">
-        <BreadcrumbPage className="max-w-40 truncate sm:max-w-64" title={item.label}>{item.label}</BreadcrumbPage>
-      </BreadcrumbItem>
-    )
-  }
-
-  if (!item.href) {
-    return (
-      <BreadcrumbItem className="min-w-0">
-        <BreadcrumbLink asChild>
-          <button type="button" className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={() => onNavigate?.(item)}>{item.label}</button>
-        </BreadcrumbLink>
-      </BreadcrumbItem>
-    )
-  }
-
-  return (
-    <BreadcrumbItem className="min-w-0">
-      <BreadcrumbLink asChild>
-        <a href={item.href} className="max-w-24 truncate sm:max-w-40" title={item.label} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
-      </BreadcrumbLink>
-    </BreadcrumbItem>
-  )
-}
-
-function BreadcrumbMenuEntry({ item, onNavigate }: { item: FileBrowserBreadcrumbItem; onNavigate?: (item: FileBrowserBreadcrumbItem) => void }) {
-  if (!item.href) return <DropdownMenuItem disabled={!onNavigate} onSelect={() => onNavigate?.(item)}>{item.label}</DropdownMenuItem>
-
-  return (
-    <DropdownMenuItem asChild>
-      <a href={item.href} onClick={(event) => onNavigate && handleClientNavigation(event, () => onNavigate(item))}>{item.label}</a>
-    </DropdownMenuItem>
   )
 }

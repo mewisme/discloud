@@ -1,3 +1,4 @@
+import { filePreviewKind } from "@discloud/shared/file-preview"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
@@ -6,7 +7,6 @@ import type { PreviewCarouselFile } from "@/components/files/file-preview-carous
 import type { Breadcrumbs, File, FolderChildrenQuery, NodePage } from "@/lib/api/models"
 import { apiServerAuthJSON } from "@/lib/api/server"
 import { APIError } from "@/lib/api/types"
-import { filePreviewKind } from "@/lib/files/preview"
 
 export const metadata: Metadata = {
   title: "File",

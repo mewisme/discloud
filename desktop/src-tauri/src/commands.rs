@@ -1,6 +1,9 @@
 use tauri::State;
 
-use crate::api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer};
+use crate::{
+    api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
+    file_transfer::{self, DownloadResult},
+};
 
 #[tauri::command]
 pub(crate) async fn connect_server(
@@ -21,4 +24,13 @@ pub(crate) async fn api_request(
     request: ApiRequest,
 ) -> Result<ApiResponse, ApiCommandError> {
     state.request(request).await
+}
+
+#[tauri::command]
+pub(crate) async fn download_file(
+    state: State<'_, ApiState>,
+    file_id: String,
+    destination: String,
+) -> Result<DownloadResult, ApiCommandError> {
+    file_transfer::download_file(state.inner(), file_id, destination).await
 }

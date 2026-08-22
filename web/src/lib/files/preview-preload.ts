@@ -1,7 +1,7 @@
 import "client-only"
 
 import { apiDirectURL } from "@/lib/api/client"
-import { filePreviewKind } from "@/lib/files/preview"
+import { filePreviewKind } from "@discloud/shared/file-preview"
 
 const maxConcurrentPreviewWarms = 3
 const maxRememberedWarmTasks = 256

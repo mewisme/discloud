@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { filePreviewKind, isTextMIME } from "@/lib/files/preview"
+import { filePreviewKind, isTextMIME } from "@discloud/shared/file-preview"
 
 describe("filePreviewKind", () => {
   it("classifies safe image formats", () => {
