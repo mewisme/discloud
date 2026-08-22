@@ -196,6 +196,30 @@ impl DesktopApiClient {
         query: Vec<(String, String)>,
         headers: Vec<(String, String)>,
     ) -> Result<reqwest::Response, ApiCommandError> {
+        self.raw_request_inner(method, path, query, headers, None)
+            .await
+    }
+
+    async fn raw_request_body(
+        &self,
+        method: Method,
+        path: &str,
+        query: Vec<(String, String)>,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Result<reqwest::Response, ApiCommandError> {
+        self.raw_request_inner(method, path, query, headers, Some(body))
+            .await
+    }
+
+    async fn raw_request_inner(
+        &self,
+        method: Method,
+        path: &str,
+        query: Vec<(String, String)>,
+        headers: Vec<(String, String)>,
+        body: Option<Vec<u8>>,
+    ) -> Result<reqwest::Response, ApiCommandError> {
         let mut url = self.endpoint(path)?;
 
         {
@@ -210,6 +234,10 @@ impl DesktopApiClient {
 
         for (name, value) in headers {
             builder = with_request_header(builder, name, value)?;
+        }
+
+        if let Some(body) = body {
+            builder = builder.body(body);
         }
 
         builder
@@ -261,7 +289,6 @@ impl DesktopApiClient {
             .filter(|cookie| !cookie.is_empty() && cookie.contains('='))
         {
             let cookie = format!("{cookie}; Path={path}; HttpOnly{secure}");
-
             self.cookie_jar.add_cookie_str(&cookie, &self.base_url);
         }
     }
@@ -287,7 +314,6 @@ impl ApiState {
         let client = DesktopApiClient::from_base_url(base_url)?;
 
         client.check_readiness().await?;
-
         restore_persisted_session(&client).await;
 
         let server_url = canonical_server_url(&client.base_url);
@@ -353,6 +379,23 @@ impl ApiState {
         client.raw_request(method, path, query, headers).await
     }
 
+    pub(crate) async fn raw_request_body(
+        &self,
+        method: Method,
+        path: &str,
+        query: Vec<(String, String)>,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Result<reqwest::Response, ApiCommandError> {
+        let client = self
+            .client_snapshot()?
+            .ok_or_else(ApiCommandError::not_connected)?;
+
+        client
+            .raw_request_body(method, path, query, headers, body)
+            .await
+    }
+
     fn client_snapshot(&self) -> Result<Option<DesktopApiClient>, ApiCommandError> {
         self.client
             .read()
@@ -378,6 +421,10 @@ impl ApiCommandError {
         Self::new("internal", message)
     }
 
+    pub(crate) fn cancelled() -> Self {
+        Self::new("cancelled", "Upload cancelled")
+    }
+
     pub(crate) fn network(context: &str, error: reqwest::Error) -> Self {
         let message = if error.is_timeout() {
             format!("{context}: request timed out.")
@@ -386,6 +433,13 @@ impl ApiCommandError {
         };
 
         Self::new("network", message)
+    }
+
+    pub(crate) fn is_retryable_transfer(&self) -> bool {
+        self.kind == "network"
+            || self
+                .status
+                .is_some_and(|status| matches!(status, 408 | 429 | 502 | 503 | 504))
     }
 
     fn http(status: StatusCode, problem: Option<Problem>) -> Self {
@@ -444,9 +498,7 @@ async fn restore_persisted_session(client: &DesktopApiClient) {
         Ok(Some(cookie_header)) => {
             client.restore_cookie_header(&cookie_header);
         }
-
         Ok(None) => {}
-
         Err(error) => {
             session_persistence_warning("Could not restore session", &error);
         }
@@ -562,7 +614,6 @@ mod tests {
     #[test]
     fn defaults_to_https() {
         let url = normalize_server_url("cloud.example.com").unwrap();
-
         assert_eq!(canonical_server_url(&url), "https://cloud.example.com");
     }
 
@@ -603,7 +654,6 @@ mod tests {
     #[test]
     fn rejects_parent_path_segments() {
         let client = DesktopApiClient::new("https://example.com").unwrap();
-
         assert!(client.endpoint("/api/../secret").is_err());
     }
 }

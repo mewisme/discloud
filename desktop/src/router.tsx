@@ -10,13 +10,23 @@ import { createHashRouter, Navigate, Outlet, useLocation, useNavigate, useParams
 import { type ConnectedDesktopSessionState, useDesktopSession } from "#components/desktop-session"
 import { changePassword, completeSetup, login, verifyMFA } from "#lib/auth"
 
+import { DesktopUploadProvider } from "./features/uploads/ui/upload-provider"
+
 const ChangePasswordForm = lazy(() => import("@discloud/app-ui/auth/change-password-form").then((module) => ({ default: module.ChangePasswordForm })))
 const LoginForm = lazy(() => import("@discloud/app-ui/auth/login-form").then((module) => ({ default: module.LoginForm })))
 const SetupForm = lazy(() => import("@discloud/app-ui/auth/setup-form").then((module) => ({ default: module.SetupForm })))
 const DesktopAppLayout = lazy(() => import("#components/desktop-shell").then((module) => ({ default: module.DesktopAppLayout })))
 const ServerConnectionScreen = lazy(() => import("#components/server-connection").then((module) => ({ default: module.ServerConnectionScreen })))
+const DesktopCollectionFilePage = lazy(() => import("./features/collections/collection-file-page").then((module) => ({ default: module.DesktopCollectionFilePage })))
+const DesktopCollectionPage = lazy(() => import("./features/collections/collection-page").then((module) => ({ default: module.DesktopCollectionPage })))
+const DesktopCollectionsPage = lazy(() => import("./features/collections/collections-page").then((module) => ({ default: module.DesktopCollectionsPage })))
+const DesktopFavoritesPage = lazy(() => import("./features/favorites/favorites-page").then((module) => ({ default: module.DesktopFavoritesPage })))
 const DesktopFilePage = lazy(() => import("./features/files/file-page").then((module) => ({ default: module.DesktopFilePage })))
 const DesktopFilesPage = lazy(() => import("./features/files/files-page").then((module) => ({ default: module.DesktopFilesPage })))
+const DesktopSearchPage = lazy(() => import("./features/search/search-page").then((module) => ({ default: module.DesktopSearchPage })))
+const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
+const DesktopTrashPage = lazy(() => import("./features/trash/trash-page").then((module) => ({ default: module.DesktopTrashPage })))
+const DesktopUploadsPage = lazy(() => import("./features/uploads/ui/uploads-page").then((module) => ({ default: module.DesktopUploadsPage })))
 
 export const router = createHashRouter([
   { path: "/", Component: RootRoute },
@@ -31,16 +41,17 @@ export const router = createHashRouter([
       { index: true, Component: FilesRoute },
       { path: "folders/:folderId", Component: FilesRoute },
       { path: "files/:fileId", Component: FileRoute },
-      { path: "search", Component: RoutePlaceholder },
-      { path: "favorites", Component: RoutePlaceholder },
-      { path: "collections", Component: RoutePlaceholder },
-      { path: "collections/:collectionId", Component: RoutePlaceholder },
-      { path: "shared", Component: RoutePlaceholder },
-      { path: "trash", Component: RoutePlaceholder },
+      { path: "search", Component: SearchRoute },
+      { path: "favorites", Component: FavoritesRoute },
+      { path: "collections", Component: CollectionsRoute },
+      { path: "collections/:collectionId", Component: CollectionRoute },
+      { path: "collections/:collectionId/files/:fileId", Component: CollectionFileRoute },
+      { path: "shared", Component: SharedRoute },
+      { path: "trash", Component: TrashRoute },
       {
         Component: ActorRouteGuard,
         children: [
-          { path: "uploads", Component: RoutePlaceholder },
+          { path: "uploads", Component: UploadsRoute },
           { path: "settings", Component: RoutePlaceholder },
           { path: "settings/common", Component: RoutePlaceholder },
           { path: "settings/profile", Component: RoutePlaceholder },
@@ -156,26 +167,56 @@ function AuthenticatedRoute() {
   if (state.user.mustChangePassword) return <Navigate to="/change-password" replace />
 
   return (
-    <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
-      <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
-    </Suspense>
+    <DesktopUploadProvider>
+      <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
+        <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
+      </Suspense>
+    </DesktopUploadProvider>
   )
 }
 
 function FilesRoute() {
-  return (
-    <Suspense fallback={<RouteContentLoading label="Loading files" />}>
-      <DesktopFilesPage />
-    </Suspense>
-  )
+  return <RouteSuspense label="Loading files"><DesktopFilesPage /></RouteSuspense>
 }
 
 function FileRoute() {
-  return (
-    <Suspense fallback={<RouteContentLoading label="Loading file" />}>
-      <DesktopFilePage />
-    </Suspense>
-  )
+  return <RouteSuspense label="Loading file"><DesktopFilePage /></RouteSuspense>
+}
+
+function SearchRoute() {
+  return <RouteSuspense label="Loading search"><DesktopSearchPage /></RouteSuspense>
+}
+
+function FavoritesRoute() {
+  return <RouteSuspense label="Loading favorites"><DesktopFavoritesPage /></RouteSuspense>
+}
+
+function CollectionsRoute() {
+  return <RouteSuspense label="Loading collections"><DesktopCollectionsPage /></RouteSuspense>
+}
+
+function CollectionRoute() {
+  return <RouteSuspense label="Loading collection"><DesktopCollectionPage /></RouteSuspense>
+}
+
+function CollectionFileRoute() {
+  return <RouteSuspense label="Loading file"><DesktopCollectionFilePage /></RouteSuspense>
+}
+
+function SharedRoute() {
+  return <RouteSuspense label="Loading shared items"><DesktopSharedPage /></RouteSuspense>
+}
+
+function TrashRoute() {
+  return <RouteSuspense label="Loading trash"><DesktopTrashPage /></RouteSuspense>
+}
+
+function UploadsRoute() {
+  return <RouteSuspense label="Loading uploads"><DesktopUploadsPage /></RouteSuspense>
+}
+
+function RouteSuspense({ label, children }: { label: string; children: ReactNode }) {
+  return <Suspense fallback={<RouteContentLoading label={label} />}>{children}</Suspense>
 }
 
 function ActorRouteGuard() {

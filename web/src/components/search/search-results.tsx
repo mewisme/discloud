@@ -1,5 +1,6 @@
 "use client"
 
+import type { SearchOptions } from "@discloud/shared/search"
 import { Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -13,7 +14,6 @@ import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
 import { apiErrorMessage } from "@/lib/helpers"
-import type { SearchOptions } from "@/lib/search/options"
 
 export function SearchResults({ options }: { options: SearchOptions }) {
   const router = useRouter()

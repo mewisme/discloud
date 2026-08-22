@@ -1,6 +1,7 @@
 "use client"
 
 import { FileDetailView } from "@discloud/app-ui/files/file-detail"
+
 import { useWorkspace } from "@/components/app/workspace-context"
 import { FilePreviewCarousel, type PreviewCarouselFile } from "@/components/files/file-preview-carousel"
 import type { File, Node } from "@/lib/api/models"
