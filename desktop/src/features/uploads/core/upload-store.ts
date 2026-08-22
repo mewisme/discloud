@@ -5,12 +5,14 @@ import { createStore } from "zustand/vanilla"
 
 import type { NativeUploadFile } from "./native"
 
-export type UploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "error" | "cancelling" | "cancelled"
+export type UploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "skipped" | "error" | "cancelling" | "cancelled"
 
 export type UploadTask = {
   id: string
   file: NativeUploadFile
   folderId: string
+  relativePath?: string
+  skipExisting?: boolean
   sessionId?: string
   status: UploadTaskStatus
   uploadedBytes: number
@@ -232,7 +234,11 @@ function updateStatusSet(set: Set<string>, id: string, hadStatus: boolean, hasSt
 }
 
 function isActiveStatus(status: UploadTaskStatus) {
-  return status === "queued" || status === "preparing" || status === "uploading" || status === "finalizing" || status === "cancelling"
+  return status === "queued"
+    || status === "preparing"
+    || status === "uploading"
+    || status === "finalizing"
+    || status === "cancelling"
 }
 
 function first(values: ReadonlySet<string>) {

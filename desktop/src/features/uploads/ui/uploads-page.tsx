@@ -32,7 +32,7 @@ export function DesktopUploadsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Uploads</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Native uploads continue while you navigate around DisCloud.
+          Monitor native uploads, retry failures, cancel transfers, and review progress.
         </p>
       </div>
 
@@ -50,7 +50,7 @@ export function DesktopUploadsPage() {
             <div>
               <p className="font-medium">No uploads yet</p>
               <p className="text-sm text-muted-foreground">
-                Step 13 will connect file and folder selection from the Files view to this manager.
+                Upload files, folders, or drop items into the Files view.
               </p>
             </div>
           </div>
@@ -122,6 +122,12 @@ function UploadRow({ task, onRetry, onCancel, onRemove }: {
 
             <span className="truncate font-medium">{task.file.name}</span>
           </div>
+
+          {task.relativePath && task.relativePath !== task.file.name ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {task.relativePath}
+            </p>
+          ) : null}
 
           <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">
             {uploadTaskStatusLabel(task)} · {formatBytes(task.uploadedBytes)} / {formatBytes(task.file.size)}

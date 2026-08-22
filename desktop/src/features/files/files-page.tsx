@@ -7,12 +7,14 @@ import { workspaceFilePath, workspaceFolderPath, workspacePath } from "@discloud
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
-import { LoaderCircleIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
+import { FolderUpIcon, LoaderCircleIcon, RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router"
 
 import { errorMessage } from "#lib/instance"
 
+import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "../uploads/ui/upload-provider"
+import { DesktopFileUploadTarget, useDesktopFileUploadTarget } from "../uploads/ui/upload-target"
 import { type DesktopFileBrowserData, loadDesktopFileBrowser, loadFolderChildren } from "./api"
 
 type BrowserState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileBrowserData }
@@ -25,8 +27,10 @@ export function DesktopFilesPage() {
   const [reloadVersion, setReloadVersion] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [paginationError, setPaginationError] = useState<string>()
+  const [uploadError, setUploadError] = useState<string>()
   const options = parseBrowserOptions(Object.fromEntries(searchParams))
   const { sort, order } = options
+  const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -55,12 +59,40 @@ export function DesktopFilesPage() {
     }
   }, [username, folderId, reloadVersion, sort, order])
 
+  useEffect(() => {
+    if (!currentFolderId) return
+
+    let reloadTimer: ReturnType<typeof setTimeout> | undefined
+
+    function uploaded(event: Event) {
+      const detail = (event as CustomEvent<UploadCompletedDetail>).detail
+      if (detail?.folderId !== currentFolderId) return
+
+      if (reloadTimer) clearTimeout(reloadTimer)
+
+      reloadTimer = setTimeout(() => {
+        reloadTimer = undefined
+        setReloadVersion((value) => value + 1)
+      }, 200)
+    }
+
+    window.addEventListener(UPLOAD_COMPLETED_EVENT, uploaded)
+
+    return () => {
+      window.removeEventListener(UPLOAD_COMPLETED_EVENT, uploaded)
+      if (reloadTimer) clearTimeout(reloadTimer)
+    }
+  }, [currentFolderId])
+
   function updateOptions(patch: Partial<BrowserOptions>) {
     setSearchParams(browserSearchParams({ ...options, ...patch }), { replace: true })
   }
 
   function changeSort(nextSort: BrowserSort) {
-    updateOptions({ sort: nextSort, order: nextSort === "name" ? "asc" : "desc" })
+    updateOptions({
+      sort: nextSort,
+      order: nextSort === "name" ? "asc" : "desc",
+    })
   }
 
   function folderPath(folderId: string, isRoot?: boolean) {
@@ -80,17 +112,37 @@ export function DesktopFilesPage() {
   }
 
   async function loadMore() {
-    if (state.status !== "ready" || loadingMore || !state.data.page.nextCursor) return
+    if (
+      state.status !== "ready"
+      || loadingMore
+      || !state.data.page.nextCursor
+    ) return
 
     setLoadingMore(true)
     setPaginationError(undefined)
+
     const currentFolderId = state.data.folder.id
 
     try {
-      const page = await loadFolderChildren(currentFolderId, { sort, order }, state.data.page.nextCursor)
+      const page = await loadFolderChildren(
+        currentFolderId,
+        { sort, order },
+        state.data.page.nextCursor,
+      )
+
       setState((current) => {
-        if (current.status !== "ready" || current.data.folder.id !== currentFolderId) return current
-        return { status: "ready", data: { ...current.data, page: mergePages(current.data.page, page) } }
+        if (
+          current.status !== "ready"
+          || current.data.folder.id !== currentFolderId
+        ) return current
+
+        return {
+          status: "ready",
+          data: {
+            ...current.data,
+            page: mergePages(current.data.page, page),
+          },
+        }
       })
     } catch (error) {
       setPaginationError(errorMessage(error))
@@ -100,10 +152,19 @@ export function DesktopFilesPage() {
   }
 
   if (state.status === "loading") return <FilesLoading />
-  if (state.status === "error") return <FilesError message={state.message} onRetry={() => setReloadVersion((value) => value + 1)} />
+
+  if (state.status === "error") {
+    return (
+      <FilesError
+        message={state.message}
+        onRetry={() => setReloadVersion((value) => value + 1)}
+      />
+    )
+  }
 
   const { data } = state
   const workspaceUsername = data.workspace.owner.username
+  const editable = data.page.accessLevel !== "view"
   const breadcrumbItems = data.breadcrumbs.map((item) => {
     const routeRoot = item.id === data.workspace.root.id
 
@@ -123,56 +184,95 @@ export function DesktopFilesPage() {
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-      <FileBrowserHeader
-        folder={data.folder}
-        breadcrumbs={breadcrumbItems}
-        itemCount={data.page.nodes.length}
-        hasMore={!!data.page.nextCursor}
-        onNavigate={(item) => navigateFolder(item.id, item.isRoot)}
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Badge variant="outline">Read only</Badge>
-            <Badge variant="secondary">{data.page.accessLevel}</Badge>
+    <DesktopFileUploadTarget
+      folderId={data.folder.id}
+      disabled={!editable}
+      onError={setUploadError}
+    >
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+        <FileBrowserHeader
+          folder={data.folder}
+          breadcrumbs={breadcrumbItems}
+          itemCount={data.page.nodes.length}
+          hasMore={!!data.page.nextCursor}
+          onNavigate={(item) => navigateFolder(item.id, item.isRoot)}
+          actions={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!editable ? <Badge variant="outline">Read only</Badge> : null}
+              <Badge variant="secondary">{data.page.accessLevel}</Badge>
 
-            <Button type="button" size="icon-sm" variant="outline" aria-label="Reload folder" onClick={() => setReloadVersion((value) => value + 1)}>
-              <RefreshCwIcon />
+              {editable ? <DesktopUploadButtons /> : null}
+
+              <Button type="button" size="icon-sm" variant="outline" aria-label="Reload folder" title="Reload folder" onClick={() => setReloadVersion((value) => value + 1)}>
+                <RefreshCwIcon />
+              </Button>
+
+              <InlineFileBrowserControls options={options} onChange={updateOptions} onSortChange={changeSort} />
+            </div>
+          }
+        />
+
+        {uploadError ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>Could not prepare upload</AlertTitle>
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span>{uploadError}</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => setUploadError(undefined)}>
+                Dismiss
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {paginationError ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>Could not load more items</AlertTitle>
+            <AlertDescription>{paginationError}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <FileBrowserItems
+          nodes={data.page.nodes}
+          folder={data.folder}
+          breadcrumbs={data.breadcrumbs}
+          view={options.view}
+          folderHref={(id, isRoot) => hashPath(browserURL(isRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, id), options))}
+          fileHref={(id) => hashPath(workspaceFilePath(workspaceUsername, id))}
+          onNavigateFolder={navigateFolder}
+          onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
+          emptyDescription={editable
+            ? "Drop files or folders here, or use Upload."
+            : "No files or folders here."}
+        />
+
+        {data.page.nextCursor ? (
+          <div className="flex justify-center">
+            <Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
+              {loadingMore ? <LoaderCircleIcon className="animate-spin" /> : null}
+              {loadingMore ? "Loading" : "Load more"}
             </Button>
-
-            <InlineFileBrowserControls options={options} onChange={updateOptions} onSortChange={changeSort} />
           </div>
-        }
-      />
+        ) : null}
+      </div>
+    </DesktopFileUploadTarget>
+  )
+}
 
-      {paginationError ? (
-        <Alert variant="destructive">
-          <TriangleAlertIcon />
-          <AlertTitle>Could not load more items</AlertTitle>
-          <AlertDescription>{paginationError}</AlertDescription>
-        </Alert>
-      ) : null}
+function DesktopUploadButtons() {
+  const { busy, openFiles, openFolders } = useDesktopFileUploadTarget()
 
-      <FileBrowserItems
-        nodes={data.page.nodes}
-        folder={data.folder}
-        breadcrumbs={data.breadcrumbs}
-        view={options.view}
-        folderHref={(id, isRoot) => hashPath(browserURL(isRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, id), options))}
-        fileHref={(id) => hashPath(workspaceFilePath(workspaceUsername, id))}
-        onNavigateFolder={navigateFolder}
-        onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
-        emptyDescription="No files or folders here."
-      />
+  return (
+    <>
+      <Button type="button" size="icon-sm" variant="outline" disabled={busy} aria-label="Upload files" title="Upload files" onClick={() => void openFiles()}>
+        {busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
+      </Button>
 
-      {data.page.nextCursor ? (
-        <div className="flex justify-center">
-          <Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore ? <LoaderCircleIcon className="animate-spin" /> : null}
-            {loadingMore ? "Loading" : "Load more"}
-          </Button>
-        </div>
-      ) : null}
-    </div>
+      <Button type="button" size="icon-sm" variant="outline" disabled={busy} aria-label="Upload folders" title="Upload folders" onClick={() => void openFolders()}>
+        <FolderUpIcon />
+      </Button>
+    </>
   )
 }
 
@@ -187,14 +287,19 @@ function FilesLoading() {
   )
 }
 
-function FilesError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function FilesError({ message, onRetry }: {
+  message: string
+  onRetry: () => void
+}) {
   return (
     <Alert variant="destructive">
       <TriangleAlertIcon />
       <AlertTitle>Could not load files</AlertTitle>
       <AlertDescription className="flex flex-col items-start gap-3">
         <span>{message}</span>
-        <Button type="button" size="sm" variant="outline" onClick={onRetry}>Try again</Button>
+        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+          Try again
+        </Button>
       </AlertDescription>
     </Alert>
   )
@@ -202,7 +307,14 @@ function FilesError({ message, onRetry }: { message: string; onRetry: () => void
 
 function mergePages(current: NodePage, next: NodePage): NodePage {
   const ids = new Set(current.nodes.map((node) => node.id))
-  return { ...next, nodes: [...current.nodes, ...next.nodes.filter((node) => !ids.has(node.id))] }
+
+  return {
+    ...next,
+    nodes: [
+      ...current.nodes,
+      ...next.nodes.filter((node) => !ids.has(node.id)),
+    ],
+  }
 }
 
 function hashPath(path: string) {

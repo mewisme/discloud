@@ -1,10 +1,16 @@
-use std::{collections::HashMap, io::SeekFrom, path::Path, sync::RwLock, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    io::SeekFrom,
+    path::{Path, PathBuf},
+    sync::RwLock,
+    time::Duration,
+};
 
 use reqwest::Method;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncReadExt, AsyncSeekExt},
     sync::watch,
     time::sleep,
@@ -25,6 +31,7 @@ pub(crate) struct LocalUploadFile {
     path: String,
     name: String,
     size: u64,
+    relative_path: String,
 }
 
 #[derive(Serialize)]
@@ -90,34 +97,30 @@ impl UploadTransferState {
 pub(crate) async fn inspect_files(
     paths: Vec<String>,
 ) -> Result<Vec<LocalUploadFile>, ApiCommandError> {
-    let mut files = Vec::with_capacity(paths.len());
+    let mut files = Vec::new();
 
-    for path in paths {
-        let metadata = tokio::fs::metadata(&path).await.map_err(|error| {
+    for source in paths {
+        let path = PathBuf::from(source);
+        let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
             ApiCommandError::invalid_request(format!(
-                "Could not read upload file metadata: {error}"
+                "Could not read upload path metadata: {error}"
             ))
         })?;
 
-        if !metadata.is_file() {
+        reject_symlink(&path, &metadata)?;
+
+        let name = path_name(&path)?;
+
+        if metadata.is_file() {
+            push_local_file(&mut files, &path, name.clone(), metadata.len(), name)?;
+        } else if metadata.is_dir() {
+            inspect_directory(&path, name, &mut files).await?;
+        } else {
             return Err(ApiCommandError::invalid_request(format!(
-                "{} is not a file.",
-                path
+                "Unsupported upload path: {}",
+                path.display()
             )));
         }
-
-        let name = Path::new(&path)
-            .file_name()
-            .and_then(|value| value.to_str())
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| ApiCommandError::invalid_request("Upload file name is invalid."))?
-            .to_string();
-
-        files.push(LocalUploadFile {
-            path,
-            name,
-            size: metadata.len(),
-        });
     }
 
     Ok(files)
@@ -204,6 +207,114 @@ pub(crate) async fn upload_part(
     ))
 }
 
+async fn inspect_directory(
+    root: &Path,
+    root_name: String,
+    files: &mut Vec<LocalUploadFile>,
+) -> Result<(), ApiCommandError> {
+    let mut directories = VecDeque::from([(root.to_path_buf(), root_name)]);
+
+    while let Some((directory, relative_directory)) = directories.pop_front() {
+        let mut reader = fs::read_dir(&directory).await.map_err(|error| {
+            ApiCommandError::invalid_request(format!(
+                "Could not read upload directory {}: {error}",
+                directory.display()
+            ))
+        })?;
+        let mut entries = Vec::new();
+
+        while let Some(entry) = reader.next_entry().await.map_err(|error| {
+            ApiCommandError::invalid_request(format!(
+                "Could not read upload directory entry: {error}"
+            ))
+        })? {
+            let name = entry.file_name().into_string().map_err(|_| {
+                ApiCommandError::invalid_request("Upload path contains a non-Unicode file name.")
+            })?;
+
+            entries.push((name, entry.path()));
+        }
+
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
+
+        for (name, path) in entries {
+            let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
+                ApiCommandError::invalid_request(format!(
+                    "Could not read upload path metadata: {error}"
+                ))
+            })?;
+
+            reject_symlink(&path, &metadata)?;
+
+            let relative_path = join_relative_path(&relative_directory, &name);
+
+            if metadata.is_file() {
+                push_local_file(files, &path, name, metadata.len(), relative_path)?;
+            } else if metadata.is_dir() {
+                directories.push_back((path, relative_path));
+            } else {
+                return Err(ApiCommandError::invalid_request(format!(
+                    "Unsupported upload path: {}",
+                    path.display()
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn push_local_file(
+    files: &mut Vec<LocalUploadFile>,
+    path: &Path,
+    name: String,
+    size: u64,
+    relative_path: String,
+) -> Result<(), ApiCommandError> {
+    let path = path
+        .to_str()
+        .ok_or_else(|| {
+            ApiCommandError::invalid_request("Upload path contains non-Unicode characters.")
+        })?
+        .to_string();
+
+    files.push(LocalUploadFile {
+        path,
+        name,
+        size,
+        relative_path,
+    });
+
+    Ok(())
+}
+
+fn path_name(path: &Path) -> Result<String, ApiCommandError> {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| ApiCommandError::invalid_request("Upload path name is invalid."))
+}
+
+fn reject_symlink(path: &Path, metadata: &std::fs::Metadata) -> Result<(), ApiCommandError> {
+    if metadata.file_type().is_symlink() {
+        return Err(ApiCommandError::invalid_request(format!(
+            "Symbolic links cannot be uploaded: {}",
+            path.display()
+        )));
+    }
+
+    Ok(())
+}
+
+fn join_relative_path(parent: &str, name: &str) -> String {
+    if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
 async fn read_part(
     path: &str,
     offset: u64,
@@ -236,7 +347,9 @@ async fn read_part(
 
         result = file.read_exact(&mut body) => {
             result.map_err(|error| {
-                ApiCommandError::internal(format!("Could not read upload file: {error}"))
+                ApiCommandError::internal(format!(
+                    "Could not read upload file: {error}"
+                ))
             })?;
         }
     }
@@ -304,7 +417,7 @@ fn valid_resource_id(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{sha256_hex, validate_part_range};
+    use super::{join_relative_path, sha256_hex, validate_part_range};
 
     #[test]
     fn hashes_upload_part() {
@@ -320,5 +433,13 @@ mod tests {
         assert!(validate_part_range(100, 50, 50).is_ok());
         assert!(validate_part_range(100, 99, 2).is_err());
         assert!(validate_part_range(100, 0, 0).is_err());
+    }
+
+    #[test]
+    fn joins_relative_upload_paths() {
+        assert_eq!(
+            join_relative_path("folder/subfolder", "file.txt"),
+            "folder/subfolder/file.txt",
+        );
     }
 }

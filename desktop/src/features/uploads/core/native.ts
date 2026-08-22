@@ -6,6 +6,7 @@ export type NativeUploadFile = {
   path: string
   name: string
   size: number
+  relativePath: string
 }
 
 export type NativeUploadPartResult = {

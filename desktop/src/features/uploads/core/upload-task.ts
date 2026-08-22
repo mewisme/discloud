@@ -12,6 +12,7 @@ export function canCancelUploadTask(task: UploadTask) {
 
 export function canRemoveUploadTask(task: UploadTask) {
   return task.status === "completed"
+    || task.status === "skipped"
     || task.status === "cancelled"
     || task.status === "error" && !task.sessionId
 }
@@ -23,6 +24,7 @@ export function uploadTaskStatusLabel(task: UploadTask) {
     case "uploading": return "Uploading"
     case "finalizing": return "Finalizing"
     case "completed": return "Complete"
+    case "skipped": return "Skipped"
     case "cancelling": return "Cancelling"
     case "cancelled": return "Cancelled"
     default: return "Failed"

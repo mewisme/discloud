@@ -3,7 +3,8 @@ import { APIError } from "@discloud/api/types"
 
 import { apiJSON } from "#lib/api/transport"
 
-import { beginNativeUploadTask, cancelNativeUploadTask, finishNativeUploadTask, inspectNativeUploadFiles, type NativeUploadFile, uploadNativePart } from "./native"
+import { isFileAlreadyExistsError, planNativeUploadFiles, type PlannedNativeUploadFile } from "./folder"
+import { beginNativeUploadTask, cancelNativeUploadTask, finishNativeUploadTask, inspectNativeUploadFiles, uploadNativePart } from "./native"
 import { addUploadTasks, getUploadTask, getUploadTasksSnapshot, patchUploadTask, removeUploadTask, resetUploadStore, updateUploadProgress, type UploadTask } from "./upload-store"
 
 export const uploadFileConcurrency = 3
@@ -51,42 +52,21 @@ class DesktopUploadEngine {
     if (!this.enabled || !paths.length) return
 
     const epoch = this.epoch
-    const files = await inspectNativeUploadFiles(paths)
 
-    if (!this.enabled || epoch !== this.epoch) return
-    this.addFiles(folderId, files)
-  }
+    try {
+      const files = await inspectNativeUploadFiles(paths)
+      if (!this.enabled || epoch !== this.epoch) return
 
-  addFiles(folderId: string, files: readonly NativeUploadFile[]) {
-    if (!this.enabled || !files.length) return
+      const plan = await planNativeUploadFiles(folderId, files)
+      if (!this.enabled || epoch !== this.epoch) return
 
-    const known = new Set(
-      getUploadTasksSnapshot()
-        .filter((task) => !["completed", "cancelled"].includes(task.status))
-        .map((task) => `${task.folderId}\0${task.file.name}`),
-    )
-
-    const additions: UploadTask[] = []
-
-    for (const file of files) {
-      const key = `${folderId}\0${file.name}`
-      if (known.has(key)) continue
-
-      known.add(key)
-      additions.push({
-        id: crypto.randomUUID(),
-        file,
-        folderId,
-        status: "queued",
-        uploadedBytes: 0,
-      })
+      if (plan.createdFolders > 0) this.callbacks.onFolderChanged?.(folderId)
+      this.enqueueFiles(plan.files)
+    } catch (error) {
+      if (!this.enabled || epoch !== this.epoch) return
+      if (error instanceof APIError && error.status === 401) this.callbacks.onUnauthorized?.()
+      throw error
     }
-
-    if (!additions.length) return
-
-    addUploadTasks(additions)
-    this.queue.push(...additions.map((task) => task.id))
-    this.pump()
   }
 
   retry(taskId: string) {
@@ -111,22 +91,41 @@ class DesktopUploadEngine {
     const task = getUploadTask(taskId)
     if (!task) return
 
-    if (task.status === "queued") {
-      patchUploadTask(taskId, { status: "cancelled", error: undefined })
+    if (task.status === "queued" || task.status === "preparing" && !task.sessionId) {
+      patchUploadTask(taskId, {
+        status: "cancelled",
+        uploadedBytes: 0,
+        error: undefined,
+      })
       return
     }
 
-    if (task.status === "completed" || task.status === "cancelled" || task.status === "finalizing" || task.status === "cancelling") return
+    if (
+      task.status === "completed"
+      || task.status === "skipped"
+      || task.status === "cancelled"
+      || task.status === "finalizing"
+      || task.status === "cancelling"
+    ) return
 
-    patchUploadTask(taskId, { status: "cancelling", error: undefined })
+    patchUploadTask(taskId, {
+      status: "cancelling",
+      error: undefined,
+    })
 
     try {
       await cancelNativeUploadTask(taskId)
 
       if (task.sessionId) {
-        await apiJSON<void>(`/api/v1/uploads/${encodeURIComponent(task.sessionId)}`, { method: "DELETE" })
-        patchUploadTask(taskId, { status: "cancelled", uploadedBytes: 0 })
+        await apiJSON<void>(`/api/v1/uploads/${encodeURIComponent(task.sessionId)}`, {
+          method: "DELETE",
+        })
       }
+
+      patchUploadTask(taskId, {
+        status: "cancelled",
+        uploadedBytes: 0,
+      })
     } catch (error) {
       if (error instanceof APIError && error.status === 401) this.callbacks.onUnauthorized?.()
 
@@ -141,9 +140,46 @@ class DesktopUploadEngine {
     const task = getUploadTask(taskId)
     if (!task) return
 
-    if (task.status === "completed" || task.status === "cancelled" || task.status === "error" && !task.sessionId) {
+    if (
+      task.status === "completed"
+      || task.status === "skipped"
+      || task.status === "cancelled"
+      || task.status === "error" && !task.sessionId
+    ) {
       removeUploadTask(taskId)
     }
+  }
+
+  private enqueueFiles(files: readonly PlannedNativeUploadFile[]) {
+    const known = new Set(
+      getUploadTasksSnapshot()
+        .filter((task) => !["completed", "skipped", "cancelled"].includes(task.status))
+        .map((task) => `${task.folderId}\0${task.file.name}`),
+    )
+    const additions: UploadTask[] = []
+
+    for (const planned of files) {
+      const key = `${planned.folderId}\0${planned.file.name}`
+      if (known.has(key)) continue
+
+      known.add(key)
+
+      additions.push({
+        id: crypto.randomUUID(),
+        file: planned.file,
+        folderId: planned.folderId,
+        ...(planned.relativePath !== planned.file.name ? { relativePath: planned.relativePath } : {}),
+        ...(planned.skipExisting ? { skipExisting: true } : {}),
+        status: "queued",
+        uploadedBytes: 0,
+      })
+    }
+
+    if (!additions.length) return
+
+    addUploadTasks(additions)
+    this.queue.push(...additions.map((task) => task.id))
+    this.pump()
   }
 
   private pump() {
@@ -159,6 +195,7 @@ class DesktopUploadEngine {
 
       void this.execute(task, epoch).finally(() => {
         if (epoch !== this.epoch) return
+
         this.activeFiles = Math.max(0, this.activeFiles - 1)
         this.pump()
       })
@@ -194,16 +231,29 @@ class DesktopUploadEngine {
 
       if (!this.enabled || epoch !== this.epoch) return
 
+      const current = getUploadTask(task.id)
+
+      if (current?.status === "cancelled" || current?.status === "cancelling") {
+        if (session.status === "open") {
+          await apiJSON<void>(`/api/v1/uploads/${encodeURIComponent(session.id)}`, {
+            method: "DELETE",
+          }).catch(() => undefined)
+        }
+
+        if (current.status === "cancelling") {
+          patchUploadTask(task.id, {
+            status: "cancelled",
+            uploadedBytes: 0,
+          })
+        }
+
+        return
+      }
+
       patchUploadTask(task.id, {
         sessionId: session.id,
         status: "uploading",
       })
-
-      if (getUploadTask(task.id)?.status === "cancelling") {
-        await apiJSON<void>(`/api/v1/uploads/${encodeURIComponent(session.id)}`, { method: "DELETE" })
-        patchUploadTask(task.id, { status: "cancelled", uploadedBytes: 0 })
-        return
-      }
 
       if (session.status === "completed") {
         patchUploadTask(task.id, {
@@ -215,12 +265,16 @@ class DesktopUploadEngine {
       }
 
       if (session.status !== "open") throw new Error(`Upload session is ${session.status}`)
+
       if (session.parentFolderId !== task.folderId || session.size !== task.file.size) {
         throw new Error("Upload session no longer matches this file")
       }
 
       const plan = planUploadParts(task.file.size, session.chunkSize)
-      if (plan.length !== session.expectedParts) throw new Error("Upload session part count is inconsistent")
+
+      if (plan.length !== session.expectedParts) {
+        throw new Error("Upload session part count is inconsistent")
+      }
 
       const uploadedParts = new Set((session.parts ?? []).map((part) => part.partIndex))
       let uploadedBytes = (session.parts ?? []).reduce((total, part) => total + part.size, 0)
@@ -255,13 +309,22 @@ class DesktopUploadEngine {
         }
 
         await Promise.all(
-          Array.from({ length: Math.min(concurrency, missing.length) }, () => worker()),
+          Array.from({
+            length: Math.min(concurrency, missing.length),
+          }, () => worker()),
         )
       }
 
-      if (getUploadTask(task.id)?.status === "cancelling") return
+      const beforeFinalize = getUploadTask(task.id)
 
-      patchUploadTask(task.id, { status: "finalizing" })
+      if (
+        beforeFinalize?.status === "cancelling"
+        || beforeFinalize?.status === "cancelled"
+      ) return
+
+      patchUploadTask(task.id, {
+        status: "finalizing",
+      })
 
       await apiJSON<CompletedFile>(`/api/v1/uploads/${encodeURIComponent(session.id)}/complete`, {
         method: "POST",
@@ -280,12 +343,17 @@ class DesktopUploadEngine {
 
       const current = getUploadTask(task.id)
 
-      if (current?.status === "cancelling") {
-        if (!current.sessionId) patchUploadTask(task.id, { status: "cancelled", uploadedBytes: 0 })
+      if (current?.status === "cancelling" || current?.status === "cancelled") return
+
+      if (task.skipExisting && isFileAlreadyExistsError(error)) {
+        patchUploadTask(task.id, {
+          status: "skipped",
+          uploadedBytes: 0,
+          error: undefined,
+        })
         return
       }
 
-      if (current?.status === "cancelled") return
       if (error instanceof APIError && error.status === 401) this.callbacks.onUnauthorized?.()
 
       patchUploadTask(task.id, {

@@ -5,6 +5,7 @@ import { useDesktopSession } from "#components/desktop-session"
 
 import { uploadEngine } from "../core/upload-engine"
 import { useUploadDockState, useUploadTasks } from "../core/upload-store"
+import { DesktopUploadDock } from "./upload-dock"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
 
@@ -20,7 +21,7 @@ const uploadActions = {
 }
 
 export function DesktopUploadProvider({ children }: { children: ReactNode }) {
-  const { refreshUser } = useDesktopSession()
+  const { state, refreshUser } = useDesktopSession()
 
   useEffect(() => {
     uploadEngine.configure({
@@ -35,7 +36,14 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
     return () => uploadEngine.reset()
   }, [refreshUser])
 
-  return children
+  const username = state.status === "connected" ? state.user?.username : undefined
+
+  return (
+    <>
+      {children}
+      {username ? <DesktopUploadDock username={username} /> : null}
+    </>
+  )
 }
 
 export function useUploadActions() {
