@@ -98,6 +98,20 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 		return "", time.Time{}, blobstore.ErrInvalidChunk
 	}
 
+	if rawURL, expiresAt, ok := s.cdnURLs.Get(location, time.Now().UTC()); ok {
+		return rawURL, expiresAt, nil
+	}
+
+	rawURL, expiresAt, err := s.resolveAttachmentURL(ctx, location)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	s.cdnURLs.Set(location, rawURL, expiresAt, time.Now().UTC())
+	return rawURL, expiresAt, nil
+}
+
+func (s *Store) resolveAttachmentURL(ctx context.Context, location blobstore.Location) (string, time.Time, error) {
 	excluded := make([]string, 0, s.scheduler.Len())
 	var lastErr error
 
@@ -138,29 +152,26 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 			continue
 		}
 
-		found := false
 		for _, attachment := range message.Attachments {
-			if attachment.ID != location.DiscordAttachmentID || strings.TrimSpace(attachment.URL) == "" {
+			rawURL := strings.TrimSpace(attachment.URL)
+			if attachment.ID != location.DiscordAttachmentID || rawURL == "" {
 				continue
 			}
 
-			found = true
 			s.scheduler.RecordSuccess(bot.UserID, 0)
 			release()
-			return attachment.URL, attachmentURLExpiry(attachment.URL), nil
+			return rawURL, attachmentURLExpiry(rawURL), nil
 		}
 
-		if !found {
-			protocolErr := &UpstreamError{
-				Class:     ErrorProtocol,
-				BotUserID: bot.UserID,
-				Retryable: false,
-				Cause:     errors.New("Discord attachment not present in message response"),
-			}
-			s.scheduler.RecordFailure(bot.UserID, protocolErr)
-			release()
-			lastErr = protocolErr
+		protocolErr := &UpstreamError{
+			Class:     ErrorProtocol,
+			BotUserID: bot.UserID,
+			Retryable: false,
+			Cause:     errors.New("Discord attachment not present in message response"),
 		}
+		s.scheduler.RecordFailure(bot.UserID, protocolErr)
+		release()
+		lastErr = protocolErr
 	}
 
 	if lastErr != nil {

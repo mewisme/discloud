@@ -48,6 +48,7 @@ func (s *Store) DeleteChunk(ctx context.Context, location blobstore.ChunkLocatio
 		)
 		if err == nil {
 			s.scheduler.RecordSuccess(bot.UserID, 0)
+			s.cdnURLs.DeleteMessage(location.DiscordChannelID, location.DiscordMessageID)
 			release()
 			return nil
 		}
@@ -55,6 +56,7 @@ func (s *Store) DeleteChunk(ctx context.Context, location blobstore.ChunkLocatio
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
 			s.scheduler.RecordSuccess(bot.UserID, 0)
+			s.cdnURLs.DeleteMessage(location.DiscordChannelID, location.DiscordMessageID)
 			release()
 			return nil
 		}

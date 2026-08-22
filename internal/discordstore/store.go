@@ -22,6 +22,7 @@ type Store struct {
 	client     *Client
 	scheduler  *Scheduler
 	configured *configuredBotRegistry
+	cdnURLs    *cdnURLCache
 }
 
 type chunkBodyResult struct {
@@ -48,6 +49,7 @@ func NewWithClient(ctx context.Context, channelID string, tokens []string, clien
 		client:     client,
 		scheduler:  NewScheduler(bots),
 		configured: configured,
+		cdnURLs:    newCDNURLCache(defaultCDNURLCacheEntries),
 	}, nil
 }
 
@@ -197,15 +199,10 @@ func (s *Store) OpenChunk(
 		return nil, blobstore.ErrInvalidChunk
 	}
 
-	attachmentURL, _, err := s.ResolveAttachmentURL(ctx, location)
+	rangeHeader := chunkRange(offset, length)
+	resp, err := s.openAttachment(ctx, location, rangeHeader)
 	if err != nil {
 		return nil, err
-	}
-
-	rangeHeader := chunkRange(offset, length)
-	resp, err := s.client.OpenAttachment(ctx, attachmentURL, rangeHeader)
-	if err != nil {
-		return nil, classifyError("", err)
 	}
 
 	if rangeHeader != "" && resp.StatusCode != http.StatusPartialContent {
@@ -218,6 +215,48 @@ func (s *Store) OpenChunk(
 	}
 
 	return resp.Body, nil
+}
+
+func (s *Store) openAttachment(ctx context.Context, location blobstore.Location, rangeHeader string) (*http.Response, error) {
+	attachmentURL, _, err := s.ResolveAttachmentURL(ctx, location)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.OpenAttachment(ctx, attachmentURL, rangeHeader)
+	if err == nil {
+		return resp, nil
+	}
+	if !shouldRefreshAttachmentURL(err) {
+		return nil, classifyError("", err)
+	}
+
+	s.cdnURLs.Delete(location)
+
+	attachmentURL, _, resolveErr := s.ResolveAttachmentURL(ctx, location)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+
+	resp, err = s.client.OpenAttachment(ctx, attachmentURL, rangeHeader)
+	if err != nil {
+		return nil, classifyError("", err)
+	}
+	return resp, nil
+}
+
+func shouldRefreshAttachmentURL(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+
+	switch apiErr.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Store) applyCooldown(botUserID string, err error) {
