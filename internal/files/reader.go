@@ -9,6 +9,8 @@ import (
 	"github.com/mewisme/discloud/internal/blobstore"
 )
 
+const chunkMetadataWindowSize = 16
+
 var ErrStorageInvariant = errors.New("file storage invariant violated")
 
 type chunk struct {
@@ -17,7 +19,7 @@ type chunk struct {
 }
 
 type chunkSource interface {
-	chunkAt(context.Context, string, int) (chunk, error)
+	chunkWindow(context.Context, string, int, int) ([]chunk, error)
 }
 
 type rangeReader struct {
@@ -30,6 +32,8 @@ type rangeReader struct {
 	remaining        int64
 	current          io.ReadCloser
 	currentRemaining int64
+	windowStart      int
+	window           []chunk
 }
 
 func newRangeReader(ctx context.Context, source chunkSource, blobs blobstore.BlobStore, fileID string, chunkSize, start, length int64) (*rangeReader, error) {
@@ -97,6 +101,7 @@ func (r *rangeReader) Read(p []byte) (int, error) {
 }
 
 func (r *rangeReader) Close() error {
+	r.window = nil
 	if r.current == nil {
 		return nil
 	}
@@ -114,7 +119,7 @@ func (r *rangeReader) openCurrent() error {
 	}
 
 	partIndex := int(r.position / r.chunkSize)
-	part, err := r.source.chunkAt(r.ctx, r.fileID, partIndex)
+	part, err := r.chunkFor(partIndex)
 	if err != nil {
 		return err
 	}
@@ -144,27 +149,91 @@ func (r *rangeReader) openCurrent() error {
 	return nil
 }
 
-func (s *Service) chunkAt(ctx context.Context, fileID string, partIndex int) (chunk, error) {
-	var part chunk
-	err := s.pool.QueryRow(ctx, `
+func (r *rangeReader) chunkFor(partIndex int) (chunk, error) {
+	if len(r.window) > 0 && partIndex >= r.windowStart && partIndex < r.windowStart+len(r.window) {
+		return r.window[partIndex-r.windowStart], nil
+	}
+
+	lastPartIndex := int((r.position + r.remaining - 1) / r.chunkSize)
+	windowEnd := partIndex + chunkMetadataWindowSize
+	if windowEnd > lastPartIndex+1 {
+		windowEnd = lastPartIndex + 1
+	}
+
+	window, err := r.source.chunkWindow(r.ctx, r.fileID, partIndex, windowEnd)
+	if err != nil {
+		return chunk{}, err
+	}
+	if len(window) != windowEnd-partIndex {
+		return chunk{}, fmt.Errorf(
+			"%w: chunk metadata window %d-%d returned %d parts",
+			ErrStorageInvariant,
+			partIndex,
+			windowEnd-1,
+			len(window),
+		)
+	}
+
+	r.windowStart = partIndex
+	r.window = window
+	return window[0], nil
+}
+
+func (s *Service) chunkWindow(ctx context.Context, fileID string, start, end int) ([]chunk, error) {
+	if start < 0 || end <= start {
+		return nil, ErrStorageInvariant
+	}
+
+	rows, err := s.pool.Query(ctx, `
 		SELECT
+			fc.part_index,
 			fc.part_size_bytes,
 			c.discord_channel_id,
 			c.discord_message_id,
 			c.discord_attachment_id
 		FROM file_chunks fc
 		JOIN chunks c ON c.id = fc.chunk_id
-		WHERE fc.file_id::text = $1
-		  AND fc.part_index = $2
+		WHERE fc.file_id = $1::uuid
+		  AND fc.part_index >= $2
+		  AND fc.part_index < $3
 		  AND c.status = 'ready'
-	`, fileID, partIndex).Scan(
-		&part.SizeBytes,
-		&part.Location.DiscordChannelID,
-		&part.Location.DiscordMessageID,
-		&part.Location.DiscordAttachmentID,
-	)
+		ORDER BY fc.part_index
+	`, fileID, start, end)
 	if err != nil {
-		return chunk{}, fmt.Errorf("%w: chunk %d: %v", ErrStorageInvariant, partIndex, err)
+		return nil, fmt.Errorf("%w: load chunk metadata window %d-%d: %v", ErrStorageInvariant, start, end-1, err)
 	}
-	return part, nil
+	defer rows.Close()
+
+	window := make([]chunk, 0, end-start)
+	expectedIndex := start
+
+	for rows.Next() {
+		var partIndex int
+		var part chunk
+
+		if err := rows.Scan(
+			&partIndex,
+			&part.SizeBytes,
+			&part.Location.DiscordChannelID,
+			&part.Location.DiscordMessageID,
+			&part.Location.DiscordAttachmentID,
+		); err != nil {
+			return nil, fmt.Errorf("%w: scan chunk metadata window: %v", ErrStorageInvariant, err)
+		}
+		if partIndex != expectedIndex {
+			return nil, fmt.Errorf("%w: expected chunk %d, got %d", ErrStorageInvariant, expectedIndex, partIndex)
+		}
+
+		window = append(window, part)
+		expectedIndex++
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%w: read chunk metadata window: %v", ErrStorageInvariant, err)
+	}
+	if expectedIndex != end {
+		return nil, fmt.Errorf("%w: missing chunk %d", ErrStorageInvariant, expectedIndex)
+	}
+
+	return window, nil
 }
