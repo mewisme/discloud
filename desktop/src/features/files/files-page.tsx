@@ -1,4 +1,4 @@
-import type { NodePage } from "@discloud/api/models"
+import type { BrowserNode, Node, NodePage } from "@discloud/api/models"
 import { InlineFileBrowserControls } from "@discloud/app-ui/files/file-browser-controls"
 import { FileBrowserHeader } from "@discloud/app-ui/files/file-browser-header"
 import { FileBrowserItems } from "@discloud/app-ui/files/file-browser-items"
@@ -8,13 +8,21 @@ import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/ale
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
 import { FolderUpIcon, LoaderCircleIcon, RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router"
 
+import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
+import { DesktopAccessDialog } from "../access/access-dialog"
+import { DesktopPublicShareDialog } from "../shares/public-share-dialog"
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "../uploads/ui/upload-provider"
 import { DesktopFileUploadTarget, useDesktopFileUploadTarget } from "../uploads/ui/upload-target"
+import { DesktopCreateFolderDialog } from "./actions/create-folder-dialog"
+import { DesktopMoveNodesDialog } from "./actions/move-nodes-dialog"
+import { DesktopNodeActionsMenu } from "./actions/node-actions-menu"
+import { DesktopFileSelectionToolbar } from "./actions/selection-toolbar"
+import { DesktopTrashNodesDialog } from "./actions/trash-nodes-dialog"
 import { type DesktopFileBrowserData, loadDesktopFileBrowser, loadFolderChildren } from "./api"
 
 type BrowserState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileBrowserData }
@@ -28,9 +36,16 @@ export function DesktopFilesPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [paginationError, setPaginationError] = useState<string>()
   const [uploadError, setUploadError] = useState<string>()
+  const [actionError, setActionError] = useState<string>()
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
+  const [moveTargets, setMoveTargets] = useState<BrowserNode[]>()
+  const [trashTargets, setTrashTargets] = useState<BrowserNode[]>()
+  const [favoritePending, setFavoritePending] = useState(false)
   const options = parseBrowserOptions(Object.fromEntries(searchParams))
   const { sort, order } = options
   const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
+  const nodes = state.status === "ready" ? state.data.page.nodes : []
+  const selectedNodes = useMemo(() => nodes.filter((node) => selected.has(node.id)), [nodes, selected])
 
   useEffect(() => {
     let cancelled = false
@@ -60,6 +75,19 @@ export function DesktopFilesPage() {
   }, [username, folderId, reloadVersion, sort, order])
 
   useEffect(() => {
+    setSelected(new Set())
+  }, [folderId, sort, order])
+
+  useEffect(() => {
+    const valid = new Set(nodes.map((node) => node.id))
+
+    setSelected((current) => {
+      const next = new Set([...current].filter((id) => valid.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [nodes])
+
+  useEffect(() => {
     if (!currentFolderId) return
 
     let reloadTimer: ReturnType<typeof setTimeout> | undefined
@@ -72,7 +100,7 @@ export function DesktopFilesPage() {
 
       reloadTimer = setTimeout(() => {
         reloadTimer = undefined
-        setReloadVersion((value) => value + 1)
+        reload()
       }, 200)
     }
 
@@ -83,6 +111,15 @@ export function DesktopFilesPage() {
       if (reloadTimer) clearTimeout(reloadTimer)
     }
   }, [currentFolderId])
+
+  function reload() {
+    setReloadVersion((value) => value + 1)
+  }
+
+  function changed() {
+    setSelected(new Set())
+    reload()
+  }
 
   function updateOptions(patch: Partial<BrowserOptions>) {
     setSearchParams(browserSearchParams({ ...options, ...patch }), { replace: true })
@@ -95,46 +132,89 @@ export function DesktopFilesPage() {
     })
   }
 
-  function folderPath(folderId: string, isRoot?: boolean) {
+  function folderPath(targetFolderId: string, isRoot?: boolean) {
     if (!username) return "/"
 
-    const routeRootId = state.status === "ready"
-      ? state.data.workspace.root.id
-      : undefined
+    const routeRootId = state.status === "ready" ? state.data.workspace.root.id : undefined
 
-    return isRoot && folderId === routeRootId
+    return isRoot && targetFolderId === routeRootId
       ? workspacePath(username)
-      : workspaceFolderPath(username, folderId)
+      : workspaceFolderPath(username, targetFolderId)
   }
 
-  function navigateFolder(folderId: string, isRoot?: boolean) {
-    navigate(browserURL(folderPath(folderId, isRoot), options))
+  function navigateFolder(targetFolderId: string, isRoot?: boolean) {
+    navigate(browserURL(folderPath(targetFolderId, isRoot), options))
+  }
+
+  function select(nodeId: string, value: boolean) {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (value) next.add(nodeId)
+      else next.delete(nodeId)
+      return next
+    })
+  }
+
+  function selectAll(value: boolean) {
+    setSelected(value ? new Set(nodes.map((node) => node.id)) : new Set())
+  }
+
+  async function setFavorite(node: BrowserNode, favorite: boolean) {
+    setFavoritePending(true)
+    setActionError(undefined)
+
+    try {
+      await apiJSON<Node>(`/api/v1/nodes/${encodeURIComponent(node.id)}/favorite`, {
+        method: favorite ? "PUT" : "DELETE",
+      })
+      reload()
+    } catch (cause) {
+      setActionError(errorMessage(cause))
+    } finally {
+      setFavoritePending(false)
+    }
+  }
+
+  async function setSelectedFavorite(favorite: boolean) {
+    const targets = selectedNodes.filter((node) => node.canFavorite && node.isFavorite !== favorite)
+    if (!targets.length || favoritePending) return
+
+    setFavoritePending(true)
+    setActionError(undefined)
+
+    const results = await Promise.allSettled(
+      targets.map((node) => apiJSON<Node>(`/api/v1/nodes/${encodeURIComponent(node.id)}/favorite`, {
+        method: favorite ? "PUT" : "DELETE",
+      })),
+    )
+
+    const failed = results.filter((result) => result.status === "rejected")
+
+    if (failed.length) {
+      setActionError(
+        failed.length === 1
+          ? errorMessage((failed[0] as PromiseRejectedResult).reason)
+          : `${failed.length} items could not be updated.`,
+      )
+    }
+
+    setFavoritePending(false)
+    reload()
   }
 
   async function loadMore() {
-    if (
-      state.status !== "ready"
-      || loadingMore
-      || !state.data.page.nextCursor
-    ) return
+    if (state.status !== "ready" || loadingMore || !state.data.page.nextCursor) return
 
     setLoadingMore(true)
     setPaginationError(undefined)
 
-    const currentFolderId = state.data.folder.id
+    const targetFolderId = state.data.folder.id
 
     try {
-      const page = await loadFolderChildren(
-        currentFolderId,
-        { sort, order },
-        state.data.page.nextCursor,
-      )
+      const page = await loadFolderChildren(targetFolderId, { sort, order }, state.data.page.nextCursor)
 
       setState((current) => {
-        if (
-          current.status !== "ready"
-          || current.data.folder.id !== currentFolderId
-        ) return current
+        if (current.status !== "ready" || current.data.folder.id !== targetFolderId) return current
 
         return {
           status: "ready",
@@ -154,29 +234,27 @@ export function DesktopFilesPage() {
   if (state.status === "loading") return <FilesLoading />
 
   if (state.status === "error") {
-    return (
-      <FilesError
-        message={state.message}
-        onRetry={() => setReloadVersion((value) => value + 1)}
-      />
-    )
+    return <FilesError message={state.message} onRetry={reload} />
   }
 
   const { data } = state
   const workspaceUsername = data.workspace.owner.username
   const editable = data.page.accessLevel !== "view"
+  const full = data.page.accessLevel === "full"
+  const bulkEditable = selectedNodes.length > 0 && selectedNodes.every((node) => node.accessLevel !== "view")
+  const bulkSameOwner = selectedNodes.length > 0 && selectedNodes.every((node) => node.ownerUserId === selectedNodes[0].ownerUserId)
+  const bulkCanMove = bulkEditable && bulkSameOwner
+  const bulkCanTrash = bulkEditable
+  const bulkCanFavorite = selectedNodes.some((node) => node.canFavorite && !node.isFavorite)
+  const bulkCanUnfavorite = selectedNodes.some((node) => node.canFavorite && node.isFavorite)
   const breadcrumbItems = data.breadcrumbs.map((item) => {
     const routeRoot = item.id === data.workspace.root.id
 
     return {
       id: item.id,
-      label: routeRoot
-        ? `${data.workspace.owner.name}'s workspace`
-        : item.name || "Shared folder",
+      label: routeRoot ? `${data.workspace.owner.name}'s workspace` : item.name || "Shared folder",
       href: hashPath(browserURL(
-        routeRoot
-          ? workspacePath(workspaceUsername)
-          : workspaceFolderPath(workspaceUsername, item.id),
+        routeRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, item.id),
         options,
       )),
       isRoot: item.isRoot,
@@ -184,11 +262,7 @@ export function DesktopFilesPage() {
   })
 
   return (
-    <DesktopFileUploadTarget
-      folderId={data.folder.id}
-      disabled={!editable}
-      onError={setUploadError}
-    >
+    <DesktopFileUploadTarget folderId={data.folder.id} disabled={!editable} onError={setUploadError}>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <FileBrowserHeader
           folder={data.folder}
@@ -201,9 +275,21 @@ export function DesktopFilesPage() {
               {!editable ? <Badge variant="outline">Read only</Badge> : null}
               <Badge variant="secondary">{data.page.accessLevel}</Badge>
 
-              {editable ? <DesktopUploadButtons /> : null}
+              {editable ? (
+                <>
+                  <DesktopCreateFolderDialog folder={data.folder} onCreated={changed} />
+                  <DesktopUploadButtons />
+                </>
+              ) : null}
 
-              <Button type="button" size="icon-sm" variant="outline" aria-label="Reload folder" title="Reload folder" onClick={() => setReloadVersion((value) => value + 1)}>
+              {full ? (
+                <>
+                  <DesktopAccessDialog resource={{ type: "folder", id: data.folder.id, name: data.folder.isRoot ? "Files" : data.folder.name }} />
+                  <DesktopPublicShareDialog resourceType="folder" resourceId={data.folder.id} resourceName={data.folder.isRoot ? "Files" : data.folder.name} />
+                </>
+              ) : null}
+
+              <Button type="button" size="icon-sm" variant="outline" aria-label="Reload folder" title="Reload folder" onClick={reload}>
                 <RefreshCwIcon />
               </Button>
 
@@ -212,16 +298,33 @@ export function DesktopFilesPage() {
           }
         />
 
+        <DesktopFileSelectionToolbar
+          count={selectedNodes.length}
+          canMove={bulkCanMove}
+          canTrash={bulkCanTrash}
+          canFavorite={bulkCanFavorite}
+          canUnfavorite={bulkCanUnfavorite}
+          favoritePending={favoritePending}
+          onMove={() => setMoveTargets([...selectedNodes])}
+          onTrash={() => setTrashTargets([...selectedNodes])}
+          onFavorite={() => void setSelectedFavorite(true)}
+          onUnfavorite={() => void setSelectedFavorite(false)}
+          onClear={() => setSelected(new Set())}
+        />
+
         {uploadError ? (
           <Alert variant="destructive">
             <TriangleAlertIcon />
             <AlertTitle>Could not prepare upload</AlertTitle>
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span>{uploadError}</span>
-              <Button type="button" size="sm" variant="outline" onClick={() => setUploadError(undefined)}>
-                Dismiss
-              </Button>
-            </AlertDescription>
+            <AlertDescription>{uploadError}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {actionError ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>Action failed</AlertTitle>
+            <AlertDescription>{actionError}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -238,13 +341,30 @@ export function DesktopFilesPage() {
           folder={data.folder}
           breadcrumbs={data.breadcrumbs}
           view={options.view}
-          folderHref={(id, isRoot) => hashPath(browserURL(isRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, id), options))}
+          selection={{
+            selected,
+            onSelect: select,
+            onSelectAll: selectAll,
+          }}
+          folderHref={(id, isRoot) => hashPath(browserURL(
+            isRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, id),
+            options,
+          ))}
           fileHref={(id) => hashPath(workspaceFilePath(workspaceUsername, id))}
           onNavigateFolder={navigateFolder}
           onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
-          emptyDescription={editable
-            ? "Drop files or folders here, or use Upload."
-            : "No files or folders here."}
+          renderNodeActions={(node) => (
+            <DesktopNodeActionsMenu
+              node={node}
+              folder={data.folder}
+              breadcrumbs={data.breadcrumbs}
+              page={data.page}
+              favoritePending={favoritePending}
+              onReload={changed}
+              onFavorite={setFavorite}
+            />
+          )}
+          emptyDescription={editable ? "Drop files or folders here, or use Upload." : "No files or folders here."}
         />
 
         {data.page.nextCursor ? (
@@ -254,6 +374,31 @@ export function DesktopFilesPage() {
               {loadingMore ? "Loading" : "Load more"}
             </Button>
           </div>
+        ) : null}
+
+        {moveTargets ? (
+          <DesktopMoveNodesDialog
+            nodes={moveTargets}
+            folder={data.folder}
+            breadcrumbs={data.breadcrumbs}
+            initialPage={data.page}
+            open
+            onOpenChange={(open) => {
+              if (!open) setMoveTargets(undefined)
+            }}
+            onMoved={changed}
+          />
+        ) : null}
+
+        {trashTargets ? (
+          <DesktopTrashNodesDialog
+            nodes={trashTargets}
+            open
+            onOpenChange={(open) => {
+              if (!open) setTrashTargets(undefined)
+            }}
+            onTrashed={changed}
+          />
         ) : null}
       </div>
     </DesktopFileUploadTarget>
@@ -297,9 +442,7 @@ function FilesError({ message, onRetry }: {
       <AlertTitle>Could not load files</AlertTitle>
       <AlertDescription className="flex flex-col items-start gap-3">
         <span>{message}</span>
-        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-          Try again
-        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onRetry}>Try again</Button>
       </AlertDescription>
     </Alert>
   )
