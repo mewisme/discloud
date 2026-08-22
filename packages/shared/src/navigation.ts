@@ -51,6 +51,7 @@ export function appRouteTitle(pathname: string, username: string) {
   if (path.startsWith("/settings/profile")) return "Profile"
   if (path.startsWith("/settings/security")) return "Security"
   if (path.startsWith("/settings/common")) return "Common"
+  if (path.startsWith("/settings/desktop")) return "Desktop"
   if (path === "/settings" || path.startsWith("/settings/")) return "Settings"
   if (path.startsWith("/collections")) return "Collections"
   if (path.startsWith("/favorites")) return "Favorites"

@@ -27,6 +27,7 @@ const DesktopFilesPage = lazy(() => import("./features/files/files-page").then((
 const DesktopSearchPage = lazy(() => import("./features/search/search-page").then((module) => ({ default: module.DesktopSearchPage })))
 const DesktopSettingsPage = lazy(() => import("./features/settings/ui/settings-page").then((module) => ({ default: module.DesktopSettingsPage })))
 const DesktopCommonSettingsPage = lazy(() => import("./features/settings/ui/common-settings-page").then((module) => ({ default: module.DesktopCommonSettingsPage })))
+const DesktopNativeSettingsPage = lazy(() => import("./features/settings/ui/desktop-settings-page").then((module) => ({ default: module.DesktopNativeSettingsPage })))
 const DesktopProfileSettingsPage = lazy(() => import("./features/settings/ui/profile-settings-page").then((module) => ({ default: module.DesktopProfileSettingsPage })))
 const DesktopSecuritySettingsPage = lazy(() => import("./features/settings/ui/security-settings-page").then((module) => ({ default: module.DesktopSecuritySettingsPage })))
 const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
@@ -59,6 +60,7 @@ export const router = createHashRouter([
           { path: "uploads", Component: UploadsRoute },
           { path: "settings", Component: SettingsRoute },
           { path: "settings/common", Component: CommonSettingsRoute },
+          { path: "settings/desktop", Component: DesktopSettingsRoute },
           { path: "settings/profile", Component: ProfileSettingsRoute },
           { path: "settings/security", Component: SecuritySettingsRoute },
           {
@@ -228,6 +230,10 @@ function SettingsRoute() {
 
 function CommonSettingsRoute() {
   return <RouteSuspense label="Loading common settings"><DesktopCommonSettingsPage /></RouteSuspense>
+}
+
+function DesktopSettingsRoute() {
+  return <RouteSuspense label="Loading desktop settings"><DesktopNativeSettingsPage /></RouteSuspense>
 }
 
 function ProfileSettingsRoute() {

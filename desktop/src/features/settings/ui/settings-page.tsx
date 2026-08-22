@@ -1,6 +1,6 @@
 import { workspacePath } from "@discloud/shared/navigation"
 import { Card, CardContent } from "@discloud/ui/components/card"
-import { ChevronRightIcon, Settings2Icon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
+import { ChevronRightIcon, MonitorCogIcon, Settings2Icon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
 import { Link, useParams } from "react-router"
 
 const settings = [
@@ -15,6 +15,12 @@ const settings = [
     title: "Common",
     description: "Manage display, sidebar, pagination, preview and time zone preferences.",
     icon: Settings2Icon,
+  },
+  {
+    suffix: "settings/desktop",
+    title: "Desktop",
+    description: "Manage startup, tray behavior and native notifications for this device.",
+    icon: MonitorCogIcon,
   },
   {
     suffix: "settings/security",

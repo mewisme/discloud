@@ -1,8 +1,9 @@
 import type { ReactNode } from "react"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 
 import { useDesktopSession } from "#components/desktop-session"
 
+import { sendDesktopNotification } from "../../desktop/core/notifications"
 import { uploadEngine } from "../core/upload-engine"
 import { useUploadDockState, useUploadTasks } from "../core/upload-store"
 import { DesktopUploadDock } from "./upload-dock"
@@ -41,6 +42,7 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
+      <DesktopUploadNotifications />
       {username ? <DesktopUploadDock username={username} /> : null}
     </>
   )
@@ -57,6 +59,35 @@ export function useUploads() {
     tasks,
     ...uploadActions,
   }), [tasks])
+}
+
+function DesktopUploadNotifications() {
+  const { failedCount, completionVersion, currentTask } = useUploadDockState()
+  const previousFailedCount = useRef(failedCount)
+  const previousCompletionVersion = useRef(completionVersion)
+
+  useEffect(() => {
+    if (completionVersion > previousCompletionVersion.current) {
+      void sendDesktopNotification("Uploads complete", "All queued uploads completed successfully.")
+    }
+
+    previousCompletionVersion.current = completionVersion
+  }, [completionVersion])
+
+  useEffect(() => {
+    if (failedCount > previousFailedCount.current) {
+      const added = failedCount - previousFailedCount.current
+      const body = added === 1 && currentTask?.file.name
+        ? `${currentTask.file.name} needs attention.`
+        : `${added} uploads need attention.`
+
+      void sendDesktopNotification("Upload failed", body)
+    }
+
+    previousFailedCount.current = failedCount
+  }, [currentTask?.file.name, failedCount])
+
+  return null
 }
 
 export { useUploadDockState, useUploadTasks }
