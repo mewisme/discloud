@@ -13,6 +13,8 @@
     "web:test": "pnpm --filter @discloud/web test",
     "desktop:dev": "pnpm --filter @discloud/desktop dev",
     "desktop:build": "pnpm --filter @discloud/desktop build",
+    "desktop:lint": "pnpm --filter @discloud/desktop lint",
+    "desktop:lint:fix": "pnpm --filter @discloud/desktop lint:fix",
     "desktop:typecheck": "pnpm --filter @discloud/desktop typecheck",
     "desktop:tauri": "pnpm --filter @discloud/desktop tauri",
     "api:types": "pnpm --filter @discloud/api api:types",

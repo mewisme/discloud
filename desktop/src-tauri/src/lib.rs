@@ -2,6 +2,7 @@ mod api;
 mod commands;
 mod file_transfer;
 mod session;
+mod settings_transfer;
 mod upload_transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,6 +25,9 @@ pub fn run() {
             commands::cancel_upload_task,
             commands::finish_upload_task,
             commands::upload_file_part,
+            commands::update_avatar,
+            commands::load_avatar,
+            commands::save_recovery_codes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DisCloud");

@@ -1,4 +1,5 @@
 import type { WorkspaceDetails } from "@discloud/api/models"
+
 import { apiJSON } from "#lib/api/transport"
 
 export function loadDesktopWorkspace(username: string) {

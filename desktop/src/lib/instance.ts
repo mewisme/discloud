@@ -1,5 +1,6 @@
 import type { SetupStatus } from "@discloud/api/models"
 import { invoke } from "@tauri-apps/api/core"
+
 import { apiJSON, nativeError } from "#lib/api/transport"
 
 type ConnectedServer = {

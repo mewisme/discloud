@@ -1,13 +1,14 @@
 import type { User } from "@discloud/api/models"
 import {
-  type ReactNode,
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react"
+
 import {
   getCurrentUser,
   logout,

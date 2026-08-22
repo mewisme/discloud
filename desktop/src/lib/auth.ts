@@ -8,6 +8,7 @@ import type {
   VerifyLoginMFAInput,
 } from "@discloud/api/models"
 import { APIError } from "@discloud/api/types"
+
 import { apiJSON } from "#lib/api/transport"
 
 export function completeSetup(input: SetupInput) {

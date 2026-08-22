@@ -3,6 +3,7 @@ use tauri::State;
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
     file_transfer::{self, DownloadResult},
+    settings_transfer::{self, AvatarInfo, AvatarPayload},
     upload_transfer::{self, LocalUploadFile, UploadPartResult, UploadTransferState},
 };
 
@@ -90,4 +91,27 @@ pub(crate) async fn upload_file_part(
         size,
     )
     .await
+}
+
+#[tauri::command]
+pub(crate) async fn update_avatar(
+    state: State<'_, ApiState>,
+    path: String,
+) -> Result<AvatarInfo, ApiCommandError> {
+    settings_transfer::update_avatar(state.inner(), path).await
+}
+
+#[tauri::command]
+pub(crate) async fn load_avatar(
+    state: State<'_, ApiState>,
+) -> Result<Option<AvatarPayload>, ApiCommandError> {
+    settings_transfer::load_avatar(state.inner()).await
+}
+
+#[tauri::command]
+pub(crate) async fn save_recovery_codes(
+    destination: String,
+    codes: Vec<String>,
+) -> Result<(), ApiCommandError> {
+    settings_transfer::save_recovery_codes(destination, codes).await
 }

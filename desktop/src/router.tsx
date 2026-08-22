@@ -10,6 +10,7 @@ import { createHashRouter, Navigate, Outlet, useLocation, useNavigate, useParams
 import { type ConnectedDesktopSessionState, useDesktopSession } from "#components/desktop-session"
 import { changePassword, completeSetup, login, verifyMFA } from "#lib/auth"
 
+import { DesktopUserConfigProvider } from "./features/settings/ui/user-config-provider"
 import { DesktopUploadProvider } from "./features/uploads/ui/upload-provider"
 
 const ChangePasswordForm = lazy(() => import("@discloud/app-ui/auth/change-password-form").then((module) => ({ default: module.ChangePasswordForm })))
@@ -24,6 +25,10 @@ const DesktopFavoritesPage = lazy(() => import("./features/favorites/favorites-p
 const DesktopFilePage = lazy(() => import("./features/files/file-page").then((module) => ({ default: module.DesktopFilePage })))
 const DesktopFilesPage = lazy(() => import("./features/files/files-page").then((module) => ({ default: module.DesktopFilesPage })))
 const DesktopSearchPage = lazy(() => import("./features/search/search-page").then((module) => ({ default: module.DesktopSearchPage })))
+const DesktopSettingsPage = lazy(() => import("./features/settings/ui/settings-page").then((module) => ({ default: module.DesktopSettingsPage })))
+const DesktopCommonSettingsPage = lazy(() => import("./features/settings/ui/common-settings-page").then((module) => ({ default: module.DesktopCommonSettingsPage })))
+const DesktopProfileSettingsPage = lazy(() => import("./features/settings/ui/profile-settings-page").then((module) => ({ default: module.DesktopProfileSettingsPage })))
+const DesktopSecuritySettingsPage = lazy(() => import("./features/settings/ui/security-settings-page").then((module) => ({ default: module.DesktopSecuritySettingsPage })))
 const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
 const DesktopTrashPage = lazy(() => import("./features/trash/trash-page").then((module) => ({ default: module.DesktopTrashPage })))
 const DesktopUploadsPage = lazy(() => import("./features/uploads/ui/uploads-page").then((module) => ({ default: module.DesktopUploadsPage })))
@@ -52,10 +57,10 @@ export const router = createHashRouter([
         Component: ActorRouteGuard,
         children: [
           { path: "uploads", Component: UploadsRoute },
-          { path: "settings", Component: RoutePlaceholder },
-          { path: "settings/common", Component: RoutePlaceholder },
-          { path: "settings/profile", Component: RoutePlaceholder },
-          { path: "settings/security", Component: RoutePlaceholder },
+          { path: "settings", Component: SettingsRoute },
+          { path: "settings/common", Component: CommonSettingsRoute },
+          { path: "settings/profile", Component: ProfileSettingsRoute },
+          { path: "settings/security", Component: SecuritySettingsRoute },
           {
             Component: AdminRouteGuard,
             children: [
@@ -167,11 +172,13 @@ function AuthenticatedRoute() {
   if (state.user.mustChangePassword) return <Navigate to="/change-password" replace />
 
   return (
-    <DesktopUploadProvider>
-      <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
-        <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
-      </Suspense>
-    </DesktopUploadProvider>
+    <DesktopUserConfigProvider>
+      <DesktopUploadProvider>
+        <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
+          <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
+        </Suspense>
+      </DesktopUploadProvider>
+    </DesktopUserConfigProvider>
   )
 }
 
@@ -215,6 +222,22 @@ function UploadsRoute() {
   return <RouteSuspense label="Loading uploads"><DesktopUploadsPage /></RouteSuspense>
 }
 
+function SettingsRoute() {
+  return <RouteSuspense label="Loading settings"><DesktopSettingsPage /></RouteSuspense>
+}
+
+function CommonSettingsRoute() {
+  return <RouteSuspense label="Loading common settings"><DesktopCommonSettingsPage /></RouteSuspense>
+}
+
+function ProfileSettingsRoute() {
+  return <RouteSuspense label="Loading profile settings"><DesktopProfileSettingsPage /></RouteSuspense>
+}
+
+function SecuritySettingsRoute() {
+  return <RouteSuspense label="Loading security settings"><DesktopSecuritySettingsPage /></RouteSuspense>
+}
+
 function RouteSuspense({ label, children }: { label: string; children: ReactNode }) {
   return <Suspense fallback={<RouteContentLoading label={label} />}>{children}</Suspense>
 }
@@ -255,9 +278,7 @@ function RoutePlaceholder() {
         <CardTitle>{title}</CardTitle>
         <CardDescription>This desktop route is wired and ready for its feature implementation.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">Workspace: @{workspaceUsername}</p>
-      </CardContent>
+      <CardContent><p className="text-sm text-muted-foreground">Workspace: @{workspaceUsername}</p></CardContent>
     </Card>
   )
 }
@@ -279,38 +300,15 @@ function AuthRouteFrame({ serverUrl, children }: { serverUrl: string; children: 
 }
 
 function LoadingScreen({ label = "Connecting to DisCloud" }: { label?: string }) {
-  return (
-    <main className="grid min-h-screen place-items-center bg-muted/30 p-6">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <LoaderCircle className="size-5 animate-spin" />
-        <span className="text-sm">{label}</span>
-      </div>
-    </main>
-  )
+  return <main className="grid min-h-screen place-items-center bg-muted/30 p-6"><div className="flex flex-col items-center gap-3 text-muted-foreground"><LoaderCircle className="size-5 animate-spin" /><span className="text-sm">{label}</span></div></main>
 }
 
 function RouteContentLoading({ label }: { label: string }) {
-  return (
-    <div className="grid min-h-64 place-items-center">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <LoaderCircle className="size-4 animate-spin" />
-        {label}
-      </div>
-    </div>
-  )
+  return <div className="grid min-h-64 place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{label}</div></div>
 }
 
 function AuthContentLoading() {
-  return (
-    <Card>
-      <CardContent className="grid min-h-40 place-items-center">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle className="size-4 animate-spin" />
-          Loading
-        </div>
-      </CardContent>
-    </Card>
-  )
+  return <Card><CardContent className="grid min-h-40 place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />Loading</div></CardContent></Card>
 }
 
 function NotFoundRoute() {
