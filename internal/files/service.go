@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrNotFound    = errors.New("file not found")
+	ErrForbidden   = errors.New("file write access forbidden")
 	ErrInvalidSpan = errors.New("invalid file byte span")
 )
 
@@ -66,6 +67,21 @@ func (s *Service) Get(ctx context.Context, actor Actor, fileID string) (File, er
 	}
 	if err != nil {
 		return File{}, err
+	}
+	return s.GetStored(ctx, fileID)
+}
+
+// GetEditable requires at least Edit access; use for mutations on a file.
+func (s *Service) GetEditable(ctx context.Context, actor Actor, fileID string) (File, error) {
+	level, err := s.acl.Resolve(ctx, fileID, actor.UserID, actor.Admin)
+	if errors.Is(err, acl.ErrNotFound) || level == acl.None {
+		return File{}, ErrNotFound
+	}
+	if err != nil {
+		return File{}, err
+	}
+	if !level.Allows(acl.Edit) {
+		return File{}, ErrForbidden
 	}
 	return s.GetStored(ctx, fileID)
 }

@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/png"
 	"testing"
@@ -44,5 +45,37 @@ func TestProcessImageThumbnail(t *testing.T) {
 	}
 	if processed.Width != ThumbnailMaxDimension || processed.Height != ThumbnailMaxDimension/2 {
 		t.Fatalf("thumbnail size = %dx%d, want %dx%d", processed.Width, processed.Height, ThumbnailMaxDimension, ThumbnailMaxDimension/2)
+	}
+}
+
+func TestProcessClientThumbnail(t *testing.T) {
+	source := image.NewNRGBA(image.Rect(0, 0, 1024, 512))
+	var input bytes.Buffer
+	if err := png.Encode(&input, source); err != nil {
+		t.Fatalf("encode source: %v", err)
+	}
+
+	processed, err := ProcessClientThumbnail(bytes.NewReader(input.Bytes()))
+	if err != nil {
+		t.Fatalf("ProcessClientThumbnail(): %v", err)
+	}
+	if processed.MIMEType != "image/png" || processed.Filename != "thumbnail.png" {
+		t.Fatalf("canonical output = %s %s", processed.MIMEType, processed.Filename)
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(processed.Data))
+	if err != nil {
+		t.Fatalf("decode thumbnail: %v", err)
+	}
+	if config.Width != ThumbnailMaxDimension || config.Height != ThumbnailMaxDimension/2 {
+		t.Fatalf("thumbnail size = %dx%d, want %dx%d", config.Width, config.Height, ThumbnailMaxDimension, ThumbnailMaxDimension/2)
+	}
+
+	if _, err := ProcessClientThumbnail(bytes.NewReader([]byte("not an image"))); !errors.Is(err, ErrInvalidImage) {
+		t.Fatalf("invalid image = %v, want ErrInvalidImage", err)
+	}
+
+	oversized := make([]byte, ClientThumbnailMaxBytes+1)
+	if _, err := ProcessClientThumbnail(bytes.NewReader(oversized)); !errors.Is(err, ErrImageTooLarge) {
+		t.Fatalf("oversized image = %v, want ErrImageTooLarge", err)
 	}
 }

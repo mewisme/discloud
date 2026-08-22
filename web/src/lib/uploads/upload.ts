@@ -13,6 +13,7 @@ export type UploadCallbacks = {
   onSession: (sessionId: string) => void
   onProgress: (uploadedBytes: number) => void
   onFinalizing: () => void
+  onCompleted?: (file: CompletedFile) => void
 }
 
 export function withUploadSlot<T>(work: () => Promise<T>) {
@@ -68,8 +69,10 @@ export async function uploadFile({
   if (failure) throw failure.reason
 
   callbacks.onFinalizing()
-  await apiJSON<CompletedFile>(`/api/v1/uploads/${session.id}/complete`, { method: "POST", signal })
+  const completedFile = await apiJSON<CompletedFile>(`/api/v1/uploads/${session.id}/complete`, { method: "POST", signal })
   callbacks.onProgress(file.size)
+  callbacks.onCompleted?.(completedFile)
+  return completedFile
 }
 
 async function createSession(file: File, folderId: string, signal: AbortSignal) {

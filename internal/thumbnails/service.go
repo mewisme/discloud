@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -34,6 +35,36 @@ type payload struct {
 
 func New(pool *pgxpool.Pool, fileService *files.Service, objectService *objects.Service) *Service {
 	return &Service{pool: pool, files: fileService, objects: objectService}
+}
+
+// UploadFromClient stores a browser-generated thumbnail. The caller is
+// responsible for permission checks; the input is re-validated here.
+func (s *Service) UploadFromClient(ctx context.Context, fileID string, src io.Reader) (media.ProcessedImage, error) {
+	if s == nil || s.pool == nil || s.objects == nil {
+		return media.ProcessedImage{}, objects.ErrUnavailable
+	}
+
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO file_thumbnails (file_id, variant, status)
+		VALUES ($1::uuid, 'grid', 'pending')
+		ON CONFLICT (file_id, variant) DO NOTHING
+	`, fileID); err != nil {
+		return media.ProcessedImage{}, fmt.Errorf("ensure thumbnail row: %w", err)
+	}
+
+	processed, err := media.ProcessClientThumbnail(src)
+	if err != nil {
+		return media.ProcessedImage{}, err
+	}
+
+	object, err := s.objects.Put(ctx, "thumbnail", processed.Filename, processed.MIMEType, bytes.NewReader(processed.Data))
+	if err != nil {
+		return media.ProcessedImage{}, err
+	}
+	if err := s.finish(ctx, fileID, "ready", object.ID, processed.Width, processed.Height, ""); err != nil {
+		return media.ProcessedImage{}, err
+	}
+	return processed, nil
 }
 
 func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
@@ -98,6 +129,12 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	object, err := s.objects.Put(ctx, "thumbnail", processed.Filename, processed.MIMEType, bytes.NewReader(processed.Data))
 	if err != nil {
 		return s.retryOrFail(ctx, job, file.ID, err)
+	}
+	// ponytail: re-check narrows (not closes) the race where a client thumbnail
+	// landed during FFmpeg work; worst case both are valid, client one wins.
+	status, err = s.status(ctx, file.ID)
+	if err == nil && (status == "ready" || status == "skipped") {
+		return nil
 	}
 	if err := s.finish(ctx, file.ID, "ready", object.ID, processed.Width, processed.Height, ""); err != nil {
 		return err

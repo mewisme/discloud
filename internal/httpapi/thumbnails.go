@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/mewisme/discloud/internal/collections"
 	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/files"
+	"github.com/mewisme/discloud/internal/media"
 	"github.com/mewisme/discloud/internal/objects"
 	"github.com/mewisme/discloud/internal/thumbnails"
 )
@@ -37,4 +39,47 @@ func registerThumbnailRoutes(mux *http.ServeMux, service *thumbnails.Service, fi
 		}
 		writeObjectRedirect(w, rawURL, "private, max-age=300")
 	})))
+
+	mux.Handle("PUT /api/v1/files/{fileId}/thumbnail", requireAuth(authService, cfg, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		file, err := fileService.GetEditable(r.Context(), fileActor(r), r.PathValue("fileId"))
+		if errors.Is(err, files.ErrForbidden) {
+			WriteProblem(w, r, http.StatusForbidden, "Forbidden", "write access to this file is required")
+			return
+		}
+		if writeFileContextError(w, r, err) {
+			return
+		}
+
+		if r.ContentLength > media.ClientThumbnailMaxBytes {
+			WriteProblem(w, r, http.StatusRequestEntityTooLarge, "Content Too Large", "thumbnail must be 8 MiB or smaller")
+			return
+		}
+
+		processed, err := service.UploadFromClient(r.Context(), file.ID, r.Body)
+		switch {
+		case errors.Is(err, media.ErrEmptyImage), errors.Is(err, media.ErrInvalidImage):
+			WriteProblem(w, r, http.StatusUnsupportedMediaType, "Unsupported Media Type", "thumbnail must be a supported image")
+			return
+		case errors.Is(err, media.ErrImageTooLarge), errors.Is(err, objects.ErrTooLarge):
+			WriteProblem(w, r, http.StatusRequestEntityTooLarge, "Content Too Large", "thumbnail exceeds processing limits")
+			return
+		}
+		if writeObjectStorageError(w, r, err, "could not store thumbnail") {
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(thumbnailUploadResponse{
+			ThumbnailStatus: "ready",
+			Width:           processed.Width,
+			Height:          processed.Height,
+		})
+	})))
+}
+
+type thumbnailUploadResponse struct {
+	ThumbnailStatus string `json:"thumbnailStatus"`
+	Width           int    `json:"width"`
+	Height          int    `json:"height"`
 }

@@ -676,7 +676,7 @@ export type paths = {
             readonly cookie?: never;
         };
         readonly get: operations["getFileThumbnail"];
-        readonly put?: never;
+        readonly put: operations["uploadFileThumbnail"];
         readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
@@ -2041,6 +2041,12 @@ export type components = {
              */
             readonly effect: "triangle" | "triangle-blur" | "circle" | "circle-blur" | "circle-blur-top-left" | "polygon" | "polygon-gradient" | "custom";
         };
+        readonly ThumbnailInfo: {
+            readonly height: number;
+            /** @enum {string} */
+            readonly thumbnailStatus: "ready";
+            readonly width: number;
+        };
         readonly UploadDiagnostic: {
             readonly actorName: string;
             /** Format: uuid */
@@ -2615,6 +2621,15 @@ export type components = {
                 readonly "application/json": components["schemas"]["StorageOverview"];
             };
         };
+        /** @description Thumbnail state after upload. */
+        readonly ThumbnailInfo: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["ThumbnailInfo"];
+            };
+        };
         /** @description Successful response. */
         readonly TrashPage: {
             headers: {
@@ -2945,6 +2960,15 @@ export type components = {
                     readonly password: string;
                     readonly username: string;
                 };
+            };
+        };
+        /** @description Raw browser-generated thumbnail image. Maximum input size is 8 MiB. The backend decodes, re-encodes, and canonicalizes the image. */
+        readonly ThumbnailUpload: {
+            readonly content: {
+                readonly "application/octet-stream": string;
+                readonly "image/jpeg": string;
+                readonly "image/png": string;
+                readonly "image/webp": string;
             };
         };
         readonly UpdateCollection: {
@@ -3800,6 +3824,21 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 307: components["responses"]["ObjectRedirect"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly uploadFileThumbnail: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["ThumbnailUpload"];
+        readonly responses: {
+            readonly 200: components["responses"]["ThumbnailInfo"];
             readonly default: components["responses"]["Problem"];
         };
     };

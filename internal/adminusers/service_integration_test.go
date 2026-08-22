@@ -78,7 +78,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	user, err := service.Create(ctx, adminID, CreateInput{
 		Name:              "Alice Example",
 		Username:          "alice",
-		Password:          "x",
+		Password:          "temp-alice",
 		StorageQuotaBytes: &quota,
 	})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 		t.Fatalf("read created password hash: %v", err)
 	}
 
-	match, err := auth.VerifyPassword("x", createdPasswordHash)
+	match, err := auth.VerifyPassword("temp-alice", createdPasswordHash)
 	if err != nil {
 		t.Fatalf("verify created temporary password: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	if _, err := service.Create(ctx, adminID, CreateInput{
 		Name:     "Another Alice",
 		Username: "Alice",
-		Password: "x",
+		Password: "temp-alice",
 	}); !errors.Is(err, ErrUsernameTaken) {
 		t.Fatalf("duplicate username = %v, want ErrUsernameTaken", err)
 	}
@@ -266,7 +266,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 		t.Fatalf("empty reset password = %v, want ErrInvalidTemporaryPassword", err)
 	}
 
-	if err := service.ResetPassword(ctx, adminID, user.ID, "z"); err != nil {
+	if err := service.ResetPassword(ctx, adminID, user.ID, "temp-reset"); err != nil {
 		t.Fatalf("reset password: %v", err)
 	}
 
@@ -283,7 +283,7 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 		t.Fatal("must_change_password is false after admin reset")
 	}
 
-	match, err = auth.VerifyPassword("z", resetPasswordHash)
+	match, err = auth.VerifyPassword("temp-reset", resetPasswordHash)
 	if err != nil {
 		t.Fatalf("verify reset temporary password: %v", err)
 	}

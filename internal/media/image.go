@@ -18,6 +18,7 @@ const (
 	AvatarMaxBytes         int64 = 10 * 1024 * 1024
 	AvatarSize                   = 512
 	ThumbnailImageMaxBytes int64 = 64 * 1024 * 1024
+	ClientThumbnailMaxBytes int64 = 8 * 1024 * 1024
 	ThumbnailMaxDimension        = 512
 	MaxDecodedImagePixels  int64 = 64 * 1024 * 1024
 )
@@ -51,7 +52,17 @@ func ProcessAvatar(src io.Reader) (ProcessedImage, error) {
 }
 
 func ProcessImageThumbnail(src io.Reader) (ProcessedImage, error) {
-	decoded, _, err := decodeBounded(src, ThumbnailImageMaxBytes, MaxDecodedImagePixels)
+	return processThumbnail(src, ThumbnailImageMaxBytes)
+}
+
+// ProcessClientThumbnail validates a browser-generated thumbnail at the trust
+// boundary: bounded encoded size, pixel-bomb guard, re-encoded canonical PNG.
+func ProcessClientThumbnail(src io.Reader) (ProcessedImage, error) {
+	return processThumbnail(src, ClientThumbnailMaxBytes)
+}
+
+func processThumbnail(src io.Reader, maxBytes int64) (ProcessedImage, error) {
+	decoded, _, err := decodeBounded(src, maxBytes, MaxDecodedImagePixels)
 	if err != nil {
 		return ProcessedImage{}, err
 	}

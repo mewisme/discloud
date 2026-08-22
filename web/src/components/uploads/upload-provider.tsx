@@ -8,6 +8,8 @@ import { toast } from "sonner"
 import { apiJSON } from "@/lib/api/client"
 import { APIError } from "@/lib/api/types"
 import { isFileAlreadyExistsError, type PlannedUploadFile, planUploadFiles } from "@/lib/uploads/folder"
+import type { PendingThumbnail } from "@/lib/uploads/thumbnails"
+import { generateUploadThumbnail, settleUploadThumbnail } from "@/lib/uploads/thumbnails"
 import { uploadFile, withUploadSlot } from "@/lib/uploads/upload"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
@@ -115,6 +117,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     controllers.current.set(task.id, controller)
     patchTask(task.id, { status: "preparing", error: undefined })
 
+    let thumbnail: PendingThumbnail | undefined
     try {
       await uploadFile({
         file: task.file,
@@ -122,9 +125,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         sessionId: task.sessionId,
         signal: controller.signal,
         callbacks: {
-          onSession: (sessionId) => patchTask(task.id, { sessionId, status: "uploading" }),
+          onSession: (sessionId) => {
+            patchTask(task.id, { sessionId, status: "uploading" })
+            thumbnail ??= generateUploadThumbnail(task.file)
+          },
           onProgress: (uploadedBytes) => queueProgress(task.id, uploadedBytes),
           onFinalizing: () => patchTask(task.id, { status: "finalizing" }),
+          onCompleted: ({ id }) => void settleUploadThumbnail(id, thumbnail, scheduleServerRefresh),
         },
       })
 
@@ -148,7 +155,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     } finally {
       controllers.current.delete(task.id)
     }
-  }, [notifyCompleted, patchTask, queueProgress, router, taskById])
+  }, [notifyCompleted, patchTask, queueProgress, router, scheduleServerRefresh, taskById])
 
   const schedule = useCallback((task: UploadTask) => {
     void withUploadSlot(async () => {
