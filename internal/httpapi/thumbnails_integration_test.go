@@ -324,11 +324,34 @@ func createThumbnailFile(t *testing.T, ctx context.Context, pool interface {
 			INSERT INTO nodes (kind, owner_user_id, parent_id, name, name_key, created_by)
 			VALUES ('file', $1::uuid, $2::uuid, $3, $4, $1::uuid)
 			RETURNING id
+		),
+		file AS (
+			INSERT INTO files (
+				node_id,
+				size_bytes,
+				chunk_size_bytes,
+				mime_type,
+				category,
+				metadata_status
+			)
+			SELECT
+				id,
+				$5,
+				10,
+				'image/png',
+				'image',
+				'ready'
+			FROM node
+			RETURNING node_id
+		),
+		thumbnail AS (
+			INSERT INTO file_thumbnails (file_id, variant, status)
+			SELECT node_id, 'grid', 'pending'
+			FROM file
+			RETURNING file_id
 		)
-		INSERT INTO files (node_id, size_bytes, chunk_size_bytes, mime_type, category)
-		SELECT id, $5, 10, 'image/png', 'image'
-		FROM node
-		RETURNING node_id::text
+		SELECT file_id::text
+		FROM thumbnail
 	`, ownerID, parentID, display, key, size).Scan(&id); err != nil {
 		t.Fatalf("create file %s: %v", name, err)
 	}
