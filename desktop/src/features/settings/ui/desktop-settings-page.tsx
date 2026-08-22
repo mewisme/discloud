@@ -7,6 +7,7 @@ import { BellIcon, Loader2Icon, MonitorCogIcon, PowerIcon, RefreshCwIcon, Triang
 import { type ReactNode, useState } from "react"
 
 import { useDesktopRuntime } from "../../desktop/ui/desktop-runtime-provider"
+import { DesktopUpdaterSettings } from "../../updater/ui/update-settings-section"
 
 export function DesktopNativeSettingsPage() {
   const runtime = useDesktopRuntime()
@@ -128,6 +129,8 @@ export function DesktopNativeSettingsPage() {
           <RuntimeStatus title="Single instance" description="Opening DisCloud again focuses the existing window instead of starting another process." />
         </CardContent>
       </Card>
+
+      <DesktopUpdaterSettings />
     </div>
   )
 }

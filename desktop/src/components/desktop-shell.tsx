@@ -7,7 +7,7 @@ import { appRouteTitle, workspacePath } from "@discloud/shared/navigation"
 import { Button } from "@discloud/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@discloud/ui/components/sidebar"
-import { CloudIcon, LogOutIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
+import { CloudIcon, DownloadIcon, LogOutIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
 import { useState } from "react"
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router"
 
@@ -15,6 +15,7 @@ import { useDesktopSession } from "#components/desktop-session"
 import { errorMessage } from "#lib/instance"
 
 import { useDesktopUserConfig } from "../features/settings/ui/user-config-provider"
+import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
 
 const renderRouterLink: AppLinkRenderer = ({ href, children, onNavigate }) => <Link to={href} onClick={onNavigate}>{children}</Link>
 
@@ -42,7 +43,7 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
           renderLink={renderRouterLink}
         />
       }
-      header={<AppHeaderView title={appRouteTitle(location.pathname, workspaceUsername)} actions={<DesktopUserMenu user={user} serverUrl={serverUrl} />} />}
+      header={<AppHeaderView title={appRouteTitle(location.pathname, workspaceUsername)} actions={<DesktopHeaderActions user={user} serverUrl={serverUrl} />} />}
     >
       <Outlet />
     </AppShellFrame>
@@ -62,6 +63,24 @@ function WorkspaceIdentity({ username }: { username: string }) {
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
+  )
+}
+
+function DesktopHeaderActions({ user, serverUrl }: { user: User; serverUrl: string }) {
+  const updater = useDesktopUpdater()
+
+  return (
+    <div className="flex items-center gap-1">
+      {updater.update && updater.stage !== "error" ? (
+        <Button asChild variant="ghost" size="sm">
+          <Link to={workspacePath(user.username, "settings/desktop")}>
+            <DownloadIcon />
+            <span className="hidden sm:inline">v{updater.update.version}</span>
+          </Link>
+        </Button>
+      ) : null}
+      <DesktopUserMenu user={user} serverUrl={serverUrl} />
+    </div>
   )
 }
 
