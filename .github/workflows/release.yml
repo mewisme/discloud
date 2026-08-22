@@ -134,9 +134,6 @@ jobs:
         working-directory: web
         run: pnpm build
 
-      - name: Build local container
-        run: docker build --pull -t dcfe:test web
-
   release-backend:
     name: Release backend
     needs:
@@ -216,7 +213,7 @@ jobs:
       cache-mode: max
       meta-images: ghcr.io/mewisme/dcfe
       meta-tags: |
-        type=raw,value={{tag}}
+        type=raw,value=${{ github.ref_name }}
         type=raw,value=alpha,enable=${{ contains(github.ref_name, 'alpha') }}
         type=raw,value=beta,enable=${{ contains(github.ref_name, 'beta') }}
         type=raw,value=rc,enable=${{ contains(github.ref_name, 'rc') }}
