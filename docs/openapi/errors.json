@@ -13,6 +13,7 @@
     "415":"The supplied media type or media content is unsupported.",
     "416":"The requested byte range cannot be satisfied.",
     "422":"Supplied content does not match its declared SHA-256 digest.",
+    "429":"Too many requests were made within the allowed authentication rate.",
     "500":"An internal backend, authentication, persistence, or invariant failure occurred.",
     "502":"Discord storage returned an unusable upstream response.",
     "503":"The service, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."

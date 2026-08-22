@@ -6,7 +6,6 @@ import {
   DatabaseIcon,
   Globe2Icon,
   HardDriveIcon,
-  KeyRoundIcon,
   LockKeyholeIcon,
   ServerIcon,
   ShieldCheckIcon,

@@ -148,4 +148,38 @@ func TestMFALoginIntegration(t *testing.T) {
 	if _, err := service.CompleteMFA(ctx, reuseLogin.ChallengeToken, recoveryCode, "", ""); !errors.Is(err, ErrInvalidMFA) {
 		t.Fatalf("reused recovery code = %v", err)
 	}
+
+	limitedLogin, err := service.Login(ctx, "alice", password, "", "")
+	if err != nil {
+		t.Fatalf("limited login: %v", err)
+	}
+
+	for attempt := 0; attempt < mfaChallengeMaxFailures; attempt++ {
+		if _, err := service.CompleteMFA(ctx, limitedLogin.ChallengeToken, "definitely-invalid-code", "", ""); !errors.Is(err, ErrInvalidMFA) {
+			t.Fatalf("invalid MFA attempt %d = %v", attempt+1, err)
+		}
+	}
+
+	challengeHash := hashOpaqueToken(limitedLogin.ChallengeToken)
+	var failedAttempts int
+	var consumedAt *time.Time
+
+	if err := pool.QueryRow(ctx, `
+		SELECT failed_attempts, consumed_at
+		FROM login_challenges
+		WHERE token_hash = $1
+	`, challengeHash[:]).Scan(&failedAttempts, &consumedAt); err != nil {
+		t.Fatalf("read exhausted MFA challenge: %v", err)
+	}
+
+	if failedAttempts != mfaChallengeMaxFailures {
+		t.Fatalf("failed attempts = %d, want %d", failedAttempts, mfaChallengeMaxFailures)
+	}
+	if consumedAt == nil {
+		t.Fatal("exhausted MFA challenge was not consumed")
+	}
+
+	if _, err := service.CompleteMFA(ctx, limitedLogin.ChallengeToken, "definitely-invalid-code", "", ""); !errors.Is(err, ErrInvalidMFA) {
+		t.Fatalf("exhausted challenge reuse = %v", err)
+	}
 }

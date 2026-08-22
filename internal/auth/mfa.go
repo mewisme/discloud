@@ -13,7 +13,10 @@ import (
 	"github.com/mewisme/discloud/internal/postgres"
 )
 
-const mfaChallengeTTL = 5 * time.Minute
+const (
+	mfaChallengeTTL         = 5 * time.Minute
+	mfaChallengeMaxFailures = 5
+)
 
 var (
 	ErrInvalidMFA     = errors.New("invalid MFA challenge or code")
@@ -90,6 +93,7 @@ func (s *Service) verifyMFAChallenge(ctx context.Context, token, code string) (s
 
 	tokenHash := hashOpaqueToken(token)
 	var userID string
+	invalidMFA := false
 
 	err := postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
@@ -99,8 +103,9 @@ func (s *Service) verifyMFAChallenge(ctx context.Context, token, code string) (s
 			WHERE c.token_hash = $1
 			  AND c.consumed_at IS NULL
 			  AND c.expires_at > now()
+			  AND c.failed_attempts < $2
 			  AND u.status = 'active'
-		`, tokenHash[:]).Scan(&userID)
+		`, tokenHash[:], mfaChallengeMaxFailures).Scan(&userID)
 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvalidMFA
@@ -110,10 +115,30 @@ func (s *Service) verifyMFAChallenge(ctx context.Context, token, code string) (s
 		}
 
 		if err := s.mfa.VerifyCode(ctx, tx, userID, code); err != nil {
-			if errors.Is(err, mfadomain.ErrInvalidCode) || errors.Is(err, mfadomain.ErrNotEnabled) || errors.Is(err, mfadomain.ErrUserNotFound) {
-				return ErrInvalidMFA
+			if !errors.Is(err, mfadomain.ErrInvalidCode) &&
+				!errors.Is(err, mfadomain.ErrNotEnabled) &&
+				!errors.Is(err, mfadomain.ErrUserNotFound) {
+				return err
 			}
-			return err
+
+			if _, updateErr := tx.Exec(ctx, `
+				UPDATE login_challenges
+				SET failed_attempts = failed_attempts + 1,
+				    consumed_at = CASE
+				        WHEN failed_attempts + 1 >= $2 THEN now()
+				        ELSE consumed_at
+				    END
+				WHERE token_hash = $1
+				  AND user_id = $3
+				  AND consumed_at IS NULL
+				  AND expires_at > now()
+				  AND failed_attempts < $2
+			`, tokenHash[:], mfaChallengeMaxFailures, userID); updateErr != nil {
+				return fmt.Errorf("record MFA challenge failure: %w", updateErr)
+			}
+
+			invalidMFA = true
+			return nil
 		}
 
 		tag, err := tx.Exec(ctx, `
@@ -123,7 +148,8 @@ func (s *Service) verifyMFAChallenge(ctx context.Context, token, code string) (s
 			  AND user_id = $2
 			  AND consumed_at IS NULL
 			  AND expires_at > now()
-		`, tokenHash[:], userID)
+			  AND failed_attempts < $3
+		`, tokenHash[:], userID, mfaChallengeMaxFailures)
 		if err != nil {
 			return fmt.Errorf("consume MFA challenge: %w", err)
 		}
@@ -135,6 +161,9 @@ func (s *Service) verifyMFAChallenge(ctx context.Context, token, code string) (s
 	})
 	if err != nil {
 		return "", err
+	}
+	if invalidMFA {
+		return "", ErrInvalidMFA
 	}
 
 	return userID, nil

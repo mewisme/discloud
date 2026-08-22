@@ -43,6 +43,8 @@ type mfaRequiredResponse struct {
 }
 
 func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
+	limits := newAuthRateLimits()
+
 	mux.HandleFunc("POST /api/v1/auth/login", func(w http.ResponseWriter, r *http.Request) {
 		var input loginRequest
 		if err := decodeJSON(w, r, authBodyLimit, &input); err != nil {
@@ -50,7 +52,13 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
-		result, err := service.Login(r.Context(), input.Username, input.Password, limitRunes(r.UserAgent(), 512), requestIP(r))
+		ipAddress := requestIP(r)
+		if allowed, retryAfter := limits.allowLogin(ipAddress, input.Username); !allowed {
+			writeAuthRateLimit(w, r, retryAfter)
+			return
+		}
+
+		result, err := service.Login(r.Context(), input.Username, input.Password, limitRunes(r.UserAgent(), 512), ipAddress)
 		switch {
 		case errors.Is(err, auth.ErrInvalidCredentials):
 			WriteProblem(w, r, http.StatusUnauthorized, "Unauthorized", "invalid username or password")
@@ -60,6 +68,7 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
+		limits.resetLoginUsername(input.Username)
 		w.Header().Set("Cache-Control", "no-store")
 
 		if result.MFARequired {
@@ -83,12 +92,18 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
+		ipAddress := requestIP(r)
+		if allowed, retryAfter := limits.allowMFA(ipAddress); !allowed {
+			writeAuthRateLimit(w, r, retryAfter)
+			return
+		}
+
 		result, err := service.CompleteMFA(
 			r.Context(),
 			input.ChallengeToken,
 			input.Code,
 			limitRunes(r.UserAgent(), 512),
-			requestIP(r),
+			ipAddress,
 		)
 
 		switch {

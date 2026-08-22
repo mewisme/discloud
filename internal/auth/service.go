@@ -13,6 +13,8 @@ import (
 	mfadomain "github.com/mewisme/discloud/internal/mfa"
 )
 
+const dummyPasswordHash = "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
 var (
 	ErrInvalidCredentials = errors.New("invalid username or password")
 	ErrUnauthenticated    = errors.New("unauthenticated")
@@ -89,8 +91,8 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		if _, hashErr := HashPassword(password); hashErr != nil {
-			return nil, fmt.Errorf("dummy password hash: %w", hashErr)
+		if _, verifyErr := VerifyPassword(password, dummyPasswordHash); verifyErr != nil {
+			return nil, fmt.Errorf("verify dummy password: %w", verifyErr)
 		}
 		return nil, ErrInvalidCredentials
 	}
