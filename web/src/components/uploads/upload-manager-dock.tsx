@@ -25,61 +25,97 @@ export function UploadManagerDock({
     currentTask,
     completionVersion,
   } = useUploadDockState()
+
   const [hovered, setHovered] = useState(false)
   const [completionVisible, setCompletionVisible] = useState(false)
-  const previousCompletionVersionRef = useRef(completionVersion)
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const previousCompletionVersion = useRef(completionVersion)
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const needsAttention = activeCount > 0 || failedCount > 0
+  const needsAttention = activeCount > 0
+    || failedCount > 0
+
   const justCompleted = !needsAttention
-    && completionVersion !== previousCompletionVersionRef.current
-  const showCompletion = completionVisible || justCompleted
+    && completionVersion
+    !== previousCompletionVersion.current
+
+  const showCompletion = completionVisible
+    || justCompleted
 
   useEffect(() => {
     const completed = completionVersion
-      !== previousCompletionVersionRef.current
+      !== previousCompletionVersion.current
 
-    previousCompletionVersionRef.current = completionVersion
+    previousCompletionVersion.current =
+      completionVersion
 
-    if (activeCount > 0 || failedCount > 0) {
+    if (
+      activeCount > 0
+      || failedCount > 0
+    ) {
       setCompletionVisible(false)
       return
     }
 
-    if (completed) setCompletionVisible(true)
-  }, [activeCount, completionVersion, failedCount])
+    if (completed) {
+      setCompletionVisible(true)
+    }
+  }, [
+    activeCount,
+    completionVersion,
+    failedCount,
+  ])
 
   useEffect(() => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = undefined
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current)
+      hideTimer.current = undefined
     }
 
-    if (!completionVisible || hovered) return
+    if (
+      !completionVisible
+      || hovered
+    ) return
 
-    hideTimerRef.current = setTimeout(() => {
+    hideTimer.current = setTimeout(() => {
       setCompletionVisible(false)
-      hideTimerRef.current = undefined
+      hideTimer.current = undefined
     }, completionHideDelayMs)
 
     return () => {
-      if (!hideTimerRef.current) return
-      clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = undefined
+      if (!hideTimer.current) return
+
+      clearTimeout(hideTimer.current)
+      hideTimer.current = undefined
     }
-  }, [completionVisible, hovered])
+  }, [
+    completionVisible,
+    hovered,
+  ])
 
-  if (!needsAttention && !showCompletion) return null
+  if (
+    !needsAttention
+    && !showCompletion
+  ) return null
 
-  const finished = !needsAttention && showCompletion
+  const finished = !needsAttention
+    && showCompletion
+
   const progress = finished
     ? 100
     : currentTask
       ? uploadTaskPercent(currentTask)
       : 0
-  const uploadedBytes = currentTask?.uploadedBytes ?? 0
-  const totalBytes = currentTask?.file.size ?? 0
-  const href = workspacePath(username, "uploads")
+
+  const uploadedBytes =
+    currentTask?.uploadedBytes ?? 0
+
+  const totalBytes =
+    currentTask?.file.size ?? 0
+
+  const href = workspacePath(
+    username,
+    "uploads",
+  )
 
   return (
     <BottomDock slot="uploads">
@@ -123,7 +159,9 @@ export function UploadManagerDock({
 
         {!finished && currentTask && (
           <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground md:block">
-            {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
+            {formatBytes(uploadedBytes)}
+            {" / "}
+            {formatBytes(totalBytes)}
           </span>
         )}
 

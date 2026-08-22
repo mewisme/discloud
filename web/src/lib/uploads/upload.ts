@@ -36,44 +36,75 @@ export async function uploadFile({
   callbacks: UploadCallbacks
 }) {
   const session = sessionId
-    ? await apiJSON<UploadSession>(`/api/v1/uploads/${sessionId}`, { signal })
+    ? await apiJSON<UploadSession>(
+      `/api/v1/uploads/${sessionId}`,
+      { signal },
+    )
     : await createSession(file, folderId, signal)
 
-  partGate.setCeiling(normalizePartConcurrency(session.recommendedPartConcurrency))
+  partGate.setCeiling(
+    normalizePartConcurrency(
+      session.recommendedPartConcurrency,
+    ),
+  )
+
   callbacks.onSession(session.id)
 
   if (session.status === "completed") {
     callbacks.onProgress(file.size)
     return
   }
+
   if (session.status !== "open") {
     throw new Error(`Upload session is ${session.status}`)
   }
-  if (session.parentFolderId !== folderId || session.size !== file.size) {
-    throw new Error("Upload session no longer matches this file")
+
+  if (
+    session.parentFolderId !== folderId
+    || session.size !== file.size
+  ) {
+    throw new Error(
+      "Upload session no longer matches this file",
+    )
   }
 
-  const plan = planUploadParts(file.size, session.chunkSize)
+  const plan = planUploadParts(
+    file.size,
+    session.chunkSize,
+  )
+
   if (plan.length !== session.expectedParts) {
-    throw new Error("Upload session part count is inconsistent")
+    throw new Error(
+      "Upload session part count is inconsistent",
+    )
   }
 
   const uploadedParts = new Set(
-    (session.parts ?? []).map((part) => part.partIndex),
+    (session.parts ?? []).map(
+      (part) => part.partIndex,
+    ),
   )
+
   let uploadedBytes = (session.parts ?? []).reduce(
     (total, part) => total + part.size,
     0,
   )
+
   callbacks.onProgress(uploadedBytes)
 
   const results = await Promise.allSettled(
     plan
-      .filter((part) => !uploadedParts.has(part.index))
+      .filter(
+        (part) => !uploadedParts.has(part.index),
+      )
       .map((part) => partGate.run(async () => {
         throwIfAborted(signal)
 
-        const blob = file.slice(part.start, part.end)
+        const blob = file.slice(
+          part.start,
+          part.end,
+        )
+
         const digest = await sha256Hex(blob)
 
         throwIfAborted(signal)
@@ -93,7 +124,8 @@ export async function uploadFile({
 
   const failure = results.find(
     (result): result is PromiseRejectedResult =>
-      result.status === "rejected" && !isAbortError(result.reason),
+      result.status === "rejected"
+      && !isAbortError(result.reason),
   ) ?? results.find(
     (result): result is PromiseRejectedResult =>
       result.status === "rejected",
@@ -126,14 +158,19 @@ async function createSession(
     parentFolderId: folderId,
     name: file.name,
     size: file.size,
-    ...(file.type ? { mimeTypeHint: file.type } : {}),
+    ...(file.type
+      ? { mimeTypeHint: file.type }
+      : {}),
   }
 
-  return apiJSON<UploadSession>("/api/v1/uploads", {
-    method: "POST",
-    body: input,
-    signal,
-  })
+  return apiJSON<UploadSession>(
+    "/api/v1/uploads",
+    {
+      method: "POST",
+      body: input,
+      signal,
+    },
+  )
 }
 
 async function putPart(
@@ -163,14 +200,33 @@ async function putPart(
         },
       )
 
-      partGate.recordSuccess(performance.now() - startedAt)
+      partGate.recordSuccess(
+        performance.now() - startedAt,
+      )
+
       return
     } catch (error) {
       const retryable = retryablePartError(error)
-      if (retryable && !signal.aborted) partGate.recordCongestion()
-      if (signal.aborted || attempt >= 2 || !retryable) throw error
 
-      await delay(500 * 2 ** attempt, signal)
+      if (
+        retryable
+        && !signal.aborted
+      ) {
+        partGate.recordCongestion()
+      }
+
+      if (
+        signal.aborted
+        || attempt >= 2
+        || !retryable
+      ) {
+        throw error
+      }
+
+      await delay(
+        500 * 2 ** attempt,
+        signal,
+      )
     }
   }
 }
@@ -183,50 +239,87 @@ async function sha256Hex(blob: Blob) {
 
   return Array.from(
     new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0"),
+    (byte) => byte
+      .toString(16)
+      .padStart(2, "0"),
   ).join("")
 }
 
 function normalizePartConcurrency(value: number) {
-  return Number.isSafeInteger(value) && value > 0 ? value : 1
+  return Number.isSafeInteger(value)
+    && value > 0
+    ? value
+    : 1
 }
 
 function retryablePartError(error: unknown) {
   return error instanceof TypeError
     || error instanceof APIError
-    && [408, 429, 502, 503, 504].includes(error.status)
+    && [408, 429, 502, 503, 504]
+      .includes(error.status)
 }
 
 function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError"
+  return error instanceof DOMException
+    && error.name === "AbortError"
 }
 
-function throwIfAborted(signal: AbortSignal) {
+function throwIfAborted(
+  signal: AbortSignal,
+) {
   if (!signal.aborted) return
-  if (signal.reason instanceof Error) throw signal.reason
-  throw new DOMException("Upload cancelled", "AbortError")
+
+  if (signal.reason instanceof Error) {
+    throw signal.reason
+  }
+
+  throw new DOMException(
+    "Upload cancelled",
+    "AbortError",
+  )
 }
 
-function delay(ms: number, signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(done, ms)
+function delay(
+  ms: number,
+  signal: AbortSignal,
+) {
+  return new Promise<void>(
+    (resolve, reject) => {
+      const timeout = setTimeout(done, ms)
 
-    function abort() {
-      clearTimeout(timeout)
-      signal.removeEventListener("abort", abort)
-      reject(
-        signal.reason instanceof Error
-          ? signal.reason
-          : new DOMException("Upload cancelled", "AbortError"),
-      )
-    }
+      function abort() {
+        clearTimeout(timeout)
+        signal.removeEventListener(
+          "abort",
+          abort,
+        )
 
-    function done() {
-      signal.removeEventListener("abort", abort)
-      resolve()
-    }
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new DOMException(
+              "Upload cancelled",
+              "AbortError",
+            ),
+        )
+      }
 
-    if (signal.aborted) abort()
-    else signal.addEventListener("abort", abort, { once: true })
-  })
+      function done() {
+        signal.removeEventListener(
+          "abort",
+          abort,
+        )
+        resolve()
+      }
+
+      if (signal.aborted) abort()
+      else {
+        signal.addEventListener(
+          "abort",
+          abort,
+          { once: true },
+        )
+      }
+    },
+  )
 }
