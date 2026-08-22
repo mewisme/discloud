@@ -1,5 +1,6 @@
 "use client"
 
+import { filePreviewKind } from "@discloud/shared/file-preview"
 import { DownloadIcon, FileIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import Image from "next/image"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -9,8 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { apiDirectURL, apiRequest } from "@/lib/api/client"
 import type { Query } from "@/lib/api/types"
-import { filePreviewKind } from "@discloud/shared/file-preview"
-import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@discloud/shared/file-preview-preload"
+import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@/lib/files/preview-preload"
 import { cn } from "@/lib/utils"
 
 const textPreviewLimit = 256 * 1024
