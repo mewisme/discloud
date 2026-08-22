@@ -12,6 +12,7 @@ const sections = [
   { id: "theme", title: "Theme" },
   { id: "sidebar", title: "Sidebar" },
   { id: "file-browser", title: "File browser" },
+  { id: "pagination", title: "Pagination" },
   { id: "file-preview", title: "File preview" },
   { id: "date-time", title: "Date & time" },
 ] satisfies SettingsSectionNavItem[]

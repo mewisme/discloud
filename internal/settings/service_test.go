@@ -53,6 +53,26 @@ func TestValidateFileBrowserToolbarConfig(t *testing.T) {
 	}
 }
 
+func TestValidatePaginationConfig(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []string{"infinite", "manual"} {
+		config, err := validatePaginationConfig(PaginationConfig{Mode: mode})
+		if err != nil {
+			t.Fatalf("validatePaginationConfig(%q): %v", mode, err)
+		}
+		if config.Mode != mode {
+			t.Fatalf("mode = %q, want %q", config.Mode, mode)
+		}
+	}
+
+	for _, mode := range []string{"", "auto", "page", "infinite-scroll"} {
+		if _, err := validatePaginationConfig(PaginationConfig{Mode: mode}); !errors.Is(err, ErrInvalidPagination) {
+			t.Fatalf("validatePaginationConfig(%q) error = %v, want ErrInvalidPagination", mode, err)
+		}
+	}
+}
+
 func TestValidateFilePreviewConfig(t *testing.T) {
 	t.Parallel()
 
@@ -117,6 +137,9 @@ func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 	if config.Common.FileBrowserToolbar.Variant != "inline" {
 		t.Fatalf("toolbar variant = %q, want inline", config.Common.FileBrowserToolbar.Variant)
 	}
+	if config.Common.Pagination.Mode != "infinite" {
+		t.Fatalf("pagination mode = %q, want infinite", config.Common.Pagination.Mode)
+	}
 	if config.Common.FileBrowserToolbar.DockPosition != "bottom" {
 		t.Fatalf("toolbar dock position = %q, want bottom", config.Common.FileBrowserToolbar.DockPosition)
 	}
@@ -147,6 +170,19 @@ func TestDecodeUserConfigFilePreview(t *testing.T) {
 
 	if config.Common.FilePreview.PreloadNext != 10 {
 		t.Fatalf("preview preloadNext = %d, want 10", config.Common.FilePreview.PreloadNext)
+	}
+}
+
+func TestDecodeUserConfigPagination(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","pagination":{"mode":"manual"}}}`), 3)
+	if err != nil {
+		t.Fatalf("decodeUserConfig: %v", err)
+	}
+
+	if config.Common.Pagination.Mode != "manual" {
+		t.Fatalf("pagination mode = %q, want manual", config.Common.Pagination.Mode)
 	}
 }
 

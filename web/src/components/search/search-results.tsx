@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { useWorkspace } from "@/components/app/workspace-context"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { SearchResultRow } from "@/components/search/search-result-row"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -87,6 +88,7 @@ export function SearchResults({ options }: { options: SearchOptions }) {
       }
 
       setError(apiErrorMessage(cause, "Could not load more results"))
+      throw cause
     } finally {
       if (moreController.current === controller) {
         moreController.current = null
@@ -178,12 +180,13 @@ export function SearchResults({ options }: { options: SearchOptions }) {
       </div>
 
       {nextCursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore && <Loader2Icon className="animate-spin" aria-hidden />}
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
+        <PaginationTrigger
+          loadKey={nextCursor}
+          hasMore
+          loading={loadingMore}
+          onLoadMore={loadMore}
+          loadingLabel="Loading more results…"
+        />
       )}
     </div>
   )

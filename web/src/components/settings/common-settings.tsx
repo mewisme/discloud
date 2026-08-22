@@ -8,6 +8,7 @@ import { useShallow } from "zustand/react/shallow"
 import { DateTimeSettings } from "@/components/settings/common/date-time-settings"
 import { FileBrowserSettings } from "@/components/settings/common/file-browser-settings"
 import { FilePreviewSettings } from "@/components/settings/common/file-preview-settings"
+import { type PaginationMode, PaginationSettings } from "@/components/settings/common/pagination-settings"
 import { SettingsSaveBar } from "@/components/settings/common/settings-save-bar"
 import { type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant } from "@/components/settings/common/sidebar-settings"
 import { ThemeSettings } from "@/components/settings/common/theme-settings"
@@ -27,6 +28,7 @@ export function CommonSettings() {
       themeCustomCSS: config.common.theme.custom.css,
       toolbarVariant: config.common.fileBrowserToolbar.variant,
       toolbarDockPosition: config.common.fileBrowserToolbar.dockPosition,
+      paginationMode: config.common.pagination.mode,
       previewPreloadNext: config.common.filePreview.preloadNext,
       sidebarSide: config.common.sidebar.side,
       sidebarVariant: config.common.sidebar.variant,
@@ -39,6 +41,7 @@ export function CommonSettings() {
   const [themeCustomCSS, setThemeCustomCSS] = useState(stored.themeCustomCSS)
   const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(stored.toolbarVariant)
   const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(stored.toolbarDockPosition)
+  const [paginationMode, setPaginationMode] = useState<PaginationMode>(stored.paginationMode)
   const [previewPreloadNext, setPreviewPreloadNext] = useState(stored.previewPreloadNext)
   const [sidebarSide, setSidebarSide] = useState<SidebarSide>(stored.sidebarSide)
   const [sidebarVariant, setSidebarVariant] = useState<SidebarVariant>(stored.sidebarVariant)
@@ -49,6 +52,7 @@ export function CommonSettings() {
     || themeCustomCSS !== stored.themeCustomCSS
     || toolbarVariant !== stored.toolbarVariant
     || toolbarDockPosition !== stored.toolbarDockPosition
+    || paginationMode !== stored.paginationMode
     || previewPreloadNext !== stored.previewPreloadNext
     || sidebarSide !== stored.sidebarSide
     || sidebarVariant !== stored.sidebarVariant
@@ -60,6 +64,7 @@ export function CommonSettings() {
     setThemeCustomCSS(stored.themeCustomCSS)
     setToolbarVariant(stored.toolbarVariant)
     setToolbarDockPosition(stored.toolbarDockPosition)
+    setPaginationMode(stored.paginationMode)
     setPreviewPreloadNext(stored.previewPreloadNext)
     setSidebarSide(stored.sidebarSide)
     setSidebarVariant(stored.sidebarVariant)
@@ -70,6 +75,7 @@ export function CommonSettings() {
     stored.themeCustomCSS,
     stored.toolbarVariant,
     stored.toolbarDockPosition,
+    stored.paginationMode,
     stored.previewPreloadNext,
     stored.sidebarSide,
     stored.sidebarVariant,
@@ -91,6 +97,9 @@ export function CommonSettings() {
         fileBrowserToolbar: {
           variant: toolbarVariant,
           dockPosition: toolbarDockPosition,
+        },
+        pagination: {
+          mode: paginationMode,
         },
         filePreview: {
           preloadNext: previewPreloadNext,
@@ -140,6 +149,11 @@ export function CommonSettings() {
         toolbarDockPosition={toolbarDockPosition}
         onVariantChange={setToolbarVariant}
         onDockPositionChange={setToolbarDockPosition}
+      />
+
+      <PaginationSettings
+        mode={paginationMode}
+        onModeChange={setPaginationMode}
       />
 
       <FilePreviewSettings

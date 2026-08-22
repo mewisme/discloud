@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useShallow } from "zustand/react/shallow"
 
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { MoveNodesDialog } from "@/components/files/actions/move-nodes-dialog"
 import { TrashNodesDialog } from "@/components/files/actions/trash-nodes-dialog"
 import { FileBrowserSelectionToolbar } from "@/components/files/browser/file-browser-selection-toolbar"
@@ -178,25 +179,13 @@ export function FileBrowser({
         />
 
         {browser.nextCursor && (
-          <div
-            ref={browser.setLoadMoreSentinel}
-            className="h-px"
-            aria-hidden
+          <PaginationTrigger
+            loadKey={browser.nextCursor}
+            hasMore
+            loading={browser.loadingMore}
+            onLoadMore={browser.loadMore}
+            loadingLabel="Loading more items…"
           />
-        )}
-
-        {browser.loadingMore && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex justify-center py-2 text-xs text-muted-foreground"
-          >
-            <Loader2Icon
-              className="mr-2 size-3.5 animate-spin"
-              aria-hidden
-            />
-            Loading more items…
-          </div>
         )}
       </div>
     </FileUploadTarget>

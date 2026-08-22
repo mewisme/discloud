@@ -16,6 +16,7 @@ type updateCommonConfigRequest struct {
 	Timezone           string                             `json:"timezone"`
 	Theme              *settings.ThemeConfig              `json:"theme"`
 	FileBrowserToolbar *settings.FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+	Pagination         *settings.PaginationConfig         `json:"pagination"`
 	FilePreview        *settings.FilePreviewConfig        `json:"filePreview"`
 	Sidebar            *settings.SidebarConfig            `json:"sidebar"`
 }
@@ -55,6 +56,7 @@ func registerSettingsRoutes(mux *http.ServeMux, service *settings.Service, authS
 				Timezone:           input.Timezone,
 				Theme:              input.Theme,
 				FileBrowserToolbar: input.FileBrowserToolbar,
+				Pagination:         input.Pagination,
 				FilePreview:        input.FilePreview,
 				Sidebar:            input.Sidebar,
 			},
@@ -126,6 +128,8 @@ func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) bool 
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid timezone")
 	case errors.Is(err, settings.ErrInvalidFileBrowserToolbar):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file browser toolbar configuration")
+	case errors.Is(err, settings.ErrInvalidPagination):
+		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid pagination configuration")
 	case errors.Is(err, settings.ErrInvalidFilePreview):
 		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid file preview configuration")
 	case errors.Is(err, settings.ErrInvalidSidebar):

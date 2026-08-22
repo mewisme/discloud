@@ -26,6 +26,7 @@ var (
 	ErrInvalidConfigKey          = errors.New("invalid app config key")
 	ErrInvalidConfigValue        = errors.New("invalid app config value")
 	ErrInvalidTheme              = errors.New("invalid theme configuration")
+	ErrInvalidPagination         = errors.New("invalid pagination configuration")
 	ErrAppConfigNotFound         = errors.New("app config not found")
 )
 
@@ -44,6 +45,10 @@ type FileBrowserToolbarConfig struct {
 
 type FilePreviewConfig struct {
 	PreloadNext int `json:"preloadNext"`
+}
+
+type PaginationConfig struct {
+	Mode string `json:"mode"`
 }
 
 type CustomThemeEffectConfig struct {
@@ -65,6 +70,7 @@ type CommonUserConfig struct {
 	Timezone           string                   `json:"timezone"`
 	Theme              ThemeConfig              `json:"theme"`
 	FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+	Pagination         PaginationConfig         `json:"pagination"`
 	FilePreview        FilePreviewConfig        `json:"filePreview"`
 	Sidebar            SidebarConfig            `json:"sidebar"`
 }
@@ -73,6 +79,7 @@ type CommonUserConfigPatch struct {
 	Timezone           string
 	Theme              *ThemeConfig
 	FileBrowserToolbar *FileBrowserToolbarConfig
+	Pagination         *PaginationConfig
 	FilePreview        *FilePreviewConfig
 	Sidebar            *SidebarConfig
 }
@@ -135,6 +142,14 @@ func (s *Service) UpdateCommonUserConfig(ctx context.Context, userID string, inp
 			return UserConfig{}, err
 		}
 		commonPatch["fileBrowserToolbar"] = toolbar
+	}
+
+	if input.Pagination != nil {
+		pagination, err := validatePaginationConfig(*input.Pagination)
+		if err != nil {
+			return UserConfig{}, err
+		}
+		commonPatch["pagination"] = pagination
 	}
 
 	if input.FilePreview != nil {
@@ -360,6 +375,7 @@ func defaultUserConfig() UserConfig {
 			Timezone:           "UTC",
 			Theme:              defaultThemeConfig(),
 			FileBrowserToolbar: defaultFileBrowserToolbarConfig(),
+			Pagination:         defaultPaginationConfig(),
 			FilePreview:        defaultFilePreviewConfig(),
 			Sidebar:            defaultSidebarConfig(),
 		},
@@ -379,6 +395,12 @@ func defaultFileBrowserToolbarConfig() FileBrowserToolbarConfig {
 	return FileBrowserToolbarConfig{
 		Variant:      "inline",
 		DockPosition: "bottom",
+	}
+}
+
+func defaultPaginationConfig() PaginationConfig {
+	return PaginationConfig{
+		Mode: "infinite",
 	}
 }
 
@@ -402,6 +424,7 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 			Timezone           string                   `json:"timezone"`
 			Theme              ThemeConfig              `json:"theme"`
 			FileBrowserToolbar FileBrowserToolbarConfig `json:"fileBrowserToolbar"`
+			Pagination         PaginationConfig         `json:"pagination"`
 			FilePreview        FilePreviewConfig        `json:"filePreview"`
 			Sidebar            SidebarConfig            `json:"sidebar"`
 		} `json:"common"`
@@ -429,6 +452,16 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	toolbar, err := validateFileBrowserToolbarConfig(toolbar)
 	if err != nil {
 		return UserConfig{}, fmt.Errorf("decode file browser toolbar config: %w", err)
+	}
+
+	pagination := defaultPaginationConfig()
+	if strings.TrimSpace(stored.Common.Pagination.Mode) != "" {
+		pagination.Mode = stored.Common.Pagination.Mode
+	}
+
+	pagination, err = validatePaginationConfig(pagination)
+	if err != nil {
+		return UserConfig{}, fmt.Errorf("decode pagination config: %w", err)
 	}
 
 	preview := defaultFilePreviewConfig()
@@ -503,6 +536,16 @@ func validateFileBrowserToolbarConfig(value FileBrowserToolbarConfig) (FileBrows
 	}
 	if value.DockPosition != "bottom" && value.DockPosition != "right" {
 		return FileBrowserToolbarConfig{}, ErrInvalidFileBrowserToolbar
+	}
+
+	return value, nil
+}
+
+func validatePaginationConfig(value PaginationConfig) (PaginationConfig, error) {
+	value.Mode = strings.TrimSpace(value.Mode)
+
+	if value.Mode != "infinite" && value.Mode != "manual" {
+		return PaginationConfig{}, ErrInvalidPagination
 	}
 
 	return value, nil

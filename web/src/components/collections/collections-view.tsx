@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderHeartIcon, Loader2Icon } from "lucide-react"
+import { FolderHeartIcon } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -8,8 +8,8 @@ import { toast } from "sonner"
 import { useWorkspace } from "@/components/app/workspace-context"
 import { CreateCollectionDialog } from "@/components/collections/create-collection-dialog"
 import { DateOnly } from "@/components/common/date-time"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiJSON } from "@/lib/api/client"
 import type { Collection, CollectionPage, CollectionsQuery } from "@/lib/api/models"
@@ -42,6 +42,7 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
       setNextCursor(page.nextCursor)
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not load more collections"))
+      throw error
     } finally {
       setLoadingMore(false)
     }
@@ -96,12 +97,13 @@ export function CollectionsView({ initialPage }: { initialPage: CollectionPage }
       )}
 
       {nextCursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore && <Loader2Icon className="animate-spin" />}
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
+        <PaginationTrigger
+          loadKey={nextCursor}
+          hasMore
+          loading={loadingMore}
+          onLoadMore={loadMore}
+          loadingLabel="Loading more collections…"
+        />
       )}
     </div>
   )

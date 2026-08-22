@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { useWorkspace } from "@/components/app/workspace-context"
 import { DateTime } from "@/components/common/date-time"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
@@ -89,6 +90,7 @@ export function FavoritesView() {
         return
       }
       setError(apiErrorMessage(cause, "Could not load more favorites"))
+      throw cause
     } finally {
       if (!controller.signal.aborted) setLoadingMore(false)
     }
@@ -156,19 +158,25 @@ export function FavoritesView() {
 
               <TableBody>
                 {results.map((result) => (
-                  <FavoriteRow key={result.id} result={result} pending={pendingIds.has(result.id)} onRemove={removeFavorite} />
+                  <FavoriteRow
+                    key={result.id}
+                    result={result}
+                    pending={pendingIds.has(result.id)}
+                    onRemove={removeFavorite}
+                  />
                 ))}
               </TableBody>
             </Table>
           </div>
 
           {nextCursor && (
-            <div className="flex justify-center">
-              <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-                {loadingMore && <Loader2Icon className="animate-spin" aria-hidden />}
-                {loadingMore ? "Loading…" : "Load more"}
-              </Button>
-            </div>
+            <PaginationTrigger
+              loadKey={nextCursor}
+              hasMore
+              loading={loadingMore}
+              onLoadMore={loadMore}
+              loadingLabel="Loading more favorites…"
+            />
           )}
         </div>
       )}
@@ -176,7 +184,11 @@ export function FavoritesView() {
   )
 }
 
-function FavoriteRow({ result, pending, onRemove }: {
+function FavoriteRow({
+  result,
+  pending,
+  onRemove,
+}: {
   result: SearchResult
   pending: boolean
   onRemove: (result: SearchResult) => Promise<void>
@@ -254,6 +266,7 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
           <p className="font-medium">Favorites unavailable</p>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
         </div>
+
         <Button size="sm" variant="outline" onClick={onRetry}>
           <RefreshCwIcon />
           Try again
@@ -290,6 +303,7 @@ function favoriteQuery(ownerId: string, cursor?: string): SearchQuery {
 
 function appendUnique(current: readonly SearchResult[], incoming: readonly SearchResult[]) {
   const ids = new Set(current.map((result) => result.id))
+
   return [...current, ...incoming.filter((result) => {
     if (ids.has(result.id)) return false
     ids.add(result.id)

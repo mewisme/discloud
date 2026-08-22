@@ -38,17 +38,12 @@ export function useFileBrowserController({
   const [resetVersion, setResetVersion] = useState(0)
   const mainController = useRef<AbortController | null>(null)
   const moreController = useRef<AbortController | null>(null)
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   const currentPage: NodePage = {
     nodes,
     accessLevel,
     ...(nextCursor ? { nextCursor } : {}),
   }
-
-  const setLoadMoreSentinel = useCallback((node: HTMLDivElement | null) => {
-    sentinelRef.current = node
-  }, [])
 
   const reloadChildren = useCallback(async (targetOptions = options) => {
     mainController.current?.abort()
@@ -173,6 +168,7 @@ export function useFileBrowserController({
     } catch (error) {
       if (!controller.signal.aborted) {
         handleBrowserError(error, router, "Could not load more files")
+        throw error
       }
     } finally {
       if (moreController.current === controller) {
@@ -238,18 +234,6 @@ export function useFileBrowserController({
   }, [folder.id, navigateFolder, workspace.username])
 
   useEffect(() => {
-    const sentinel = sentinelRef.current
-    if (!sentinel || !nextCursor || tableLoading) return
-
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) void loadMore()
-    }, { rootMargin: "240px" })
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [loadMore, nextCursor, tableLoading])
-
-  useEffect(() => {
     let timeout: ReturnType<typeof setTimeout> | undefined
 
     function completed(event: Event) {
@@ -288,7 +272,7 @@ export function useFileBrowserController({
     tableLoading,
     loadingMore,
     resetVersion,
-    setLoadMoreSentinel,
+    loadMore,
     navigateFolder,
     reloadChildren,
     reloadCurrent,

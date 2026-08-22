@@ -1838,6 +1838,13 @@ export type components = {
             /** Format: date-time */
             readonly updatedAt: string;
         };
+        readonly PaginationConfig: {
+            /**
+             * @default infinite
+             * @enum {string}
+             */
+            readonly mode: "infinite" | "manual";
+        };
         readonly Problem: {
             readonly detail?: string;
             readonly request_id?: string;
@@ -2087,7 +2094,6 @@ export type components = {
             readonly chunkId: string;
             /** Format: date-time */
             readonly createdAt: string;
-            readonly deduplicated?: boolean;
             readonly partIndex: number;
             readonly sha256: string;
             /** Format: int64 */
@@ -2132,6 +2138,7 @@ export type components = {
             readonly common: {
                 readonly fileBrowserToolbar: components["schemas"]["FileBrowserToolbarConfig"];
                 readonly filePreview: components["schemas"]["FilePreviewConfig"];
+                readonly pagination: components["schemas"]["PaginationConfig"];
                 readonly sidebar: components["schemas"]["SidebarConfig"];
                 readonly theme: components["schemas"]["ThemeConfig"];
                 readonly timezone: string;
@@ -2984,6 +2991,7 @@ export type components = {
                 readonly "application/json": {
                     readonly fileBrowserToolbar?: components["schemas"]["FileBrowserToolbarConfig"];
                     readonly filePreview?: components["schemas"]["FilePreviewConfig"];
+                    readonly pagination?: components["schemas"]["PaginationConfig"];
                     readonly sidebar?: components["schemas"]["SidebarConfig"];
                     readonly theme?: components["schemas"]["ThemeConfig"];
                     readonly timezone: string;
