@@ -10,6 +10,7 @@ export function BotRuntimeEvents({
   bots: readonly BotRuntimeBot[]
 }) {
   const names = new Map<string, string>()
+
   for (const bot of bots) {
     if (!bot.id) continue
     names.set(bot.id, bot.displayName || bot.username || bot.id)
@@ -26,26 +27,50 @@ export function BotRuntimeEvents({
 
       <div className="overflow-hidden rounded-xl border">
         {events.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">No runtime activity yet.</div>
-        ) : (
-          <div className="divide-y">
-            {events.map((event) => (
-              <div key={event.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{eventLabel(event.type)}</Badge>
-                    <p className="text-sm font-medium">{eventTitle(event, names)}</p>
-                  </div>
-
-                  {eventDescription(event) && (
-                    <p className="mt-1 break-words text-xs text-muted-foreground">{eventDescription(event)}</p>
-                  )}
-                </div>
-
-                <time className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDateTime(event.at)}</time>
-              </div>
-            ))}
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+            No runtime activity yet.
           </div>
+        ) : (
+          <>
+            <div className="hidden grid-cols-[6rem_minmax(0,1fr)_10rem] gap-4 border-b bg-muted/30 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
+              <span>Event</span>
+              <span>Activity</span>
+              <span className="text-right">Time</span>
+            </div>
+
+            <div className="divide-y">
+              {events.map((event) => {
+                const description = eventDescription(event)
+
+                return (
+                  <div
+                    key={event.id}
+                    className="grid gap-2 px-4 py-3 md:grid-cols-[6rem_minmax(0,1fr)_10rem] md:items-start md:gap-4"
+                  >
+                    <Badge variant="outline" className="w-24 justify-center">
+                      {eventLabel(event.type)}
+                    </Badge>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {eventTitle(event, names)}
+                      </p>
+
+                      {description && (
+                        <p className="mt-0.5 break-words text-xs leading-5 text-muted-foreground">
+                          {description}
+                        </p>
+                      )}
+                    </div>
+
+                    <time className="whitespace-nowrap text-xs tabular-nums text-muted-foreground md:text-right">
+                      {formatDateTime(event.at)}
+                    </time>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
     </section>
