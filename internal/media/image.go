@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	AvatarMaxBytes         int64 = 10 * 1024 * 1024
-	AvatarSize                   = 512
-	ThumbnailImageMaxBytes int64 = 64 * 1024 * 1024
-	ClientThumbnailMaxBytes int64 = 8 * 1024 * 1024
-	ThumbnailMaxDimension        = 512
-	MaxDecodedImagePixels  int64 = 64 * 1024 * 1024
+	AvatarMaxBytes           int64 = 10 * 1024 * 1024
+	AvatarSize                     = 512
+	ThumbnailImageMaxBytes   int64 = 64 * 1024 * 1024
+	ClientThumbnailMaxBytes  int64 = 8 * 1024 * 1024
+	ThumbnailMaxDimension          = 512
+	ClientThumbnailMaxPixels int64 = ThumbnailMaxDimension * ThumbnailMaxDimension
+	MaxDecodedImagePixels    int64 = 64 * 1024 * 1024
 )
 
 var (
@@ -52,21 +53,29 @@ func ProcessAvatar(src io.Reader) (ProcessedImage, error) {
 }
 
 func ProcessImageThumbnail(src io.Reader) (ProcessedImage, error) {
-	return processThumbnail(src, ThumbnailImageMaxBytes)
+	decoded, _, err := decodeBounded(src, ThumbnailImageMaxBytes, MaxDecodedImagePixels)
+	if err != nil {
+		return ProcessedImage{}, err
+	}
+	return encodeThumbnail(decoded)
 }
 
 // ProcessClientThumbnail validates a browser-generated thumbnail at the trust
-// boundary: bounded encoded size, pixel-bomb guard, re-encoded canonical PNG.
+// boundary: bounded encoded size, dimensions, pixel count, and canonical PNG.
 func ProcessClientThumbnail(src io.Reader) (ProcessedImage, error) {
-	return processThumbnail(src, ClientThumbnailMaxBytes)
-}
-
-func processThumbnail(src io.Reader, maxBytes int64) (ProcessedImage, error) {
-	decoded, _, err := decodeBounded(src, maxBytes, MaxDecodedImagePixels)
+	decoded, _, err := decodeBounded(src, ClientThumbnailMaxBytes, ClientThumbnailMaxPixels)
 	if err != nil {
 		return ProcessedImage{}, err
 	}
 
+	bounds := decoded.Bounds()
+	if bounds.Dx() > ThumbnailMaxDimension || bounds.Dy() > ThumbnailMaxDimension {
+		return ProcessedImage{}, ErrImageTooLarge
+	}
+	return encodeThumbnail(decoded)
+}
+
+func encodeThumbnail(decoded image.Image) (ProcessedImage, error) {
 	output := fitResize(decoded, ThumbnailMaxDimension)
 	data, err := encodePNG(output)
 	if err != nil {

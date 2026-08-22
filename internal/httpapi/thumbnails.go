@@ -49,7 +49,14 @@ func registerThumbnailRoutes(mux *http.ServeMux, service *thumbnails.Service, fi
 		if writeFileContextError(w, r, err) {
 			return
 		}
-
+		if file.MetadataStatus != "ready" {
+			WriteProblem(w, r, http.StatusConflict, "Conflict", "file metadata is not ready")
+			return
+		}
+		if file.Category != "image" && file.Category != "video" {
+			WriteProblem(w, r, http.StatusUnsupportedMediaType, "Unsupported Media Type", "thumbnail is only supported for image and video files")
+			return
+		}
 		if r.ContentLength > media.ClientThumbnailMaxBytes {
 			WriteProblem(w, r, http.StatusRequestEntityTooLarge, "Content Too Large", "thumbnail must be 8 MiB or smaller")
 			return
@@ -57,6 +64,9 @@ func registerThumbnailRoutes(mux *http.ServeMux, service *thumbnails.Service, fi
 
 		processed, err := service.UploadFromClient(r.Context(), file.ID, r.Body)
 		switch {
+		case errors.Is(err, thumbnails.ErrNotPending):
+			WriteProblem(w, r, http.StatusConflict, "Conflict", "thumbnail is not pending")
+			return
 		case errors.Is(err, media.ErrEmptyImage), errors.Is(err, media.ErrInvalidImage):
 			WriteProblem(w, r, http.StatusUnsupportedMediaType, "Unsupported Media Type", "thumbnail must be a supported image")
 			return

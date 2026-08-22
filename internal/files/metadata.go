@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	_ "golang.org/x/image/webp"
@@ -22,7 +23,10 @@ import (
 	"github.com/mewisme/discloud/internal/postgres"
 )
 
-const sniffBytes = 512
+const (
+	sniffBytes             = 512
+	thumbnailFallbackDelay = 3 * time.Second
+)
 
 type MetadataProcessor struct {
 	service *Service
@@ -204,10 +208,13 @@ func (p *MetadataProcessor) finish(ctx context.Context, fileID string, outcome m
 				ON CONFLICT (file_id, variant) DO NOTHING
 				RETURNING file_id
 			)
-			INSERT INTO jobs (type, payload)
-			SELECT 'file.thumbnail', jsonb_build_object('fileId', file_id::text)
+			INSERT INTO jobs (type, payload, run_at)
+			SELECT
+				'file.thumbnail',
+				jsonb_build_object('fileId', file_id::text),
+				now() + ($2::bigint * interval '1 millisecond')
 			FROM thumbnail
-		`, fileID); err != nil {
+		`, fileID, thumbnailFallbackDelay.Milliseconds()); err != nil {
 			return fmt.Errorf("enqueue file thumbnail job: %w", err)
 		}
 		return nil

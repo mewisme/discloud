@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("thumbnail not found")
-	ErrNotReady = errors.New("thumbnail not ready")
+	ErrNotFound   = errors.New("thumbnail not found")
+	ErrNotReady   = errors.New("thumbnail not ready")
+	ErrNotPending = errors.New("thumbnail is not pending")
 )
 
 type Service struct {
@@ -38,18 +39,18 @@ func New(pool *pgxpool.Pool, fileService *files.Service, objectService *objects.
 }
 
 // UploadFromClient stores a browser-generated thumbnail. The caller is
-// responsible for permission checks; the input is re-validated here.
+// responsible for permission and media checks; the input is re-validated here.
 func (s *Service) UploadFromClient(ctx context.Context, fileID string, src io.Reader) (media.ProcessedImage, error) {
 	if s == nil || s.pool == nil || s.objects == nil {
 		return media.ProcessedImage{}, objects.ErrUnavailable
 	}
 
-	if _, err := s.pool.Exec(ctx, `
-		INSERT INTO file_thumbnails (file_id, variant, status)
-		VALUES ($1::uuid, 'grid', 'pending')
-		ON CONFLICT (file_id, variant) DO NOTHING
-	`, fileID); err != nil {
-		return media.ProcessedImage{}, fmt.Errorf("ensure thumbnail row: %w", err)
+	status, err := s.status(ctx, fileID)
+	if errors.Is(err, ErrNotFound) || status != "pending" {
+		return media.ProcessedImage{}, ErrNotPending
+	}
+	if err != nil {
+		return media.ProcessedImage{}, err
 	}
 
 	processed, err := media.ProcessClientThumbnail(src)
@@ -61,8 +62,13 @@ func (s *Service) UploadFromClient(ctx context.Context, fileID string, src io.Re
 	if err != nil {
 		return media.ProcessedImage{}, err
 	}
-	if err := s.finish(ctx, fileID, "ready", object.ID, processed.Width, processed.Height, ""); err != nil {
+
+	updated, err := s.finishPending(ctx, fileID, "ready", object.ID, processed.Width, processed.Height, "")
+	if err != nil {
 		return media.ProcessedImage{}, err
+	}
+	if !updated {
+		return media.ProcessedImage{}, ErrNotPending
 	}
 	return processed, nil
 }
@@ -88,23 +94,26 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	if err != nil {
 		return err
 	}
-	if status == "ready" || status == "skipped" {
+	if status != "pending" {
 		return nil
 	}
 
 	file, err := s.files.GetStored(ctx, input.FileID)
 	if errors.Is(err, files.ErrNotFound) {
-		return s.finish(ctx, input.FileID, "skipped", "", 0, 0, "file is not active")
+		_, finishErr := s.finishPending(ctx, input.FileID, "skipped", "", 0, 0, "file is not active")
+		return finishErr
 	}
 	if err != nil {
 		return s.retryOrFail(ctx, job, input.FileID, err)
 	}
 
 	if file.Category != "image" && file.Category != "video" {
-		return s.finish(ctx, file.ID, "skipped", "", 0, 0, "thumbnail is not supported for this file type")
+		_, err := s.finishPending(ctx, file.ID, "skipped", "", 0, 0, "thumbnail is not supported for this file type")
+		return err
 	}
 	if file.SizeBytes <= 0 {
-		return s.finish(ctx, file.ID, "failed", "", 0, 0, "file is empty")
+		_, err := s.finishPending(ctx, file.ID, "failed", "", 0, 0, "file is empty")
+		return err
 	}
 
 	_, reader, err := s.files.OpenStored(ctx, file.ID, 0, file.SizeBytes)
@@ -126,20 +135,24 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 		return s.retryOrFail(ctx, job, file.ID, closeErr)
 	}
 
+	status, err = s.status(ctx, file.ID)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if status != "pending" {
+		return nil
+	}
+
 	object, err := s.objects.Put(ctx, "thumbnail", processed.Filename, processed.MIMEType, bytes.NewReader(processed.Data))
 	if err != nil {
 		return s.retryOrFail(ctx, job, file.ID, err)
 	}
-	// ponytail: re-check narrows (not closes) the race where a client thumbnail
-	// landed during FFmpeg work; worst case both are valid, client one wins.
-	status, err = s.status(ctx, file.ID)
-	if err == nil && (status == "ready" || status == "skipped") {
-		return nil
-	}
-	if err := s.finish(ctx, file.ID, "ready", object.ID, processed.Width, processed.Height, ""); err != nil {
-		return err
-	}
-	return nil
+
+	_, err = s.finishPending(ctx, file.ID, "ready", object.ID, processed.Width, processed.Height, "")
+	return err
 }
 
 func (s *Service) ResolveURL(ctx context.Context, fileID string) (string, error) {
@@ -185,16 +198,25 @@ func (s *Service) status(ctx context.Context, fileID string) (string, error) {
 }
 
 func (s *Service) retryOrFail(ctx context.Context, job jobs.Job, fileID string, cause error) error {
+	status, err := s.status(ctx, fileID)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if status != "pending" {
+		return nil
+	}
 	if job.Attempts < job.MaxAttempts {
 		return cause
 	}
-	if err := s.finish(ctx, fileID, "failed", "", 0, 0, truncateError(cause)); err != nil {
-		return err
-	}
-	return nil
+
+	_, err = s.finishPending(ctx, fileID, "failed", "", 0, 0, truncateError(cause))
+	return err
 }
 
-func (s *Service) finish(ctx context.Context, fileID, status, objectID string, width, height int, errorText string) error {
+func (s *Service) finishPending(ctx context.Context, fileID, status, objectID string, width, height int, errorText string) (bool, error) {
 	var widthValue, heightValue any
 	if width > 0 {
 		widthValue = width
@@ -213,14 +235,12 @@ func (s *Service) finish(ctx context.Context, fileID, status, objectID string, w
 		    updated_at = now()
 		WHERE file_id = $1::uuid
 		  AND variant = 'grid'
+		  AND status = 'pending'
 	`, fileID, status, objectID, widthValue, heightValue, errorText)
 	if err != nil {
-		return fmt.Errorf("update thumbnail: %w", err)
+		return false, fmt.Errorf("update thumbnail: %w", err)
 	}
-	if tag.RowsAffected() != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return tag.RowsAffected() == 1, nil
 }
 
 func truncateError(err error) string {
