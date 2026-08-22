@@ -22,18 +22,20 @@ FROM base AS build
 
 WORKDIR /app
 
+COPY --from=deps /app/package.json ./package.json
+COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=deps /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/web/node_modules ./web/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
+
 COPY packages ./packages
 COPY web ./web
 
-WORKDIR /app/web
-
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN mkdir -p public \
-    && pnpm build
+RUN mkdir -p web/public \
+    && pnpm --filter @discloud/web build
 
 FROM node:24-alpine AS runtime
 
