@@ -193,9 +193,20 @@ impl DesktopApiClient {
         &self,
         method: Method,
         path: &str,
+        query: Vec<(String, String)>,
         headers: Vec<(String, String)>,
     ) -> Result<reqwest::Response, ApiCommandError> {
-        let mut builder = self.client.request(method, self.endpoint(path)?);
+        let mut url = self.endpoint(path)?;
+
+        {
+            let mut pairs = url.query_pairs_mut();
+
+            for (key, value) in query {
+                pairs.append_pair(&key, &value);
+            }
+        }
+
+        let mut builder = self.client.request(method, url);
 
         for (name, value) in headers {
             builder = with_request_header(builder, name, value)?;
@@ -305,9 +316,8 @@ impl ApiState {
         let validate_session = request.path == "/api/v1/auth/me";
         let client = self
             .client_snapshot()?
-            .ok_or_else(ApiCommandError::not_connected);
+            .ok_or_else(ApiCommandError::not_connected)?;
 
-        let client = client?;
         let result = client.request(request).await;
 
         match result {
@@ -333,13 +343,14 @@ impl ApiState {
         &self,
         method: Method,
         path: &str,
+        query: Vec<(String, String)>,
         headers: Vec<(String, String)>,
     ) -> Result<reqwest::Response, ApiCommandError> {
         let client = self
             .client_snapshot()?
             .ok_or_else(ApiCommandError::not_connected)?;
 
-        client.raw_request(method, path, headers).await
+        client.raw_request(method, path, query, headers).await
     }
 
     fn client_snapshot(&self) -> Result<Option<DesktopApiClient>, ApiCommandError> {
@@ -383,7 +394,7 @@ impl ApiCommandError {
             .as_ref()
             .and_then(|problem| problem.detail.clone())
             .or_else(|| problem.as_ref().map(|problem| problem.title.clone()))
-            .unwrap_or_else(|| format!("{} {}", status.as_u16(), status_text,));
+            .unwrap_or_else(|| format!("{} {}", status.as_u16(), status_text));
 
         Self {
             kind: "http",
@@ -447,7 +458,6 @@ async fn persist_current_session(client: &DesktopApiClient) {
 
     let result = match client.cookie_header() {
         Some(cookie_header) => session::save(&server_url, &cookie_header).await,
-
         None => session::delete(&server_url).await,
     };
 
@@ -465,7 +475,7 @@ async fn forget_persisted_session(client: &DesktopApiClient) {
 }
 
 fn session_persistence_warning(context: &str, error: &ApiCommandError) {
-    eprintln!("DisCloud desktop: {context}: {}", error.message(),);
+    eprintln!("DisCloud desktop: {context}: {}", error.message());
 }
 
 fn with_request_header(
@@ -553,7 +563,7 @@ mod tests {
     fn defaults_to_https() {
         let url = normalize_server_url("cloud.example.com").unwrap();
 
-        assert_eq!(canonical_server_url(&url), "https://cloud.example.com",);
+        assert_eq!(canonical_server_url(&url), "https://cloud.example.com");
     }
 
     #[test]
@@ -587,13 +597,13 @@ mod tests {
 
     #[test]
     fn rejects_non_http_protocols() {
-        assert!(normalize_server_url("ftp://example.com",).is_err(),);
+        assert!(normalize_server_url("ftp://example.com").is_err());
     }
 
     #[test]
     fn rejects_parent_path_segments() {
         let client = DesktopApiClient::new("https://example.com").unwrap();
 
-        assert!(client.endpoint("/api/../secret").is_err(),);
+        assert!(client.endpoint("/api/../secret").is_err());
     }
 }

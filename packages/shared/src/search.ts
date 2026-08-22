@@ -1,4 +1,4 @@
-import { workspacePath } from "@/lib/workspace/navigation"
+import { workspacePath } from "./navigation"
 
 export type SearchKind = "all" | "file" | "folder"
 export type SearchCategory = "all" | "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other"
@@ -33,18 +33,14 @@ export function parseSearchOptions(params: Pick<URLSearchParams, "get">): Search
 export function patchSearchOptions(current: SearchOptions, patch: Partial<SearchOptions>): SearchOptions {
   const next = { ...current, ...patch }
 
-  if ("q" in patch && !("sort" in patch) && current.sort === defaultSearchSort(current.q)) {
-    next.sort = defaultSearchSort(next.q)
-  }
-  if (("q" in patch || "sort" in patch) && !("order" in patch) && current.order === defaultSearchOrder(current.sort)) {
-    next.order = defaultSearchOrder(next.sort)
-  }
-
+  if ("q" in patch && !("sort" in patch) && current.sort === defaultSearchSort(current.q)) next.sort = defaultSearchSort(next.q)
+  if (("q" in patch || "sort" in patch) && !("order" in patch) && current.order === defaultSearchOrder(current.sort)) next.order = defaultSearchOrder(next.sort)
   if (!next.q && next.sort === "relevance") next.sort = "updated"
+
   return next
 }
 
-export function searchURL(username: string, options: SearchOptions) {
+export function searchParamsForOptions(options: SearchOptions) {
   const params = new URLSearchParams()
   const q = options.q.trim()
 
@@ -56,8 +52,12 @@ export function searchURL(username: string, options: SearchOptions) {
   if (options.sort !== defaultSearchSort(q)) params.set("sort", options.sort)
   if (options.order !== defaultSearchOrder(options.sort)) params.set("order", options.order)
 
+  return params
+}
+
+export function searchURL(username: string, options: SearchOptions) {
+  const query = searchParamsForOptions(options).toString()
   const path = workspacePath(username, "search")
-  const query = params.toString()
   return query ? `${path}?${query}` : path
 }
 
@@ -69,6 +69,6 @@ export function defaultSearchOrder(sort: SearchSort): SearchOrder {
   return sort === "name" ? "asc" : "desc"
 }
 
-function parseEnum<const T extends string>(value: string | null, values: readonly T[], fallback: T): T {
+function parseEnum<const T extends string, const F extends string>(value: string | null, values: readonly T[], fallback: F): T | F {
   return value && values.includes(value as T) ? value as T : fallback
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchOptions, type SearchSort, searchURL } from "@discloud/shared/search"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useMemo } from "react"
 
@@ -8,7 +9,6 @@ import { useWorkspace } from "@/components/app/workspace-context"
 import { SearchFilters } from "@/components/search/search-filters"
 import { SearchInput } from "@/components/search/search-input"
 import { SearchResults } from "@/components/search/search-results"
-import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchOptions, type SearchSort, searchURL } from "@/lib/search/options"
 
 export function SearchView() {
   const router = useRouter()

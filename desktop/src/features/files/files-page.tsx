@@ -65,7 +65,14 @@ export function DesktopFilesPage() {
 
   function folderPath(folderId: string, isRoot?: boolean) {
     if (!username) return "/"
-    return isRoot ? workspacePath(username) : workspaceFolderPath(username, folderId)
+
+    const routeRootId = state.status === "ready"
+      ? state.data.workspace.root.id
+      : undefined
+
+    return isRoot && folderId === routeRootId
+      ? workspacePath(username)
+      : workspaceFolderPath(username, folderId)
   }
 
   function navigateFolder(folderId: string, isRoot?: boolean) {
@@ -97,12 +104,23 @@ export function DesktopFilesPage() {
 
   const { data } = state
   const workspaceUsername = data.workspace.owner.username
-  const breadcrumbItems = data.breadcrumbs.map((item) => ({
-    id: item.id,
-    label: item.isRoot ? `${data.workspace.owner.name}'s workspace` : item.name,
-    href: hashPath(browserURL(item.isRoot ? workspacePath(workspaceUsername) : workspaceFolderPath(workspaceUsername, item.id), options)),
-    isRoot: item.isRoot,
-  }))
+  const breadcrumbItems = data.breadcrumbs.map((item) => {
+    const routeRoot = item.id === data.workspace.root.id
+
+    return {
+      id: item.id,
+      label: routeRoot
+        ? `${data.workspace.owner.name}'s workspace`
+        : item.name || "Shared folder",
+      href: hashPath(browserURL(
+        routeRoot
+          ? workspacePath(workspaceUsername)
+          : workspaceFolderPath(workspaceUsername, item.id),
+        options,
+      )),
+      isRoot: item.isRoot,
+    }
+  })
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">

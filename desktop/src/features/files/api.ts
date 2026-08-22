@@ -25,7 +25,9 @@ export async function loadDesktopFileBrowser(username: string, folderId: string 
   const folder = breadcrumbs.breadcrumbs.at(-1)
 
   if (!folder) throw new Error("Folder breadcrumbs are empty.")
-  if (breadcrumbs.breadcrumbs[0]?.id !== workspace.root.id) throw new Error("Folder does not belong to this workspace.")
+  if (!folderId && breadcrumbs.breadcrumbs[0]?.id !== workspace.root.id) {
+    throw new Error("Folder does not belong to this workspace.")
+  }
 
   return { workspace, folder, breadcrumbs: breadcrumbs.breadcrumbs, page }
 }

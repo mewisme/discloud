@@ -1,4 +1,3 @@
-import type { File } from "@discloud/api/models"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { save } from "@tauri-apps/plugin-dialog"
 
@@ -8,15 +7,29 @@ export type NativeDownloadResult = {
   bytesWritten: number
 }
 
-export function nativeFileContentURL(fileId: string) {
-  return convertFileSrc(`files/${fileId}`, "discloud")
+export type NativeFile = {
+  id: string
+  name: string
 }
 
-export async function downloadNativeFile(file: Pick<File, "id" | "name">) {
+export function nativeFileContentURL(fileId: string, collectionId?: string) {
+  const resource = collectionId
+    ? `collections/${collectionId}/files/${fileId}`
+    : `files/${fileId}`
+
+  return convertFileSrc(resource, "discloud")
+}
+
+export async function downloadNativeFile(file: NativeFile, collectionId?: string) {
   try {
     const destination = await save({ title: `Save ${file.name}`, defaultPath: safeDownloadName(file.name) })
     if (!destination) return undefined
-    return await invoke<NativeDownloadResult>("download_file", { fileId: file.id, destination })
+
+    return await invoke<NativeDownloadResult>("download_file", {
+      fileId: file.id,
+      collectionId,
+      destination,
+    })
   } catch (error) {
     throw nativeError(error)
   }

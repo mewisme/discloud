@@ -30,7 +30,8 @@ pub(crate) async fn api_request(
 pub(crate) async fn download_file(
     state: State<'_, ApiState>,
     file_id: String,
+    collection_id: Option<String>,
     destination: String,
 ) -> Result<DownloadResult, ApiCommandError> {
-    file_transfer::download_file(state.inner(), file_id, destination).await
+    file_transfer::download_file(state.inner(), file_id, collection_id, destination).await
 }

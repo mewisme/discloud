@@ -43,6 +43,11 @@ pub(crate) struct DownloadResult {
     bytes_written: u64,
 }
 
+struct FileRequestContext<'a> {
+    file_id: &'a str,
+    collection_id: Option<&'a str>,
+}
+
 pub(crate) fn respond_file_protocol(
     app: AppHandle,
     request: Request<Vec<u8>>,
@@ -56,6 +61,7 @@ pub(crate) fn respond_file_protocol(
 pub(crate) async fn download_file(
     state: &ApiState,
     file_id: String,
+    collection_id: Option<String>,
     destination: String,
 ) -> Result<DownloadResult, ApiCommandError> {
     if destination.trim().is_empty() {
@@ -73,7 +79,10 @@ pub(crate) async fn download_file(
     }
 
     let path = file_api_path(&file_id, "download")?;
-    let mut response = state.raw_request(Method::GET, &path, Vec::new()).await?;
+    let query = collection_query(collection_id.as_deref())?;
+    let mut response = state
+        .raw_request(Method::GET, &path, query, Vec::new())
+        .await?;
 
     if !response.status().is_success() {
         return Err(response_error(response).await);
@@ -122,6 +131,7 @@ pub(crate) async fn download_file(
 
     if let Err(error) = fs::rename(&temporary, &destination).await {
         let _ = fs::remove_file(&temporary).await;
+
         return Err(ApiCommandError::internal(format!(
             "Could not finalize download file: {error}"
         )));
@@ -138,6 +148,7 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
     let method = match request.method().as_str() {
         "GET" => Method::GET,
         "HEAD" => Method::HEAD,
+
         _ => {
             return protocol_response(
                 StatusCode::METHOD_NOT_ALLOWED,
@@ -147,7 +158,7 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
         }
     };
 
-    let Some(file_id) = protocol_file_id(request.uri().path()) else {
+    let Some(context) = protocol_file_context(request.uri().path()) else {
         return protocol_response(
             StatusCode::NOT_FOUND,
             b"File route not found.".to_vec(),
@@ -155,8 +166,21 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
         );
     };
 
-    let path = match file_api_path(file_id, "content") {
+    let path = match file_api_path(context.file_id, "content") {
         Ok(path) => path,
+
+        Err(error) => {
+            return protocol_response(
+                StatusCode::BAD_REQUEST,
+                error.message().as_bytes().to_vec(),
+                Some("text/plain; charset=utf-8"),
+            );
+        }
+    };
+
+    let query = match collection_query(context.collection_id) {
+        Ok(query) => query,
+
         Err(error) => {
             return protocol_response(
                 StatusCode::BAD_REQUEST,
@@ -179,8 +203,9 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
 
     let state = app.state::<ApiState>();
 
-    match state.raw_request(method, &path, headers).await {
+    match state.raw_request(method, &path, query, headers).await {
         Ok(response) => proxy_response(response).await,
+
         Err(error) => protocol_response(
             StatusCode::BAD_GATEWAY,
             error.message().as_bytes().to_vec(),
@@ -192,6 +217,7 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
 async fn proxy_response(response: reqwest::Response) -> Response<Vec<u8>> {
     let status =
         StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+
     let headers = RESPONSE_HEADERS
         .iter()
         .filter_map(|name| {
@@ -205,6 +231,7 @@ async fn proxy_response(response: reqwest::Response) -> Response<Vec<u8>> {
 
     let body = match response.bytes().await {
         Ok(bytes) => bytes.to_vec(),
+
         Err(error) => {
             return protocol_response(
                 StatusCode::BAD_GATEWAY,
@@ -269,26 +296,56 @@ fn protocol_response(
         .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-fn protocol_file_id(path: &str) -> Option<&str> {
-    let mut segments = path.trim_matches('/').split('/');
+fn protocol_file_context(path: &str) -> Option<FileRequestContext<'_>> {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
 
-    match (segments.next(), segments.next(), segments.next()) {
-        (Some("files"), Some(file_id), None) if valid_file_id(file_id) => Some(file_id),
+    match segments.as_slice() {
+        ["files", file_id] if valid_resource_id(file_id) => Some(FileRequestContext {
+            file_id,
+            collection_id: None,
+        }),
+
+        ["collections", collection_id, "files", file_id]
+            if valid_resource_id(collection_id) && valid_resource_id(file_id) =>
+        {
+            Some(FileRequestContext {
+                file_id,
+                collection_id: Some(collection_id),
+            })
+        }
+
         _ => None,
     }
 }
 
+fn collection_query(collection_id: Option<&str>) -> Result<Vec<(String, String)>, ApiCommandError> {
+    match collection_id {
+        Some(collection_id) => {
+            if !valid_resource_id(collection_id) {
+                return Err(ApiCommandError::invalid_request("Invalid collection ID."));
+            }
+
+            Ok(vec![(
+                "collectionId".to_string(),
+                collection_id.to_string(),
+            )])
+        }
+
+        None => Ok(Vec::new()),
+    }
+}
+
 fn file_api_path(file_id: &str, action: &str) -> Result<String, ApiCommandError> {
-    if !valid_file_id(file_id) {
+    if !valid_resource_id(file_id) {
         return Err(ApiCommandError::invalid_request("Invalid file ID."));
     }
 
     Ok(format!("/api/v1/files/{file_id}/{action}"))
 }
 
-fn valid_file_id(file_id: &str) -> bool {
-    !file_id.is_empty()
-        && file_id
+fn valid_resource_id(value: &str) -> bool {
+    !value.is_empty()
+        && value
             .bytes()
             .all(|value| value.is_ascii_alphanumeric() || value == b'-' || value == b'_')
 }
@@ -297,14 +354,54 @@ fn temporary_download_path(destination: &Path) -> Result<PathBuf, ApiCommandErro
     let original = destination.file_name().ok_or_else(|| {
         ApiCommandError::invalid_request("Download destination must be a file path.")
     })?;
+
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
+
     let mut file_name = OsString::from(".");
 
     file_name.push(original);
     file_name.push(format!(".discloud-{}-{nonce}.part", std::process::id()));
 
     Ok(destination.with_file_name(file_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collection_query, protocol_file_context};
+
+    #[test]
+    fn parses_workspace_file_protocol_path() {
+        let context = protocol_file_context("/files/file-id").unwrap();
+
+        assert_eq!(context.file_id, "file-id");
+        assert_eq!(context.collection_id, None);
+    }
+
+    #[test]
+    fn parses_collection_file_protocol_path() {
+        let context = protocol_file_context("/collections/collection-id/files/file-id").unwrap();
+
+        assert_eq!(context.file_id, "file-id");
+        assert_eq!(context.collection_id, Some("collection-id"));
+    }
+
+    #[test]
+    fn rejects_invalid_protocol_paths() {
+        assert!(protocol_file_context("/collections/a/files").is_none());
+        assert!(protocol_file_context("/files/a/extra").is_none());
+        assert!(protocol_file_context("/collections/a/files/../secret").is_none());
+    }
+
+    #[test]
+    fn creates_collection_query() {
+        assert_eq!(
+            collection_query(Some("collection-id")).unwrap(),
+            vec![("collectionId".to_string(), "collection-id".to_string(),)],
+        );
+
+        assert!(collection_query(None).unwrap().is_empty());
+    }
 }
