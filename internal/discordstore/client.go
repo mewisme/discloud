@@ -19,9 +19,11 @@ const (
 )
 
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	userAgent  string
+	httpClient           *http.Client
+	uploadHTTPClient     *http.Client
+	attachmentHTTPClient *http.Client
+	baseURL              string
+	userAgent            string
 }
 
 type User struct {
@@ -49,14 +51,14 @@ func NewClient(httpClient *http.Client) *Client {
 }
 
 func NewClientWithBaseURL(httpClient *http.Client, baseURL string) *Client {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
+	apiHTTPClient, uploadHTTPClient, attachmentHTTPClient := newDiscordHTTPClients(httpClient)
 
 	return &Client{
-		httpClient: httpClient,
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		userAgent:  defaultUserAgent,
+		httpClient:           apiHTTPClient,
+		uploadHTTPClient:     uploadHTTPClient,
+		attachmentHTTPClient: attachmentHTTPClient,
+		baseURL:              strings.TrimRight(baseURL, "/"),
+		userAgent:            defaultUserAgent,
 	}
 }
 
@@ -78,7 +80,8 @@ func (c *Client) CreateMessage(
 	var message Message
 	path := "/channels/" + url.PathEscape(channelID) + "/messages"
 
-	if err := c.doJSON(
+	if err := c.doJSONWithClient(
+		c.uploadClient(),
 		ctx,
 		http.MethodPost,
 		path,
@@ -127,7 +130,7 @@ func (c *Client) OpenAttachment(
 		req.Header.Set("Range", rangeHeader)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.attachmentClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +153,28 @@ func (c *Client) doJSON(
 	body io.Reader,
 	dst any,
 ) error {
+	return c.doJSONWithClient(
+		c.controlClient(),
+		ctx,
+		method,
+		path,
+		token,
+		contentType,
+		body,
+		dst,
+	)
+}
+
+func (c *Client) doJSONWithClient(
+	httpClient *http.Client,
+	ctx context.Context,
+	method string,
+	path string,
+	token string,
+	contentType string,
+	body io.Reader,
+	dst any,
+) error {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return fmt.Errorf("create Discord request: %w", err)
@@ -162,7 +187,7 @@ func (c *Client) doJSON(
 		req.Header.Set("Content-Type", contentType)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -181,6 +206,27 @@ func (c *Client) doJSON(
 	}
 
 	return nil
+}
+
+func (c *Client) controlClient() *http.Client {
+	if c.httpClient != nil {
+		return c.httpClient
+	}
+	return http.DefaultClient
+}
+
+func (c *Client) uploadClient() *http.Client {
+	if c.uploadHTTPClient != nil {
+		return c.uploadHTTPClient
+	}
+	return c.controlClient()
+}
+
+func (c *Client) attachmentClient() *http.Client {
+	if c.attachmentHTTPClient != nil {
+		return c.attachmentHTTPClient
+	}
+	return c.controlClient()
 }
 
 func readAPIError(resp *http.Response) error {
