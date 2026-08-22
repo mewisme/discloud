@@ -15,11 +15,14 @@ func TestValidatePassword(t *testing.T) {
 }
 
 func TestValidateTemporaryPassword(t *testing.T) {
-	if err := ValidateTemporaryPassword(""); !errors.Is(err, ErrInvalidTemporaryPassword) {
-		t.Fatalf("ValidateTemporaryPassword(empty) = %v, want ErrInvalidTemporaryPassword", err)
+	if err := ValidateTemporaryPassword("12345"); !errors.Is(err, ErrInvalidTemporaryPassword) {
+		t.Fatalf("ValidateTemporaryPassword(short) = %v, want ErrInvalidTemporaryPassword", err)
 	}
-	if err := ValidateTemporaryPassword("x"); err != nil {
-		t.Fatalf("ValidateTemporaryPassword(one char) = %v", err)
+	if err := ValidateTemporaryPassword("123456"); err != nil {
+		t.Fatalf("ValidateTemporaryPassword(valid) = %v", err)
+	}
+	if err := ValidateTemporaryPassword("áéíóúý"); err != nil {
+		t.Fatalf("ValidateTemporaryPassword(unicode) = %v", err)
 	}
 }
 

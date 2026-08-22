@@ -3,6 +3,8 @@ import type { AdminUser } from "@/lib/api/models"
 
 const gib = 1024 ** 3
 
+export const temporaryPasswordMinLength = 6
+
 export type AdminRole = AdminUser["role"]
 
 export function adminUserLabel(user: Pick<AdminUser, "name" | "username">) {
@@ -11,6 +13,12 @@ export function adminUserLabel(user: Pick<AdminUser, "name" | "username">) {
 
 export function getAdminUser(userId: string) {
   return apiJSON<AdminUser>(`/admin/users/${encodeURIComponent(userId)}`)
+}
+
+export function validateTemporaryPassword(password: string) {
+  if (Array.from(password).length < temporaryPasswordMinLength) {
+    return `Temporary password must be at least ${temporaryPasswordMinLength} characters`
+  }
 }
 
 export function parseQuotaGiB(value: string) {

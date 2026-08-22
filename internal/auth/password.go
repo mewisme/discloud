@@ -8,10 +8,12 @@ import (
 	"github.com/alexedwards/argon2id"
 )
 
+const temporaryPasswordMinLength = 6
+
 var (
 	ErrInvalidUsername          = errors.New("username is required")
 	ErrWeakPassword             = errors.New("password must be at least 12 characters")
-	ErrInvalidTemporaryPassword = errors.New("temporary password is required")
+	ErrInvalidTemporaryPassword = errors.New("temporary password must be at least 6 characters")
 )
 
 var passwordParams = argon2id.Params{
@@ -38,7 +40,7 @@ func ValidatePassword(password string) error {
 }
 
 func ValidateTemporaryPassword(password string) error {
-	if utf8.RuneCountInString(password) < 1 {
+	if utf8.RuneCountInString(password) < temporaryPasswordMinLength {
 		return ErrInvalidTemporaryPassword
 	}
 	return nil

@@ -4,7 +4,7 @@ import { Loader2Icon, PlusIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { type AdminRole, parseQuotaGiB } from "@/components/admin/users/admin-user-utils"
+import { type AdminRole, parseQuotaGiB, temporaryPasswordMinLength, validateTemporaryPassword } from "@/components/admin/users/admin-user-utils"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -51,8 +51,9 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
       return
     }
 
-    if (!password) {
-      toast.error("Temporary password is required")
+    const passwordError = validateTemporaryPassword(password)
+    if (passwordError) {
+      toast.error(passwordError)
       return
     }
 
@@ -117,8 +118,8 @@ export function CreateUserDialog({ onCreated }: { onCreated: () => Promise<void>
 
           <Field>
             <FieldLabel htmlFor="admin-create-password">Temporary password</FieldLabel>
-            <Input id="admin-create-password" type="password" required minLength={1} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
-            <FieldDescription>Temporary passwords only need 1 character. The user must choose a new password after signing in.</FieldDescription>
+            <Input id="admin-create-password" type="password" required minLength={temporaryPasswordMinLength} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+            <FieldDescription>Use at least {temporaryPasswordMinLength} characters. The user must choose a new password after signing in.</FieldDescription>
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">

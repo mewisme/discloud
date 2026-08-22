@@ -4,7 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { adminUserLabel, getAdminUser } from "@/components/admin/users/admin-user-utils"
+import { adminUserLabel, getAdminUser, temporaryPasswordMinLength, validateTemporaryPassword } from "@/components/admin/users/admin-user-utils"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -34,8 +34,9 @@ export function ResetUserPasswordDialog({
   }
 
   async function reset() {
-    if (!password) {
-      toast.error("Temporary password is required")
+    const passwordError = validateTemporaryPassword(password)
+    if (passwordError) {
+      toast.error(passwordError)
       return
     }
 
@@ -68,8 +69,8 @@ export function ResetUserPasswordDialog({
 
         <Field>
           <FieldLabel htmlFor={`admin-password-${user.id}`}>Temporary password</FieldLabel>
-          <Input id={`admin-password-${user.id}`} type="password" autoFocus required minLength={1} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
-          <FieldDescription>Only 1 character is required because this password must be replaced after the next sign-in.</FieldDescription>
+          <Input id={`admin-password-${user.id}`} type="password" autoFocus required minLength={temporaryPasswordMinLength} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+          <FieldDescription>Use at least {temporaryPasswordMinLength} characters. This password must be replaced after the next sign-in.</FieldDescription>
         </Field>
 
         <DialogFooter>
