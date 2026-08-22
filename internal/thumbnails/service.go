@@ -25,9 +25,10 @@ var (
 )
 
 type Service struct {
-	pool    *pgxpool.Pool
-	files   *files.Service
-	objects *objects.Service
+	pool       *pgxpool.Pool
+	files      *files.Service
+	objects    *objects.Service
+	videoSlots chan struct{}
 }
 
 type payload struct {
@@ -35,7 +36,12 @@ type payload struct {
 }
 
 func New(pool *pgxpool.Pool, fileService *files.Service, objectService *objects.Service) *Service {
-	return &Service{pool: pool, files: fileService, objects: objectService}
+	return &Service{
+		pool:       pool,
+		files:      fileService,
+		objects:    objectService,
+		videoSlots: make(chan struct{}, videoThumbnailConcurrency),
+	}
 }
 
 // UploadFromClient stores a browser-generated thumbnail. The caller is
@@ -46,11 +52,14 @@ func (s *Service) UploadFromClient(ctx context.Context, fileID string, src io.Re
 	}
 
 	status, err := s.status(ctx, fileID)
-	if errors.Is(err, ErrNotFound) || status != "pending" {
+	if errors.Is(err, ErrNotFound) {
 		return media.ProcessedImage{}, ErrNotPending
 	}
 	if err != nil {
 		return media.ProcessedImage{}, err
+	}
+	if status != "pending" {
+		return media.ProcessedImage{}, ErrNotPending
 	}
 
 	processed, err := media.ProcessClientThumbnail(src)
@@ -116,23 +125,22 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 		return err
 	}
 
-	_, reader, err := s.files.OpenStored(ctx, file.ID, 0, file.SizeBytes)
-	if err != nil {
-		return s.retryOrFail(ctx, job, file.ID, err)
-	}
-
 	var processed media.ProcessedImage
 	if file.Category == "image" {
-		processed, err = media.ProcessImageThumbnail(reader)
+		processed, err = s.processImageThumbnail(ctx, file)
 	} else {
-		processed, err = media.ProcessVideoThumbnail(ctx, reader)
+		processed, err = s.processVideoThumbnail(ctx, file)
 	}
-	closeErr := reader.Close()
+
+	if errors.Is(err, ErrNotPending) {
+		return nil
+	}
 	if err != nil {
+		if errors.Is(err, errVideoThumbnailReadBudget) || errors.Is(err, errVideoThumbnailTimeout) {
+			_, finishErr := s.finishPending(ctx, file.ID, "failed", "", 0, 0, truncateError(err))
+			return finishErr
+		}
 		return s.retryOrFail(ctx, job, file.ID, err)
-	}
-	if closeErr != nil {
-		return s.retryOrFail(ctx, job, file.ID, closeErr)
 	}
 
 	status, err = s.status(ctx, file.ID)
@@ -153,6 +161,74 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 
 	_, err = s.finishPending(ctx, file.ID, "ready", object.ID, processed.Width, processed.Height, "")
 	return err
+}
+
+func (s *Service) processImageThumbnail(ctx context.Context, file files.File) (media.ProcessedImage, error) {
+	_, reader, err := s.files.OpenStored(ctx, file.ID, 0, file.SizeBytes)
+	if err != nil {
+		return media.ProcessedImage{}, err
+	}
+
+	processed, processErr := media.ProcessImageThumbnail(reader)
+	closeErr := reader.Close()
+	if processErr != nil {
+		return media.ProcessedImage{}, processErr
+	}
+	if closeErr != nil {
+		return media.ProcessedImage{}, closeErr
+	}
+	return processed, nil
+}
+
+func (s *Service) processVideoThumbnail(ctx context.Context, file files.File) (media.ProcessedImage, error) {
+	if s.videoSlots == nil {
+		return media.ProcessedImage{}, errors.New("video thumbnail capacity is unavailable")
+	}
+
+	select {
+	case s.videoSlots <- struct{}{}:
+		defer func() {
+			<-s.videoSlots
+		}()
+	case <-ctx.Done():
+		return media.ProcessedImage{}, ctx.Err()
+	}
+
+	status, err := s.status(ctx, file.ID)
+	if errors.Is(err, ErrNotFound) {
+		return media.ProcessedImage{}, ErrNotPending
+	}
+	if err != nil {
+		return media.ProcessedImage{}, err
+	}
+	if status != "pending" {
+		return media.ProcessedImage{}, ErrNotPending
+	}
+
+	processCtx, cancel := context.WithTimeout(ctx, videoThumbnailTimeout)
+	defer cancel()
+
+	source, err := newVideoRangeSource(processCtx, s.files, file, videoThumbnailReadBudget)
+	if err != nil {
+		return media.ProcessedImage{}, err
+	}
+
+	processed, processErr := media.ProcessVideoThumbnail(processCtx, source.URL())
+	closeErr := source.Close()
+
+	if processErr != nil {
+		if errors.Is(processCtx.Err(), context.DeadlineExceeded) {
+			return media.ProcessedImage{}, fmt.Errorf("%w after %s", errVideoThumbnailTimeout, videoThumbnailTimeout)
+		}
+		if source.LimitHit() {
+			return media.ProcessedImage{}, fmt.Errorf("%w: limit is %d bytes", errVideoThumbnailReadBudget, videoThumbnailReadBudget)
+		}
+		return media.ProcessedImage{}, processErr
+	}
+	if closeErr != nil {
+		return media.ProcessedImage{}, fmt.Errorf("close video thumbnail source: %w", closeErr)
+	}
+	return processed, nil
 }
 
 func (s *Service) ResolveURL(ctx context.Context, fileID string) (string, error) {
