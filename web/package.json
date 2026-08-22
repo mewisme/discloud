@@ -21,6 +21,7 @@
     "@discloud/api": "workspace:*",
     "@discloud/app-ui": "workspace:*",
     "@discloud/ui": "workspace:*",
+    "@discloud/shared": "workspace:*",
     "@hookform/resolvers": "^5.9.1",
     "@shadcn/react": "^0.3.0",
     "class-variance-authority": "^0.7.1",

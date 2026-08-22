@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@discloud/api",
     "@discloud/app-ui",
+    "@discloud/shared",
     "@discloud/ui",
   ],
 }

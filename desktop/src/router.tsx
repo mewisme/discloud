@@ -1,0 +1,526 @@
+import type { User } from "@discloud/api/models"
+import { AuthShell } from "@discloud/app-ui/auth/auth-shell"
+import { ChangePasswordForm } from "@discloud/app-ui/auth/change-password-form"
+import { LoginForm } from "@discloud/app-ui/auth/login-form"
+import { SetupForm } from "@discloud/app-ui/auth/setup-form"
+import {
+  appRouteTitle,
+  workspacePath,
+} from "@discloud/shared/navigation"
+import { Button } from "@discloud/ui/components/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@discloud/ui/components/card"
+import { LoaderCircle } from "lucide-react"
+import type { ReactNode } from "react"
+import {
+  Navigate,
+  Outlet,
+  createHashRouter,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router"
+import {
+  type ConnectedDesktopSessionState,
+  useDesktopSession,
+} from "#components/desktop-session"
+import { DesktopAppLayout } from "#components/desktop-shell"
+import { ServerConnectionScreen } from "#components/server-connection"
+import {
+  changePassword,
+  completeSetup,
+  login,
+  verifyMFA,
+} from "#lib/auth"
+
+export const router = createHashRouter([
+  {
+    path: "/",
+    Component: RootRoute,
+  },
+  {
+    path: "/connect",
+    Component: ConnectRoute,
+  },
+  {
+    path: "/setup",
+    Component: SetupRoute,
+  },
+  {
+    path: "/login",
+    Component: LoginRoute,
+  },
+  {
+    path: "/change-password",
+    Component: ChangePasswordRoute,
+  },
+  {
+    path: "/:username",
+    Component: AuthenticatedRoute,
+    children: [
+      {
+        index: true,
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "folders/:folderId",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "files/:fileId",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "search",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "favorites",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "collections",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "collections/:collectionId",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "shared",
+        Component: RoutePlaceholder,
+      },
+      {
+        path: "trash",
+        Component: RoutePlaceholder,
+      },
+      {
+        Component: ActorRouteGuard,
+        children: [
+          {
+            path: "uploads",
+            Component: RoutePlaceholder,
+          },
+          {
+            path: "settings",
+            Component: RoutePlaceholder,
+          },
+          {
+            path: "settings/common",
+            Component: RoutePlaceholder,
+          },
+          {
+            path: "settings/profile",
+            Component: RoutePlaceholder,
+          },
+          {
+            path: "settings/security",
+            Component: RoutePlaceholder,
+          },
+          {
+            Component: AdminRouteGuard,
+            children: [
+              {
+                path: "admin",
+                Component: RoutePlaceholder,
+              },
+              {
+                path: "admin/bots",
+                Component: RoutePlaceholder,
+              },
+              {
+                path: "admin/diagnostics",
+                Component: RoutePlaceholder,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    path: "*",
+    Component: NotFoundRoute,
+  },
+])
+
+function RootRoute() {
+  const { state } = useDesktopSession()
+
+  if (state.status === "loading") return <LoadingScreen />
+  if (state.status === "disconnected") {
+    return <Navigate to="/connect" replace />
+  }
+
+  return (
+    <Navigate
+      to={connectedTarget(state)}
+      replace
+    />
+  )
+}
+
+function ConnectRoute() {
+  const {
+    state,
+    acceptConnection,
+  } = useDesktopSession()
+
+  if (state.status === "loading") return <LoadingScreen />
+
+  if (state.status === "connected") {
+    return (
+      <Navigate
+        to={connectedTarget(state)}
+        replace
+      />
+    )
+  }
+
+  return (
+    <ServerConnectionScreen
+      initialServerUrl={state.serverUrl}
+      initialError={state.error}
+      onConnected={(connection) =>
+        void acceptConnection(connection)
+      }
+    />
+  )
+}
+
+function SetupRoute() {
+  const {
+    state,
+    markSetupCompleted,
+  } = useDesktopSession()
+  const navigate = useNavigate()
+
+  if (state.status === "loading") return <LoadingScreen />
+  if (state.status === "disconnected") {
+    return <Navigate to="/connect" replace />
+  }
+
+  if (!state.setupRequired) {
+    return (
+      <Navigate
+        to={connectedTarget(state)}
+        replace
+      />
+    )
+  }
+
+  function completed() {
+    markSetupCompleted()
+    navigate("/login", { replace: true })
+  }
+
+  return (
+    <AuthRouteFrame serverUrl={state.serverUrl}>
+      <SetupForm
+        completeSetup={completeSetup}
+        onCompleted={completed}
+        onAlreadyCompleted={completed}
+      />
+    </AuthRouteFrame>
+  )
+}
+
+function LoginRoute() {
+  const {
+    state,
+    setAuthenticated,
+  } = useDesktopSession()
+  const navigate = useNavigate()
+
+  if (state.status === "loading") return <LoadingScreen />
+  if (state.status === "disconnected") {
+    return <Navigate to="/connect" replace />
+  }
+
+  if (state.setupRequired) {
+    return <Navigate to="/setup" replace />
+  }
+
+  if (state.user) {
+    return (
+      <Navigate
+        to={authenticatedPath(state.user)}
+        replace
+      />
+    )
+  }
+
+  function authenticated(user: User) {
+    setAuthenticated(user)
+    navigate(authenticatedPath(user), {
+      replace: true,
+    })
+  }
+
+  return (
+    <AuthRouteFrame serverUrl={state.serverUrl}>
+      <LoginForm
+        login={login}
+        verifyMFA={verifyMFA}
+        onAuthenticated={authenticated}
+      />
+    </AuthRouteFrame>
+  )
+}
+
+function ChangePasswordRoute() {
+  const {
+    state,
+    refreshUser,
+  } = useDesktopSession()
+  const navigate = useNavigate()
+
+  if (state.status === "loading") return <LoadingScreen />
+  if (state.status === "disconnected") {
+    return <Navigate to="/connect" replace />
+  }
+
+  if (state.setupRequired) {
+    return <Navigate to="/setup" replace />
+  }
+
+  if (!state.user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!state.user.mustChangePassword) {
+    return (
+      <Navigate
+        to={workspacePath(state.user.username)}
+        replace
+      />
+    )
+  }
+
+  return (
+    <AuthRouteFrame serverUrl={state.serverUrl}>
+      <ChangePasswordForm
+        changePassword={changePassword}
+        onChanged={async () => {
+          const user = await refreshUser()
+
+          navigate(
+            user
+              ? authenticatedPath(user)
+              : "/login",
+            { replace: true },
+          )
+        }}
+      />
+    </AuthRouteFrame>
+  )
+}
+
+function AuthenticatedRoute() {
+  const { state } = useDesktopSession()
+
+  if (state.status === "loading") return <LoadingScreen />
+  if (state.status === "disconnected") {
+    return <Navigate to="/connect" replace />
+  }
+
+  if (state.setupRequired) {
+    return <Navigate to="/setup" replace />
+  }
+
+  if (!state.user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (state.user.mustChangePassword) {
+    return (
+      <Navigate
+        to="/change-password"
+        replace
+      />
+    )
+  }
+
+  return (
+    <DesktopAppLayout
+      serverUrl={state.serverUrl}
+      user={state.user}
+    />
+  )
+}
+
+function ActorRouteGuard() {
+  const { state } = useDesktopSession()
+  const location = useLocation()
+  const params = useParams()
+
+  if (
+    state.status !== "connected" ||
+    !state.user ||
+    !params.username
+  ) {
+    return <Outlet />
+  }
+
+  if (params.username === state.user.username) {
+    return <Outlet />
+  }
+
+  const currentRoot = workspacePath(params.username)
+  const suffix = location.pathname.startsWith(
+    `${currentRoot}/`,
+  )
+    ? location.pathname.slice(currentRoot.length)
+    : ""
+
+  return (
+    <Navigate
+      to={`${workspacePath(state.user.username)}${suffix}`}
+      replace
+    />
+  )
+}
+
+function AdminRouteGuard() {
+  const { state } = useDesktopSession()
+
+  if (
+    state.status !== "connected" ||
+    !state.user
+  ) {
+    return <Outlet />
+  }
+
+  if (state.user.role === "admin") {
+    return <Outlet />
+  }
+
+  return (
+    <Navigate
+      to={workspacePath(state.user.username)}
+      replace
+    />
+  )
+}
+
+function RoutePlaceholder() {
+  const { state } = useDesktopSession()
+  const location = useLocation()
+  const params = useParams()
+
+  if (
+    state.status !== "connected" ||
+    !state.user
+  ) {
+    return null
+  }
+
+  const workspaceUsername =
+    params.username ?? state.user.username
+  const title = appRouteTitle(
+    location.pathname,
+    workspaceUsername,
+  )
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>
+          {title === "Files"
+            ? "The desktop file browser will be connected to this route in Step 8."
+            : "This desktop route is wired and ready for its feature implementation."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          Workspace: @{workspaceUsername}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AuthRouteFrame({
+  serverUrl,
+  children,
+}: {
+  serverUrl: string
+  children: ReactNode
+}) {
+  const {
+    changeServer,
+  } = useDesktopSession()
+  const navigate = useNavigate()
+
+  return (
+    <AuthShell
+      footer={
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className="min-w-0 truncate text-xs text-muted-foreground"
+            title={serverUrl}
+          >
+            {serverUrl}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              void changeServer().then(() =>
+                navigate("/connect", {
+                  replace: true,
+                }),
+              )
+            }}
+          >
+            Change server
+          </Button>
+        </div>
+      }
+    >
+      {children}
+    </AuthShell>
+  )
+}
+
+function LoadingScreen() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-muted/30 p-6">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <LoaderCircle className="size-5 animate-spin" />
+        <span className="text-sm">
+          Connecting to DisCloud
+        </span>
+      </div>
+    </main>
+  )
+}
+
+function NotFoundRoute() {
+  return <Navigate to="/" replace />
+}
+
+function connectedTarget(
+  state: ConnectedDesktopSessionState,
+) {
+  if (state.setupRequired) return "/setup"
+  if (!state.user) return "/login"
+
+  return authenticatedPath(state.user)
+}
+
+function authenticatedPath(
+  user: Pick<User, "mustChangePassword" | "username">,
+) {
+  return user.mustChangePassword
+    ? "/change-password"
+    : workspacePath(user.username)
+}
