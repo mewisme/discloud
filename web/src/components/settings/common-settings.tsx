@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { useShallow } from "zustand/react/shallow"
 
 import { DateTimeSettings } from "@/components/settings/common/date-time-settings"
 import { FileBrowserSettings } from "@/components/settings/common/file-browser-settings"
@@ -11,7 +12,7 @@ import { SettingsSaveBar } from "@/components/settings/common/settings-save-bar"
 import { type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant } from "@/components/settings/common/sidebar-settings"
 import { ThemeSettings } from "@/components/settings/common/theme-settings"
 import type { ToolbarDockPosition, ToolbarVariant } from "@/components/settings/common/toolbar-preview"
-import { useUserConfig } from "@/components/settings/user-config-context"
+import { useSetUserConfig, useUserConfigSelector } from "@/components/settings/user-config-context"
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"
@@ -19,47 +20,60 @@ import type { ThemeEffect } from "@/lib/theme-transition"
 
 export function CommonSettings() {
   const router = useRouter()
-  const { config, setConfig } = useUserConfig()
-  const [timezone, setTimezone] = useState(config.common.timezone || "UTC")
-  const [themeEffect, setThemeEffect] = useState<ThemeEffect>(config.common.theme.effect)
-  const [themeCustomCSS, setThemeCustomCSS] = useState(config.common.theme.custom.css)
-  const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(config.common.fileBrowserToolbar.variant)
-  const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(config.common.fileBrowserToolbar.dockPosition)
-  const [previewPreloadNext, setPreviewPreloadNext] = useState(config.common.filePreview.preloadNext)
-  const [sidebarSide, setSidebarSide] = useState<SidebarSide>(config.common.sidebar.side)
-  const [sidebarVariant, setSidebarVariant] = useState<SidebarVariant>(config.common.sidebar.variant)
-  const [sidebarCollapsible, setSidebarCollapsible] = useState<SidebarCollapsible>(config.common.sidebar.collapsible)
+  const stored = useUserConfigSelector(
+    useShallow((config: UserConfig) => ({
+      timezone: config.common.timezone,
+      themeEffect: config.common.theme.effect,
+      themeCustomCSS: config.common.theme.custom.css,
+      toolbarVariant: config.common.fileBrowserToolbar.variant,
+      toolbarDockPosition: config.common.fileBrowserToolbar.dockPosition,
+      previewPreloadNext: config.common.filePreview.preloadNext,
+      sidebarSide: config.common.sidebar.side,
+      sidebarVariant: config.common.sidebar.variant,
+      sidebarCollapsible: config.common.sidebar.collapsible,
+    })),
+  )
+  const setConfig = useSetUserConfig()
+  const [timezone, setTimezone] = useState(stored.timezone || "UTC")
+  const [themeEffect, setThemeEffect] = useState<ThemeEffect>(stored.themeEffect)
+  const [themeCustomCSS, setThemeCustomCSS] = useState(stored.themeCustomCSS)
+  const [toolbarVariant, setToolbarVariant] = useState<ToolbarVariant>(stored.toolbarVariant)
+  const [toolbarDockPosition, setToolbarDockPosition] = useState<ToolbarDockPosition>(stored.toolbarDockPosition)
+  const [previewPreloadNext, setPreviewPreloadNext] = useState(stored.previewPreloadNext)
+  const [sidebarSide, setSidebarSide] = useState<SidebarSide>(stored.sidebarSide)
+  const [sidebarVariant, setSidebarVariant] = useState<SidebarVariant>(stored.sidebarVariant)
+  const [sidebarCollapsible, setSidebarCollapsible] = useState<SidebarCollapsible>(stored.sidebarCollapsible)
   const [pending, setPending] = useState(false)
-  const dirty = timezone !== config.common.timezone
-    || themeEffect !== config.common.theme.effect
-    || themeCustomCSS !== config.common.theme.custom.css
-    || toolbarVariant !== config.common.fileBrowserToolbar.variant
-    || toolbarDockPosition !== config.common.fileBrowserToolbar.dockPosition
-    || previewPreloadNext !== config.common.filePreview.preloadNext
-    || sidebarSide !== config.common.sidebar.side
-    || sidebarVariant !== config.common.sidebar.variant
-    || sidebarCollapsible !== config.common.sidebar.collapsible
+  const dirty = timezone !== stored.timezone
+    || themeEffect !== stored.themeEffect
+    || themeCustomCSS !== stored.themeCustomCSS
+    || toolbarVariant !== stored.toolbarVariant
+    || toolbarDockPosition !== stored.toolbarDockPosition
+    || previewPreloadNext !== stored.previewPreloadNext
+    || sidebarSide !== stored.sidebarSide
+    || sidebarVariant !== stored.sidebarVariant
+    || sidebarCollapsible !== stored.sidebarCollapsible
 
   useEffect(() => {
-    setTimezone(config.common.timezone || "UTC")
-    setThemeEffect(config.common.theme.effect)
-    setThemeCustomCSS(config.common.theme.custom.css)
-    setToolbarVariant(config.common.fileBrowserToolbar.variant)
-    setToolbarDockPosition(config.common.fileBrowserToolbar.dockPosition)
-    setPreviewPreloadNext(config.common.filePreview.preloadNext)
-    setSidebarSide(config.common.sidebar.side)
-    setSidebarVariant(config.common.sidebar.variant)
-    setSidebarCollapsible(config.common.sidebar.collapsible)
+    setTimezone(stored.timezone || "UTC")
+    setThemeEffect(stored.themeEffect)
+    setThemeCustomCSS(stored.themeCustomCSS)
+    setToolbarVariant(stored.toolbarVariant)
+    setToolbarDockPosition(stored.toolbarDockPosition)
+    setPreviewPreloadNext(stored.previewPreloadNext)
+    setSidebarSide(stored.sidebarSide)
+    setSidebarVariant(stored.sidebarVariant)
+    setSidebarCollapsible(stored.sidebarCollapsible)
   }, [
-    config.common.timezone,
-    config.common.theme.effect,
-    config.common.theme.custom.css,
-    config.common.fileBrowserToolbar.variant,
-    config.common.fileBrowserToolbar.dockPosition,
-    config.common.filePreview.preloadNext,
-    config.common.sidebar.side,
-    config.common.sidebar.variant,
-    config.common.sidebar.collapsible,
+    stored.timezone,
+    stored.themeEffect,
+    stored.themeCustomCSS,
+    stored.toolbarVariant,
+    stored.toolbarDockPosition,
+    stored.previewPreloadNext,
+    stored.sidebarSide,
+    stored.sidebarVariant,
+    stored.sidebarCollapsible,
   ])
 
   async function save() {

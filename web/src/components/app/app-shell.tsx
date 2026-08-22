@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app/app-header"
 import { AppSidebar } from "@/components/app/app-sidebar"
 import { CurrentUserProvider } from "@/components/app/current-user-context"
 import { type Workspace, WorkspaceProvider } from "@/components/app/workspace-context"
-import { useUserConfig } from "@/components/settings/user-config-context"
+import { useUserConfigSelector } from "@/components/settings/user-config-context"
 import { Button } from "@/components/ui/button"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
@@ -26,8 +26,8 @@ export function AppShell({
   usage: CurrentUserUsage
   defaultSidebarOpen: boolean
 }) {
-  const { config } = useUserConfig()
-  const sidebarOnRight = config.common.sidebar.side === "right"
+  const sidebarSide = useUserConfigSelector((config) => config.common.sidebar.side)
+  const sidebarOnRight = sidebarSide === "right"
 
   return (
     <CurrentUserProvider user={user}>

@@ -2,33 +2,71 @@
 
 import type { ReactNode } from "react"
 import { createContext, useContext, useEffect, useState } from "react"
+import { useStore } from "zustand"
+import { createStore, type StoreApi } from "zustand/vanilla"
 
 import type { UserConfig } from "@/lib/api/models"
 
-type UserConfigContextValue = {
+type UserConfigStoreState = {
   config: UserConfig
-  timezone: string
   setConfig: (config: UserConfig) => void
 }
 
-const UserConfigContext = createContext<UserConfigContextValue | null>(null)
+type UserConfigStore = StoreApi<UserConfigStoreState>
 
-export function UserConfigProvider({ initialConfig, children }: { initialConfig: UserConfig; children: ReactNode }) {
-  const [config, setConfig] = useState(initialConfig)
+const UserConfigStoreContext = createContext<UserConfigStore | null>(null)
+
+function createUserConfigStore(initialConfig: UserConfig): UserConfigStore {
+  return createStore<UserConfigStoreState>((set) => ({
+    config: initialConfig,
+    setConfig: (config) => set({ config }),
+  }))
+}
+
+export function UserConfigProvider({
+  initialConfig,
+  children,
+}: {
+  initialConfig: UserConfig
+  children: ReactNode
+}) {
+  const [store] = useState(() => createUserConfigStore(initialConfig))
 
   useEffect(() => {
-    setConfig(initialConfig)
-  }, [initialConfig])
+    if (store.getState().config !== initialConfig) {
+      store.setState({ config: initialConfig })
+    }
+  }, [initialConfig, store])
 
   return (
-    <UserConfigContext.Provider value={{ config, timezone: config.common.timezone || "UTC", setConfig }}>
+    <UserConfigStoreContext.Provider value={store}>
       {children}
-    </UserConfigContext.Provider>
+    </UserConfigStoreContext.Provider>
   )
 }
 
+export function useUserConfigSelector<T>(selector: (config: UserConfig) => T): T {
+  const store = useUserConfigStore()
+  return useStore(store, (state) => selector(state.config))
+}
+
+export function useSetUserConfig() {
+  return useUserConfigStore().getState().setConfig
+}
+
 export function useUserConfig() {
-  const context = useContext(UserConfigContext)
-  if (!context) throw new Error("useUserConfig must be used inside UserConfigProvider")
-  return context
+  const config = useUserConfigSelector((value) => value)
+  const setConfig = useSetUserConfig()
+
+  return {
+    config,
+    timezone: config.common.timezone || "UTC",
+    setConfig,
+  }
+}
+
+function useUserConfigStore() {
+  const store = useContext(UserConfigStoreContext)
+  if (!store) throw new Error("useUserConfig must be used inside UserConfigProvider")
+  return store
 }

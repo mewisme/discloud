@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FilePreview } from "@/components/files/file-preview"
-import { useUserConfig } from "@/components/settings/user-config-context"
+import { useUserConfigSelector } from "@/components/settings/user-config-context"
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Spinner } from "@/components/ui/spinner"
 import { filePreviewKind } from "@/lib/files/preview"
@@ -35,7 +35,7 @@ export function FilePreviewCarousel({
   collectionId?: string
 }) {
   const router = useRouter()
-  const { config } = useUserConfig()
+  const preloadNext = useUserConfigSelector((config) => config.common.filePreview.preloadNext)
   const preloadOwnerRef = useRef(
     Symbol("file-preview-carousel"),
   )
@@ -48,9 +48,6 @@ export function FilePreviewCarousel({
     useRef<
       ReturnType<typeof setTimeout> | undefined
     >(undefined)
-
-  const preloadNext =
-    config.common.filePreview.preloadNext
 
   const slides = useMemo(() => {
     const seen = new Set<string>()

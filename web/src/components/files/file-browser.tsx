@@ -2,6 +2,7 @@
 
 import { Loader2Icon } from "lucide-react"
 import { useHotkeys } from "react-hotkeys-hook"
+import { useShallow } from "zustand/react/shallow"
 
 import { MoveNodesDialog } from "@/components/files/actions/move-nodes-dialog"
 import { TrashNodesDialog } from "@/components/files/actions/trash-nodes-dialog"
@@ -10,9 +11,9 @@ import { useFileBrowserController } from "@/components/files/browser/use-file-br
 import { useFileBrowserSelection } from "@/components/files/browser/use-file-browser-selection"
 import { FileBrowserChrome } from "@/components/files/file-browser-chrome"
 import { BrowserItems } from "@/components/files/file-browser-items"
-import { useUserConfig } from "@/components/settings/user-config-context"
+import { useUserConfigSelector } from "@/components/settings/user-config-context"
 import { FileUploadTarget } from "@/components/uploads/upload-target"
-import type { Node, NodePage } from "@/lib/api/models"
+import type { Node, NodePage, UserConfig } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
 import { cn } from "@/lib/utils"
 
@@ -29,7 +30,9 @@ export function FileBrowser({
   initialPage,
   options: initialOptions,
 }: FileBrowserProps) {
-  const { config } = useUserConfig()
+  const toolbarConfig = useUserConfigSelector(
+    useShallow((config: UserConfig) => config.common.fileBrowserToolbar),
+  )
   const browser = useFileBrowserController({
     initialFolder,
     initialBreadcrumbs,
@@ -43,7 +46,6 @@ export function FileBrowser({
     updateNodes: browser.updateNodes,
   })
 
-  const toolbarConfig = config.common.fileBrowserToolbar
   const horizontalToolbarDocked = toolbarConfig.variant === "dock"
     && toolbarConfig.dockPosition === "bottom"
   const rightToolbarDocked = toolbarConfig.variant === "dock"
