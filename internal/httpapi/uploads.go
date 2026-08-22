@@ -121,6 +121,11 @@ func registerUploadRoutes(mux *http.ServeMux, service *uploads.Service, uploader
 			return
 		}
 
+		if r.ContentLength > config.MaxUploadChunkSize {
+			WriteProblem(w, r, http.StatusRequestEntityTooLarge, "Content Too Large", "upload part exceeds the maximum allowed size")
+			return
+		}
+
 		digest, err := parseSHA256(r.Header.Get(chunkSHA256Header))
 		if err != nil {
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", chunkSHA256Header+" must be a 64-character hexadecimal SHA-256")
@@ -251,6 +256,9 @@ func writeUploadError(w http.ResponseWriter, r *http.Request, err error) bool {
 		WriteProblem(w, r, http.StatusGone, "Gone", "upload session expired")
 	case errors.Is(err, uploads.ErrQuotaExceeded):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "storage quota exceeded")
+	case errors.Is(err, uploads.ErrUploadCapacityExceeded):
+		w.Header().Set("Retry-After", "1")
+		WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "upload capacity is temporarily exhausted")
 	case errors.Is(err, uploads.ErrAttemptsExhausted), errors.Is(err, uploads.ErrStorageUnavailable), errors.Is(err, blobstore.ErrNoUsableBot):
 		logUploadServerError(r, err, "unavailable", true)
 		WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "upload storage is temporarily unavailable")

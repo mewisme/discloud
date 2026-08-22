@@ -16,7 +16,7 @@
     "429":"Too many requests were made within the allowed authentication rate.",
     "500":"An internal backend, authentication, persistence, or invariant failure occurred.",
     "502":"Discord storage returned an unusable upstream response.",
-    "503":"The service, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
+    "503":"The service, upload capacity, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
   },
   "operations":{
     "health":[],
@@ -102,7 +102,7 @@
     "createUpload":[400,401,403,404,409,500],
     "getUpload":[401,403,404,410,500],
     "cancelUpload":[401,403,404,409,410,500],
-    "putUploadPart":[400,401,403,404,409,410,422,500,502,503],
+    "putUploadPart":[400,401,403,404,409,410,413,422,500,502,503],
     "completeUpload":[400,401,403,404,409,410,422,500,502,503],
     "listTrash":[400,401,403,404,500],
     "listCollections":[400,401,403,500],

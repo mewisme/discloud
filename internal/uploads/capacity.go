@@ -1,23 +1,48 @@
 package uploads
 
+const (
+	minPartConcurrency = 1
+	maxPartConcurrency = 12
+)
+
 type partConcurrencyProvider interface {
 	RecommendedPartConcurrency() int
 }
 
 func (u *PartUploader) RecommendedPartConcurrency() int {
 	if u == nil || u.blobs == nil {
-		return 1
+		return minPartConcurrency
 	}
 
 	provider, ok := u.blobs.(partConcurrencyProvider)
 	if !ok {
-		return 1
+		return minPartConcurrency
 	}
 
 	concurrency := provider.RecommendedPartConcurrency()
-	if concurrency < 1 {
-		return 1
+	if concurrency < minPartConcurrency {
+		return minPartConcurrency
+	}
+	if concurrency > maxPartConcurrency {
+		return maxPartConcurrency
 	}
 
 	return concurrency
+}
+
+func (u *PartUploader) tryAcquirePartSlot() bool {
+	if u == nil || u.partSlots == nil {
+		return false
+	}
+
+	select {
+	case u.partSlots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (u *PartUploader) releasePartSlot() {
+	<-u.partSlots
 }

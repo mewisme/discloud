@@ -17,12 +17,13 @@ import (
 )
 
 var (
-	ErrPartConflict       = errors.New("upload part already exists with different content")
-	ErrPartHashMismatch   = errors.New("upload part SHA-256 mismatch")
-	ErrPartSizeMismatch   = errors.New("upload part size mismatch")
-	ErrStorageUnavailable = errors.New("upload storage unavailable")
-	ErrStorageInvariant   = errors.New("upload storage invariant violated")
-	errPartNotFound       = errors.New("upload part not found")
+	ErrPartConflict           = errors.New("upload part already exists with different content")
+	ErrPartHashMismatch       = errors.New("upload part SHA-256 mismatch")
+	ErrPartSizeMismatch       = errors.New("upload part size mismatch")
+	ErrUploadCapacityExceeded = errors.New("upload capacity exceeded")
+	ErrStorageUnavailable     = errors.New("upload storage unavailable")
+	ErrStorageInvariant       = errors.New("upload storage invariant violated")
+	errPartNotFound           = errors.New("upload part not found")
 )
 
 type Part struct {
@@ -40,16 +41,22 @@ type PutPartResult struct {
 }
 
 type PartUploader struct {
-	service *Service
-	chunks  *chunks.Repository
-	blobs   blobstore.AttemptBlobStore
+	service   *Service
+	chunks    *chunks.Repository
+	blobs     blobstore.AttemptBlobStore
+	partSlots chan struct{}
 }
 
 func NewPartUploader(service *Service, blobs blobstore.AttemptBlobStore) *PartUploader {
-	if service == nil {
-		return &PartUploader{blobs: blobs}
+	uploader := &PartUploader{
+		service:   service,
+		blobs:     blobs,
+		partSlots: make(chan struct{}, maxPartConcurrency),
 	}
-	return &PartUploader{service: service, chunks: chunks.New(service.pool), blobs: blobs}
+	if service != nil {
+		uploader.chunks = chunks.New(service.pool)
+	}
+	return uploader
 }
 
 func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID string, partIndex int, expectedSHA256 [32]byte, src io.Reader) (PutPartResult, error) {
@@ -75,6 +82,11 @@ func (u *PartUploader) PutPart(ctx context.Context, actor Actor, sessionID strin
 	} else if !errors.Is(err, errPartNotFound) {
 		return PutPartResult{}, err
 	}
+
+	if !u.tryAcquirePartSlot() {
+		return PutPartResult{}, ErrUploadCapacityExceeded
+	}
+	defer u.releasePartSlot()
 
 	file, err := spoolPart(src, size, expectedSHA256)
 	if err != nil {
