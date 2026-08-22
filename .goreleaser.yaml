@@ -61,7 +61,7 @@ dockers_v2:
       - "{{ .Env.DISCLOUD_BACKEND_DOCKER_IMAGE }}"
     tags:
       - "{{ .Tag }}"
-      - latest
+      - "{{ .Env.DISCLOUD_DOCKER_CHANNEL_TAG }}"
     platforms:
       - linux/amd64
       - linux/arm64

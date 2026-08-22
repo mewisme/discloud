@@ -1,3 +1,5 @@
+
+```yaml
 name: Release
 
 on:
@@ -171,6 +173,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve Docker channel tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME,,}"
+
+          case "$tag" in
+            *alpha*) channel="alpha" ;;
+            *beta*) channel="beta" ;;
+            *rc*) channel="rc" ;;
+            *) channel="latest" ;;
+          esac
+
+          echo "DISCLOUD_DOCKER_CHANNEL_TAG=$channel" >> "$GITHUB_ENV"
+
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -205,6 +221,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve Docker channel tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME,,}"
+
+          case "$tag" in
+            *alpha*) channel="alpha" ;;
+            *beta*) channel="beta" ;;
+            *rc*) channel="rc" ;;
+            *) channel="latest" ;;
+          esac
+
+          echo "DISCLOUD_DOCKER_CHANNEL_TAG=$channel" >> "$GITHUB_ENV"
+
       - name: Release
         shell: bash
         run: |
@@ -212,6 +242,6 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             --file web/Dockerfile \
             --tag "${DISCLOUD_FRONTEND_DOCKER_IMAGE}:${GITHUB_REF_NAME}" \
-            --tag "${DISCLOUD_FRONTEND_DOCKER_IMAGE}:latest" \
+            --tag "${DISCLOUD_FRONTEND_DOCKER_IMAGE}:${DISCLOUD_DOCKER_CHANNEL_TAG}" \
             --push \
             web
