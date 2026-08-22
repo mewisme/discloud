@@ -131,6 +131,9 @@ jobs:
       - name: Type check UI package
         run: pnpm ui:typecheck
 
+      - name: Type check App UI package
+        run: pnpm app-ui:typecheck
+
       - name: Type check desktop
         run: pnpm desktop:typecheck
 

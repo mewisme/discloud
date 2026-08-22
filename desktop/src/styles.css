@@ -2,6 +2,8 @@
 @import "@fontsource-variable/geist-mono";
 @import "@discloud/ui/globals.css";
 
+@source "../../packages/app-ui/src";
+
 :root {
   --font-inter: "Inter Variable";
   --font-geist-mono: "Geist Mono Variable";

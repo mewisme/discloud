@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/package.json
 COPY packages/api/package.json ./packages/api/package.json
+COPY packages/app-ui/package.json ./packages/app-ui/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
@@ -28,6 +29,7 @@ COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=deps /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/web/node_modules ./web/node_modules
+COPY --from=deps /app/packages/app-ui/node_modules ./packages/app-ui/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 
 COPY packages ./packages

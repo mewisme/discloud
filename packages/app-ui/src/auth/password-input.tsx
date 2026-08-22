@@ -1,16 +1,25 @@
 "use client"
 
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@discloud/ui/components/input-group"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
-import { type ComponentProps,useState } from "react"
+import { type ComponentProps, useState } from "react"
 
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
-
-export function PasswordInput(props: Omit<ComponentProps<typeof InputGroupInput>, "type">) {
+export function PasswordInput(
+  props: Omit<ComponentProps<typeof InputGroupInput>, "type">,
+) {
   const [visible, setVisible] = useState(false)
 
   return (
     <InputGroup>
-      <InputGroupInput type={visible ? "text" : "password"} {...props} />
+      <InputGroupInput
+        type={visible ? "text" : "password"}
+        {...props}
+      />
       <InputGroupAddon align="inline-end">
         <InputGroupButton
           type="button"

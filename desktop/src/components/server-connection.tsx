@@ -1,3 +1,4 @@
+import { AuthShell } from "@discloud/app-ui/auth/auth-shell"
 import { Button } from "@discloud/ui/components/button"
 import {
   Card,
@@ -13,7 +14,7 @@ import {
   FieldLabel,
 } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
-import { Cloud, LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { type FormEvent, useState } from "react"
 import {
   connectServer,
@@ -39,7 +40,6 @@ export function ServerConnectionScreen({
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
     if (connecting) return
 
     setConnecting(true)
@@ -59,70 +59,59 @@ export function ServerConnectionScreen({
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-muted/30 p-4 sm:p-6">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="grid size-11 place-items-center rounded-xl border bg-background shadow-sm">
-            <Cloud className="size-5" />
-          </div>
-          <div>
-            <div className="text-lg font-semibold tracking-tight">DisCloud</div>
-            <div className="text-sm text-muted-foreground">
-              Self-hosted file storage
-            </div>
-          </div>
-        </div>
+    <AuthShell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Connect to DisCloud</CardTitle>
+          <CardDescription>
+            Enter the address of your DisCloud server.
+          </CardDescription>
+        </CardHeader>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Connect to DisCloud</CardTitle>
-            <CardDescription>
-              Enter the address of your DisCloud server.
-            </CardDescription>
-          </CardHeader>
+        <CardContent>
+          <form className="flex flex-col gap-4" onSubmit={connect}>
+            <Field data-invalid={!!error}>
+              <FieldLabel htmlFor="server-url">Server</FieldLabel>
+              <Input
+                id="server-url"
+                type="text"
+                value={serverUrl}
+                placeholder="https://cloud.example.com"
+                aria-invalid={!!error}
+                autoCapitalize="none"
+                autoComplete="url"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+                disabled={connecting}
+                onChange={(event) => setServerUrl(event.target.value)}
+              />
+              <FieldDescription>
+                HTTPS is used automatically when no protocol is specified.
+              </FieldDescription>
+              {error ? <FieldError>{error}</FieldError> : null}
+            </Field>
 
-          <CardContent>
-            <form className="flex flex-col gap-4" onSubmit={connect}>
-              <Field data-invalid={!!error}>
-                <FieldLabel htmlFor="server-url">Server</FieldLabel>
-                <Input
-                  id="server-url"
-                  type="text"
-                  value={serverUrl}
-                  placeholder="https://cloud.example.com"
-                  aria-invalid={!!error}
-                  autoCapitalize="none"
-                  autoComplete="url"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  autoFocus
-                  disabled={connecting}
-                  onChange={(event) => setServerUrl(event.target.value)}
-                />
-                <FieldDescription>
-                  HTTPS is used automatically when no protocol is specified.
-                </FieldDescription>
-                {error ? <FieldError>{error}</FieldError> : null}
-              </Field>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={connecting || !serverUrl.trim()}
-              >
-                {connecting ? (
-                  <>
-                    <LoaderCircle data-icon="inline-start" className="animate-spin" />
-                    Connecting
-                  </>
-                ) : (
-                  "Connect"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={connecting || !serverUrl.trim()}
+            >
+              {connecting ? (
+                <>
+                  <LoaderCircle
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                  Connecting
+                </>
+              ) : (
+                "Connect"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </AuthShell>
   )
 }

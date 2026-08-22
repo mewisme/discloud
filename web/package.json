@@ -19,6 +19,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@discloud/api": "workspace:*",
+    "@discloud/app-ui": "workspace:*",
     "@discloud/ui": "workspace:*",
     "@hookform/resolvers": "^5.9.1",
     "@shadcn/react": "^0.3.0",
