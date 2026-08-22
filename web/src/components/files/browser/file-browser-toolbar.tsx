@@ -1,10 +1,10 @@
 "use client"
 
+import { DockFileBrowserControls, InlineFileBrowserControls } from "@discloud/app-ui/files/file-browser-controls"
 import { FolderPlusIcon, RefreshCwIcon, UploadIcon } from "lucide-react"
 
 import { BottomDock } from "@/components/app/bottom-dock-stack"
 import { CreateFolderDialog } from "@/components/files/actions/create-folder-dialog"
-import { DesktopBrowserControls, DockBrowserControls } from "@/components/files/browser/file-browser-controls"
 import { FolderActionsMenu } from "@/components/files/browser/folder-actions-menu"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -59,7 +59,7 @@ export function HorizontalFileBrowserToolbar({
         <KbdGroup><Kbd>R</Kbd></KbdGroup>
       </Button>
 
-      <DesktopBrowserControls options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
+      <InlineFileBrowserControls options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
 
       <FolderActionsMenu
         folder={folder}
@@ -147,7 +147,7 @@ function VerticalFileBrowserToolbar({
         <RefreshCwIcon className={reloading ? "animate-spin" : undefined} />
       </Button>
 
-      <DockBrowserControls options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
+      <DockFileBrowserControls options={options} onChange={onOptionsChange} onSortChange={onSortChange} />
 
       <FolderActionsMenu
         folder={folder}

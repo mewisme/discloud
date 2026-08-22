@@ -1,8 +1,8 @@
 "use client"
 
+import { EmptyFolder } from "@discloud/app-ui/files/file-browser-items"
 import { Loader2Icon } from "lucide-react"
 
-import { EmptyFolder } from "@/components/files/browser/empty-folder"
 import { FileBrowserGrid } from "@/components/files/browser/file-browser-grid"
 import type { BrowserItemsProps } from "@/components/files/browser/file-browser-item-shared"
 import { FileBrowserList } from "@/components/files/browser/file-browser-list"

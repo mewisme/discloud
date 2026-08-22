@@ -1,11 +1,10 @@
 "use client"
 
+import type { BrowserOptions, BrowserSort } from "@discloud/shared/file-browser"
+import { Button } from "@discloud/ui/components/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
 import { ArrowDownIcon, ArrowUpIcon, LayoutGridIcon, ListIcon, SlidersHorizontalIcon } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"
 
 type ControlsProps = {
   options: BrowserOptions
@@ -13,7 +12,7 @@ type ControlsProps = {
   onSortChange: (sort: BrowserSort) => void
 }
 
-export function DesktopBrowserControls({ options, onChange, onSortChange }: ControlsProps) {
+export function InlineFileBrowserControls({ options, onChange, onSortChange }: ControlsProps) {
   return (
     <>
       <Select value={options.sort} onValueChange={(value) => onSortChange(value as BrowserSort)}>
@@ -30,33 +29,15 @@ export function DesktopBrowserControls({ options, onChange, onSortChange }: Cont
         </SelectContent>
       </Select>
 
-      <Button
-        size="icon"
-        variant="outline"
-        aria-label={options.order === "asc" ? "Sort descending" : "Sort ascending"}
-        onClick={() => onChange({ order: options.order === "asc" ? "desc" : "asc" })}
-      >
+      <Button size="icon" variant="outline" aria-label={options.order === "asc" ? "Sort descending" : "Sort ascending"} onClick={() => onChange({ order: options.order === "asc" ? "desc" : "asc" })}>
         {options.order === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />}
       </Button>
 
       <div className="flex rounded-lg border p-0.5">
-        <Button
-          variant={options.view === "list" ? "secondary" : "ghost"}
-          size="icon-sm"
-          aria-label="List view"
-          aria-pressed={options.view === "list"}
-          onClick={() => onChange({ view: "list" })}
-        >
+        <Button variant={options.view === "list" ? "secondary" : "ghost"} size="icon-sm" aria-label="List view" aria-pressed={options.view === "list"} onClick={() => onChange({ view: "list" })}>
           <ListIcon />
         </Button>
-
-        <Button
-          variant={options.view === "grid" ? "secondary" : "ghost"}
-          size="icon-sm"
-          aria-label="Grid view"
-          aria-pressed={options.view === "grid"}
-          onClick={() => onChange({ view: "grid" })}
-        >
+        <Button variant={options.view === "grid" ? "secondary" : "ghost"} size="icon-sm" aria-label="Grid view" aria-pressed={options.view === "grid"} onClick={() => onChange({ view: "grid" })}>
           <LayoutGridIcon />
         </Button>
       </div>
@@ -64,7 +45,7 @@ export function DesktopBrowserControls({ options, onChange, onSortChange }: Cont
   )
 }
 
-export function DockBrowserControls({ options, onChange, onSortChange }: ControlsProps) {
+export function DockFileBrowserControls({ options, onChange, onSortChange }: ControlsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

@@ -53,6 +53,7 @@ export function PaginationTrigger({
 
     observer.observe(sentinel)
     return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failedKey, hasMore, loadKey, loading, mode])
 
   if (!hasMore) return null

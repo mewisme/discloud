@@ -1,5 +1,6 @@
 "use client"
 
+import { FileBrowserHeader } from "@discloud/app-ui/files/file-browser-header"
 import { UploadIcon } from "lucide-react"
 import { useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -9,7 +10,6 @@ import { useWorkspace } from "@/components/app/workspace-context"
 import { CreateFolderDialog } from "@/components/files/actions/create-folder-dialog"
 import { DockedFileBrowserToolbar, HorizontalFileBrowserToolbar } from "@/components/files/browser/file-browser-toolbar"
 import { FolderActionsMenu } from "@/components/files/browser/folder-actions-menu"
-import { CompactBreadcrumbs } from "@/components/navigation/compact-breadcrumbs"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
 import { Button } from "@/components/ui/button"
 import { useUploadTarget } from "@/components/uploads/upload-target"
@@ -56,6 +56,7 @@ export function FileBrowserChrome({
     id: item.id,
     label: item.isRoot ? `${workspace.name}'s workspace` : item.name,
     href: folderBrowserURL(workspace.username, item.isRoot ? undefined : item.id, options),
+    isRoot: item.isRoot,
   }))
 
   function changeSort(sort: BrowserSort) {
@@ -80,72 +81,52 @@ export function FileBrowserChrome({
     onPublicShare: () => setPublicShareOpen(true),
   }
 
+  const headerActions = (
+    <>
+      {toolbarConfig.variant === "inline" ? (
+        <div className="hidden items-center gap-2 sm:flex">
+          <HorizontalFileBrowserToolbar {...toolbarProps} />
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-end gap-2 sm:hidden">
+        {editable ? <CreateFolderDialog folder={folder} onReload={onReload} /> : null}
+
+        {editable && uploadTarget ? (
+          <Button size="icon-sm" variant="outline" aria-label="Upload files" onClick={uploadTarget.open}>
+            <UploadIcon />
+          </Button>
+        ) : null}
+
+        <FolderActionsMenu
+          folder={folder}
+          options={options}
+          canShare={shareable}
+          mobile
+          reloading={reloading}
+          onReload={onReload}
+          onAccess={() => setAccessOpen(true)}
+          onPublicShare={() => setPublicShareOpen(true)}
+          onOptionsChange={onOptionsChange}
+        />
+      </div>
+    </>
+  )
+
   return (
     <>
-      <CompactBreadcrumbs items={breadcrumbItems} onNavigate={(item) => onNavigate(item.id)} />
+      <FileBrowserHeader folder={folder} breadcrumbs={breadcrumbItems} itemCount={itemCount} hasMore={hasMore} actions={headerActions} onNavigate={(item) => onNavigate(item.id)} />
 
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{folder.isRoot ? "Files" : folder.name}</h1>
-          <p className="text-sm text-muted-foreground">{itemCount}{hasMore ? "+" : ""} items</p>
-        </div>
+      {toolbarConfig.variant === "dock"
+        ? <DockedFileBrowserToolbar {...toolbarProps} dockPosition={toolbarConfig.dockPosition} selectionActive={selectionActive} />
+        : null}
 
-        {toolbarConfig.variant === "inline" && (
-          <div className="hidden items-center gap-2 sm:flex">
-            <HorizontalFileBrowserToolbar {...toolbarProps} />
-          </div>
-        )}
-
-        <div className="flex items-center justify-end gap-2 sm:hidden">
-          {editable && <CreateFolderDialog folder={folder} onReload={onReload} />}
-
-          {editable && uploadTarget && (
-            <Button size="icon-sm" variant="outline" aria-label="Upload files" onClick={uploadTarget.open}>
-              <UploadIcon />
-            </Button>
-          )}
-
-          <FolderActionsMenu
-            folder={folder}
-            options={options}
-            canShare={shareable}
-            mobile
-            reloading={reloading}
-            onReload={onReload}
-            onAccess={() => setAccessOpen(true)}
-            onPublicShare={() => setPublicShareOpen(true)}
-            onOptionsChange={onOptionsChange}
-          />
-        </div>
-      </div>
-
-      {toolbarConfig.variant === "dock" && (
-        <DockedFileBrowserToolbar
-          {...toolbarProps}
-          dockPosition={toolbarConfig.dockPosition}
-          selectionActive={selectionActive}
-        />
-      )}
-
-      {shareable && (
+      {shareable ? (
         <>
-          <AccessDialog
-            resource={{ type: "folder", id: folder.id, name: folder.isRoot ? "Files" : folder.name }}
-            open={accessOpen}
-            onOpenChange={setAccessOpen}
-            trigger={null}
-          />
-
-          <PublicShareDialog
-            resourceType="folder"
-            resourceId={folder.id}
-            resourceName={folder.isRoot ? "Files" : folder.name}
-            open={publicShareOpen}
-            onOpenChange={setPublicShareOpen}
-            trigger={null}
-          />
+          <AccessDialog resource={{ type: "folder", id: folder.id, name: folder.isRoot ? "Files" : folder.name }} open={accessOpen} onOpenChange={setAccessOpen} trigger={null} />
+          <PublicShareDialog resourceType="folder" resourceId={folder.id} resourceName={folder.isRoot ? "Files" : folder.name} open={publicShareOpen} onOpenChange={setPublicShareOpen} trigger={null} />
         </>
-      )}
+      ) : null}
     </>
   )
 }

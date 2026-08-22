@@ -1,6 +1,5 @@
 "use client"
 
-import { Loader2Icon } from "lucide-react"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useShallow } from "zustand/react/shallow"
 

@@ -5,11 +5,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./auth/*": "./src/auth/*.tsx",
-    "./shell/app-header": "./src/shell/app-header.tsx",
-    "./shell/app-shell": "./src/shell/app-shell.tsx",
-    "./shell/app-sidebar": "./src/shell/app-sidebar.tsx",
-    "./shell/navigation": "./src/shell/navigation.ts"
+    "./auth/*": "./src/auth/ui/*.tsx",
+    "./files/file-browser": "./src/files/core/file-browser.ts",
+    "./files/*": "./src/files/ui/*.tsx",
+    "./shell/navigation": "./src/shell/core/navigation.ts",
+    "./shell/*": "./src/shell/ui/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

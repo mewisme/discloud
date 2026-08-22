@@ -1,11 +1,11 @@
 "use client"
 
+import { FileTypeIcon } from "@discloud/app-ui/files/file-node-visual"
 import { DownloadIcon, FolderIcon, HeartIcon, Share2Icon, StarIcon } from "lucide-react"
 import Link from "next/link"
 
 import { useWorkspace } from "@/components/app/workspace-context"
 import { DateTime } from "@/components/common/date-time"
-import { FileTypeIcon } from "@/components/files/file-type-icon"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import type { SearchResult } from "@/lib/api/models"

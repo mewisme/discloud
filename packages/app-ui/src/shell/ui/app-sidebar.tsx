@@ -1,50 +1,13 @@
 "use client"
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@discloud/ui/components/collapsible"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@discloud/ui/components/dropdown-menu"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarRail,
-  useSidebar,
-} from "@discloud/ui/components/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@discloud/ui/components/collapsible"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarRail, useSidebar } from "@discloud/ui/components/sidebar"
 import { ChevronRightIcon, LibraryIcon } from "lucide-react"
-import {
-  type ReactElement,
-  type ReactNode,
-  useEffect,
-  useState,
-} from "react"
-import {
-  type AppNavItem,
-  isAppNavItemActive,
-} from "./navigation"
+import { type ReactElement, type ReactNode, useEffect, useState } from "react"
+import { type AppNavItem, isAppNavItemActive } from "../core/navigation"
 
-export type AppLinkRenderer = (props: {
-  href: string
-  children: ReactNode
-  onNavigate?: () => void
-}) => ReactElement
+export type AppLinkRenderer = (props: { href: string; children: ReactNode; onNavigate?: () => void }) => ReactElement
 
 export function AppSidebarView({
   side = "left",
@@ -72,11 +35,7 @@ export function AppSidebarView({
   const submenuSide = side === "left" ? "right" : "left"
 
   return (
-    <Sidebar
-      side={side}
-      variant={variant}
-      collapsible={collapsible}
-    >
+    <Sidebar side={side} variant={variant} collapsible={collapsible}>
       {header ? <SidebarHeader>{header}</SidebarHeader> : null}
 
       <SidebarContent>
@@ -84,19 +43,8 @@ export function AppSidebarView({
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <AppNavItems
-                pathname={pathname}
-                items={primaryItems}
-                renderLink={renderLink}
-              />
-
-              <GroupedNavItem
-                title="Library"
-                items={libraryItems}
-                pathname={pathname}
-                dropdownSide={submenuSide}
-                renderLink={renderLink}
-              />
+              <AppNavItems pathname={pathname} items={primaryItems} renderLink={renderLink} />
+              <GroupedNavItem title="Library" items={libraryItems} pathname={pathname} dropdownSide={submenuSide} renderLink={renderLink} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -106,11 +54,7 @@ export function AppSidebarView({
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <AppNavItems
-                  pathname={pathname}
-                  items={administrationItems}
-                  renderLink={renderLink}
-                />
+                <AppNavItems pathname={pathname} items={administrationItems} renderLink={renderLink} />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -123,24 +67,12 @@ export function AppSidebarView({
   )
 }
 
-function AppNavItems({
-  pathname,
-  items,
-  renderLink,
-}: {
-  pathname: string
-  items: AppNavItem[]
-  renderLink: AppLinkRenderer
-}) {
+function AppNavItems({ pathname, items, renderLink }: { pathname: string; items: AppNavItem[]; renderLink: AppLinkRenderer }) {
   const { setOpenMobile } = useSidebar()
 
   return items.map((item) => (
     <SidebarMenuItem key={item.href}>
-      <SidebarMenuButton
-        asChild
-        isActive={isAppNavItemActive(pathname, item)}
-        tooltip={item.title}
-      >
+      <SidebarMenuButton asChild isActive={isAppNavItemActive(pathname, item)} tooltip={item.title}>
         {renderLink({
           href: item.href,
           onNavigate: () => setOpenMobile(false),
@@ -170,9 +102,7 @@ function GroupedNavItem({
   renderLink: AppLinkRenderer
 }) {
   const { state, isMobile, setOpenMobile } = useSidebar()
-  const active = items.some((item) =>
-    isAppNavItemActive(pathname, item),
-  )
+  const active = items.some((item) => isAppNavItemActive(pathname, item))
   const [open, setOpen] = useState(active)
 
   useEffect(() => {
@@ -184,21 +114,13 @@ function GroupedNavItem({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              isActive={active}
-              tooltip={title}
-            >
+            <SidebarMenuButton isActive={active} tooltip={title}>
               <LibraryIcon />
               <span>{title}</span>
             </SidebarMenuButton>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent
-            side={dropdownSide}
-            align="start"
-            sideOffset={8}
-            className="w-48"
-          >
+          <DropdownMenuContent side={dropdownSide} align="start" sideOffset={8} className="w-48">
             {items.map((item) => (
               <DropdownMenuItem key={item.href} asChild>
                 {renderLink({
@@ -220,17 +142,10 @@ function GroupedNavItem({
   }
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="group/collapsible"
-    >
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton
-            isActive={active}
-            tooltip={title}
-          >
+          <SidebarMenuButton isActive={active} tooltip={title}>
             <LibraryIcon />
             <span>{title}</span>
             <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
@@ -241,10 +156,7 @@ function GroupedNavItem({
           <SidebarMenuSub>
             {items.map((item) => (
               <SidebarMenuSubItem key={item.href}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={isAppNavItemActive(pathname, item)}
-                >
+                <SidebarMenuSubButton asChild isActive={isAppNavItemActive(pathname, item)}>
                   {renderLink({
                     href: item.href,
                     onNavigate: () => setOpenMobile(false),

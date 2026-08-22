@@ -1,6 +1,7 @@
+import { browserNodeSizeLabel, browserNodeType } from "@discloud/app-ui/files/file-browser"
+
 import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
-import { formatBytes } from "@/lib/helpers"
 
 export type BrowserItemsProps = {
   nodes: BrowserNode[]
@@ -22,20 +23,9 @@ export type BrowserItemsProps = {
   onReload: () => Promise<void>
 }
 
-export type BrowserItemsViewProps = BrowserItemsProps & {
-  parent?: Node
-}
+export type BrowserItemsViewProps = BrowserItemsProps & { parent?: Node }
 
-export function browserNodeType(node: BrowserNode) {
-  if (node.kind === "folder") return "Folder"
-  if (node.category) return node.category.charAt(0).toUpperCase() + node.category.slice(1)
-  return node.mimeType || "File"
-}
-
-export function browserNodeSizeLabel(node: BrowserNode) {
-  if (node.kind === "folder" || node.size == null) return "-"
-  return formatBytes(node.size)
-}
+export { browserNodeSizeLabel, browserNodeType }
 
 export function browserContextTargets(props: BrowserItemsProps, node: BrowserNode) {
   if (!props.selected.has(node.id)) return [node]

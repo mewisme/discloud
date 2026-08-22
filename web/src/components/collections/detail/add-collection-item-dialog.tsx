@@ -1,11 +1,11 @@
 "use client"
 
+import { FileTypeIcon } from "@discloud/app-ui/files/file-node-visual"
 import { FilePlusIcon, Loader2Icon, SearchIcon } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { useWorkspace } from "@/components/app/workspace-context"
-import { FileTypeIcon } from "@/components/files/file-type-icon"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
