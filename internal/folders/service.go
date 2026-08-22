@@ -16,11 +16,17 @@ import (
 var (
 	ErrNotFound         = errors.New("folder not found")
 	ErrArchiveInvariant = errors.New("folder archive invariant violated")
+	ErrArchiveTooLarge  = errors.New("folder archive exceeds resource limits")
 )
 
 type Actor struct {
 	UserID string
 	Admin  bool
+}
+
+type ArchiveLimits struct {
+	MaxEntries int
+	MaxBytes   int64
 }
 
 type ArchiveEntry struct {
@@ -32,8 +38,9 @@ type ArchiveEntry struct {
 }
 
 type Archive struct {
-	Filename string
-	Entries  []ArchiveEntry
+	Filename  string
+	Entries   []ArchiveEntry
+	NodeCount int
 }
 
 type fileOpener interface {
@@ -83,6 +90,90 @@ func (s *Service) PrepareArchive(ctx context.Context, actor Actor, folderID stri
 // PrepareArchiveStored skips ACL; caller must authorize another access context first.
 func (s *Service) PrepareArchiveStored(ctx context.Context, folderID string) (Archive, error) {
 	return s.prepareArchive(ctx, folderID)
+}
+
+// PrepareArchiveStoredLimited skips ACL and enforces bounded archive work.
+// The caller must authorize another access context first.
+func (s *Service) PrepareArchiveStoredLimited(ctx context.Context, folderID string, limits ArchiveLimits) (Archive, error) {
+	if err := validateArchiveLimits(limits); err != nil {
+		return Archive{}, err
+	}
+	if err := s.checkArchiveLimits(ctx, folderID, limits); err != nil {
+		return Archive{}, err
+	}
+
+	archive, err := s.prepareArchive(ctx, folderID)
+	if err != nil {
+		return Archive{}, err
+	}
+	if err := validatePreparedArchiveLimits(archive, limits); err != nil {
+		return Archive{}, err
+	}
+	return archive, nil
+}
+
+func (s *Service) checkArchiveLimits(ctx context.Context, folderID string, limits ArchiveLimits) error {
+	rows, err := s.pool.Query(ctx, `
+		WITH RECURSIVE tree AS (
+			SELECT id, kind
+			FROM nodes
+			WHERE id = $1::uuid
+			  AND kind = 'folder'
+			  AND deleted_at IS NULL
+
+			UNION ALL
+
+			SELECT n.id, n.kind
+			FROM nodes n
+			JOIN tree ON n.parent_id = tree.id
+			WHERE n.deleted_at IS NULL
+		)
+		SELECT tree.kind, f.size_bytes
+		FROM tree
+		LEFT JOIN files f ON f.node_id = tree.id
+		LIMIT $2
+	`, folderID, limits.MaxEntries+1)
+	if err != nil {
+		return fmt.Errorf("check folder archive limits: %w", err)
+	}
+	defer rows.Close()
+
+	count := 0
+	var totalBytes int64
+
+	for rows.Next() {
+		var (
+			kind string
+			size *int64
+		)
+		if err := rows.Scan(&kind, &size); err != nil {
+			return fmt.Errorf("scan folder archive limits: %w", err)
+		}
+
+		count++
+		if count > limits.MaxEntries {
+			return ErrArchiveTooLarge
+		}
+
+		if kind != "file" {
+			continue
+		}
+		if size == nil || *size < 0 {
+			return ErrArchiveInvariant
+		}
+		if *size > limits.MaxBytes-totalBytes {
+			return ErrArchiveTooLarge
+		}
+		totalBytes += *size
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read folder archive limits: %w", err)
+	}
+	if count == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Service) prepareArchive(ctx context.Context, folderID string) (Archive, error) {
@@ -164,8 +255,9 @@ func buildArchive(nodes []treeNode) (Archive, error) {
 	}
 
 	archive := Archive{
-		Filename: filename,
-		Entries:  make([]ArchiveEntry, 0, len(nodes)),
+		Filename:  filename,
+		Entries:   make([]ArchiveEntry, 0, len(nodes)),
+		NodeCount: len(nodes),
 	}
 	paths := map[string]string{root.ID: base}
 	used := make(map[string]map[string]struct{})
@@ -217,4 +309,38 @@ func buildArchive(nodes []treeNode) (Archive, error) {
 	}
 
 	return archive, nil
+}
+
+func validateArchiveLimits(limits ArchiveLimits) error {
+	if limits.MaxEntries < 1 || limits.MaxBytes < 0 {
+		return ErrArchiveInvariant
+	}
+	return nil
+}
+
+func validatePreparedArchiveLimits(archive Archive, limits ArchiveLimits) error {
+	if err := validateArchiveLimits(limits); err != nil {
+		return err
+	}
+	if archive.NodeCount < 1 {
+		return ErrArchiveInvariant
+	}
+	if archive.NodeCount > limits.MaxEntries {
+		return ErrArchiveTooLarge
+	}
+
+	var totalBytes int64
+	for _, entry := range archive.Entries {
+		if entry.Kind != "file" {
+			continue
+		}
+		if entry.SizeBytes < 0 {
+			return ErrArchiveInvariant
+		}
+		if entry.SizeBytes > limits.MaxBytes-totalBytes {
+			return ErrArchiveTooLarge
+		}
+		totalBytes += entry.SizeBytes
+	}
+	return nil
 }

@@ -44,12 +44,11 @@ type uploadSessionResponse struct {
 }
 
 type uploadPartResponse struct {
-	PartIndex    int       `json:"partIndex"`
-	ChunkID      string    `json:"chunkId"`
-	Size         int64     `json:"size"`
-	SHA256       string    `json:"sha256"`
-	Deduplicated bool      `json:"deduplicated,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	PartIndex int       `json:"partIndex"`
+	ChunkID   string    `json:"chunkId"`
+	Size      int64     `json:"size"`
+	SHA256    string    `json:"sha256"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type completedFileResponse struct {
@@ -137,11 +136,8 @@ func registerUploadRoutes(mux *http.ServeMux, service *uploads.Service, uploader
 			return
 		}
 
-		response := uploadPartJSON(result.Part)
-		response.Deduplicated = result.Deduplicated
-
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(uploadPartJSON(result.Part))
 	})
 
 	protected("POST /api/v1/uploads/{uploadId}/complete", func(w http.ResponseWriter, r *http.Request) {

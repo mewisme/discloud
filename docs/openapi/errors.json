@@ -9,14 +9,14 @@
     "404":"The requested resource is unavailable, inaccessible, or not found.",
     "409":"The request conflicts with current resource state, quota, naming, or lifecycle state.",
     "410":"The upload session has expired.",
-    "413":"The supplied request body exceeds the allowed size.",
+    "413":"The request or generated resource exceeds the allowed size or processing limit.",
     "415":"The supplied media type or media content is unsupported.",
     "416":"The requested byte range cannot be satisfied.",
     "422":"Supplied content does not match its declared SHA-256 digest.",
     "429":"Too many requests were made within the allowed authentication rate.",
     "500":"An internal backend, authentication, persistence, or invariant failure occurred.",
     "502":"Discord storage returned an unusable upstream response.",
-    "503":"The service, upload capacity, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
+    "503":"The service, upload or public-download capacity, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
   },
   "operations":{
     "health":[],
@@ -129,7 +129,7 @@
     "streamPublicFile":[400,404,416,500,502,503],
     "downloadPublicFile":[400,404,416,500,502,503],
     "getPublicFolder":[404,500],
-    "downloadPublicFolder":[404,500],
+    "downloadPublicFolder":[404,413,500,503],
     "listPublicCollectionItems":[404,500],
     "search":[400,401,403,500]
   }

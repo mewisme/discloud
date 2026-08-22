@@ -36,10 +36,46 @@ func TestBuildArchiveSanitizesAndDeduplicates(t *testing.T) {
 	if len(archive.Entries) != len(want) {
 		t.Fatalf("entries = %d, want %d", len(archive.Entries), len(want))
 	}
+	if archive.NodeCount != 3 {
+		t.Fatalf("node count = %d, want 3", archive.NodeCount)
+	}
 	for i, path := range want {
 		if archive.Entries[i].Path != path {
 			t.Fatalf("entry %d = %q, want %q", i, archive.Entries[i].Path, path)
 		}
+	}
+}
+
+func TestValidatePreparedArchiveLimits(t *testing.T) {
+	archive := Archive{
+		Filename:  "Docs.zip",
+		NodeCount: 3,
+		Entries: []ArchiveEntry{
+			{NodeID: "root", Path: "Docs", Kind: "folder"},
+			{NodeID: "a", Path: "Docs/a.bin", Kind: "file", SizeBytes: 40},
+			{NodeID: "b", Path: "Docs/b.bin", Kind: "file", SizeBytes: 60},
+		},
+	}
+
+	if err := validatePreparedArchiveLimits(archive, ArchiveLimits{
+		MaxEntries: 3,
+		MaxBytes:   100,
+	}); err != nil {
+		t.Fatalf("exact archive limits: %v", err)
+	}
+
+	if err := validatePreparedArchiveLimits(archive, ArchiveLimits{
+		MaxEntries: 2,
+		MaxBytes:   100,
+	}); !errors.Is(err, ErrArchiveTooLarge) {
+		t.Fatalf("entry limit error = %v, want ErrArchiveTooLarge", err)
+	}
+
+	if err := validatePreparedArchiveLimits(archive, ArchiveLimits{
+		MaxEntries: 3,
+		MaxBytes:   99,
+	}); !errors.Is(err, ErrArchiveTooLarge) {
+		t.Fatalf("byte limit error = %v, want ErrArchiveTooLarge", err)
 	}
 }
 

@@ -123,6 +123,8 @@ func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authServic
 }
 
 func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service, fileService *files.Service, folderService *folders.Service) {
+	resources := newPublicShareResources()
+
 	resolve := func(w http.ResponseWriter, r *http.Request) {
 		writePublicShare(w, r, shareService, fileService, r.PathValue("publicId"))
 	}
@@ -131,17 +133,17 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}", resolve)
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/content", func(w http.ResponseWriter, r *http.Request) {
-		servePublicFile(w, r, shareService, fileService, "", false)
+		servePublicFile(w, r, shareService, fileService, resources, "", false)
 	})
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/download", func(w http.ResponseWriter, r *http.Request) {
-		servePublicFile(w, r, shareService, fileService, "", true)
+		servePublicFile(w, r, shareService, fileService, resources, "", true)
 	})
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/files/{fileId}/content", func(w http.ResponseWriter, r *http.Request) {
-		servePublicFile(w, r, shareService, fileService, r.PathValue("fileId"), false)
+		servePublicFile(w, r, shareService, fileService, resources, r.PathValue("fileId"), false)
 	})
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/files/{fileId}/download", func(w http.ResponseWriter, r *http.Request) {
-		servePublicFile(w, r, shareService, fileService, r.PathValue("fileId"), true)
+		servePublicFile(w, r, shareService, fileService, resources, r.PathValue("fileId"), true)
 	})
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/folders/{folderId}", func(w http.ResponseWriter, r *http.Request) {
@@ -170,12 +172,22 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 			return
 		}
 
-		archive, err := folderService.PrepareArchiveStored(r.Context(), folderID)
-		if errors.Is(err, folders.ErrNotFound) {
-			WriteProblem(w, r, http.StatusNotFound, "Not Found", "public resource not found")
+		release, ok := resources.tryAcquireArchive()
+		if !ok {
+			writePublicShareCapacityExceeded(w, r)
 			return
 		}
-		if err != nil {
+		defer release()
+
+		archive, err := folderService.PrepareArchiveStoredLimited(r.Context(), folderID, publicFolderArchiveLimits())
+		switch {
+		case errors.Is(err, folders.ErrNotFound):
+			WriteProblem(w, r, http.StatusNotFound, "Not Found", "public resource not found")
+			return
+		case errors.Is(err, folders.ErrArchiveTooLarge):
+			WriteProblem(w, r, http.StatusRequestEntityTooLarge, "Content Too Large", "public folder archive exceeds the download limits")
+			return
+		case err != nil:
 			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not prepare public archive")
 			return
 		}
@@ -259,7 +271,7 @@ func writePublicShare(w http.ResponseWriter, r *http.Request, shareService *shar
 	_ = json.NewEncoder(w).Encode(response)
 }
 
-func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *shares.Service, fileService *files.Service, fileID string, download bool) {
+func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *shares.Service, fileService *files.Service, resources *publicShareResources, fileID string, download bool) {
 	share, err := shareService.Resolve(r.Context(), r.PathValue("publicId"))
 	if writePublicShareError(w, r, err) {
 		return
@@ -300,6 +312,13 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *share
 		start, length, status = byteRange.Start, byteRange.Length(), http.StatusPartialContent
 	}
 
+	release, ok := resources.tryAcquireFile()
+	if !ok {
+		writePublicShareCapacityExceeded(w, r)
+		return
+	}
+	defer release()
+
 	_, reader, err := fileService.OpenStored(r.Context(), fileID, start, length)
 	if writeFileError(w, r, err) {
 		return
@@ -316,6 +335,11 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *share
 		return
 	}
 	_, _ = io.Copy(w, reader)
+}
+
+func writePublicShareCapacityExceeded(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", "1")
+	WriteProblem(w, r, http.StatusServiceUnavailable, "Service Unavailable", "public download capacity is temporarily exhausted")
 }
 
 func shareActor(r *http.Request) shares.Actor {

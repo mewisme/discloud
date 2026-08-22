@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/mewisme/discloud/internal/uploads"
@@ -55,5 +57,16 @@ func TestUploadSessionJSONClampsRecommendedPartConcurrency(t *testing.T) {
 			"RecommendedPartConcurrency = %d, want 1",
 			response.RecommendedPartConcurrency,
 		)
+	}
+}
+
+func TestUploadPartJSONDoesNotExposeDeduplicationState(t *testing.T) {
+	data, err := json.Marshal(uploadPartJSON(uploads.Part{}))
+	if err != nil {
+		t.Fatalf("marshal upload part: %v", err)
+	}
+
+	if strings.Contains(string(data), "deduplicated") {
+		t.Fatalf("upload part response leaks deduplication state: %s", data)
 	}
 }
