@@ -10,6 +10,9 @@ importers:
 
   desktop:
     dependencies:
+      '@discloud/api':
+        specifier: workspace:*
+        version: link:../packages/api
       '@discloud/ui':
         specifier: workspace:*
         version: link:../packages/ui
@@ -23,7 +26,7 @@ importers:
         specifier: ^2.11.1
         version: 2.11.1
       '@tauri-apps/plugin-store':
-        specifier: ~2.4.4
+        specifier: ^2.4.4
         version: 2.4.4
       lucide-react:
         specifier: ^1.32.0
@@ -62,6 +65,15 @@ importers:
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@20.19.43)(jiti@2.7.0)
+
+  packages/api:
+    devDependencies:
+      openapi-typescript:
+        specifier: ^7.13.0
+        version: 7.13.0(typescript@5.9.3)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
   packages/ui:
     dependencies:
@@ -147,6 +159,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.7.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@discloud/api':
+        specifier: workspace:*
+        version: link:../packages/api
       '@discloud/ui':
         specifier: workspace:*
         version: link:../packages/ui
@@ -262,9 +277,6 @@ importers:
       eslint-plugin-simple-import-sort:
         specifier: ^14.0.0
         version: 14.0.0(eslint@9.39.5(jiti@2.7.0)(supports-color@10.2.2))
-      openapi-typescript:
-        specifier: ^7.13.0
-        version: 7.13.0(typescript@5.9.3)
       tailwindcss:
         specifier: ^4
         version: 4.3.3

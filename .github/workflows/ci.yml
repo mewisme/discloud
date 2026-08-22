@@ -123,19 +123,80 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check API contracts
-        run: pnpm --filter @discloud/web api:types:check
+        run: pnpm api:types:check
+
+      - name: Type check API package
+        run: pnpm api:typecheck
+
+      - name: Type check UI package
+        run: pnpm ui:typecheck
+
+      - name: Type check desktop
+        run: pnpm desktop:typecheck
+
+      - name: Build desktop frontend
+        run: pnpm desktop:build
 
       - name: Generate Next.js types
         run: pnpm --filter @discloud/web typegen
 
-      - name: Lint
-        run: pnpm --filter @discloud/web lint
+      - name: Lint web
+        run: pnpm web:lint
 
-      - name: Type check
-        run: pnpm --filter @discloud/web typecheck
+      - name: Type check web
+        run: pnpm web:typecheck
 
-      - name: Build
-        run: pnpm --filter @discloud/web build
+      - name: Test web
+        run: pnpm web:test
+
+      - name: Build web
+        run: pnpm web:build
 
       - name: Build local container
         run: docker build --pull --file web/Dockerfile --tag dcfe:test .
+
+  desktop-rust:
+    name: Desktop Rust
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: desktop/src-tauri
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+        working-directory: .
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Check
+        run: cargo check --locked
+
+      - name: Test
+        run: cargo test --locked

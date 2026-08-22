@@ -15,6 +15,9 @@
     "desktop:build": "pnpm --filter @discloud/desktop build",
     "desktop:typecheck": "pnpm --filter @discloud/desktop typecheck",
     "desktop:tauri": "pnpm --filter @discloud/desktop tauri",
+    "api:types": "pnpm --filter @discloud/api api:types",
+    "api:types:check": "pnpm --filter @discloud/api api:types:check",
+    "api:typecheck": "pnpm --filter @discloud/api typecheck",
     "ui:typecheck": "pnpm --filter @discloud/ui typecheck"
   }
 }

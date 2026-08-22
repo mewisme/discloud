@@ -12,8 +12,9 @@ import { Cloud, LoaderCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ServerConnectionScreen } from "#components/server-connection"
 import {
+  connectServer,
+  disconnectServer,
   errorMessage,
-  probeServer,
   type ServerConnection,
 } from "#lib/instance"
 import { loadServerUrl } from "#lib/settings"
@@ -48,7 +49,7 @@ export function App() {
         }
 
         try {
-          const connection = await probeServer(serverUrl)
+          const connection = await connectServer(serverUrl)
 
           if (!cancelled) {
             setState({ status: "connected", connection })
@@ -98,12 +99,13 @@ export function App() {
   return (
     <ConnectedScreen
       connection={state.connection}
-      onChangeServer={() =>
+      onChangeServer={() => {
+        void disconnectServer()
         setState({
           status: "disconnected",
           serverUrl: state.connection.serverUrl,
         })
-      }
+      }}
     />
   )
 }
@@ -133,7 +135,6 @@ function ConnectedScreen({
           <div className="grid size-11 place-items-center rounded-xl border bg-background shadow-sm">
             <Cloud className="size-5" />
           </div>
-
           <div>
             <div className="text-lg font-semibold tracking-tight">DisCloud</div>
             <div className="text-sm text-muted-foreground">
@@ -151,7 +152,6 @@ function ConnectedScreen({
                   {connection.serverUrl}
                 </CardDescription>
               </div>
-
               <Badge variant="secondary">Connected</Badge>
             </div>
           </CardHeader>

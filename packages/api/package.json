@@ -1,0 +1,23 @@
+{
+  "name": "@discloud/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./generated": "./src/generated.ts",
+    "./contracts": "./src/contracts.ts",
+    "./models": "./src/models.ts",
+    "./transport": "./src/transport.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "api:types": "openapi-typescript ../../docs/openapi.json -o src/generated.ts --export-type --immutable --alphabetize",
+    "api:types:check": "openapi-typescript ../../docs/openapi.json -o src/generated.ts --export-type --immutable --alphabetize --check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5"
+  }
+}

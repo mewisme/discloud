@@ -13,6 +13,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/package.json
+COPY packages/api/package.json ./packages/api/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \

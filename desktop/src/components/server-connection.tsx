@@ -16,8 +16,8 @@ import { Input } from "@discloud/ui/components/input"
 import { Cloud, LoaderCircle } from "lucide-react"
 import { type FormEvent, useState } from "react"
 import {
+  connectServer,
   errorMessage,
-  probeServer,
   type ServerConnection,
 } from "#lib/instance"
 import { saveServerUrl } from "#lib/settings"
@@ -46,7 +46,7 @@ export function ServerConnectionScreen({
     setError(undefined)
 
     try {
-      const connection = await probeServer(serverUrl)
+      const connection = await connectServer(serverUrl)
 
       await saveServerUrl(connection.serverUrl)
       setServerUrl(connection.serverUrl)
@@ -65,7 +65,6 @@ export function ServerConnectionScreen({
           <div className="grid size-11 place-items-center rounded-xl border bg-background shadow-sm">
             <Cloud className="size-5" />
           </div>
-
           <div>
             <div className="text-lg font-semibold tracking-tight">DisCloud</div>
             <div className="text-sm text-muted-foreground">
@@ -86,7 +85,6 @@ export function ServerConnectionScreen({
             <form className="flex flex-col gap-4" onSubmit={connect}>
               <Field data-invalid={!!error}>
                 <FieldLabel htmlFor="server-url">Server</FieldLabel>
-
                 <Input
                   id="server-url"
                   type="text"
@@ -101,11 +99,9 @@ export function ServerConnectionScreen({
                   disabled={connecting}
                   onChange={(event) => setServerUrl(event.target.value)}
                 />
-
                 <FieldDescription>
                   HTTPS is used automatically when no protocol is specified.
                 </FieldDescription>
-
                 {error ? <FieldError>{error}</FieldError> : null}
               </Field>
 
@@ -116,10 +112,7 @@ export function ServerConnectionScreen({
               >
                 {connecting ? (
                   <>
-                    <LoaderCircle
-                      data-icon="inline-start"
-                      className="animate-spin"
-                    />
+                    <LoaderCircle data-icon="inline-start" className="animate-spin" />
                     Connecting
                   </>
                 ) : (
