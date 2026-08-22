@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation"
 
 import { useWorkspace } from "@/components/app/workspace-context"
 import { NodeActionsMenu } from "@/components/files/actions/node-actions-menu"
-import { browserContextTargets, type BrowserItemsViewProps, browserNodeType } from "@/components/files/browser/file-browser-item-shared"
+import { browserContextTargets, type BrowserItemsViewProps, browserNodeSizeLabel, browserNodeType } from "@/components/files/browser/file-browser-item-shared"
 import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
 import { FileNodeVisual } from "@/components/files/file-node-visual"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { BrowserNode } from "@/lib/api/models"
 import { fileBrowserPath, folderBrowserURL } from "@/lib/files/navigation"
-import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
+import { handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
 
 export function FileBrowserGrid(props: BrowserItemsViewProps) {
   const router = useRouter()
@@ -104,7 +104,7 @@ export function FileBrowserGrid(props: BrowserItemsViewProps) {
               </div>
 
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                {node.size != null ? `${browserNodeType(node)} · ${formatBytes(node.size)}` : browserNodeType(node)}
+                {browserNodeType(node)} · {browserNodeSizeLabel(node)}
               </p>
             </div>
           </div>

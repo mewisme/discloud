@@ -1,5 +1,6 @@
 import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
+import { formatBytes } from "@/lib/helpers"
 
 export type BrowserItemsProps = {
   nodes: BrowserNode[]
@@ -29,6 +30,11 @@ export function browserNodeType(node: BrowserNode) {
   if (node.kind === "folder") return "Folder"
   if (node.category) return node.category.charAt(0).toUpperCase() + node.category.slice(1)
   return node.mimeType || "File"
+}
+
+export function browserNodeSizeLabel(node: BrowserNode) {
+  if (node.kind === "folder" || node.size == null) return "-"
+  return formatBytes(node.size)
 }
 
 export function browserContextTargets(props: BrowserItemsProps, node: BrowserNode) {

@@ -7,14 +7,14 @@ import { useRouter } from "next/navigation"
 import { useWorkspace } from "@/components/app/workspace-context"
 import { DateOnly } from "@/components/common/date-time"
 import { NodeActionsMenu } from "@/components/files/actions/node-actions-menu"
-import { browserContextTargets, type BrowserItemsViewProps, browserNodeType } from "@/components/files/browser/file-browser-item-shared"
+import { browserContextTargets, type BrowserItemsViewProps, browserNodeSizeLabel, browserNodeType } from "@/components/files/browser/file-browser-item-shared"
 import { FileNodeContextMenu } from "@/components/files/file-node-context-menu"
 import { FileNodeVisual } from "@/components/files/file-node-visual"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { BrowserNode } from "@/lib/api/models"
 import { fileBrowserPath, folderBrowserURL } from "@/lib/files/navigation"
-import { formatBytes, handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
+import { handleClientNavigation, isInteractiveTarget } from "@/lib/helpers"
 
 export function FileBrowserList(props: BrowserItemsViewProps) {
   const router = useRouter()
@@ -120,7 +120,7 @@ export function FileBrowserList(props: BrowserItemsViewProps) {
                 </TableCell>
 
                 <TableCell className="hidden text-muted-foreground md:table-cell">{browserNodeType(node)}</TableCell>
-                <TableCell className="hidden text-muted-foreground sm:table-cell">{node.size != null ? formatBytes(node.size) : "—"}</TableCell>
+                <TableCell className="hidden text-muted-foreground sm:table-cell">{browserNodeSizeLabel(node)}</TableCell>
                 <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}>
                   <DateOnly value={node.updatedAt} />
                 </TableCell>

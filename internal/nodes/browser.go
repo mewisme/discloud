@@ -88,13 +88,14 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 		return nil, false, acl.None, ErrNotFolder
 	}
 
-	sizeExpr := "COALESCE(folder_sizes.size_bytes, 0)"
+	sizeExpr := "CASE WHEN n.kind = 'file' THEN f.size_bytes END"
+	sizeSortExpr := "COALESCE(f.size_bytes, 0)"
 	sortExpr := "n.name_key"
 	switch options.Sort {
 	case BrowserSortUpdated:
 		sortExpr = "n.updated_at"
 	case BrowserSortSize:
-		sortExpr = sizeExpr
+		sortExpr = sizeSortExpr
 	}
 
 	operator, direction := ">", "ASC"
@@ -104,31 +105,6 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 
 	args := []any{parent.ID, options.Limit + 1, actor.UserID}
 	query := `
-		WITH RECURSIVE descendants AS (
-			SELECT
-				child.id,
-				child.id AS root_id
-			FROM nodes child
-			WHERE child.parent_id = $1::uuid
-			  AND child.deleted_at IS NULL
-
-			UNION ALL
-
-			SELECT
-				child.id,
-				descendants.root_id
-			FROM nodes child
-			JOIN descendants ON child.parent_id = descendants.id
-			WHERE child.deleted_at IS NULL
-		),
-		folder_sizes AS (
-			SELECT
-				descendants.root_id,
-				COALESCE(SUM(descendant_file.size_bytes), 0)::bigint AS size_bytes
-			FROM descendants
-			LEFT JOIN files descendant_file ON descendant_file.node_id = descendants.id
-			GROUP BY descendants.root_id
-		)
 		SELECT
 			n.id::text,
 			n.kind,
@@ -148,7 +124,6 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			COALESCE(fp.level, '')
 		FROM nodes n
 		LEFT JOIN files f ON f.node_id = n.id
-		LEFT JOIN folder_sizes ON folder_sizes.root_id = n.id
 		LEFT JOIN file_thumbnails ft
 		  ON ft.file_id = n.id
 		 AND ft.variant = 'grid'
@@ -168,7 +143,7 @@ func (s *Service) ListBrowserChildren(ctx context.Context, actor Actor, parentID
 			query += fmt.Sprintf("\n AND (n.updated_at, n.name_key, n.id) %s ($4::timestamptz, $5, $6::uuid)", operator)
 			args = append(args, options.AfterValue, options.AfterNameKey, options.AfterID)
 		case BrowserSortSize:
-			query += fmt.Sprintf("\n AND (%s, n.name_key, n.id) %s ($4::bigint, $5, $6::uuid)", sizeExpr, operator)
+			query += fmt.Sprintf("\n AND (%s, n.name_key, n.id) %s ($4::bigint, $5, $6::uuid)", sizeSortExpr, operator)
 			args = append(args, options.AfterValue, options.AfterNameKey, options.AfterID)
 		}
 	}
