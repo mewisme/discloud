@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react"
 import { useStore } from "zustand"
 import { useShallow } from "zustand/react/shallow"
 import { createStore } from "zustand/vanilla"
@@ -215,15 +216,11 @@ export function resetUploadStore() {
 }
 
 export function useUploadTasks() {
-  useStore(
-    uploadStore,
-    useShallow((state) => [
-      state.tasksVersion,
-      state.progressVersion,
-    ] as const),
+  return useSyncExternalStore(
+    uploadStore.subscribe,
+    getUploadTasksSnapshot,
+    getUploadTasksSnapshot,
   )
-
-  return getUploadTasksSnapshot()
 }
 
 export function useUploadDockState() {
