@@ -8,6 +8,7 @@
     "./auth/*": "./src/auth/ui/*.tsx",
     "./files/file-browser": "./src/files/core/file-browser.ts",
     "./files/*": "./src/files/ui/*.tsx",
+    "./settings/*": "./src/settings/ui/*.tsx",
     "./shell/navigation": "./src/shell/core/navigation.ts",
     "./shell/*": "./src/shell/ui/*.tsx"
   },

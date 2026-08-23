@@ -1,19 +1,12 @@
 "use client"
 
+import { DateTimeSettings, FileBrowserSettings, FilePreviewSettings, type PaginationMode, PaginationSettings, SettingsSaveBar, type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant, ThemeSettings, type ToolbarDockPosition, type ToolbarVariant } from "@discloud/app-ui/settings/common-settings"
 import type { ThemeEffect } from "@discloud/shared/theme-transition"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 
-import { DateTimeSettings } from "@/components/settings/common/date-time-settings"
-import { FileBrowserSettings } from "@/components/settings/common/file-browser-settings"
-import { FilePreviewSettings } from "@/components/settings/common/file-preview-settings"
-import { type PaginationMode, PaginationSettings } from "@/components/settings/common/pagination-settings"
-import { SettingsSaveBar } from "@/components/settings/common/settings-save-bar"
-import { type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant } from "@/components/settings/common/sidebar-settings"
-import { ThemeSettings } from "@/components/settings/common/theme-settings"
-import type { ToolbarDockPosition, ToolbarVariant } from "@/components/settings/common/toolbar-preview"
 import { useSetUserConfig, useUserConfigSelector } from "@/components/settings/user-config-context"
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
@@ -69,18 +62,7 @@ export function CommonSettings() {
     setSidebarSide(stored.sidebarSide)
     setSidebarVariant(stored.sidebarVariant)
     setSidebarCollapsible(stored.sidebarCollapsible)
-  }, [
-    stored.timezone,
-    stored.themeEffect,
-    stored.themeCustomCSS,
-    stored.toolbarVariant,
-    stored.toolbarDockPosition,
-    stored.paginationMode,
-    stored.previewPreloadNext,
-    stored.sidebarSide,
-    stored.sidebarVariant,
-    stored.sidebarCollapsible,
-  ])
+  }, [stored.timezone, stored.themeEffect, stored.themeCustomCSS, stored.toolbarVariant, stored.toolbarDockPosition, stored.paginationMode, stored.previewPreloadNext, stored.sidebarSide, stored.sidebarVariant, stored.sidebarCollapsible])
 
   async function save() {
     setPending(true)
@@ -88,34 +70,14 @@ export function CommonSettings() {
     try {
       const input = {
         timezone,
-        theme: {
-          effect: themeEffect,
-          custom: {
-            css: themeCustomCSS,
-          },
-        },
-        fileBrowserToolbar: {
-          variant: toolbarVariant,
-          dockPosition: toolbarDockPosition,
-        },
-        pagination: {
-          mode: paginationMode,
-        },
-        filePreview: {
-          preloadNext: previewPreloadNext,
-        },
-        sidebar: {
-          side: sidebarSide,
-          variant: sidebarVariant,
-          collapsible: sidebarCollapsible,
-        },
+        theme: { effect: themeEffect, custom: { css: themeCustomCSS } },
+        fileBrowserToolbar: { variant: toolbarVariant, dockPosition: toolbarDockPosition },
+        pagination: { mode: paginationMode },
+        filePreview: { preloadNext: previewPreloadNext },
+        sidebar: { side: sidebarSide, variant: sidebarVariant, collapsible: sidebarCollapsible },
       } satisfies UpdateCommonConfigInput
 
-      const next = await apiJSON<UserConfig>("/me/config/common", {
-        method: "PUT",
-        body: input,
-      })
-
+      const next = await apiJSON<UserConfig>("/me/config/common", { method: "PUT", body: input })
       setConfig(next)
       toast.success("Common settings updated")
       router.refresh()
@@ -128,49 +90,13 @@ export function CommonSettings() {
 
   return (
     <div className="min-w-0 space-y-6">
-      <ThemeSettings
-        effect={themeEffect}
-        customCSS={themeCustomCSS}
-        onEffectChange={setThemeEffect}
-        onCustomCSSChange={setThemeCustomCSS}
-      />
-
-      <SidebarSettings
-        side={sidebarSide}
-        variant={sidebarVariant}
-        collapsible={sidebarCollapsible}
-        onSideChange={setSidebarSide}
-        onVariantChange={setSidebarVariant}
-        onCollapsibleChange={setSidebarCollapsible}
-      />
-
-      <FileBrowserSettings
-        toolbarVariant={toolbarVariant}
-        toolbarDockPosition={toolbarDockPosition}
-        onVariantChange={setToolbarVariant}
-        onDockPositionChange={setToolbarDockPosition}
-      />
-
-      <PaginationSettings
-        mode={paginationMode}
-        onModeChange={setPaginationMode}
-      />
-
-      <FilePreviewSettings
-        preloadNext={previewPreloadNext}
-        onPreloadNextChange={setPreviewPreloadNext}
-      />
-
-      <DateTimeSettings
-        timezone={timezone}
-        onTimezoneChange={setTimezone}
-      />
-
-      <SettingsSaveBar
-        dirty={dirty}
-        pending={pending}
-        onSave={() => void save()}
-      />
+      <ThemeSettings effect={themeEffect} customCSS={themeCustomCSS} onEffectChange={setThemeEffect} onCustomCSSChange={setThemeCustomCSS} />
+      <SidebarSettings side={sidebarSide} variant={sidebarVariant} collapsible={sidebarCollapsible} onSideChange={setSidebarSide} onVariantChange={setSidebarVariant} onCollapsibleChange={setSidebarCollapsible} />
+      <FileBrowserSettings toolbarVariant={toolbarVariant} toolbarDockPosition={toolbarDockPosition} onVariantChange={setToolbarVariant} onDockPositionChange={setToolbarDockPosition} />
+      <PaginationSettings mode={paginationMode} onModeChange={setPaginationMode} />
+      <FilePreviewSettings preloadNext={previewPreloadNext} onPreloadNextChange={setPreviewPreloadNext} />
+      <DateTimeSettings timezone={timezone} onTimezoneChange={setTimezone} />
+      <SettingsSaveBar dirty={dirty} pending={pending} onSave={() => void save()} />
     </div>
   )
 }
