@@ -1,7 +1,6 @@
+import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
+import { Button } from "@discloud/ui/components/button"
 import { CheckIcon, ClipboardIcon, DownloadIcon, KeyRoundIcon } from "lucide-react"
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 
 export function RecoveryCodes({
   codes,

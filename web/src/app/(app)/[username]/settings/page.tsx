@@ -1,8 +1,8 @@
+import { Card, CardContent } from "@discloud/ui/components/card"
 import { ChevronRightIcon, Settings2Icon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 
-import { Card, CardContent } from "@/components/ui/card"
 import { workspacePath } from "@/lib/workspace/navigation"
 
 export const metadata: Metadata = {

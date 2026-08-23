@@ -1,5 +1,9 @@
 "use client"
 
+import { Badge } from "@discloud/ui/components/badge"
+import { Field, FieldLabel } from "@discloud/ui/components/field"
+import { Input } from "@discloud/ui/components/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -7,10 +11,6 @@ import { DIAGNOSTICS_PAGE_SIZE, InfiniteScrollSentinel, JSONDialog } from "@/com
 import { type DiagnosticsDateRange, DiagnosticsDateRangePicker, DiagnosticsFilterBar } from "@/components/admin/diagnostics-filter-bar"
 import { DateTime } from "@/components/common/date-time"
 import { useUserConfig } from "@/components/settings/user-config-context"
-import { Badge } from "@/components/ui/badge"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiJSON } from "@/lib/api/client"
 import type { AuditEvent, AuditPage, AuditQuery } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

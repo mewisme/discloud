@@ -1,8 +1,8 @@
+import { Button } from "@discloud/ui/components/button"
 import { DownloadIcon, FileIcon } from "lucide-react"
 
 import { FilePreview } from "@/components/files/file-preview"
 import { PublicInfo, PublicResourceHeading } from "@/components/shares/public/public-share-shell"
-import { Button } from "@/components/ui/button"
 import type { PublicShare } from "@/lib/api/models"
 import { apiURL } from "@/lib/api/path"
 import { formatBytes, formatDate } from "@/lib/helpers"

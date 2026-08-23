@@ -1,9 +1,8 @@
 "use client"
 
+import { Input } from "@discloud/ui/components/input"
 import { SearchIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-
-import { Input } from "@/components/ui/input"
 
 export function SearchInput({
   initialValue,

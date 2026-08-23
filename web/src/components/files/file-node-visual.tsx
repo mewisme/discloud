@@ -1,6 +1,7 @@
 "use client"
 
 import { FileTypeIcon } from "@discloud/app-ui/files/file-node-visual"
+import { cn } from "@discloud/ui/lib/utils"
 import { FolderIcon, PlayIcon } from "lucide-react"
 import Image from "next/image"
 import { useEffect, useState } from "react"
@@ -8,7 +9,6 @@ import { useEffect, useState } from "react"
 import { apiDirectURL } from "@/lib/api/client"
 import type { BrowserNode } from "@/lib/api/models"
 import { loadThumbnail } from "@/lib/files/thumbnail-load"
-import { cn } from "@/lib/utils"
 
 export function FileNodeVisual({
   node,

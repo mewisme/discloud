@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@discloud/ui/lib/utils"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useShallow } from "zustand/react/shallow"
 
@@ -15,7 +16,6 @@ import { useUserConfigSelector } from "@/components/settings/user-config-context
 import { FileUploadTarget } from "@/components/uploads/upload-target"
 import type { Node, NodePage, UserConfig } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
-import { cn } from "@/lib/utils"
 
 type FileBrowserProps = {
   folder: Node

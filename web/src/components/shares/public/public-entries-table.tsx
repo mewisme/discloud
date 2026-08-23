@@ -1,10 +1,10 @@
 "use client"
 
 import { FileTypeIcon } from "@discloud/app-ui/files/file-node-visual"
+import { Button } from "@discloud/ui/components/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { DownloadIcon, FolderIcon, FolderUpIcon, Loader2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiURL } from "@/lib/api/client"
 import type { PublicNode } from "@/lib/api/models"
 import { formatBytes, formatDate, isInteractiveTarget } from "@/lib/helpers"

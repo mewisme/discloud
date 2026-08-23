@@ -1,10 +1,10 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Input } from "@discloud/ui/components/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
 import { Loader2Icon, UserPlusIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { AccessLevel } from "@/lib/api/models"
 
 export function AccessGrantForm({

@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -8,8 +10,6 @@ import { MoveNodesDialog } from "@/components/files/actions/move-nodes-dialog"
 import { RenameNodeDialog } from "@/components/files/actions/rename-node-dialog"
 import { TrashNodesDialog } from "@/components/files/actions/trash-nodes-dialog"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { BrowserNode, Node, NodePage } from "@/lib/api/models"
 import type { BrowserOptions } from "@/lib/files/browser"
 

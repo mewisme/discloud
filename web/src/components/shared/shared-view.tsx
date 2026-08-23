@@ -1,12 +1,12 @@
 "use client"
 
+import { Badge } from "@discloud/ui/components/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { FolderIcon, LibraryIcon, Share2Icon } from "lucide-react"
 import Link from "next/link"
 
 import { useWorkspace } from "@/components/app/workspace-context"
 import { DateOnly } from "@/components/common/date-time"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { SharedItem } from "@/lib/api/models"
 import { collectionPath, folderBrowserPath } from "@/lib/files/navigation"
 

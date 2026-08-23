@@ -1,10 +1,10 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@discloud/ui/components/dialog"
 import { DownloadIcon } from "lucide-react"
 
 import { FilePreview } from "@/components/files/file-preview"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiURL } from "@/lib/api/client"
 import type { PublicNode } from "@/lib/api/models"
 import { formatBytes } from "@/lib/helpers"

@@ -1,6 +1,8 @@
 "use client"
 
 import { startThemeTransition } from "@discloud/shared/theme-transition"
+import { Button } from "@discloud/ui/components/button"
+import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@discloud/ui/components/command"
 import { FolderIcon, FolderPlusIcon, HeartIcon, LibraryIcon, Loader2Icon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon, UploadIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -8,8 +10,6 @@ import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { useWorkspace } from "@/components/app/workspace-context"
-import { Button } from "@/components/ui/button"
-import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"

@@ -1,13 +1,12 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Calendar } from "@discloud/ui/components/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@discloud/ui/components/popover"
+import { cn } from "@discloud/ui/lib/utils"
 import { CalendarRangeIcon, RefreshCwIcon, XIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import type { DateRange } from "react-day-picker"
-
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
 
 export type DiagnosticsDateRange = DateRange
 

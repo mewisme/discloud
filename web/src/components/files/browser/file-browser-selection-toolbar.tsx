@@ -1,10 +1,10 @@
 "use client"
 
 import { BottomDock } from "@discloud/app-ui/shell/dock-stack"
+import { Button } from "@discloud/ui/components/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { Loader2Icon, MoreHorizontalIcon, MoveIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { BrowserNode } from "@/lib/api/models"
 
 export function FileBrowserSelectionToolbar({ selectedNodes, favoritePending, mergeHorizontalDocks, canMove, canTrash, canFavorite, canUnfavorite, onMove, onTrash, onFavorite, onUnfavorite, onClear }: {

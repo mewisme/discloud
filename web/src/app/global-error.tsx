@@ -1,8 +1,7 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
 import { RefreshCw, TriangleAlert } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (

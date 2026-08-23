@@ -1,4 +1,5 @@
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@discloud/ui/components/badge"
+
 import type { BotRuntimeSnapshot } from "@/lib/api/models"
 import { formatNumber } from "@/lib/helpers"
 

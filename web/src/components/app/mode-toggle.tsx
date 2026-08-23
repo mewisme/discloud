@@ -1,13 +1,13 @@
 "use client"
 
 import { applyThemeTransitionEffect, removeThemeTransitionEffect, startThemeTransition } from "@discloud/shared/theme-transition"
+import { Button } from "@discloud/ui/components/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useLayoutEffect } from "react"
 
 import { useUserConfig } from "@/components/settings/user-config-context"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export function ModeToggle() {
   const { setTheme } = useTheme()

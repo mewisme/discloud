@@ -1,16 +1,16 @@
 "use client"
 
 import { filePreviewKind } from "@discloud/shared/file-preview"
+import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@discloud/ui/components/carousel"
+import { Spinner } from "@discloud/ui/components/spinner"
+import { cn } from "@discloud/ui/lib/utils"
 import { FileIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FilePreview } from "@/components/files/file-preview"
 import { useUserConfigSelector } from "@/components/settings/user-config-context"
-import { Carousel, type CarouselApi, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-import { Spinner } from "@/components/ui/spinner"
 import { clearPreviewPreloadWindow, setPreviewPreloadWindow } from "@/lib/files/preview-preload"
-import { cn } from "@/lib/utils"
 
 const infoAutoHideMs = 2200
 

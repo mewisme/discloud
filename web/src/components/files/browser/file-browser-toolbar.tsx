@@ -2,12 +2,12 @@
 
 import { DockFileBrowserControls, InlineFileBrowserControls } from "@discloud/app-ui/files/file-browser-controls"
 import { BottomDock, SideDock } from "@discloud/app-ui/shell/dock-stack"
+import { Button } from "@discloud/ui/components/button"
+import { Kbd, KbdGroup } from "@discloud/ui/components/kbd"
 import { FolderPlusIcon, RefreshCwIcon, UploadIcon } from "lucide-react"
 
 import { CreateFolderDialog } from "@/components/files/actions/create-folder-dialog"
 import { FolderActionsMenu } from "@/components/files/browser/folder-actions-menu"
-import { Button } from "@/components/ui/button"
-import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useUploadTarget } from "@/components/uploads/upload-target"
 import type { Node, UserConfig } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"

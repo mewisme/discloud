@@ -1,7 +1,6 @@
+import { Button } from "@discloud/ui/components/button"
 import { FileQuestion } from "lucide-react"
 import Link from "next/link"
-
-import { Button } from "@/components/ui/button"
 
 export default function NotFound() {
   return (

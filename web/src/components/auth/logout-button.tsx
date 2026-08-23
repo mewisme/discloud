@@ -1,11 +1,11 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
 import { Loader2Icon, LogOutIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import { apiJSON } from "@/lib/api/client"
 
 export function LogoutButton() {

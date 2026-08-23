@@ -1,3 +1,4 @@
+import { Button } from "@discloud/ui/components/button"
 import {
   ArrowRightIcon,
   BoxesIcon,
@@ -19,7 +20,6 @@ import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { GitHub } from "@/components/icons/github"
-import { Button } from "@/components/ui/button"
 import type { SetupStatus } from "@/lib/api/models"
 import { apiServerJSON } from "@/lib/api/server"
 import { authenticatedPath, getCurrentUser } from "@/lib/auth/session"

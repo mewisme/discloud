@@ -1,7 +1,7 @@
+import { Button } from "@discloud/ui/components/button"
 import { ShieldXIcon } from "lucide-react"
 import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
 import { workspacePath } from "@/lib/workspace/navigation"
 
 export function WorkspaceAccessDenied({ username, currentUsername }: { username: string; currentUsername: string }) {

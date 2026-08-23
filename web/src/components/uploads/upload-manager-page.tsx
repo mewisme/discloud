@@ -1,9 +1,9 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
 import { RefreshCwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import { type UploadTask, useUploads } from "@/components/uploads/upload-provider"
 import { UploadTable } from "@/components/uploads/upload-table"
 import { canCancelUploadTask, isActiveUploadTask } from "@/components/uploads/upload-task"

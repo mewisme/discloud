@@ -1,14 +1,14 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@discloud/ui/components/dialog"
+import { Field, FieldDescription, FieldLabel } from "@discloud/ui/components/field"
+import { Input } from "@discloud/ui/components/input"
 import { Loader2Icon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { adminUserLabel, getAdminUser, temporaryPasswordMinLength, validateTemporaryPassword } from "@/components/admin/users/admin-user-utils"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { AdminUser, ResetUserPasswordInput } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

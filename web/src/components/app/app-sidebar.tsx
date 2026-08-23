@@ -5,13 +5,13 @@ import {
   AppSidebarView,
 } from "@discloud/app-ui/shell/app-sidebar"
 import { createAppNavigation } from "@discloud/app-ui/shell/navigation"
+import { Progress } from "@discloud/ui/components/progress"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import type { Workspace } from "@/components/app/workspace-context"
 import { WorkspaceSwitcher } from "@/components/app/workspace-switcher"
 import { useUserConfig } from "@/components/settings/user-config-context"
-import { Progress } from "@/components/ui/progress"
 import type { CurrentUserUsage, User } from "@/lib/api/models"
 import { formatBytes } from "@/lib/helpers"
 

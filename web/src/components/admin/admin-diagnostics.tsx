@@ -1,9 +1,10 @@
 "use client"
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
+
 import { AuditDiagnostics } from "@/components/admin/diagnostics/audit-diagnostics"
 import { JobDiagnostics } from "@/components/admin/diagnostics/job-diagnostics"
 import { UploadDiagnostics } from "@/components/admin/diagnostics/upload-diagnostics"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { AuditPage, JobPage, UploadDiagnosticPage } from "@/lib/api/models"
 
 export function AdminDiagnostics({

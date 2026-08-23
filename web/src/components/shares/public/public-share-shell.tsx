@@ -1,9 +1,8 @@
+import { Badge } from "@discloud/ui/components/badge"
+import { Button } from "@discloud/ui/components/button"
 import { CloudIcon, Globe2Icon } from "lucide-react"
 import Link from "next/link"
 import type { ReactNode } from "react"
-
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 
 export function PublicShareShell({ children }: { children: ReactNode }) {
   return (

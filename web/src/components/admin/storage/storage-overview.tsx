@@ -1,7 +1,7 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { DatabaseIcon, FileIcon, HardDriveIcon, UsersIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { StorageOverview } from "@/lib/api/models"
 import { formatBytes, formatNumber } from "@/lib/helpers"
 

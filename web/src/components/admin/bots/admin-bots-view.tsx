@@ -1,5 +1,7 @@
 "use client"
 
+import { Badge } from "@discloud/ui/components/badge"
+import { Button } from "@discloud/ui/components/button"
 import { BotIcon, RefreshCwIcon, WifiIcon, WifiOffIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -7,8 +9,6 @@ import { BotRuntimeEvents } from "@/components/admin/bots/bot-runtime-events"
 import { BotRuntimeSummary } from "@/components/admin/bots/bot-runtime-summary"
 import { BotRuntimeTable } from "@/components/admin/bots/bot-runtime-table"
 import { useBotRuntime } from "@/components/admin/bots/use-bot-runtime"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import type { BotRuntimeSnapshot } from "@/lib/api/models"
 
 export function AdminBotsView({

@@ -1,10 +1,10 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
 import { ActivityIcon, BanIcon, Loader2Icon, PlayIcon, PowerIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import { apiJSON } from "@/lib/api/client"
 import type { BotRuntimeBot } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

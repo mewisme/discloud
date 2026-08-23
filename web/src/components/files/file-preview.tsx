@@ -1,17 +1,17 @@
 "use client"
 
 import { filePreviewKind } from "@discloud/shared/file-preview"
+import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
+import { Button } from "@discloud/ui/components/button"
+import { Spinner } from "@discloud/ui/components/spinner"
+import { cn } from "@discloud/ui/lib/utils"
 import { DownloadIcon, FileIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import Image from "next/image"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Spinner } from "@/components/ui/spinner"
 import { apiDirectURL, apiRequest } from "@/lib/api/client"
 import type { Query } from "@/lib/api/types"
 import { clearPreviewPreloadWindow, setVideoChunkPreloadWindow } from "@/lib/files/preview-preload"
-import { cn } from "@/lib/utils"
 
 const textPreviewLimit = 256 * 1024
 

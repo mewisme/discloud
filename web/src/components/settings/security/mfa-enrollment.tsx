@@ -1,13 +1,13 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@discloud/ui/components/field"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@discloud/ui/components/input-otp"
 import { Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { Controller, type UseFormReturn } from "react-hook-form"
 
 import { DateTime } from "@/components/common/date-time"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import type { MFAEnrollment as MFAEnrollmentModel } from "@/lib/api/models"
 
 type TOTPValues = { code: string }

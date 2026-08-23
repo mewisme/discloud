@@ -1,12 +1,12 @@
 "use client"
 
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@discloud/ui/components/context-menu"
 import { DownloadIcon, FolderOpenIcon, Globe2Icon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon } from "lucide-react"
 import type { ReactElement } from "react"
 import { useState } from "react"
 
 import { RenameNodeDialog } from "@/components/files/actions/rename-node-dialog"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { BrowserNode } from "@/lib/api/models"
 
 export function FileNodeContextMenu({

@@ -1,11 +1,11 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 
 import type { AccessGrantRow } from "@/components/access/use-access-grants"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { AccessLevel } from "@/lib/api/models"
 
 export function AccessGrantsTable({

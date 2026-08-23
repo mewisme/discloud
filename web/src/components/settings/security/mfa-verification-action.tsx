@@ -1,12 +1,11 @@
 "use client"
 
+import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
+import { Button } from "@discloud/ui/components/button"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@discloud/ui/components/field"
+import { Input } from "@discloud/ui/components/input"
 import { Loader2Icon, RefreshCwIcon, ShieldOffIcon, XIcon } from "lucide-react"
 import type { UseFormReturn } from "react-hook-form"
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 
 export type MFAAction = "regenerate" | "disable"
 type VerificationValues = { code: string }

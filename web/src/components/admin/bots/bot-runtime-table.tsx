@@ -1,13 +1,13 @@
 "use client"
 
+import { Badge } from "@discloud/ui/components/badge"
+import { Button } from "@discloud/ui/components/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { Fragment, useState } from "react"
 
 import { BotRuntimeActions } from "@/components/admin/bots/bot-runtime-actions"
 import { UserAvatar } from "@/components/common/user-avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { BotRuntimeBot } from "@/lib/api/models"
 import { formatBytes, formatDateTime, formatDuration, formatNumber } from "@/lib/helpers"
 

@@ -1,10 +1,10 @@
 "use client"
 
 import type { SearchCategory, SearchFlag, SearchKind, SearchOptions, SearchSort } from "@discloud/shared/search"
+import { Button } from "@discloud/ui/components/button"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
 import { XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AdminUserPicker } from "@/components/users/admin-user-picker"
 
 export function SearchFilters({

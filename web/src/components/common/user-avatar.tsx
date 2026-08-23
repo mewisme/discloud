@@ -1,8 +1,8 @@
 "use client"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@discloud/ui/components/avatar"
 import type { ComponentProps } from "react"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { initials } from "@/lib/helpers"
 
 export function UserAvatar({

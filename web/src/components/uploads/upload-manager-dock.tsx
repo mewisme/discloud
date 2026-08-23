@@ -1,12 +1,12 @@
 "use client"
 
 import { BottomDock } from "@discloud/app-ui/shell/dock-stack"
+import { Button } from "@discloud/ui/components/button"
+import { Progress } from "@discloud/ui/components/progress"
 import { ArrowUpRightIcon, CheckIcon, CircleAlertIcon, Loader2Icon } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { useUploadDockState } from "@/components/uploads/upload-provider"
 import { uploadTaskPercent } from "@/components/uploads/upload-task"
 import { formatBytes } from "@/lib/helpers"

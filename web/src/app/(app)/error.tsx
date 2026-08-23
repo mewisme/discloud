@@ -1,9 +1,8 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
 import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 import Link from "next/link"
-
-import { Button } from "@/components/ui/button"
 
 export default function AppError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (

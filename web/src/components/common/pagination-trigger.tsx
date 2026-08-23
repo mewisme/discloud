@@ -1,11 +1,11 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { cn } from "@discloud/ui/lib/utils"
 import { Loader2Icon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useUserConfigSelector } from "@/components/settings/user-config-context"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 export function PaginationTrigger({
   loadKey,

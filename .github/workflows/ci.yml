@@ -102,6 +102,20 @@ jobs:
           cp .env.example .env
           docker compose config >/dev/null
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Backend"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Checks | gofmt, go vet, race tests, binary build, GoReleaser config, Docker images, Compose config |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   web:
     name: Web
     runs-on: ubuntu-latest
@@ -167,6 +181,20 @@ jobs:
       - name: Build local container
         run: docker build --pull --file web/Dockerfile --tag dcfe:test .
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Web"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Checks | API contracts, package and app type checks, lint, tests, builds, Docker image |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   desktop-rust:
     name: Desktop Rust
     runs-on: ubuntu-latest
@@ -212,3 +240,17 @@ jobs:
 
       - name: Test
         run: cargo test --locked
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Desktop Rust"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Checks | cargo fmt, cargo check, cargo test |"
+          } >> "$GITHUB_STEP_SUMMARY"

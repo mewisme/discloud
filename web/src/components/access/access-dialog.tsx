@@ -1,5 +1,8 @@
 "use client"
 
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@discloud/ui/components/alert-dialog"
+import { Button } from "@discloud/ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@discloud/ui/components/dialog"
 import { Loader2Icon, Share2Icon, Trash2Icon } from "lucide-react"
 import type { ReactNode } from "react"
 import { useState } from "react"
@@ -7,9 +10,6 @@ import { useState } from "react"
 import { AccessGrantForm } from "@/components/access/access-grant-form"
 import { AccessGrantsTable } from "@/components/access/access-grants-table"
 import { type AccessResource, useAccessGrants } from "@/components/access/use-access-grants"
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 type AccessDialogProps = {
   resource: AccessResource

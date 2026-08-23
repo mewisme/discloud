@@ -1,12 +1,12 @@
 "use client"
 
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@discloud/ui/components/alert-dialog"
+import { Button } from "@discloud/ui/components/button"
 import { Loader2Icon, UserCheckIcon, UserXIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { adminUserLabel, getAdminUser } from "@/components/admin/users/admin-user-utils"
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 import { apiJSON } from "@/lib/api/client"
 import type { AdminUser } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

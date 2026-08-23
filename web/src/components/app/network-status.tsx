@@ -1,10 +1,9 @@
 "use client"
 
 import { BottomDock } from "@discloud/app-ui/shell/dock-stack"
+import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { WifiOffIcon } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 function subscribe(callback: () => void) {
   window.addEventListener("online", callback)

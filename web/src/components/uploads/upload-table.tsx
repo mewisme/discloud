@@ -1,11 +1,11 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Checkbox } from "@discloud/ui/components/checkbox"
+import { Progress } from "@discloud/ui/components/progress"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { CircleCheckIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Progress } from "@/components/ui/progress"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { UploadTask } from "@/components/uploads/upload-provider"
 import { canCancelUploadTask, canRemoveUploadTask, isActiveUploadTask, uploadTaskPercent, uploadTaskStatusLabel } from "@/components/uploads/upload-task"
 import { formatBytes } from "@/lib/helpers"

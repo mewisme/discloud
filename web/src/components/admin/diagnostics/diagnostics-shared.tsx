@@ -1,11 +1,10 @@
 "use client"
 
+import { Badge } from "@discloud/ui/components/badge"
+import { Button } from "@discloud/ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@discloud/ui/components/dialog"
 import { AlertCircleIcon, BracesIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { useEffect, useRef } from "react"
-
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export const DIAGNOSTICS_PAGE_SIZE = 25
 

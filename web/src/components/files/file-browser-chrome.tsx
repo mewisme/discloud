@@ -1,6 +1,7 @@
 "use client"
 
 import { FileBrowserHeader } from "@discloud/app-ui/files/file-browser-header"
+import { Button } from "@discloud/ui/components/button"
 import { UploadIcon } from "lucide-react"
 import { useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -11,7 +12,6 @@ import { CreateFolderDialog } from "@/components/files/actions/create-folder-dia
 import { DockedFileBrowserToolbar, HorizontalFileBrowserToolbar } from "@/components/files/browser/file-browser-toolbar"
 import { FolderActionsMenu } from "@/components/files/browser/folder-actions-menu"
 import { PublicShareDialog } from "@/components/shares/public-share-dialog"
-import { Button } from "@/components/ui/button"
 import { useUploadTarget } from "@/components/uploads/upload-target"
 import type { Node, NodePage, UserConfig } from "@/lib/api/models"
 import type { BrowserOptions, BrowserSort } from "@/lib/files/browser"

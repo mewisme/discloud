@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@discloud/ui/lib/utils";
 import { ChevronRight, File, Folder, FolderOpen } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -12,8 +13,6 @@ import {
   useId,
   useState,
 } from "react";
-
-import { cn } from "@/lib/utils";
 
 type TreeContextType = {
   expandedIds: Set<string>;

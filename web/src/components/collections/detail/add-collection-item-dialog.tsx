@@ -1,14 +1,14 @@
 "use client"
 
 import { FileTypeIcon } from "@discloud/app-ui/files/file-node-visual"
+import { Button } from "@discloud/ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@discloud/ui/components/dialog"
+import { Input } from "@discloud/ui/components/input"
 import { FilePlusIcon, Loader2Icon, SearchIcon } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { useWorkspace } from "@/components/app/workspace-context"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { apiJSON } from "@/lib/api/client"
 import type { AddCollectionItemInput, CollectionItem, SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

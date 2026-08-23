@@ -1,6 +1,10 @@
 "use client"
 
+import { Button } from "@discloud/ui/components/button"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@discloud/ui/components/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@discloud/ui/components/popover"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@discloud/ui/components/sidebar"
+import { cn } from "@discloud/ui/lib/utils"
 import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, FolderRootIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -8,13 +12,9 @@ import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/components/app/current-user-context"
 import { useWorkspace } from "@/components/app/workspace-context"
-import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { APIError } from "@/lib/api/types"
 import { apiErrorMessage } from "@/lib/helpers"
 import { type AdminDirectoryUser, listAdminUserDirectory } from "@/lib/users/admin-user-directory"
-import { cn } from "@/lib/utils"
 import { workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
 
 export function WorkspaceSwitcher() {

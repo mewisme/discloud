@@ -1,5 +1,8 @@
 "use client"
 
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger } from "@discloud/ui/components/alert-dialog"
+import { Button } from "@discloud/ui/components/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { CameraIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
@@ -7,9 +10,6 @@ import { toast } from "sonner"
 
 import { useCurrentUser, useSetCurrentUser } from "@/components/app/current-user-context"
 import { CurrentUserAvatar } from "@/components/common/current-user-avatar"
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiRequest } from "@/lib/api/client"
 import type { AvatarInfo } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"

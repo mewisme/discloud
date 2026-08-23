@@ -76,6 +76,20 @@ jobs:
             -o /tmp/discloud \
             ./cmd/discloud
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Verify backend"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Checks | gofmt, go vet, race tests, GoReleaser config, release binary build |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify-web:
     name: Verify web
     runs-on: ubuntu-latest
@@ -125,6 +139,20 @@ jobs:
 
       - name: Build web
         run: pnpm web:build
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Verify web"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Checks | API contracts, type checks, lint, tests, web build |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   verify-desktop:
     name: Verify desktop
@@ -195,6 +223,20 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test --locked
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Verify desktop"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Checks | updater validation, frontend lint/type checks/build, Rust format/check/test |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release-info:
     name: Resolve release info
     needs:
@@ -259,6 +301,20 @@ jobs:
           echo "Version: $version"
           echo "Channel: $channel"
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release info"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Release | \\`${{ steps.info.outputs.version }}\\` / \\`${{ steps.info.outputs.channel }}\\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release-backend:
     name: Release backend
     needs:
@@ -302,6 +358,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCLOUD_DOCKER_CHANNEL_TAG: ${{ needs.release-info.outputs.channel == 'stable' && 'latest' || needs.release-info.outputs.channel }}
           DISCLOUD_RELEASE_MAKE_LATEST: ${{ needs.release-info.outputs.make-latest }}
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release backend"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Channel | \\`${{ needs.release-info.outputs.channel }}\\` |"
+            echo "| Output | GoReleaser release and GHCR image |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   release-web:
     name: Release web
@@ -429,6 +500,20 @@ jobs:
           uploadUpdaterSignatures: true
           args: ${{ matrix.args }}
 
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release desktop — ${{ matrix.name }}"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Output | Signed Tauri bundle and updater assets |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish-updater-channels:
     name: Publish updater channels
     needs:
@@ -515,3 +600,18 @@ jobs:
             gh release upload "$STABLE_TAG" "$candidate" --clobber
             echo "Advanced $channel channel to $GITHUB_REF_NAME"
           done
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Publish updater channels"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \\`${{ job.status }}\\` |"
+            echo "| Tag | \\`${GITHUB_REF_NAME}\\` |"
+            echo "| Channel | \\`${{ needs.release-info.outputs.channel }}\\` |"
+            echo "| Output | Validated and advanced updater manifests |"
+          } >> "$GITHUB_STEP_SUMMARY"

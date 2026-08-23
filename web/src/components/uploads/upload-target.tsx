@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@discloud/ui/lib/utils"
 import { CloudUploadIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { createContext, useContext, useEffect, useRef, useState } from "react"
@@ -8,7 +9,6 @@ import { useDropzone } from "react-dropzone"
 
 import { useUploadActions } from "@/components/uploads/upload-provider"
 import { FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
-import { cn } from "@/lib/utils"
 
 type UploadTargetValue = {
   open: () => void
