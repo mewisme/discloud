@@ -7,6 +7,7 @@ import { createPortal } from "react-dom"
 
 import { errorMessage } from "#lib/instance"
 
+import { FILE_BROWSER_UPLOAD_EVENT } from "../../files/commands"
 import { useUploadActions } from "./upload-provider"
 
 type DesktopUploadTargetValue = {
@@ -81,6 +82,14 @@ export function DesktopFileUploadTarget({
       onError?.(errorMessage(error))
     }
   }, [disabled, enqueuePaths, onError])
+
+  useEffect(() => {
+    if (disabled) return
+
+    const handleUploadCommand = () => void openFiles()
+    window.addEventListener(FILE_BROWSER_UPLOAD_EVENT, handleUploadCommand)
+    return () => window.removeEventListener(FILE_BROWSER_UPLOAD_EVENT, handleUploadCommand)
+  }, [disabled, openFiles])
 
   useEffect(() => {
     if (disabled) {

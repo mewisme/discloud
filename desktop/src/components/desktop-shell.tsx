@@ -20,6 +20,7 @@ import { useDesktopSync } from "../features/sync/ui/sync-provider"
 import { DesktopModeToggle } from "../features/theme/ui/mode-toggle"
 import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
 import { DesktopWorkspaceSwitcher } from "../features/workspaces/ui/workspace-switcher"
+import { DesktopCommandPalette } from "./command-palette"
 
 const renderRouterLink: AppLinkRenderer = ({ href, children, onNavigate }) => <Link to={href} onClick={onNavigate}>{children}</Link>
 
@@ -55,7 +56,13 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
           renderLink={renderRouterLink}
         />
       }
-      header={<AppHeaderView title={title} actions={<DesktopHeaderActions user={user} serverUrl={serverUrl} />} />}
+      header={
+        <AppHeaderView
+          title={title}
+          center={<DesktopCommandPalette user={user} workspaceUsername={workspaceUsername} />}
+          actions={<DesktopHeaderActions user={user} serverUrl={serverUrl} />}
+        />
+      }
     >
       {adminSurface ?? <Outlet />}
     </AppShellFrame>

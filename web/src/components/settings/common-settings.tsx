@@ -1,5 +1,6 @@
 "use client"
 
+import type { ThemeEffect } from "@discloud/shared/theme-transition"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -17,7 +18,6 @@ import { useSetUserConfig, useUserConfigSelector } from "@/components/settings/u
 import { apiJSON } from "@/lib/api/client"
 import type { UpdateCommonConfigInput, UserConfig } from "@/lib/api/models"
 import { apiErrorMessage } from "@/lib/helpers"
-import type { ThemeEffect } from "@/lib/theme-transition"
 
 export function CommonSettings() {
   const router = useRouter()

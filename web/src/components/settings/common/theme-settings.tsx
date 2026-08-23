@@ -1,3 +1,4 @@
+import { type ThemeEffect, themeEffects } from "@discloud/shared/theme-transition"
 import { BracesIcon, ChevronRightIcon, CircleIcon, DiamondIcon, ExternalLinkIcon, PaletteIcon, TriangleIcon } from "lucide-react"
 
 import { SettingsRow } from "@/components/settings/common/settings-row"
@@ -6,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { type ThemeEffect, themeEffects } from "@/lib/theme-transition"
 
 const effectIcons: Record<ThemeEffect, typeof CircleIcon> = {
   triangle: TriangleIcon,

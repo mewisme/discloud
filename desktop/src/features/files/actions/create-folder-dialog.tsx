@@ -5,10 +5,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@discloud/ui/components/input"
 import { FolderPlusIcon, Loader2Icon } from "lucide-react"
 import type { FormEvent, ReactNode } from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
+
+import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "../commands"
 
 export function DesktopCreateFolderDialog({
   folder,
@@ -23,6 +25,12 @@ export function DesktopCreateFolderDialog({
   const [name, setName] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+
+  useEffect(() => {
+    const handleOpen = () => setOpen(true)
+    window.addEventListener(FILE_BROWSER_CREATE_FOLDER_EVENT, handleOpen)
+    return () => window.removeEventListener(FILE_BROWSER_CREATE_FOLDER_EVENT, handleOpen)
+  }, [])
 
   function changeOpen(next: boolean) {
     if (pending) return

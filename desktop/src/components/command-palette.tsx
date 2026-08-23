@@ -1,34 +1,35 @@
-"use client"
-
+import type { SearchPage, SearchQuery, SearchResult, User, WorkspaceDetails } from "@discloud/api/models"
+import { workspaceFolderPath, workspacePath, workspaceRelativePath } from "@discloud/shared/navigation"
 import { startThemeTransition } from "@discloud/shared/theme-transition"
+import { Button } from "@discloud/ui/components/button"
+import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@discloud/ui/components/command"
 import { FolderIcon, FolderPlusIcon, HeartIcon, LibraryIcon, Loader2Icon, MoonIcon, SearchIcon, SettingsIcon, Share2Icon, ShieldIcon, SunIcon, Trash2Icon, UploadIcon } from "lucide-react"
-import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router"
 
-import { useCurrentUser } from "@/components/app/current-user-context"
-import { useWorkspace } from "@/components/app/workspace-context"
-import { Button } from "@/components/ui/button"
-import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
-import { apiJSON } from "@/lib/api/client"
-import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
-import { APIError } from "@/lib/api/types"
-import { FILE_BROWSER_CREATE_FOLDER_EVENT, FILE_BROWSER_UPLOAD_EVENT } from "@/lib/files/commands"
-import { folderBrowserPath, folderIdFromBrowserPath, workspacePath } from "@/lib/files/navigation"
+import { apiJSON } from "#lib/api/transport"
 
-export function CommandPalette() {
-  const router = useRouter()
-  const pathname = usePathname()
+import { FILE_BROWSER_CREATE_FOLDER_EVENT, FILE_BROWSER_UPLOAD_EVENT } from "../features/files/commands"
+import { loadDesktopWorkspace } from "../features/workspace/api"
+
+type WorkspaceOwner = Pick<WorkspaceDetails["owner"], "id" | "username" | "name">
+
+export function DesktopCommandPalette({ user, workspaceUsername }: { user: User; workspaceUsername: string }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
-  const user = useCurrentUser()
-  const workspace = useWorkspace()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [workspaceOwner, setWorkspaceOwner] = useState<WorkspaceOwner>()
+  const [workspaceLoading, setWorkspaceLoading] = useState(false)
+  const [workspaceError, setWorkspaceError] = useState(false)
   const [folders, setFolders] = useState<SearchResult[]>([])
   const [folderLoading, setFolderLoading] = useState(false)
   const [folderError, setFolderError] = useState(false)
   const value = query.trim()
-  const inFileBrowser = folderIdFromBrowserPath(pathname, workspace.username) !== null
+  const relativePath = workspaceRelativePath(location.pathname, workspaceUsername)
+  const inFileBrowser = relativePath === "/" || relativePath?.startsWith("/folders/") === true
   const dark = resolvedTheme === "dark"
 
   useEffect(() => {
@@ -43,6 +44,36 @@ export function CommandPalette() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
+    setWorkspaceError(false)
+
+    if (workspaceUsername === user.username) {
+      setWorkspaceOwner({ id: user.id, username: user.username, name: user.name })
+      setWorkspaceLoading(false)
+      return
+    }
+
+    setWorkspaceOwner(undefined)
+    setWorkspaceLoading(true)
+
+    void loadDesktopWorkspace(workspaceUsername)
+      .then((workspace) => {
+        if (!cancelled) setWorkspaceOwner(workspace.owner)
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaceError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setWorkspaceLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user.id, user.name, user.username, workspaceUsername])
+
+  useEffect(() => {
     if (!open || value.length < 2) {
       setFolders([])
       setFolderLoading(false)
@@ -50,7 +81,14 @@ export function CommandPalette() {
       return
     }
 
-    const controller = new AbortController()
+    if (!workspaceOwner) {
+      setFolders([])
+      setFolderLoading(false)
+      setFolderError(workspaceError)
+      return
+    }
+
+    let cancelled = false
     const timeout = setTimeout(async () => {
       setFolderLoading(true)
       setFolderError(false)
@@ -58,36 +96,30 @@ export function CommandPalette() {
       try {
         const searchQuery = {
           q: value,
-          ownerId: workspace.id,
+          ownerId: workspaceOwner.id,
           kind: "folder",
           sort: "relevance",
           order: "desc",
           limit: 8,
         } satisfies SearchQuery
 
-        const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery, signal: controller.signal })
-        setFolders([...page.results].filter((result) => result.kind === "folder"))
-      } catch (error) {
-        if (controller.signal.aborted) return
-
-        if (error instanceof APIError && error.status === 401) {
-          router.replace("/login")
-          router.refresh()
-          return
+        const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery })
+        if (!cancelled) setFolders([...page.results].filter((result) => result.kind === "folder"))
+      } catch {
+        if (!cancelled) {
+          setFolders([])
+          setFolderError(true)
         }
-
-        setFolders([])
-        setFolderError(true)
       } finally {
-        if (!controller.signal.aborted) setFolderLoading(false)
+        if (!cancelled) setFolderLoading(false)
       }
     }, 200)
 
     return () => {
+      cancelled = true
       clearTimeout(timeout)
-      controller.abort()
     }
-  }, [open, router, value, workspace.id])
+  }, [open, value, workspaceError, workspaceOwner])
 
   function close() {
     setOpen(false)
@@ -96,17 +128,17 @@ export function CommandPalette() {
     setFolderError(false)
   }
 
-  function navigate(href: string) {
+  function go(href: string) {
     close()
-    router.push(href)
+    navigate(href)
   }
 
   function searchFiles() {
     const params = new URLSearchParams()
     if (value) params.set("q", value)
 
-    const base = workspacePath(workspace.username, "search")
-    navigate(params.size ? `${base}?${params}` : base)
+    const base = workspacePath(workspaceUsername, "search")
+    go(params.size ? `${base}?${params}` : base)
   }
 
   function browserCommand(eventName: string) {
@@ -121,6 +153,8 @@ export function CommandPalette() {
       startThemeTransition(() => setTheme(dark ? "light" : "dark"))
     })
   }
+
+  const workspaceName = workspaceOwner?.name ?? workspaceUsername
 
   return (
     <>
@@ -152,30 +186,32 @@ export function CommandPalette() {
               </CommandItem>
             </CommandGroup>
 
-            {value.length >= 2 && (
-              <CommandGroup heading={`Go to folder · ${workspace.name}'s workspace`}>
-                {folderLoading && (
+            {value.length >= 2 ? (
+              <CommandGroup heading={`Go to folder · ${workspaceName}'s workspace`}>
+                {workspaceLoading ? (
+                  <CommandItem disabled>
+                    <Loader2Icon className="animate-spin" />
+                    Loading workspace…
+                  </CommandItem>
+                ) : null}
+                {!workspaceLoading && folderLoading ? (
                   <CommandItem disabled>
                     <Loader2Icon className="animate-spin" />
                     Searching folders…
                   </CommandItem>
-                )}
-                {!folderLoading && folderError && <CommandItem disabled>Folder search unavailable</CommandItem>}
-                {!folderLoading && !folderError && folders.length === 0 && <CommandItem disabled>No matching folders</CommandItem>}
-                {!folderLoading && folders.map((folder) => (
-                  <CommandItem
-                    key={folder.id}
-                    value={`folder:${folder.id}:${folder.name}`}
-                    onSelect={() => navigate(folderBrowserPath(workspace.username, folder.id))}
-                  >
+                ) : null}
+                {!workspaceLoading && !folderLoading && (workspaceError || folderError) ? <CommandItem disabled>Folder search unavailable</CommandItem> : null}
+                {!workspaceLoading && !folderLoading && !workspaceError && !folderError && folders.length === 0 ? <CommandItem disabled>No matching folders</CommandItem> : null}
+                {!workspaceLoading && !folderLoading && !workspaceError && !folderError ? folders.map((folder) => (
+                  <CommandItem key={folder.id} value={`folder:${folder.id}:${folder.name}`} onSelect={() => go(workspaceFolderPath(workspaceUsername, folder.id))}>
                     <FolderIcon />
                     <span className="truncate">{folder.name}</span>
                   </CommandItem>
-                ))}
+                )) : null}
               </CommandGroup>
-            )}
+            ) : null}
 
-            {inFileBrowser && (
+            {inFileBrowser ? (
               <CommandGroup heading="Current folder">
                 <CommandItem onSelect={() => browserCommand(FILE_BROWSER_CREATE_FOLDER_EVENT)}>
                   <FolderPlusIcon />
@@ -186,7 +222,7 @@ export function CommandPalette() {
                   Upload files
                 </CommandItem>
               </CommandGroup>
-            )}
+            ) : null}
 
             <CommandGroup heading="Appearance">
               <CommandItem value="toggle-theme appearance light dark" onSelect={toggleTheme}>
@@ -196,36 +232,36 @@ export function CommandPalette() {
             </CommandGroup>
 
             <CommandGroup heading="Navigate">
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username))}>
+              <CommandItem onSelect={() => go(workspacePath(workspaceUsername))}>
                 <FolderIcon />
                 Files
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "favorites"))}>
+              <CommandItem onSelect={() => go(workspacePath(workspaceUsername, "favorites"))}>
                 <HeartIcon />
                 Favorites
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "collections"))}>
+              <CommandItem onSelect={() => go(workspacePath(workspaceUsername, "collections"))}>
                 <LibraryIcon />
                 Collections
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "shared"))}>
+              <CommandItem onSelect={() => go(workspacePath(workspaceUsername, "shared"))}>
                 <Share2Icon />
                 Shared
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(workspace.username, "trash"))}>
+              <CommandItem onSelect={() => go(workspacePath(workspaceUsername, "trash"))}>
                 <Trash2Icon />
                 Trash
               </CommandItem>
-              <CommandItem onSelect={() => navigate(workspacePath(user.username, "settings"))}>
+              <CommandItem onSelect={() => go(workspacePath(user.username, "settings"))}>
                 <SettingsIcon />
                 Settings
               </CommandItem>
-              {user.role === "admin" && (
-                <CommandItem onSelect={() => navigate(workspacePath(user.username, "admin"))}>
+              {user.role === "admin" ? (
+                <CommandItem onSelect={() => go(workspacePath(user.username, "admin"))}>
                   <ShieldIcon />
                   Admin
                 </CommandItem>
-              )}
+              ) : null}
             </CommandGroup>
           </CommandList>
         </Command>
