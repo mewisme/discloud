@@ -6,6 +6,7 @@ mod session;
 mod settings_transfer;
 mod sync_engine;
 mod updater_runtime;
+mod upload_engine;
 mod upload_transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,6 +24,7 @@ pub fn run() {
         .manage(api::ApiState::default())
         .manage(desktop_runtime::DesktopRuntimeState::default())
         .manage(sync_engine::SyncEngineState::default())
+        .manage(upload_engine::UploadEngineState::default())
         .manage(upload_transfer::UploadTransferState::default())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -54,11 +56,11 @@ pub fn run() {
             commands::connect_server,
             commands::disconnect_server,
             commands::download_file,
-            commands::inspect_upload_files,
-            commands::begin_upload_task,
+            commands::get_upload_snapshot,
+            commands::add_upload_paths,
+            commands::retry_upload_task,
             commands::cancel_upload_task,
-            commands::finish_upload_task,
-            commands::run_upload_task,
+            commands::remove_upload_task,
             commands::update_avatar,
             commands::load_avatar,
             commands::save_recovery_codes,

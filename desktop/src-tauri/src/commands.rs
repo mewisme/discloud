@@ -1,13 +1,11 @@
-use tauri::{ipc::Channel, State};
+use tauri::{AppHandle, State};
 
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
     file_transfer::{self, DownloadResult},
     settings_transfer::{self, AvatarInfo, AvatarPayload},
-    upload_transfer::{
-        self, LocalUploadFile, UploadRunInput, UploadRunResult, UploadTransferEvent,
-        UploadTransferState,
-    },
+    upload_engine::{self, UploadEngineState, UploadSnapshot},
+    upload_transfer::UploadTransferState,
 };
 
 #[tauri::command]
@@ -19,16 +17,57 @@ pub(crate) async fn connect_server(
 }
 
 #[tauri::command]
-pub(crate) fn disconnect_server(state: State<'_, ApiState>) -> Result<(), ApiCommandError> {
-    state.disconnect()
+pub(crate) async fn disconnect_server(
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    upload_state: State<'_, UploadTransferState>,
+    upload_engine_state: State<'_, UploadEngineState>,
+) -> Result<(), ApiCommandError> {
+    upload_engine::reset(
+        &app,
+        api_state.inner(),
+        upload_state.inner(),
+        upload_engine_state.inner(),
+    )
+    .await?;
+
+    api_state.disconnect()
 }
 
 #[tauri::command]
 pub(crate) async fn api_request(
-    state: State<'_, ApiState>,
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    upload_state: State<'_, UploadTransferState>,
+    upload_engine_state: State<'_, UploadEngineState>,
     request: ApiRequest,
 ) -> Result<ApiResponse, ApiCommandError> {
-    state.request(request).await
+    let logout = request.is_logout();
+    let session_check = request.is_session_check();
+
+    if logout {
+        upload_engine::reset(
+            &app,
+            api_state.inner(),
+            upload_state.inner(),
+            upload_engine_state.inner(),
+        )
+        .await?;
+    }
+
+    let result = api_state.request(request).await;
+
+    if session_check && result.as_ref().err().is_some_and(|error| error.is_unauthorized()) {
+        let _ = upload_engine::reset(
+            &app,
+            api_state.inner(),
+            upload_state.inner(),
+            upload_engine_state.inner(),
+        )
+        .await;
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -42,53 +81,74 @@ pub(crate) async fn download_file(
 }
 
 #[tauri::command]
-pub(crate) async fn inspect_upload_files(
-    paths: Vec<String>,
-) -> Result<Vec<LocalUploadFile>, ApiCommandError> {
-    upload_transfer::inspect_files(paths).await
+pub(crate) fn get_upload_snapshot(
+    state: State<'_, UploadEngineState>,
+) -> Result<UploadSnapshot, ApiCommandError> {
+    state.snapshot()
 }
 
 #[tauri::command]
-pub(crate) fn begin_upload_task(
-    state: State<'_, UploadTransferState>,
+pub(crate) async fn add_upload_paths(
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    upload_state: State<'_, UploadTransferState>,
+    upload_engine_state: State<'_, UploadEngineState>,
+    folder_id: String,
+    paths: Vec<String>,
+) -> Result<(), ApiCommandError> {
+    upload_engine::add_paths(
+        app,
+        api_state.inner().clone(),
+        upload_state.inner().clone(),
+        upload_engine_state.inner().clone(),
+        folder_id,
+        paths,
+    )
+    .await
+}
+
+#[tauri::command]
+pub(crate) fn retry_upload_task(
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    upload_state: State<'_, UploadTransferState>,
+    upload_engine_state: State<'_, UploadEngineState>,
     task_id: String,
 ) -> Result<(), ApiCommandError> {
-    state.begin(task_id)
+    upload_engine::retry(
+        app,
+        api_state.inner().clone(),
+        upload_state.inner().clone(),
+        upload_engine_state.inner().clone(),
+        task_id,
+    )
 }
 
 #[tauri::command]
 pub(crate) async fn cancel_upload_task(
+    app: AppHandle,
     api_state: State<'_, ApiState>,
     upload_state: State<'_, UploadTransferState>,
-    task_id: String,
-    upload_id: Option<String>,
-) -> Result<bool, ApiCommandError> {
-    let cancelled = upload_state.cancel(&task_id)?;
-
-    if let Some(upload_id) = upload_id {
-        upload_transfer::cancel_upload(api_state.inner(), &upload_id).await?;
-    }
-
-    Ok(cancelled)
-}
-
-#[tauri::command]
-pub(crate) fn finish_upload_task(
-    state: State<'_, UploadTransferState>,
+    upload_engine_state: State<'_, UploadEngineState>,
     task_id: String,
 ) -> Result<(), ApiCommandError> {
-    state.finish(&task_id)
+    upload_engine::cancel(
+        app,
+        api_state.inner().clone(),
+        upload_state.inner().clone(),
+        upload_engine_state.inner().clone(),
+        task_id,
+    )
+    .await
 }
 
 #[tauri::command]
-pub(crate) async fn run_upload_task(
-    api_state: State<'_, ApiState>,
-    upload_state: State<'_, UploadTransferState>,
-    input: UploadRunInput,
-    on_progress: Channel<UploadTransferEvent>,
-) -> Result<UploadRunResult, ApiCommandError> {
-    upload_transfer::run_upload_task(api_state.inner(), upload_state.inner(), input, on_progress)
-        .await
+pub(crate) fn remove_upload_task(
+    app: AppHandle,
+    upload_engine_state: State<'_, UploadEngineState>,
+    task_id: String,
+) -> Result<(), ApiCommandError> {
+    upload_engine::remove(app, upload_engine_state.inner().clone(), task_id)
 }
 
 #[tauri::command]

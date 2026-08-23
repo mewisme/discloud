@@ -43,6 +43,16 @@ pub(crate) struct ApiRequest {
     body: Option<Value>,
 }
 
+impl ApiRequest {
+    pub(crate) fn is_logout(&self) -> bool {
+        self.method.eq_ignore_ascii_case("POST") && self.path == "/api/v1/auth/logout"
+    }
+
+    pub(crate) fn is_session_check(&self) -> bool {
+        self.method.eq_ignore_ascii_case("GET") && self.path == "/api/v1/auth/me"
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ApiResponse {
@@ -486,6 +496,29 @@ impl ApiCommandError {
             || self
                 .status
                 .is_some_and(|status| matches!(status, 408 | 429 | 502 | 503 | 504))
+    }
+
+    pub(crate) fn is_unauthorized(&self) -> bool {
+        self.status == Some(StatusCode::UNAUTHORIZED.as_u16())
+    }
+
+    pub(crate) fn is_file_already_exists(&self) -> bool {
+        self.status == Some(StatusCode::CONFLICT.as_u16())
+            && self
+                .problem
+                .as_ref()
+                .and_then(|problem| problem.detail.as_deref())
+                == Some("file already exists")
+    }
+
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.kind == "cancelled"
+    }
+
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.problem
+            .as_ref()
+            .and_then(|problem| problem.request_id.as_deref())
     }
 
     fn http(status: StatusCode, problem: Option<Problem>) -> Self {

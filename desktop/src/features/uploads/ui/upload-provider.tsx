@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef } from "react"
 import { useDesktopSession } from "#components/desktop-session"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
+import { subscribeNativeUploads } from "../core/native"
 import { uploadEngine } from "../core/upload-engine"
-import { useUploadDockState, useUploadTasks } from "../core/upload-store"
+import { applyUploadRemovedEvent, applyUploadTaskEvent, replaceUploadSnapshot, useUploadDockState, useUploadTasks } from "../core/upload-store"
 import { DesktopUploadDock } from "./upload-dock"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
@@ -26,14 +27,26 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
   const { state, refreshUser } = useDesktopSession()
 
   useEffect(() => {
-    uploadEngine.configure({
-      onUnauthorized: () => void refreshUser(),
-      onFolderChanged: (folderId) => {
+    let disposed = false
+    let unsubscribe: (() => void) | undefined
+
+    void subscribeNativeUploads({
+      onSnapshot: replaceUploadSnapshot,
+      onTask: applyUploadTaskEvent,
+      onRemoved: applyUploadRemovedEvent,
+      onFolderChanged: ({ folderId }) => {
         window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
       },
-    })
+      onUnauthorized: () => void refreshUser(),
+    }).then((dispose) => {
+      if (disposed) dispose()
+      else unsubscribe = dispose
+    }).catch(() => undefined)
 
-    return () => uploadEngine.reset()
+    return () => {
+      disposed = true
+      unsubscribe?.()
+    }
   }, [refreshUser])
 
   const username = state.status === "connected" ? state.user?.username : undefined

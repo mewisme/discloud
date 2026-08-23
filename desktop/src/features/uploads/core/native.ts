@@ -1,76 +1,121 @@
-import { Channel, invoke } from "@tauri-apps/api/core"
+import { invoke } from "@tauri-apps/api/core"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 
 import { nativeError } from "#lib/api/transport"
 
+const uploadSnapshotEvent = "discloud-upload-snapshot"
+const uploadTaskEvent = "discloud-upload-task"
+const uploadRemovedEvent = "discloud-upload-removed"
+const uploadFolderChangedEvent = "discloud-upload-folder-changed"
+const uploadUnauthorizedEvent = "discloud-upload-unauthorized"
+
 export type NativeUploadFile = {
-  path: string
   name: string
   size: number
   relativePath: string
 }
 
-export type NativeUploadTransferEvent = {
-  status: "uploading" | "finalizing"
-  sessionId: string
-  uploadedBytes: number
-}
+export type NativeUploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "skipped" | "error" | "cancelling" | "cancelled"
 
-export type NativeUploadRunResult = {
-  sessionId: string
-  uploadedBytes: number
-}
-
-export type NativeUploadRunInput = {
-  taskId: string
-  uploadId?: string
+export type NativeUploadTask = {
+  id: string
+  file: NativeUploadFile
   folderId: string
-  path: string
-  name: string
-  size: number
+  relativePath?: string
+  skipExisting: boolean
+  sessionId?: string
+  status: NativeUploadTaskStatus
+  uploadedBytes: number
+  error?: string
 }
 
-export async function inspectNativeUploadFiles(paths: readonly string[]) {
+export type NativeUploadSnapshot = {
+  tasks: NativeUploadTask[]
+  completionVersion: number
+  revision: number
+}
+
+export type NativeUploadTaskEvent = {
+  task: NativeUploadTask
+  completionVersion: number
+  revision: number
+}
+
+export type NativeUploadRemovedEvent = {
+  taskId: string
+  completionVersion: number
+  revision: number
+}
+
+export type NativeUploadFolderChangedEvent = {
+  folderId: string
+}
+
+type NativeUploadEventHandlers = {
+  onSnapshot: (snapshot: NativeUploadSnapshot) => void
+  onTask: (event: NativeUploadTaskEvent) => void
+  onRemoved: (event: NativeUploadRemovedEvent) => void
+  onFolderChanged: (event: NativeUploadFolderChangedEvent) => void
+  onUnauthorized: () => void
+}
+
+export async function getNativeUploadSnapshot() {
   try {
-    return await invoke<NativeUploadFile[]>("inspect_upload_files", { paths: [...paths] })
+    return await invoke<NativeUploadSnapshot>("get_upload_snapshot")
   } catch (error) {
     throw nativeError(error)
   }
 }
 
-export async function beginNativeUploadTask(taskId: string) {
+export async function addNativeUploadPaths(folderId: string, paths: readonly string[]) {
   try {
-    await invoke<void>("begin_upload_task", { taskId })
+    await invoke<void>("add_upload_paths", { folderId, paths: [...paths] })
   } catch (error) {
     throw nativeError(error)
   }
 }
 
-export async function cancelNativeUploadTask(taskId: string, uploadId?: string) {
+export async function retryNativeUploadTask(taskId: string) {
   try {
-    return await invoke<boolean>("cancel_upload_task", { taskId, uploadId: uploadId ?? null })
+    await invoke<void>("retry_upload_task", { taskId })
   } catch (error) {
     throw nativeError(error)
   }
 }
 
-export async function finishNativeUploadTask(taskId: string) {
+export async function cancelNativeUploadTask(taskId: string) {
   try {
-    await invoke<void>("finish_upload_task", { taskId })
+    await invoke<void>("cancel_upload_task", { taskId })
   } catch (error) {
     throw nativeError(error)
   }
 }
 
-export async function runNativeUploadTask(input: NativeUploadRunInput, onProgress: (event: NativeUploadTransferEvent) => void) {
-  const channel = new Channel<NativeUploadTransferEvent>()
-  channel.onmessage = onProgress
-
+export async function removeNativeUploadTask(taskId: string) {
   try {
-    return await invoke<NativeUploadRunResult>("run_upload_task", {
-      input: { ...input, uploadId: input.uploadId ?? null },
-      onProgress: channel,
-    })
+    await invoke<void>("remove_upload_task", { taskId })
   } catch (error) {
     throw nativeError(error)
   }
+}
+
+export async function subscribeNativeUploads(handlers: NativeUploadEventHandlers) {
+  const unlisteners: UnlistenFn[] = []
+
+  try {
+    unlisteners.push(
+      await listen<NativeUploadSnapshot>(uploadSnapshotEvent, (event) => handlers.onSnapshot(event.payload)),
+      await listen<NativeUploadTaskEvent>(uploadTaskEvent, (event) => handlers.onTask(event.payload)),
+      await listen<NativeUploadRemovedEvent>(uploadRemovedEvent, (event) => handlers.onRemoved(event.payload)),
+      await listen<NativeUploadFolderChangedEvent>(uploadFolderChangedEvent, (event) => handlers.onFolderChanged(event.payload)),
+      await listen(uploadUnauthorizedEvent, () => handlers.onUnauthorized()),
+    )
+
+    handlers.onSnapshot(await getNativeUploadSnapshot())
+  } catch (error) {
+    unlisteners.forEach((unlisten) => unlisten())
+    throw nativeError(error)
+  }
+
+  return () => unlisteners.forEach((unlisten) => unlisten())
 }

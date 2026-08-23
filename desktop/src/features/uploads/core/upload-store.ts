@@ -3,21 +3,10 @@ import { useStore } from "zustand"
 import { useShallow } from "zustand/react/shallow"
 import { createStore } from "zustand/vanilla"
 
-import type { NativeUploadFile } from "./native"
+import type { NativeUploadRemovedEvent, NativeUploadSnapshot, NativeUploadTask, NativeUploadTaskEvent, NativeUploadTaskStatus } from "./native"
 
-export type UploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "skipped" | "error" | "cancelling" | "cancelled"
-
-export type UploadTask = {
-  id: string
-  file: NativeUploadFile
-  folderId: string
-  relativePath?: string
-  skipExisting?: boolean
-  sessionId?: string
-  status: UploadTaskStatus
-  uploadedBytes: number
-  error?: string
-}
+export type UploadTaskStatus = NativeUploadTaskStatus
+export type UploadTask = NativeUploadTask
 
 export type UploadDockState = {
   activeCount: number
@@ -31,6 +20,10 @@ type UploadStoreState = UploadDockState & {
   order: string[]
   tasksVersion: number
   progressVersion: number
+  baselineRevision: number
+  latestRevision: number
+  taskRevisions: Map<string, number>
+  removedRevisions: Map<string, number>
 }
 
 const activeIds = new Set<string>()
@@ -47,14 +40,14 @@ const uploadStore = createStore<UploadStoreState>(() => ({
   order: [],
   tasksVersion: 0,
   progressVersion: 0,
+  baselineRevision: -1,
+  latestRevision: -1,
+  taskRevisions: new Map(),
+  removedRevisions: new Map(),
   activeCount: 0,
   failedCount: 0,
   completionVersion: 0,
 }))
-
-export function getUploadTask(id: string) {
-  return uploadStore.getState().tasks.get(id)
-}
 
 export function getUploadTasksSnapshot(): readonly UploadTask[] {
   const state = uploadStore.getState()
@@ -74,112 +67,110 @@ export function getUploadTasksSnapshot(): readonly UploadTask[] {
   return tasks
 }
 
-export function addUploadTasks(additions: readonly UploadTask[]) {
-  if (!additions.length) return
-
+export function replaceUploadSnapshot(snapshot: NativeUploadSnapshot) {
   const state = uploadStore.getState()
-  const order = [...state.order]
-  let added = 0
+  if (snapshot.revision < state.baselineRevision) return
 
-  for (const task of additions) {
-    if (state.tasks.has(task.id)) continue
+  const tasks = new Map(snapshot.tasks.map((task) => [task.id, task]))
+  const order = snapshot.tasks.map((task) => task.id)
+  const taskRevisions = new Map<string, number>()
+  const removedRevisions = new Map<string, number>()
 
-    state.tasks.set(task.id, task)
-    order.push(task.id)
-    updateStatusIndexes(task.id, undefined, task.status)
-    added++
+  for (const [taskId, revision] of state.taskRevisions) {
+    if (revision <= snapshot.revision) continue
+
+    const task = state.tasks.get(taskId)
+    if (!task) continue
+
+    tasks.set(taskId, task)
+    if (!order.includes(taskId)) order.push(taskId)
+    taskRevisions.set(taskId, revision)
   }
 
-  if (!added) return
+  for (const [taskId, revision] of state.removedRevisions) {
+    if (revision <= snapshot.revision) continue
+
+    tasks.delete(taskId)
+    removedRevisions.set(taskId, revision)
+  }
+
+  const filteredOrder = order.filter((taskId) => tasks.has(taskId))
+  rebuildStatusIndexes(filteredOrder, tasks)
+  const hasNewerEvents = state.latestRevision > snapshot.revision
+
+  uploadStore.setState({
+    tasks,
+    order: filteredOrder,
+    tasksVersion: state.tasksVersion + 1,
+    progressVersion: state.progressVersion + 1,
+    baselineRevision: snapshot.revision,
+    latestRevision: Math.max(state.latestRevision, snapshot.revision),
+    taskRevisions,
+    removedRevisions,
+    completionVersion: hasNewerEvents ? Math.max(state.completionVersion, snapshot.completionVersion) : snapshot.completionVersion,
+    ...currentSummary(tasks),
+  })
+}
+
+export function applyUploadTaskEvent(event: NativeUploadTaskEvent) {
+  const state = uploadStore.getState()
+  if (event.revision <= state.baselineRevision) return
+
+  const previousRevision = Math.max(state.taskRevisions.get(event.task.id) ?? -1, state.removedRevisions.get(event.task.id) ?? -1)
+  if (event.revision <= previousRevision) return
+
+  const current = state.tasks.get(event.task.id)
+  const order = current ? state.order : [...state.order, event.task.id]
+  const taskRevisions = new Map(state.taskRevisions)
+  const removedRevisions = new Map(state.removedRevisions)
+
+  if (current) updateStatusIndexes(event.task.id, current.status, event.task.status)
+  else updateStatusIndexes(event.task.id, undefined, event.task.status)
+
+  state.tasks.set(event.task.id, event.task)
+  taskRevisions.set(event.task.id, event.revision)
+  removedRevisions.delete(event.task.id)
 
   uploadStore.setState({
     order,
     tasksVersion: state.tasksVersion + 1,
+    progressVersion: state.progressVersion + 1,
+    latestRevision: Math.max(state.latestRevision, event.revision),
+    taskRevisions,
+    removedRevisions,
+    completionVersion: Math.max(state.completionVersion, event.completionVersion),
     ...currentSummary(state.tasks),
   })
 }
 
-export function patchUploadTask(id: string, patch: Partial<UploadTask>) {
+export function applyUploadRemovedEvent(event: NativeUploadRemovedEvent) {
   const state = uploadStore.getState()
-  const current = state.tasks.get(id)
-  if (!current) return
+  if (event.revision <= state.baselineRevision) return
 
-  const next = { ...current, ...patch }
-  state.tasks.set(id, next)
+  const previousRevision = Math.max(state.taskRevisions.get(event.taskId) ?? -1, state.removedRevisions.get(event.taskId) ?? -1)
+  if (event.revision <= previousRevision) return
 
-  const statusChanged = next.status !== current.status
-  let completionVersion = state.completionVersion
+  const task = state.tasks.get(event.taskId)
+  const taskRevisions = new Map(state.taskRevisions)
+  const removedRevisions = new Map(state.removedRevisions)
 
-  if (statusChanged) {
-    updateStatusIndexes(id, current.status, next.status)
-
-    if (next.status === "completed" && state.activeCount > 0 && activeIds.size === 0 && failedIds.size === 0) {
-      completionVersion++
-    }
+  if (task) {
+    updateStatusIndexes(event.taskId, task.status, undefined)
+    state.tasks.delete(event.taskId)
   }
 
-  uploadStore.setState({
-    tasksVersion: state.tasksVersion + 1,
-    completionVersion,
-    ...(statusChanged ? currentSummary(state.tasks) : state.currentTask?.id === id ? { currentTask: next } : {}),
-  })
-
-  return next
-}
-
-export function updateUploadProgress(id: string, uploadedBytes: number) {
-  const state = uploadStore.getState()
-  const task = state.tasks.get(id)
-
-  if (!task || task.status !== "uploading") return
-
-  const nextUploaded = Math.max(task.uploadedBytes, Math.min(uploadedBytes, task.file.size))
-  if (nextUploaded === task.uploadedBytes) return
-
-  const next = { ...task, uploadedBytes: nextUploaded }
-  state.tasks.set(id, next)
+  taskRevisions.delete(event.taskId)
+  removedRevisions.set(event.taskId, event.revision)
 
   uploadStore.setState({
-    progressVersion: state.progressVersion + 1,
-    ...(state.currentTask?.id === id ? { currentTask: next } : {}),
-  })
-}
-
-export function removeUploadTask(id: string) {
-  const state = uploadStore.getState()
-  const task = state.tasks.get(id)
-  if (!task) return false
-
-  updateStatusIndexes(id, task.status, undefined)
-  state.tasks.delete(id)
-
-  uploadStore.setState({
-    order: state.order.filter((taskId) => taskId !== id),
-    tasksVersion: state.tasksVersion + 1,
+    order: task ? state.order.filter((taskId) => taskId !== event.taskId) : state.order,
+    tasksVersion: state.tasksVersion + (task ? 1 : 0),
+    progressVersion: state.progressVersion + (task ? 1 : 0),
+    latestRevision: Math.max(state.latestRevision, event.revision),
+    taskRevisions,
+    removedRevisions,
+    completionVersion: Math.max(state.completionVersion, event.completionVersion),
     ...currentSummary(state.tasks),
-  })
-
-  return true
-}
-
-export function resetUploadStore() {
-  const state = uploadStore.getState()
-
-  activeIds.clear()
-  uploadingIds.clear()
-  finalizingIds.clear()
-  failedIds.clear()
-  lastFailedId = undefined
-
-  uploadStore.setState({
-    tasks: new Map(),
-    order: [],
-    tasksVersion: state.tasksVersion + 1,
-    progressVersion: state.progressVersion + 1,
-    activeCount: 0,
-    failedCount: 0,
-    currentTask: undefined,
-    completionVersion: 0,
   })
 }
 
@@ -194,6 +185,19 @@ export function useUploadDockState() {
     currentTask: state.currentTask,
     completionVersion: state.completionVersion,
   })))
+}
+
+function rebuildStatusIndexes(order: readonly string[], tasks: ReadonlyMap<string, UploadTask>) {
+  activeIds.clear()
+  uploadingIds.clear()
+  finalizingIds.clear()
+  failedIds.clear()
+  lastFailedId = undefined
+
+  for (const taskId of order) {
+    const task = tasks.get(taskId)
+    if (task) updateStatusIndexes(taskId, undefined, task.status)
+  }
 }
 
 function currentSummary(tasks: ReadonlyMap<string, UploadTask>) {
