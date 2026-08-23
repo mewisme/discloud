@@ -18,15 +18,8 @@ export function workspaceCollectionPath(username: string, collectionId?: string)
     : workspacePath(username, "collections")
 }
 
-export function workspaceCollectionFilePath(
-  username: string,
-  collectionId: string,
-  fileId: string,
-) {
-  return workspacePath(
-    username,
-    `collections/${encodeURIComponent(collectionId)}/files/${encodeURIComponent(fileId)}`,
-  )
+export function workspaceCollectionFilePath(username: string, collectionId: string, fileId: string) {
+  return workspacePath(username, `collections/${encodeURIComponent(collectionId)}/files/${encodeURIComponent(fileId)}`)
 }
 
 export function workspaceRelativePath(pathname: string, username: string) {
@@ -36,6 +29,21 @@ export function workspaceRelativePath(pathname: string, username: string) {
   if (!pathname.startsWith(`${root}/`)) return null
 
   return pathname.slice(root.length)
+}
+
+export function workspaceFolderIdFromPath(pathname: string, username: string) {
+  const relative = workspaceRelativePath(pathname, username)
+  if (relative === "/") return undefined
+  if (!relative) return null
+
+  const match = /^\/folders\/([^/]+)\/?$/.exec(relative)
+  if (!match) return null
+
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return null
+  }
 }
 
 export function appRouteTitle(pathname: string, username: string) {

@@ -1,5 +1,5 @@
 import { type BrowserOptions, browserURL } from "@/lib/files/browser"
-import { workspaceCollectionFilePath, workspaceCollectionPath, workspaceFilePath, workspaceFolderPath, workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
+import { workspaceCollectionFilePath, workspaceCollectionPath, workspaceFilePath, workspaceFolderIdFromPath, workspaceFolderPath, workspacePath } from "@/lib/workspace/navigation"
 
 export { workspacePath, workspaceRelativePath } from "@/lib/workspace/navigation"
 
@@ -24,16 +24,5 @@ export function collectionFilePath(username: string, collectionId: string, fileI
 }
 
 export function folderIdFromBrowserPath(pathname: string, username: string) {
-  const relative = workspaceRelativePath(pathname, username)
-  if (relative === "/") return undefined
-  if (!relative) return null
-
-  const match = /^\/folders\/([^/]+)\/?$/.exec(relative)
-  if (!match) return null
-
-  try {
-    return decodeURIComponent(match[1])
-  } catch {
-    return null
-  }
+  return workspaceFolderIdFromPath(pathname, username)
 }

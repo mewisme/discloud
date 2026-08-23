@@ -3,6 +3,7 @@ export {
   workspaceCollectionFilePath,
   workspaceCollectionPath,
   workspaceFilePath,
+  workspaceFolderIdFromPath,
   workspaceFolderPath,
   workspacePath,
   workspaceRelativePath,

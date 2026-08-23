@@ -1,5 +1,6 @@
 import type { SearchPage, SearchQuery, SearchResult, User, WorkspaceDetails } from "@discloud/api/models"
-import { workspaceFolderPath, workspacePath, workspaceRelativePath } from "@discloud/shared/navigation"
+import { APIError } from "@discloud/api/types"
+import { workspaceFolderIdFromPath, workspaceFolderPath, workspacePath } from "@discloud/shared/navigation"
 import { startThemeTransition } from "@discloud/shared/theme-transition"
 import { Button } from "@discloud/ui/components/button"
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@discloud/ui/components/command"
@@ -8,6 +9,7 @@ import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router"
 
+import { useDesktopSession } from "#components/desktop-session"
 import { apiJSON } from "#lib/api/transport"
 
 import { FILE_BROWSER_CREATE_FOLDER_EVENT, FILE_BROWSER_UPLOAD_EVENT } from "../features/files/commands"
@@ -19,6 +21,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
   const navigate = useNavigate()
   const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
+  const { refreshUser } = useDesktopSession()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [workspaceOwner, setWorkspaceOwner] = useState<WorkspaceOwner>()
@@ -28,8 +31,9 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
   const [folderLoading, setFolderLoading] = useState(false)
   const [folderError, setFolderError] = useState(false)
   const value = query.trim()
-  const relativePath = workspaceRelativePath(location.pathname, workspaceUsername)
-  const inFileBrowser = relativePath === "/" || relativePath?.startsWith("/folders/") === true
+  const workspaceOwnerId = workspaceUsername === user.username ? user.id : workspaceOwner?.id
+  const workspaceName = workspaceUsername === user.username ? user.name : workspaceOwner?.name ?? workspaceUsername
+  const inFileBrowser = workspaceFolderIdFromPath(location.pathname, workspaceUsername) !== null
   const dark = resolvedTheme === "dark"
 
   useEffect(() => {
@@ -49,7 +53,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
     setWorkspaceError(false)
 
     if (workspaceUsername === user.username) {
-      setWorkspaceOwner({ id: user.id, username: user.username, name: user.name })
+      setWorkspaceOwner(undefined)
       setWorkspaceLoading(false)
       return
     }
@@ -61,8 +65,15 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
       .then((workspace) => {
         if (!cancelled) setWorkspaceOwner(workspace.owner)
       })
-      .catch(() => {
-        if (!cancelled) setWorkspaceError(true)
+      .catch((error) => {
+        if (cancelled) return
+
+        if (error instanceof APIError && error.status === 401) {
+          void refreshUser().catch(() => undefined)
+          return
+        }
+
+        setWorkspaceError(true)
       })
       .finally(() => {
         if (!cancelled) setWorkspaceLoading(false)
@@ -71,7 +82,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
     return () => {
       cancelled = true
     }
-  }, [user.id, user.name, user.username, workspaceUsername])
+  }, [refreshUser, user.username, workspaceUsername])
 
   useEffect(() => {
     if (!open || value.length < 2) {
@@ -81,7 +92,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
       return
     }
 
-    if (!workspaceOwner) {
+    if (!workspaceOwnerId) {
       setFolders([])
       setFolderLoading(false)
       setFolderError(workspaceError)
@@ -96,7 +107,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
       try {
         const searchQuery = {
           q: value,
-          ownerId: workspaceOwner.id,
+          ownerId: workspaceOwnerId,
           kind: "folder",
           sort: "relevance",
           order: "desc",
@@ -105,11 +116,16 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
 
         const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery })
         if (!cancelled) setFolders([...page.results].filter((result) => result.kind === "folder"))
-      } catch {
-        if (!cancelled) {
-          setFolders([])
-          setFolderError(true)
+      } catch (error) {
+        if (cancelled) return
+
+        if (error instanceof APIError && error.status === 401) {
+          void refreshUser().catch(() => undefined)
+          return
         }
+
+        setFolders([])
+        setFolderError(true)
       } finally {
         if (!cancelled) setFolderLoading(false)
       }
@@ -119,7 +135,7 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [open, value, workspaceError, workspaceOwner])
+  }, [open, refreshUser, value, workspaceError, workspaceOwnerId])
 
   function close() {
     setOpen(false)
@@ -153,8 +169,6 @@ export function DesktopCommandPalette({ user, workspaceUsername }: { user: User;
       startThemeTransition(() => setTheme(dark ? "light" : "dark"))
     })
   }
-
-  const workspaceName = workspaceOwner?.name ?? workspaceUsername
 
   return (
     <>
