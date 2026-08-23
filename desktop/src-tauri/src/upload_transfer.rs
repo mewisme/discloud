@@ -1,18 +1,20 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     io::SeekFrom,
     path::{Path, PathBuf},
-    sync::RwLock,
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
 use reqwest::Method;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha2::{Digest, Sha256};
+use tauri::ipc::Channel;
 use tokio::{
     fs::{self, File},
     io::{AsyncReadExt, AsyncSeekExt},
-    sync::watch,
+    sync::{mpsc, watch, Semaphore},
     time::sleep,
 };
 
@@ -20,9 +22,9 @@ use crate::api::{response_error, ApiCommandError, ApiState};
 
 const MAX_PART_ATTEMPTS: usize = 3;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct UploadTransferState {
-    tasks: RwLock<HashMap<String, watch::Sender<bool>>>,
+    tasks: Arc<RwLock<HashMap<String, watch::Sender<bool>>>>,
 }
 
 #[derive(Serialize)]
@@ -37,6 +39,59 @@ pub(crate) struct LocalUploadFile {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UploadPartResult {
+    size: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UploadRunInput {
+    task_id: String,
+    upload_id: Option<String>,
+    folder_id: String,
+    path: String,
+    name: String,
+    size: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UploadTransferEvent {
+    status: &'static str,
+    session_id: String,
+    uploaded_bytes: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UploadRunResult {
+    session_id: String,
+    uploaded_bytes: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadSession {
+    id: String,
+    parent_folder_id: String,
+    size: u64,
+    chunk_size: u64,
+    expected_parts: usize,
+    recommended_part_concurrency: usize,
+    status: String,
+    #[serde(default)]
+    parts: Vec<UploadSessionPart>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadSessionPart {
+    part_index: u32,
+    size: u64,
+}
+
+struct UploadPartPlan {
+    index: u32,
+    offset: u64,
     size: u64,
 }
 
@@ -126,7 +181,194 @@ pub(crate) async fn inspect_files(
     Ok(files)
 }
 
-pub(crate) async fn upload_part(
+pub(crate) async fn run_upload_task(
+    api: &ApiState,
+    transfers: &UploadTransferState,
+    input: UploadRunInput,
+    on_progress: Channel<UploadTransferEvent>,
+) -> Result<UploadRunResult, ApiCommandError> {
+    if !valid_resource_id(&input.folder_id) {
+        return Err(ApiCommandError::invalid_request("Invalid folder ID."));
+    }
+
+    if input.name.trim().is_empty() {
+        return Err(ApiCommandError::invalid_request(
+            "Upload file name is required.",
+        ));
+    }
+
+    let mut cancellation = transfers.subscribe(&input.task_id)?;
+
+    if *cancellation.borrow() {
+        return Err(ApiCommandError::cancelled());
+    }
+
+    let session = match input.upload_id.as_deref() {
+        Some(upload_id) => get_upload_session(api, &mut cancellation, upload_id).await?,
+        None => {
+            create_upload_session(
+                api,
+                &mut cancellation,
+                &input.folder_id,
+                &input.name,
+                input.size,
+            )
+            .await?
+        }
+    };
+
+    if session.parent_folder_id != input.folder_id || session.size != input.size {
+        return Err(ApiCommandError::invalid_response(
+            "Upload session no longer matches this file.",
+        ));
+    }
+
+    if session.status == "completed" {
+        return Ok(UploadRunResult {
+            session_id: session.id,
+            uploaded_bytes: input.size,
+        });
+    }
+
+    if session.status != "open" {
+        return Err(ApiCommandError::invalid_response(format!(
+            "Upload session is {}.",
+            session.status
+        )));
+    }
+
+    let plan = plan_upload_parts(input.size, session.chunk_size)?;
+
+    if plan.len() != session.expected_parts {
+        return Err(ApiCommandError::invalid_response(
+            "Upload session part count is inconsistent.",
+        ));
+    }
+
+    let uploaded_parts = session
+        .parts
+        .iter()
+        .map(|part| part.part_index)
+        .collect::<HashSet<_>>();
+    let mut uploaded_bytes = session.parts.iter().try_fold(0u64, |total, part| {
+        total
+            .checked_add(part.size)
+            .ok_or_else(|| ApiCommandError::invalid_response("Upload progress overflowed."))
+    })?;
+
+    publish_upload_event(
+        &on_progress,
+        "uploading",
+        &session.id,
+        uploaded_bytes.min(input.size),
+    );
+
+    let missing = plan
+        .into_iter()
+        .filter(|part| !uploaded_parts.contains(&part.index))
+        .collect::<Vec<_>>();
+
+    if !missing.is_empty() {
+        let concurrency = session
+            .recommended_part_concurrency
+            .max(1)
+            .min(missing.len());
+        let expected = missing.len();
+        let semaphore = Arc::new(Semaphore::new(concurrency));
+        let (sender, mut receiver) = mpsc::channel(concurrency);
+        let api = ApiState::clone(api);
+        let transfers = UploadTransferState::clone(transfers);
+
+        for part in missing {
+            let semaphore = Arc::clone(&semaphore);
+            let sender = sender.clone();
+            let api = api.clone();
+            let transfers = transfers.clone();
+            let task_id = input.task_id.clone();
+            let upload_id = session.id.clone();
+            let path = input.path.clone();
+
+            tauri::async_runtime::spawn(async move {
+                let result = match semaphore.acquire_owned().await {
+                    Ok(_permit) => {
+                        upload_part(
+                            &api,
+                            &transfers,
+                            task_id,
+                            upload_id,
+                            path,
+                            part.index,
+                            part.offset,
+                            part.size,
+                        )
+                        .await
+                    }
+                    Err(_) => Err(ApiCommandError::internal(
+                        "Upload concurrency controller was closed.",
+                    )),
+                };
+
+                let _ = sender.send(result).await;
+            });
+        }
+
+        drop(sender);
+
+        let mut completed = 0usize;
+
+        while let Some(result) = receiver.recv().await {
+            let result = match result {
+                Ok(result) => result,
+                Err(error) => {
+                    let _ = transfers.cancel(&input.task_id);
+                    return Err(error);
+                }
+            };
+
+            completed += 1;
+            uploaded_bytes = uploaded_bytes
+                .checked_add(result.size)
+                .ok_or_else(|| ApiCommandError::invalid_response("Upload progress overflowed."))?;
+
+            publish_upload_event(
+                &on_progress,
+                "uploading",
+                &session.id,
+                uploaded_bytes.min(input.size),
+            );
+        }
+
+        if completed != expected {
+            let _ = transfers.cancel(&input.task_id);
+            return Err(ApiCommandError::internal(
+                "Upload workers stopped before all parts completed.",
+            ));
+        }
+    }
+
+    if *cancellation.borrow() {
+        return Err(ApiCommandError::cancelled());
+    }
+
+    publish_upload_event(&on_progress, "finalizing", &session.id, input.size);
+    complete_upload_session(api, &mut cancellation, &session.id).await?;
+
+    Ok(UploadRunResult {
+        session_id: session.id,
+        uploaded_bytes: input.size,
+    })
+}
+
+pub(crate) async fn cancel_upload(api: &ApiState, upload_id: &str) -> Result<(), ApiCommandError> {
+    if !valid_resource_id(upload_id) {
+        return Err(ApiCommandError::invalid_request("Invalid upload ID."));
+    }
+
+    let path = format!("/api/v1/uploads/{upload_id}");
+    api.request_empty(Method::DELETE, path, None).await
+}
+
+async fn upload_part(
     api: &ApiState,
     transfers: &UploadTransferState,
     task_id: String,
@@ -205,6 +447,113 @@ pub(crate) async fn upload_part(
     Err(ApiCommandError::internal(
         "Upload part retry loop exited unexpectedly.",
     ))
+}
+
+async fn create_upload_session(
+    api: &ApiState,
+    cancellation: &mut watch::Receiver<bool>,
+    folder_id: &str,
+    name: &str,
+    size: u64,
+) -> Result<UploadSession, ApiCommandError> {
+    let request = api.request_json(
+        Method::POST,
+        "/api/v1/uploads".to_string(),
+        Some(json!({
+            "parentFolderId": folder_id,
+            "name": name,
+            "size": size,
+        })),
+    );
+
+    tokio::select! {
+        _ = wait_for_cancel(cancellation) => Err(ApiCommandError::cancelled()),
+        result = request => result,
+    }
+}
+
+async fn get_upload_session(
+    api: &ApiState,
+    cancellation: &mut watch::Receiver<bool>,
+    upload_id: &str,
+) -> Result<UploadSession, ApiCommandError> {
+    if !valid_resource_id(upload_id) {
+        return Err(ApiCommandError::invalid_request("Invalid upload ID."));
+    }
+
+    let request = api.request_json(Method::GET, format!("/api/v1/uploads/{upload_id}"), None);
+
+    tokio::select! {
+        _ = wait_for_cancel(cancellation) => Err(ApiCommandError::cancelled()),
+        result = request => result,
+    }
+}
+
+async fn complete_upload_session(
+    api: &ApiState,
+    cancellation: &mut watch::Receiver<bool>,
+    upload_id: &str,
+) -> Result<(), ApiCommandError> {
+    if !valid_resource_id(upload_id) {
+        return Err(ApiCommandError::invalid_request("Invalid upload ID."));
+    }
+
+    let request = api.request_empty(
+        Method::POST,
+        format!("/api/v1/uploads/{upload_id}/complete"),
+        None,
+    );
+
+    tokio::select! {
+        _ = wait_for_cancel(cancellation) => Err(ApiCommandError::cancelled()),
+        result = request => result,
+    }
+}
+
+fn publish_upload_event(
+    channel: &Channel<UploadTransferEvent>,
+    status: &'static str,
+    session_id: &str,
+    uploaded_bytes: u64,
+) {
+    let _ = channel.send(UploadTransferEvent {
+        status,
+        session_id: session_id.to_string(),
+        uploaded_bytes,
+    });
+}
+
+fn plan_upload_parts(size: u64, chunk_size: u64) -> Result<Vec<UploadPartPlan>, ApiCommandError> {
+    if chunk_size == 0 {
+        return Err(ApiCommandError::invalid_response(
+            "Upload session chunk size is invalid.",
+        ));
+    }
+
+    if size == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut parts = Vec::new();
+    let mut offset = 0u64;
+    let mut index = 0u32;
+
+    while offset < size {
+        let part_size = chunk_size.min(size - offset);
+        parts.push(UploadPartPlan {
+            index,
+            offset,
+            size: part_size,
+        });
+        offset = offset
+            .checked_add(part_size)
+            .ok_or_else(|| ApiCommandError::invalid_response("Upload part range overflowed."))?;
+        index = index
+            .checked_add(1)
+            .ok_or_else(|| ApiCommandError::invalid_response("Upload has too many parts."))?;
+    }
+
+    Ok(parts)
 }
 
 async fn inspect_directory(
@@ -417,7 +766,7 @@ fn valid_resource_id(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{join_relative_path, sha256_hex, validate_part_range};
+    use super::{join_relative_path, plan_upload_parts, sha256_hex, validate_part_range};
 
     #[test]
     fn hashes_upload_part() {
@@ -433,6 +782,19 @@ mod tests {
         assert!(validate_part_range(100, 50, 50).is_ok());
         assert!(validate_part_range(100, 99, 2).is_err());
         assert!(validate_part_range(100, 0, 0).is_err());
+    }
+
+    #[test]
+    fn plans_upload_parts() {
+        let parts = plan_upload_parts(11, 5).unwrap();
+
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0].index, 0);
+        assert_eq!(parts[0].offset, 0);
+        assert_eq!(parts[0].size, 5);
+        assert_eq!(parts[2].index, 2);
+        assert_eq!(parts[2].offset, 10);
+        assert_eq!(parts[2].size, 1);
     }
 
     #[test]

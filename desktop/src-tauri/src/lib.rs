@@ -58,7 +58,7 @@ pub fn run() {
             commands::begin_upload_task,
             commands::cancel_upload_task,
             commands::finish_upload_task,
-            commands::upload_file_part,
+            commands::run_upload_task,
             commands::update_avatar,
             commands::load_avatar,
             commands::save_recovery_codes,

@@ -9,7 +9,7 @@ use reqwest::{
     header::{HeaderName, HeaderValue, ACCEPT, CONTENT_LENGTH, COOKIE, HOST, SET_COOKIE},
     Client, Method, RequestBuilder, StatusCode, Url,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::session;
@@ -25,9 +25,9 @@ struct DesktopApiClient {
     cookie_jar: Arc<Jar>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct ApiState {
-    client: RwLock<Option<DesktopApiClient>>,
+    client: Arc<RwLock<Option<DesktopApiClient>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -366,6 +366,51 @@ impl ApiState {
         }
     }
 
+    pub(crate) async fn request_json<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> Result<T, ApiCommandError> {
+        let response = self
+            .request(ApiRequest {
+                method: method.as_str().to_string(),
+                path,
+                query: Vec::new(),
+                headers: HashMap::new(),
+                body,
+            })
+            .await?;
+
+        if !response.has_body {
+            return Err(ApiCommandError::invalid_response(
+                "The server returned an empty JSON response.",
+            ));
+        }
+
+        serde_json::from_value(response.body).map_err(|_| {
+            ApiCommandError::invalid_response("The server returned an invalid JSON response.")
+        })
+    }
+
+    pub(crate) async fn request_empty(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> Result<(), ApiCommandError> {
+        self.request(ApiRequest {
+            method: method.as_str().to_string(),
+            path,
+            query: Vec::new(),
+            headers: HashMap::new(),
+            body,
+        })
+        .await?;
+
+        Ok(())
+    }
+
     pub(crate) async fn raw_request(
         &self,
         method: Method,
@@ -410,7 +455,7 @@ impl ApiCommandError {
         Self::new("invalidRequest", message)
     }
 
-    fn invalid_response(message: impl Into<String>) -> Self {
+    pub(crate) fn invalid_response(message: impl Into<String>) -> Self {
         Self::new("invalidResponse", message)
     }
 

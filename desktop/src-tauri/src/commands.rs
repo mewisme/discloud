@@ -1,10 +1,13 @@
-use tauri::State;
+use tauri::{ipc::Channel, State};
 
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
     file_transfer::{self, DownloadResult},
     settings_transfer::{self, AvatarInfo, AvatarPayload},
-    upload_transfer::{self, LocalUploadFile, UploadPartResult, UploadTransferState},
+    upload_transfer::{
+        self, LocalUploadFile, UploadRunInput, UploadRunResult, UploadTransferEvent,
+        UploadTransferState,
+    },
 };
 
 #[tauri::command]
@@ -54,11 +57,19 @@ pub(crate) fn begin_upload_task(
 }
 
 #[tauri::command]
-pub(crate) fn cancel_upload_task(
-    state: State<'_, UploadTransferState>,
+pub(crate) async fn cancel_upload_task(
+    api_state: State<'_, ApiState>,
+    upload_state: State<'_, UploadTransferState>,
     task_id: String,
+    upload_id: Option<String>,
 ) -> Result<bool, ApiCommandError> {
-    state.cancel(&task_id)
+    let cancelled = upload_state.cancel(&task_id)?;
+
+    if let Some(upload_id) = upload_id {
+        upload_transfer::cancel_upload(api_state.inner(), &upload_id).await?;
+    }
+
+    Ok(cancelled)
 }
 
 #[tauri::command]
@@ -70,27 +81,14 @@ pub(crate) fn finish_upload_task(
 }
 
 #[tauri::command]
-pub(crate) async fn upload_file_part(
+pub(crate) async fn run_upload_task(
     api_state: State<'_, ApiState>,
     upload_state: State<'_, UploadTransferState>,
-    task_id: String,
-    upload_id: String,
-    path: String,
-    part_index: u32,
-    offset: u64,
-    size: u64,
-) -> Result<UploadPartResult, ApiCommandError> {
-    upload_transfer::upload_part(
-        api_state.inner(),
-        upload_state.inner(),
-        task_id,
-        upload_id,
-        path,
-        part_index,
-        offset,
-        size,
-    )
-    .await
+    input: UploadRunInput,
+    on_progress: Channel<UploadTransferEvent>,
+) -> Result<UploadRunResult, ApiCommandError> {
+    upload_transfer::run_upload_task(api_state.inner(), upload_state.inner(), input, on_progress)
+        .await
 }
 
 #[tauri::command]

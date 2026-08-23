@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core"
+import { Channel, invoke } from "@tauri-apps/api/core"
 
 import { nativeError } from "#lib/api/transport"
 
@@ -9,7 +9,23 @@ export type NativeUploadFile = {
   relativePath: string
 }
 
-export type NativeUploadPartResult = {
+export type NativeUploadTransferEvent = {
+  status: "uploading" | "finalizing"
+  sessionId: string
+  uploadedBytes: number
+}
+
+export type NativeUploadRunResult = {
+  sessionId: string
+  uploadedBytes: number
+}
+
+export type NativeUploadRunInput = {
+  taskId: string
+  uploadId?: string
+  folderId: string
+  path: string
+  name: string
   size: number
 }
 
@@ -29,9 +45,9 @@ export async function beginNativeUploadTask(taskId: string) {
   }
 }
 
-export async function cancelNativeUploadTask(taskId: string) {
+export async function cancelNativeUploadTask(taskId: string, uploadId?: string) {
   try {
-    return await invoke<boolean>("cancel_upload_task", { taskId })
+    return await invoke<boolean>("cancel_upload_task", { taskId, uploadId: uploadId ?? null })
   } catch (error) {
     throw nativeError(error)
   }
@@ -45,16 +61,15 @@ export async function finishNativeUploadTask(taskId: string) {
   }
 }
 
-export async function uploadNativePart(input: {
-  taskId: string
-  uploadId: string
-  path: string
-  partIndex: number
-  offset: number
-  size: number
-}) {
+export async function runNativeUploadTask(input: NativeUploadRunInput, onProgress: (event: NativeUploadTransferEvent) => void) {
+  const channel = new Channel<NativeUploadTransferEvent>()
+  channel.onmessage = onProgress
+
   try {
-    return await invoke<NativeUploadPartResult>("upload_file_part", input)
+    return await invoke<NativeUploadRunResult>("run_upload_task", {
+      input: { ...input, uploadId: input.uploadId ?? null },
+      onProgress: channel,
+    })
   } catch (error) {
     throw nativeError(error)
   }
