@@ -5,12 +5,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useDesktopSession } from "#components/desktop-session"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
-import { clearNativeSyncPairState, configureNativeSyncPairs, runNativeSyncPair } from "../core/native"
+import { clearNativeSyncPairState, configureNativeSyncPairs, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
 import { loadSyncPairs, saveSyncPairs } from "../core/preferences"
 import type { SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
 
 type CreateSyncPairInput = Omit<SyncPair, "id" | "serverUrl" | "username" | "createdAt">
-type UpdateSyncPairInput = Partial<Pick<SyncPair, "localPath" | "remoteFolderId" | "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
+type UpdateSyncPairInput = Partial<Pick<SyncPair, "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
 
 type DesktopSyncContextValue = {
   pairs: SyncPair[]
@@ -65,9 +65,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
 
   const scopeServerUrl = state.status === "connected" && state.user ? state.serverUrl : undefined
   const scopeUsername = state.status === "connected" && state.user ? state.user.username : undefined
-  const pairs = useMemo(() => scopeServerUrl && scopeUsername
-    ? allPairs.filter((pair) => pair.serverUrl === scopeServerUrl && pair.username === scopeUsername)
-    : [], [allPairs, scopeServerUrl, scopeUsername])
+  const pairs = useMemo(() => scopedPairs(allPairs, scopeServerUrl, scopeUsername), [allPairs, scopeServerUrl, scopeUsername])
 
   const persist = useCallback(async (next: SyncPair[]) => {
     try {
@@ -85,14 +83,9 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const addPair = useCallback(async (input: CreateSyncPairInput) => {
     if (!scopeServerUrl || !scopeUsername) throw new Error("Sign in before creating a sync pair.")
 
-    const pair: SyncPair = {
-      ...input,
-      id: crypto.randomUUID(),
-      serverUrl: scopeServerUrl,
-      username: scopeUsername,
-      createdAt: Date.now(),
-    }
+    const pair: SyncPair = { ...input, id: crypto.randomUUID(), serverUrl: scopeServerUrl, username: scopeUsername, createdAt: Date.now() }
     const next = [...allPairsRef.current, pair]
+    await validateNativeSyncPairs(scopedPairs(next, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) })))
     await persist(next)
     return pair
   }, [persist, scopeServerUrl, scopeUsername])
@@ -100,7 +93,10 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const updatePair = useCallback(async (pairId: string, patch: UpdateSyncPairInput) => {
     const current = allPairsRef.current.find((pair) => pair.id === pairId)
     if (!current || !scopeServerUrl || !scopeUsername || current.serverUrl !== scopeServerUrl || current.username !== scopeUsername) return
-    await persist(allPairsRef.current.map((pair) => pair.id === pairId ? { ...pair, ...patch } : pair))
+
+    const next = allPairsRef.current.map((pair) => pair.id === pairId ? { ...pair, ...patch } : pair)
+    await validateNativeSyncPairs(scopedPairs(next, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) })))
+    await persist(next)
   }, [persist, scopeServerUrl, scopeUsername])
 
   const resetPairState = useCallback(async (pairId: string) => {
@@ -132,16 +128,14 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     setRuntimes((current) => ({ ...current, [pairId]: { ...current[pairId], status: "syncing", lastStartedAt: startedAt, error: undefined } }))
 
     try {
+      const validationPairs = scopedPairs(allPairsRef.current, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) }))
+      await validateNativeSyncPairs(validationPairs)
       const result = await runNativeSyncPair(pair)
       const finishedAt = Date.now()
       const nextRunAt = finishedAt + pair.intervalSeconds * 1000
       setRuntimes((current) => ({ ...current, [pairId]: { status: "idle", lastStartedAt: startedAt, lastFinishedAt: finishedAt, nextRunAt, lastResult: result } }))
       window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId, result } }))
-
-      if (result.conflicts > 0) {
-        void sendDesktopNotification("DisCloud sync preserved a conflict", `${pair.remoteFolderName}: ${result.conflicts} conflict${result.conflicts === 1 ? "" : "s"} kept as separate copies.`)
-      }
-
+      if (result.conflicts > 0) void sendDesktopNotification("DisCloud sync preserved a conflict", `${pair.remoteFolderName}: ${result.conflicts} conflict${result.conflicts === 1 ? "" : "s"} kept as separate copies.`)
       return result
     } catch (cause) {
       const message = syncErrorMessage(cause)
@@ -164,6 +158,10 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void configureNativeSyncPairs(pairs).then(() => setError(undefined)).catch((cause) => setError(syncErrorMessage(cause)))
   }, [pairs])
+
+  useEffect(() => () => {
+    void configureNativeSyncPairs([]).catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -217,6 +215,11 @@ export function useDesktopSync() {
   const context = useContext(DesktopSyncContext)
   if (!context) throw new Error("useDesktopSync must be used within DesktopSyncProvider")
   return context
+}
+
+function scopedPairs(pairs: readonly SyncPair[], serverUrl?: string, username?: string) {
+  if (!serverUrl || !username) return []
+  return pairs.filter((pair) => pair.serverUrl === serverUrl && pair.username === username)
 }
 
 function syncErrorMessage(error: unknown) {

@@ -5,11 +5,13 @@ import type { BrowserOptions, BrowserSort } from "@discloud/shared/file-browser"
 import { Button } from "@discloud/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { Kbd, KbdGroup } from "@discloud/ui/components/kbd"
-import { ArrowDownIcon, ArrowUpIcon, FolderPlusIcon, FolderUpIcon, Globe2Icon, LayoutGridIcon, ListIcon, LoaderCircleIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, FolderPlusIcon, FolderSyncIcon, FolderUpIcon, Globe2Icon, LayoutGridIcon, ListIcon, LoaderCircleIcon, MoreHorizontalIcon, RefreshCwIcon, Share2Icon, SlidersHorizontalIcon, UploadIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { DesktopAccessDialog } from "../../access/access-dialog"
 import { DesktopPublicShareDialog } from "../../shares/public-share-dialog"
+import { DesktopSyncPairDialog } from "../../sync/ui/sync-pair-dialog"
+import { useDesktopSync } from "../../sync/ui/sync-provider"
 import { useDesktopFileUploadTarget } from "../../uploads/ui/upload-target"
 import { DesktopCreateFolderDialog } from "../actions/create-folder-dialog"
 import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "../commands"
@@ -44,8 +46,8 @@ export function DesktopFileBrowserToolbar({ toolbarConfig, selectionActive, ...p
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableTarget(event.target)) return
-
       const key = event.key.toLowerCase()
+
       if (key === "u" && props.editable && !uploadTarget.busy) {
         event.preventDefault()
         void uploadTarget.openFiles()
@@ -67,11 +69,7 @@ export function DesktopFileBrowserToolbar({ toolbarConfig, selectionActive, ...p
       {toolbarConfig.variant === "inline" ? (
         <div className="hidden items-center gap-2 sm:flex"><HorizontalDesktopFileBrowserToolbar {...toolbarProps} /></div>
       ) : toolbarConfig.dockPosition === "right" ? (
-        <SideDock side="right">
-          <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
-            <VerticalDesktopFileBrowserToolbar {...toolbarProps} />
-          </div>
-        </SideDock>
+        <SideDock side="right"><div className="pointer-events-auto flex flex-col items-center gap-1 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md"><VerticalDesktopFileBrowserToolbar {...toolbarProps} /></div></SideDock>
       ) : (
         <BottomDock slot="file-browser">
           <div data-selection-active={selectionActive || undefined} className="rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
@@ -83,16 +81,8 @@ export function DesktopFileBrowserToolbar({ toolbarConfig, selectionActive, ...p
 
       {toolbarConfig.variant === "inline" ? (
         <div className="flex items-center justify-end gap-2 sm:hidden">
-          {props.editable ? (
-            <DesktopCreateFolderDialog folder={props.folder} onCreated={props.onCreated} trigger={<Button size="icon-sm" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>} />
-          ) : null}
-
-          {props.editable ? (
-            <Button size="icon-sm" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>
-              {uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
-            </Button>
-          ) : null}
-
+          {props.editable ? <DesktopCreateFolderDialog folder={props.folder} onCreated={props.onCreated} trigger={<Button size="icon-sm" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>} /> : null}
+          {props.editable ? <Button size="icon-sm" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>{uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}</Button> : null}
           <DesktopFolderActionsMenu {...toolbarProps} mobile />
         </div>
       ) : null}
@@ -113,20 +103,8 @@ function HorizontalDesktopFileBrowserToolbar(props: ToolbarContentProps) {
   return (
     <>
       {props.editable ? <DesktopCreateFolderDialog folder={props.folder} onCreated={props.onCreated} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} /> : null}
-
-      {props.editable ? (
-        <Button variant="outline" disabled={uploadTarget.busy} onClick={() => void uploadTarget.openFiles()}>
-          {uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
-          Upload
-          <KbdGroup><Kbd>U</Kbd></KbdGroup>
-        </Button>
-      ) : null}
-
-      <Button variant="outline" disabled={props.reloading} aria-label="Reload folder" onClick={props.onReload}>
-        <RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} />
-        <KbdGroup><Kbd>R</Kbd></KbdGroup>
-      </Button>
-
+      {props.editable ? <Button variant="outline" disabled={uploadTarget.busy} onClick={() => void uploadTarget.openFiles()}>{uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}Upload<KbdGroup><Kbd>U</Kbd></KbdGroup></Button> : null}
+      <Button variant="outline" disabled={props.reloading} aria-label="Reload folder" onClick={props.onReload}><RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} /><KbdGroup><Kbd>R</Kbd></KbdGroup></Button>
       <InlineFileBrowserControls options={props.options} onChange={props.onOptionsChange} onSortChange={props.onSortChange} />
       <DesktopFolderActionsMenu {...props} />
     </>
@@ -138,24 +116,9 @@ function CompactDesktopFileBrowserToolbar(props: ToolbarContentProps) {
 
   return (
     <>
-      {props.editable ? (
-        <DesktopCreateFolderDialog
-          folder={props.folder}
-          onCreated={props.onCreated}
-          trigger={<Button size="icon" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>}
-        />
-      ) : null}
-
-      {props.editable ? (
-        <Button size="icon" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>
-          {uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
-        </Button>
-      ) : null}
-
-      <Button size="icon" variant="outline" disabled={props.reloading} aria-label="Reload folder" title="Reload folder" onClick={props.onReload}>
-        <RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} />
-      </Button>
-
+      {props.editable ? <DesktopCreateFolderDialog folder={props.folder} onCreated={props.onCreated} trigger={<Button size="icon" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>} /> : null}
+      {props.editable ? <Button size="icon" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>{uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}</Button> : null}
+      <Button size="icon" variant="outline" disabled={props.reloading} aria-label="Reload folder" title="Reload folder" onClick={props.onReload}><RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} /></Button>
       <DockFileBrowserControls options={props.options} onChange={props.onOptionsChange} onSortChange={props.onSortChange} />
       <DesktopFolderActionsMenu {...props} />
     </>
@@ -167,25 +130,9 @@ function VerticalDesktopFileBrowserToolbar(props: ToolbarContentProps) {
 
   return (
     <>
-      {props.editable ? (
-        <DesktopCreateFolderDialog
-          folder={props.folder}
-          onCreated={props.onCreated}
-          openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT}
-          trigger={<Button size="icon" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>}
-        />
-      ) : null}
-
-      {props.editable ? (
-        <Button size="icon" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>
-          {uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
-        </Button>
-      ) : null}
-
-      <Button size="icon" variant="outline" disabled={props.reloading} aria-label="Reload folder" title="Reload folder" onClick={props.onReload}>
-        <RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} />
-      </Button>
-
+      {props.editable ? <DesktopCreateFolderDialog folder={props.folder} onCreated={props.onCreated} openEvent={FILE_BROWSER_CREATE_FOLDER_EVENT} trigger={<Button size="icon" variant="outline" aria-label="Create folder" title="Create folder"><FolderPlusIcon /></Button>} /> : null}
+      {props.editable ? <Button size="icon" variant="outline" disabled={uploadTarget.busy} aria-label="Upload files" title="Upload files" onClick={() => void uploadTarget.openFiles()}>{uploadTarget.busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}</Button> : null}
+      <Button size="icon" variant="outline" disabled={props.reloading} aria-label="Reload folder" title="Reload folder" onClick={props.onReload}><RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} /></Button>
       <DockFileBrowserControls options={props.options} onChange={props.onOptionsChange} onSortChange={props.onSortChange} />
       <DesktopFolderActionsMenu {...props} />
     </>
@@ -194,58 +141,61 @@ function VerticalDesktopFileBrowserToolbar(props: ToolbarContentProps) {
 
 function DesktopFolderActionsMenu({ mobile = false, ...props }: ToolbarContentProps & { mobile?: boolean }) {
   const uploadTarget = useDesktopFileUploadTarget()
-  const hasMenu = props.editable || props.shareable || mobile
-  if (!hasMenu) return null
+  const sync = useDesktopSync()
+  const [syncOpen, setSyncOpen] = useState(false)
+  const syncPair = sync.pairs.find((pair) => pair.remoteFolderId === props.folder.id)
+  const remoteName = props.folder.isRoot ? "Files" : props.folder.name
+  const accessLevel = props.shareable ? "full" : props.editable ? "edit" : "view"
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="icon" variant="outline" aria-label="Folder actions" title="Folder actions"><MoreHorizontalIcon /></Button>
-      </DropdownMenuTrigger>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button size="icon" variant="outline" aria-label="Folder actions" title="Folder actions"><MoreHorizontalIcon /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          {mobile ? <DropdownMenuItem disabled={props.reloading} onSelect={props.onReload}><RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} />Reload</DropdownMenuItem> : null}
+          {props.editable ? <DropdownMenuItem disabled={uploadTarget.busy} onSelect={() => void uploadTarget.openFolders()}><FolderUpIcon />Upload folder</DropdownMenuItem> : null}
 
-      <DropdownMenuContent align="end" className="w-52">
-        {mobile ? <DropdownMenuItem disabled={props.reloading} onSelect={props.onReload}><RefreshCwIcon className={props.reloading ? "animate-spin" : undefined} />Reload</DropdownMenuItem> : null}
+          {(mobile || props.editable) ? <DropdownMenuSeparator /> : null}
+          <DropdownMenuItem onSelect={() => setSyncOpen(true)}><FolderSyncIcon />{syncPair ? "Sync settings" : "Sync this folder"}</DropdownMenuItem>
 
-        {props.editable ? <DropdownMenuItem disabled={uploadTarget.busy} onSelect={() => void uploadTarget.openFolders()}><FolderUpIcon />Upload folder</DropdownMenuItem> : null}
+          {props.shareable ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={props.onAccess}><Share2Icon />Manage access</DropdownMenuItem>
+              <DropdownMenuItem onSelect={props.onPublicShare}><Globe2Icon />Public link</DropdownMenuItem>
+            </>
+          ) : null}
 
-        {props.shareable ? (
-          <>
-            {(mobile || props.editable) ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem onSelect={props.onAccess}><Share2Icon />Manage access</DropdownMenuItem>
-            <DropdownMenuItem onSelect={props.onPublicShare}><Globe2Icon />Public link</DropdownMenuItem>
-          </>
-        ) : null}
+          {mobile ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger><SlidersHorizontalIcon />Sort</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={props.options.sort} onValueChange={(value) => props.onSortChange(value as BrowserSort)}>
+                    <DropdownMenuRadioItem value="name">Name</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="updated">Modified</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="size">Size</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem onSelect={() => props.onOptionsChange({ order: props.options.order === "asc" ? "desc" : "asc" })}>{props.options.order === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />}{props.options.order === "asc" ? "Ascending" : "Descending"}</DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>{props.options.view === "list" ? <ListIcon /> : <LayoutGridIcon />}View</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={props.options.view} onValueChange={(value) => props.onOptionsChange({ view: value as BrowserOptions["view"] })}>
+                    <DropdownMenuRadioItem value="list"><ListIcon />List</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="grid"><LayoutGridIcon />Grid</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-        {mobile ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger><SlidersHorizontalIcon />Sort</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup value={props.options.sort} onValueChange={(value) => props.onSortChange(value as BrowserSort)}>
-                  <DropdownMenuRadioItem value="name">Name</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="updated">Modified</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="size">Size</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuItem onSelect={() => props.onOptionsChange({ order: props.options.order === "asc" ? "desc" : "asc" })}>
-              {props.options.order === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />}
-              {props.options.order === "asc" ? "Ascending" : "Descending"}
-            </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{props.options.view === "list" ? <ListIcon /> : <LayoutGridIcon />}View</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup value={props.options.view} onValueChange={(value) => props.onOptionsChange({ view: value as BrowserOptions["view"] })}>
-                  <DropdownMenuRadioItem value="list"><ListIcon />List</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="grid"><LayoutGridIcon />Grid</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      {syncOpen ? <DesktopSyncPairDialog pair={syncPair} remoteFolder={{ id: props.folder.id, name: remoteName, accessLevel }} open onOpenChange={setSyncOpen} /> : null}
+    </>
   )
 }
 

@@ -5,6 +5,7 @@ mod file_transfer;
 mod session;
 mod settings_transfer;
 mod sync_engine;
+mod sync_validation;
 mod updater_runtime;
 mod upload_engine;
 mod upload_transfer;
@@ -68,6 +69,7 @@ pub fn run() {
             sync_engine::run_sync_pair,
             sync_engine::clear_sync_pair_state,
             sync_engine::configure_sync_pairs,
+            sync_validation::validate_sync_pairs,
             updater_runtime::check_for_update,
             updater_runtime::install_update,
         ])

@@ -26,6 +26,14 @@ export async function clearNativeSyncPairState(pairId: string) {
   }
 }
 
+export async function validateNativeSyncPairs(pairs: readonly SyncPair[]) {
+  try {
+    await invoke<void>("validate_sync_pairs", { pairs: pairs.map(nativeSyncValidationPair) })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}
+
 export async function configureNativeSyncPairs(pairs: readonly SyncPair[]) {
   try {
     await invoke<void>("configure_sync_pairs", { pairs: pairs.map(nativeSyncPair) })
@@ -34,14 +42,20 @@ export async function configureNativeSyncPairs(pairs: readonly SyncPair[]) {
   }
 }
 
-function nativeSyncPair(pair: SyncPair) {
+function nativeSyncValidationPair(pair: SyncPair) {
   return {
     id: pair.id,
     localPath: pair.localPath,
     remoteFolderId: pair.remoteFolderId,
     direction: pair.direction,
-    deletePolicy: pair.deletePolicy,
     enabled: pair.enabled,
+  }
+}
+
+function nativeSyncPair(pair: SyncPair) {
+  return {
+    ...nativeSyncValidationPair(pair),
+    deletePolicy: pair.deletePolicy,
     intervalSeconds: pair.intervalSeconds,
     ignorePatterns: pair.ignorePatterns,
   }

@@ -764,9 +764,7 @@ fn valid_resource_id(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        join_relative_path, plan_upload_parts, sha256_hex, validate_part_range,
-    };
+    use super::{join_relative_path, plan_upload_parts, sha256_hex, validate_part_range};
 
     #[test]
     fn hashes_upload_part() {
