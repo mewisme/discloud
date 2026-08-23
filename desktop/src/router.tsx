@@ -7,9 +7,10 @@ import { LoaderCircle } from "lucide-react"
 import { lazy, type ReactNode, Suspense } from "react"
 import { createHashRouter, Navigate, Outlet, useLocation, useNavigate, useParams } from "react-router"
 
-import { type ConnectedDesktopSessionState, useDesktopSession } from "#components/desktop-session"
+import { useDesktopSession } from "#components/desktop-session"
 import { changePassword, completeSetup, login, verifyMFA } from "#lib/auth"
 
+import { actorRouteRedirect, adminRouteRedirect, authenticatedPath, connectedRouteTarget } from "./features/desktop/core/route-guards"
 import { DesktopUserConfigProvider } from "./features/settings/ui/user-config-provider"
 import { DesktopSyncProvider } from "./features/sync/ui/sync-provider"
 import { DesktopUploadProvider } from "./features/uploads/ui/upload-provider"
@@ -85,13 +86,13 @@ function RootRoute() {
   const { state } = useDesktopSession()
   if (state.status === "loading") return <LoadingScreen />
   if (state.status === "disconnected") return <Navigate to="/connect" replace />
-  return <Navigate to={connectedTarget(state)} replace />
+  return <Navigate to={connectedRouteTarget(state)} replace />
 }
 
 function ConnectRoute() {
   const { state, acceptConnection } = useDesktopSession()
   if (state.status === "loading") return <LoadingScreen />
-  if (state.status === "connected") return <Navigate to={connectedTarget(state)} replace />
+  if (state.status === "connected") return <Navigate to={connectedRouteTarget(state)} replace />
   return <Suspense fallback={<LoadingScreen label="Loading connection screen" />}><ServerConnectionScreen initialServerUrl={state.serverUrl} initialError={state.error} onConnected={(connection) => void acceptConnection(connection)} /></Suspense>
 }
 
@@ -101,7 +102,7 @@ function SetupRoute() {
 
   if (state.status === "loading") return <LoadingScreen />
   if (state.status === "disconnected") return <Navigate to="/connect" replace />
-  if (!state.setupRequired) return <Navigate to={connectedTarget(state)} replace />
+  if (!state.setupRequired) return <Navigate to={connectedRouteTarget(state)} replace />
 
   function completed() {
     markSetupCompleted()
@@ -240,21 +241,16 @@ function ActorRouteGuard() {
   const params = useParams()
 
   if (state.status !== "connected" || !state.user || !params.username) return <Outlet />
-  if (params.username === state.user.username) return <Outlet />
-
-  const currentRoot = workspacePath(params.username)
-  const suffix = location.pathname.startsWith(`${currentRoot}/`) ? location.pathname.slice(currentRoot.length) : ""
-
-  return <Navigate to={`${workspacePath(state.user.username)}${suffix}`} replace />
+  const redirect = actorRouteRedirect(state.user.username, params.username, location.pathname)
+  return redirect ? <Navigate to={redirect} replace /> : <Outlet />
 }
 
 function AdminRouteGuard() {
   const { state } = useDesktopSession()
 
   if (state.status !== "connected" || !state.user) return <Outlet />
-  if (state.user.role === "admin") return <Outlet />
-
-  return <Navigate to={workspacePath(state.user.username)} replace />
+  const redirect = adminRouteRedirect(state.user)
+  return redirect ? <Navigate to={redirect} replace /> : <Outlet />
 }
 
 function RoutePlaceholder() {
@@ -308,14 +304,4 @@ function AuthContentLoading() {
 
 function NotFoundRoute() {
   return <Navigate to="/" replace />
-}
-
-function connectedTarget(state: ConnectedDesktopSessionState) {
-  if (state.setupRequired) return "/setup"
-  if (!state.user) return "/login"
-  return authenticatedPath(state.user)
-}
-
-function authenticatedPath(user: Pick<User, "mustChangePassword" | "username">) {
-  return user.mustChangePassword ? "/change-password" : workspacePath(user.username)
 }

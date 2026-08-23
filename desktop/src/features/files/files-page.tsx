@@ -15,6 +15,7 @@ import { errorMessage } from "#lib/instance"
 import { useDesktopUserConfig } from "../settings/ui/user-config-provider"
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "../uploads/ui/upload-provider"
 import { DesktopFileUploadTarget } from "../uploads/ui/upload-target"
+import { contextMenuTargets } from "./actions/context-menu-targets"
 import { DesktopMoveNodesDialog } from "./actions/move-nodes-dialog"
 import { DesktopNodeActionsMenu, DesktopNodeContextMenu } from "./actions/node-actions-menu"
 import { DesktopFileSelectionToolbar } from "./actions/selection-toolbar"
@@ -236,7 +237,7 @@ export function DesktopFilesPage() {
           onNavigateFolder={navigateFolder}
           onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
           renderNodeActions={(node) => <DesktopNodeActionsMenu node={node} folder={data.folder} breadcrumbs={data.breadcrumbs} page={data.page} favoritePending={favoritePending} onReload={changed} onFavorite={setFavorite} />}
-          wrapNode={(node, children) => <DesktopNodeContextMenu node={node} targets={selected.has(node.id) && selectedNodes.length ? selectedNodes : [node]} favoritePending={favoritePending} onReload={changed} onOpen={(target) => target.kind === "folder" ? navigateFolder(target.id, target.isRoot) : navigate(workspaceFilePath(workspaceUsername, target.id))} onDownload={download} onMove={(targets) => setMoveTargets([...targets])} onTrash={(targets) => setTrashTargets([...targets])} onFavoriteMany={setFavorites}>{children}</DesktopNodeContextMenu>}
+          wrapNode={(node, children) => <DesktopNodeContextMenu node={node} targets={contextMenuTargets(node, selected, selectedNodes)} favoritePending={favoritePending} onReload={changed} onOpen={(target) => target.kind === "folder" ? navigateFolder(target.id, target.isRoot) : navigate(workspaceFilePath(workspaceUsername, target.id))} onDownload={download} onMove={(targets) => setMoveTargets([...targets])} onTrash={(targets) => setTrashTargets([...targets])} onFavoriteMany={setFavorites}>{children}</DesktopNodeContextMenu>}
           emptyDescription={editable ? "Drop files or folders here, or use Upload." : "No files or folders here."}
         />
 

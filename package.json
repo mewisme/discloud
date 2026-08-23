@@ -17,6 +17,7 @@
     "desktop:lint": "pnpm --filter @discloud/desktop lint",
     "desktop:lint:fix": "pnpm --filter @discloud/desktop lint:fix",
     "desktop:typecheck": "pnpm --filter @discloud/desktop typecheck",
+    "desktop:test": "pnpm --filter @discloud/desktop test",
     "desktop:tauri": "pnpm --filter @discloud/desktop tauri",
     "api:types": "pnpm --filter @discloud/api api:types",
     "api:types:check": "pnpm --filter @discloud/api api:types:check",

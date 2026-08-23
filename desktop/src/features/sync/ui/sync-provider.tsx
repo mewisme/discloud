@@ -6,11 +6,11 @@ import { useDesktopSession } from "#components/desktop-session"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
 import { clearNativeSyncPairState, configureNativeSyncPairs, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
+import { patchScopedSyncPair, scopedSyncPairs, syncPairsForValidation, type UpdateSyncPairInput } from "../core/pairs"
 import { loadSyncPairs, saveSyncPairs } from "../core/preferences"
 import type { SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
 
 type CreateSyncPairInput = Omit<SyncPair, "id" | "serverUrl" | "username" | "createdAt">
-type UpdateSyncPairInput = Partial<Pick<SyncPair, "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
 
 type DesktopSyncContextValue = {
   pairs: SyncPair[]
@@ -65,7 +65,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
 
   const scopeServerUrl = state.status === "connected" && state.user ? state.serverUrl : undefined
   const scopeUsername = state.status === "connected" && state.user ? state.user.username : undefined
-  const pairs = useMemo(() => scopedPairs(allPairs, scopeServerUrl, scopeUsername), [allPairs, scopeServerUrl, scopeUsername])
+  const pairs = useMemo(() => scopedSyncPairs(allPairs, scopeServerUrl, scopeUsername), [allPairs, scopeServerUrl, scopeUsername])
 
   const persist = useCallback(async (next: SyncPair[]) => {
     try {
@@ -85,17 +85,16 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
 
     const pair: SyncPair = { ...input, id: crypto.randomUUID(), serverUrl: scopeServerUrl, username: scopeUsername, createdAt: Date.now() }
     const next = [...allPairsRef.current, pair]
-    await validateNativeSyncPairs(scopedPairs(next, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) })))
+    await validateNativeSyncPairs(syncPairsForValidation(scopedSyncPairs(next, scopeServerUrl, scopeUsername), runningRef.current))
     await persist(next)
     return pair
   }, [persist, scopeServerUrl, scopeUsername])
 
   const updatePair = useCallback(async (pairId: string, patch: UpdateSyncPairInput) => {
-    const current = allPairsRef.current.find((pair) => pair.id === pairId)
-    if (!current || !scopeServerUrl || !scopeUsername || current.serverUrl !== scopeServerUrl || current.username !== scopeUsername) return
-
-    const next = allPairsRef.current.map((pair) => pair.id === pairId ? { ...pair, ...patch } : pair)
-    await validateNativeSyncPairs(scopedPairs(next, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) })))
+    if (!scopeServerUrl || !scopeUsername) return
+    const next = patchScopedSyncPair(allPairsRef.current, pairId, patch, scopeServerUrl, scopeUsername)
+    if (!next) return
+    await validateNativeSyncPairs(syncPairsForValidation(scopedSyncPairs(next, scopeServerUrl, scopeUsername), runningRef.current))
     await persist(next)
   }, [persist, scopeServerUrl, scopeUsername])
 
@@ -128,7 +127,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     setRuntimes((current) => ({ ...current, [pairId]: { ...current[pairId], status: "syncing", lastStartedAt: startedAt, error: undefined } }))
 
     try {
-      const validationPairs = scopedPairs(allPairsRef.current, scopeServerUrl, scopeUsername).map((item) => ({ ...item, enabled: item.enabled || runningRef.current.has(item.id) }))
+      const validationPairs = syncPairsForValidation(scopedSyncPairs(allPairsRef.current, scopeServerUrl, scopeUsername), runningRef.current)
       await validateNativeSyncPairs(validationPairs)
       const result = await runNativeSyncPair(pair)
       const finishedAt = Date.now()
@@ -217,10 +216,6 @@ export function useDesktopSync() {
   return context
 }
 
-function scopedPairs(pairs: readonly SyncPair[], serverUrl?: string, username?: string) {
-  if (!serverUrl || !username) return []
-  return pairs.filter((pair) => pair.serverUrl === serverUrl && pair.username === username)
-}
 
 function syncErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message

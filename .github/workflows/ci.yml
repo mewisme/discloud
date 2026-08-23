@@ -157,6 +157,9 @@ jobs:
       - name: Lint desktop
         run: pnpm desktop:lint
 
+      - name: Test desktop
+        run: pnpm desktop:test
+
       - name: Type check desktop
         run: pnpm desktop:typecheck
 
