@@ -97,25 +97,172 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check API contracts
-        run: pnpm --filter @discloud/web api:types:check
+        run: pnpm api:types:check
+
+      - name: Type check API package
+        run: pnpm api:typecheck
+
+      - name: Type check shared package
+        run: pnpm shared:typecheck
+
+      - name: Type check UI package
+        run: pnpm ui:typecheck
+
+      - name: Type check App UI package
+        run: pnpm app-ui:typecheck
 
       - name: Generate Next.js types
         run: pnpm --filter @discloud/web typegen
 
-      - name: Lint
-        run: pnpm --filter @discloud/web lint
+      - name: Lint web
+        run: pnpm web:lint
 
-      - name: Type check
-        run: pnpm --filter @discloud/web typecheck
+      - name: Type check web
+        run: pnpm web:typecheck
 
-      - name: Build
-        run: pnpm --filter @discloud/web build
+      - name: Test web
+        run: pnpm web:test
+
+      - name: Build web
+        run: pnpm web:build
+
+  verify-desktop:
+    name: Verify desktop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Validate updater channels
+        run: node scripts/tauri-updater-setup.js --check
+
+      - name: Lint desktop
+        run: pnpm desktop:lint
+
+      - name: Type check desktop
+        run: pnpm desktop:typecheck
+
+      - name: Build desktop frontend
+        run: pnpm desktop:build
+
+      - name: Check Rust formatting
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check
+
+      - name: Check Rust
+        working-directory: desktop/src-tauri
+        run: cargo check --locked
+
+      - name: Test Rust
+        working-directory: desktop/src-tauri
+        run: cargo test --locked
+
+  release-info:
+    name: Resolve release info
+    needs:
+      - verify-backend
+      - verify-web
+      - verify-desktop
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.info.outputs.channel }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+      make-latest: ${{ steps.info.outputs.make-latest }}
+      version: ${{ steps.info.outputs.version }}
+      updater-endpoints: ${{ steps.info.outputs.updater-endpoints }}
+
+    steps:
+      - name: Resolve tag, channel and updater endpoints
+        id: info
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="$GITHUB_REF_NAME"
+          version="${tag#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Unsupported release tag: $tag" >&2
+            exit 1
+          fi
+
+          case "$version" in
+            *-alpha|*-alpha.*) channel="alpha" ;;
+            *-beta|*-beta.*) channel="beta" ;;
+            *-rc|*-rc.*) channel="rc" ;;
+            *) channel="stable" ;;
+          esac
+
+          if [[ "$channel" == "stable" ]]; then
+            prerelease="false"
+            make_latest="true"
+          else
+            prerelease="true"
+            make_latest="false"
+          fi
+
+          updater_endpoints="$(node -e '
+            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/latest/download`;
+            process.stdout.write(JSON.stringify({
+              stable: [`${base}/latest.json`],
+              rc: [`${base}/rc.json`],
+              beta: [`${base}/beta.json`],
+              alpha: [`${base}/alpha.json`],
+            }));
+          ')"
+
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "make-latest=$make_latest" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "updater-endpoints=$updater_endpoints" >> "$GITHUB_OUTPUT"
+
+          echo "Release: $tag"
+          echo "Version: $version"
+          echo "Channel: $channel"
 
   release-backend:
     name: Release backend
     needs:
-      - verify-backend
-      - verify-web
+      - release-info
     runs-on: ubuntu-latest
 
     permissions:
@@ -145,20 +292,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve Docker channel tag
-        shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME,,}"
-
-          case "$tag" in
-            *alpha*) channel="alpha" ;;
-            *beta*) channel="beta" ;;
-            *rc*) channel="rc" ;;
-            *) channel="latest" ;;
-          esac
-
-          echo "DISCLOUD_DOCKER_CHANNEL_TAG=$channel" >> "$GITHUB_ENV"
-
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -167,12 +300,13 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCLOUD_DOCKER_CHANNEL_TAG: ${{ needs.release-info.outputs.channel == 'stable' && 'latest' || needs.release-info.outputs.channel }}
+          DISCLOUD_RELEASE_MAKE_LATEST: ${{ needs.release-info.outputs.make-latest }}
 
   release-web:
     name: Release web
     needs:
-      - verify-backend
-      - verify-web
+      - release-info
     uses: docker/github-builder/.github/workflows/build.yml@v1
 
     permissions:
@@ -192,13 +326,192 @@ jobs:
       meta-images: ghcr.io/mewisme/dcfe
       meta-tags: |
         type=raw,value=${{ github.ref_name }}
-        type=raw,value=alpha,enable=${{ contains(github.ref_name, 'alpha') }}
-        type=raw,value=beta,enable=${{ contains(github.ref_name, 'beta') }}
-        type=raw,value=rc,enable=${{ contains(github.ref_name, 'rc') }}
-        type=raw,value=latest,enable=${{ !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc') }}
+        type=raw,value=alpha,enable=${{ needs.release-info.outputs.channel == 'alpha' }}
+        type=raw,value=beta,enable=${{ needs.release-info.outputs.channel == 'beta' }}
+        type=raw,value=rc,enable=${{ needs.release-info.outputs.channel == 'rc' }}
+        type=raw,value=latest,enable=${{ needs.release-info.outputs.channel == 'stable' }}
 
     secrets:
       registry-auths: |
         - registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+  release-desktop:
+    name: Release desktop (${{ matrix.name }})
+    needs:
+      - release-info
+      - release-backend
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: Linux x64
+            platform: ubuntu-22.04
+            args: ""
+            rust-target: ""
+          - name: Windows x64
+            platform: windows-latest
+            args: ""
+            rust-target: ""
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-target: aarch64-apple-darwin
+          - name: macOS Intel
+            platform: macos-latest
+            args: --target x86_64-apple-darwin
+            rust-target: x86_64-apple-darwin
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          key: ${{ matrix.name }}
+
+      - name: Configure signed updater
+        shell: bash
+        env:
+          TAURI_APP_VERSION: ${{ needs.release-info.outputs.version }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_UPDATER_ENDPOINTS: ${{ needs.release-info.outputs.updater-endpoints }}
+        run: node scripts/tauri-updater-setup.js
+
+      - name: Build and upload desktop bundles
+        uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseDraft: false
+          retryAttempts: 5
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterSignatures: true
+          args: ${{ matrix.args }}
+
+  publish-updater-channels:
+    name: Publish updater channels
+    needs:
+      - release-info
+      - release-desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download exact release manifest
+        shell: bash
+        run: |
+          mkdir -p updater/exact
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir updater/exact
+
+      - name: Validate exact-tag updater manifest
+        run: node scripts/tauri-updater-release.js validate --manifest updater/exact/latest.json --tag "$GITHUB_REF_NAME"
+
+      - name: Resolve stable pointer release
+        id: stable
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ needs.release-info.outputs.channel }}" == "stable" ]]; then
+            stable_tag="$GITHUB_REF_NAME"
+          else
+            stable_tag="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          fi
+
+          if [[ -z "$stable_tag" ]]; then
+            echo "No stable release exists. Publish a stable desktop release before prerelease channels." >&2
+            exit 1
+          fi
+
+          echo "tag=$stable_tag" >> "$GITHUB_OUTPUT"
+          echo "Updater channel pointers will be stored with assets of $stable_tag"
+
+      - name: Advance channel manifests
+        shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ needs.release-info.outputs.channel }}
+          STABLE_TAG: ${{ steps.stable.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          case "$RELEASE_CHANNEL" in
+            stable|rc) targets=(rc beta alpha) ;;
+            beta) targets=(beta alpha) ;;
+            alpha) targets=(alpha) ;;
+            *) echo "Unsupported release channel: $RELEASE_CHANNEL" >&2; exit 1 ;;
+          esac
+
+          mkdir -p updater/current updater/candidate
+
+          for channel in "${targets[@]}"; do
+            candidate="updater/candidate/$channel.json"
+            current="updater/current/$channel.json"
+            cp updater/exact/latest.json "$candidate"
+
+            rm -f "$current"
+            gh release download "$STABLE_TAG" --pattern "$channel.json" --dir updater/current >/dev/null 2>&1 || true
+
+            if [[ -f "$current" ]]; then
+              decision=0
+              node scripts/tauri-updater-release.js compare --candidate "$candidate" --current "$current" || decision=$?
+
+              if [[ "$decision" -eq 3 ]]; then
+                echo "Keeping newer $channel channel manifest."
+                continue
+              fi
+
+              if [[ "$decision" -ne 0 ]]; then
+                exit "$decision"
+              fi
+            fi
+
+            gh release upload "$STABLE_TAG" "$candidate" --clobber
+            echo "Advanced $channel channel to $GITHUB_REF_NAME"
+          done

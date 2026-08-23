@@ -3,11 +3,20 @@ import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Progress } from "@discloud/ui/components/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
 import { Switch } from "@discloud/ui/components/switch"
 import { CheckCircle2Icon, DownloadIcon, Loader2Icon, RefreshCwIcon, RocketIcon, TriangleAlertIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
+import type { UpdateChannel } from "../core/preferences"
 import { useDesktopUpdater } from "./updater-provider"
+
+const channels: { value: UpdateChannel; label: string; description: string }[] = [
+  { value: "stable", label: "Stable", description: "Production releases only." },
+  { value: "rc", label: "Release candidate", description: "RC builds and newer stable releases." },
+  { value: "beta", label: "Beta", description: "Beta, RC and newer stable releases." },
+  { value: "alpha", label: "Alpha", description: "Alpha, beta, RC and newer stable releases." },
+]
 
 export function DesktopUpdaterSettings() {
   const updater = useDesktopUpdater()
@@ -15,12 +24,14 @@ export function DesktopUpdaterSettings() {
   const progress = updater.totalBytes && updater.totalBytes > 0
     ? Math.min(100, updater.downloadedBytes / updater.totalBytes * 100)
     : undefined
+  const selectedChannel = updater.preferences?.channel ?? "stable"
+  const selectedChannelInfo = channels.find((channel) => channel.value === selectedChannel) ?? channels[0]
 
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Updates</h2>
-        <p className="text-sm text-muted-foreground">Check for signed DisCloud desktop releases and install them without leaving the app.</p>
+        <p className="text-sm text-muted-foreground">Choose an update channel, check signed releases and install them without leaving the app.</p>
       </div>
 
       {updater.error ? (
@@ -36,9 +47,9 @@ export function DesktopUpdaterSettings() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2"><RocketIcon className="size-4" />DisCloud Desktop</CardTitle>
-              <CardDescription>Updates are verified with the public signing key bundled into this application.</CardDescription>
+              <CardDescription>Every channel uses signed manifests and the public signing key bundled into this application.</CardDescription>
             </div>
-            <UpdateStatusBadge stage={updater.stage} />
+            <UpdateStatusBadge stage={updater.stage} channel={selectedChannel} />
           </div>
         </CardHeader>
 
@@ -47,11 +58,20 @@ export function DesktopUpdaterSettings() {
             <code className="rounded-md bg-muted px-2 py-1 text-sm">{updater.currentVersion ? `v${updater.currentVersion}` : "Loading..."}</code>
           </SettingRow>
 
-          <SettingRow title="Check automatically" description="Check the configured update endpoint once when a packaged DisCloud app starts.">
+          <SettingRow title="Update channel" description={selectedChannelInfo.description}>
+            <Select value={selectedChannel} disabled={!updater.preferences || busy} onValueChange={(value) => void updater.setChannel(value as UpdateChannel)}>
+              <SelectTrigger className="w-full sm:w-52" aria-label="Update channel"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {channels.map((channel) => <SelectItem key={channel.value} value={channel.value}>{channel.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+
+          <SettingRow title="Check automatically" description={`Check the ${selectedChannelInfo.label} channel once when a packaged DisCloud app starts.`}>
             <Switch checked={updater.preferences?.checkOnStartup ?? true} disabled={!updater.preferences || busy} onCheckedChange={(enabled) => void updater.setCheckOnStartup(enabled)} />
           </SettingRow>
 
-          <SettingRow title="Check now" description={updater.lastCheckedAt ? `Last checked ${formatDateTime(updater.lastCheckedAt)}.` : "No update check has completed in this process yet."} last>
+          <SettingRow title="Check now" description={updater.lastCheckedAt ? `Last checked ${formatDateTime(updater.lastCheckedAt)}.` : `No ${selectedChannelInfo.label} channel check has completed in this process yet.`} last>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void updater.checkForUpdates()}>
               {updater.stage === "checking" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
               {updater.stage === "checking" ? "Checking..." : "Check for updates"}
@@ -64,7 +84,7 @@ export function DesktopUpdaterSettings() {
         <Alert>
           <CheckCircle2Icon />
           <AlertTitle>DisCloud is up to date</AlertTitle>
-          <AlertDescription>You are running the latest release available for this platform.</AlertDescription>
+          <AlertDescription>You are running the newest release currently available on the {selectedChannelInfo.label} channel.</AlertDescription>
         </Alert>
       ) : null}
 
@@ -73,7 +93,7 @@ export function DesktopUpdaterSettings() {
           <CardHeader>
             <CardTitle>Version {updater.update.version}</CardTitle>
             <CardDescription>
-              Update from v{updater.update.currentVersion}
+              {selectedChannelInfo.label} channel · update from v{updater.update.currentVersion}
               {updater.update.date ? ` · released ${formatReleaseDate(updater.update.date)}` : ""}
             </CardDescription>
           </CardHeader>
@@ -121,7 +141,7 @@ export function DesktopUpdaterSettings() {
         <Alert>
           <TriangleAlertIcon />
           <AlertTitle>Development build</AlertTitle>
-          <AlertDescription>Updater checks are designed for packaged builds. Use a signed release build when validating the full install and relaunch flow.</AlertDescription>
+          <AlertDescription>Automatic checks are disabled in development. Use a signed packaged build when validating channel switching, installation and relaunch.</AlertDescription>
         </Alert>
       ) : null}
     </section>
@@ -140,21 +160,12 @@ function SettingRow({ title, description, children, last = false }: { title: str
   )
 }
 
-function UpdateStatusBadge({ stage }: { stage: ReturnType<typeof useDesktopUpdater>["stage"] }) {
-  switch (stage) {
-    case "checking":
-      return <Badge variant="secondary">Checking</Badge>
-    case "available":
-    case "downloading":
-    case "installing":
-      return <Badge>Update available</Badge>
-    case "up-to-date":
-      return <Badge variant="secondary">Up to date</Badge>
-    case "error":
-      return <Badge variant="destructive">Check failed</Badge>
-    default:
-      return <Badge variant="secondary">Not checked</Badge>
-  }
+function UpdateStatusBadge({ stage, channel }: { stage: ReturnType<typeof useDesktopUpdater>["stage"]; channel: UpdateChannel }) {
+  if (stage === "checking") return <Badge variant="secondary">Checking {channel}</Badge>
+  if (stage === "available" || stage === "downloading" || stage === "installing") return <Badge>Update available</Badge>
+  if (stage === "up-to-date") return <Badge variant="secondary">{channel} up to date</Badge>
+  if (stage === "error") return <Badge variant="destructive">Check failed</Badge>
+  return <Badge variant="secondary">{channel}</Badge>
 }
 
 function formatDateTime(value: number) {

@@ -8,6 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/mewisme/discloud?display_name=tag&sort=semver&logo=github)](https://github.com/mewisme/discloud/releases)
 [![Backend](https://img.shields.io/badge/GHCR-dcbe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcbe)
 [![Frontend](https://img.shields.io/badge/GHCR-dcfe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcfe)
+[![Desktop Updater](https://img.shields.io/badge/Updater-latest.json-24C8DB?logo=tauri&logoColor=white)](https://github.com/mewisme/discloud/releases/latest/download/latest.json)
 [![Go](https://img.shields.io/github/go-mod/go-version/mewisme/discloud?logo=go)](go.mod)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](compose.yml)
@@ -18,7 +19,7 @@
 
 DisCloud is a self-hosted file storage application that keeps application state and metadata in PostgreSQL while using Discord attachments as blob storage.
 
-It provides a web interface for managing personal and shared files, together with administration and diagnostics for the underlying storage system.
+It provides web and desktop interfaces for managing personal and shared files, together with administration and diagnostics for the underlying storage system.
 
 ### Features
 
@@ -31,12 +32,14 @@ It provides a web interface for managing personal and shared files, together wit
 - Multiple Discord storage bots with adaptive upload concurrency
 - MFA, storage quotas and session management
 - Administration for users, bots, jobs and runtime diagnostics
+- Native desktop client with tray integration, notifications and signed updates
 
 ## Architecture
 
 | Component | Purpose |
 | --- | --- |
 | **Web** | Next.js user and administration interface |
+| **Desktop** | Tauri native desktop client and signed updater |
 | **Backend** | Go API, storage coordination and background jobs |
 | **PostgreSQL** | Users, metadata, permissions and application state |
 | **Discord** | Physical chunk and attachment storage |
@@ -125,12 +128,12 @@ ghcr.io/mewisme/dcfe
 
 Every release publishes its exact Git tag together with a release channel:
 
-| Git tag          | Channel  |
-| ---------------- | -------- |
-| `v1.0.0`         | `latest` |
-| `v1.1.0-alpha.1` | `alpha`  |
-| `v1.1.0-beta.1`  | `beta`   |
-| `v1.1.0-rc.1`    | `rc`     |
+| Git tag | Channel |
+| --- | --- |
+| `v1.0.0` | `latest` |
+| `v1.1.0-alpha.1` | `alpha` |
+| `v1.1.0-beta.1` | `beta` |
+| `v1.1.0-rc.1` | `rc` |
 
 For example:
 
@@ -145,6 +148,31 @@ ghcr.io/mewisme/dcfe:beta
 `compose.yml` currently tracks the `beta` channel.
 
 For reproducible deployments, pin both images to the same exact release tag.
+
+## Desktop releases
+
+Desktop installers and updater artifacts are attached to the same GitHub Release as the backend archives. Each exact release contains its own signed `latest.json`, and every download URL inside that manifest points back to the exact Git tag that produced it.
+
+Desktop users choose their update channel in **Settings > Desktop > Updates**:
+
+| Desktop channel | Receives |
+| --- | --- |
+| Stable | Stable releases only |
+| Release candidate | RC and newer stable releases |
+| Beta | Beta, RC and newer stable releases |
+| Alpha | Alpha, beta, RC and newer stable releases |
+
+Stable uses `releases/latest/download/latest.json`. The mutable `rc.json`, `beta.json` and `alpha.json` channel pointers are stored beside the backend assets on the latest stable release and are advanced only when a compatible newer release is published.
+
+Desktop release signing requires these GitHub Actions secrets:
+
+```text
+TAURI_SIGNING_PUBLIC_KEY
+TAURI_SIGNING_PRIVATE_KEY
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+```
+
+The private signing key must never be committed to the repository.
 
 ## Development
 
@@ -179,6 +207,24 @@ pnpm dev
 ```
 
 The development server runs at `http://localhost:3000`.
+
+### Desktop
+
+```bash
+pnpm install
+pnpm desktop:tauri dev
+```
+
+Before a release, validate both frontend and native desktop code:
+
+```bash
+pnpm desktop:lint
+pnpm desktop:typecheck
+pnpm desktop:build
+cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+cargo check --manifest-path desktop/src-tauri/Cargo.toml --locked
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+```
 
 ## Documentation
 

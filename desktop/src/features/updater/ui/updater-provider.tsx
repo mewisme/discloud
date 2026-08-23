@@ -1,10 +1,11 @@
 import { getVersion } from "@tauri-apps/api/app"
+import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { relaunch } from "@tauri-apps/plugin-process"
-import { check, type Update } from "@tauri-apps/plugin-updater"
 import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
-import { loadUpdaterPreferences, type UpdaterPreferences, updateUpdaterPreferences } from "../core/preferences"
+import { loadUpdaterPreferences, type UpdateChannel, type UpdaterPreferences, updateUpdaterPreferences } from "../core/preferences"
 
 export type DesktopUpdateInfo = {
   currentVersion: string
@@ -14,6 +15,12 @@ export type DesktopUpdateInfo = {
 }
 
 export type DesktopUpdaterStage = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "installing" | "error"
+
+type DesktopUpdaterProgress = {
+  event: "started" | "progress" | "installing"
+  downloadedBytes: number
+  totalBytes?: number
+}
 
 type DesktopUpdaterContextValue = {
   currentVersion?: string
@@ -27,11 +34,11 @@ type DesktopUpdaterContextValue = {
   checkForUpdates: () => Promise<void>
   installUpdate: () => Promise<void>
   setCheckOnStartup: (enabled: boolean) => Promise<void>
+  setChannel: (channel: UpdateChannel) => Promise<void>
 }
 
 const DesktopUpdaterContext = createContext<DesktopUpdaterContextValue | null>(null)
-const CHECK_TIMEOUT_MS = 15_000
-const DOWNLOAD_TIMEOUT_MS = 10 * 60_000
+const PROGRESS_EVENT = "desktop-updater-progress"
 
 export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
   const [currentVersion, setCurrentVersion] = useState<string>()
@@ -42,9 +49,13 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
   const [totalBytes, setTotalBytes] = useState<number>()
   const [lastCheckedAt, setLastCheckedAt] = useState<number>()
   const [error, setError] = useState<string>()
-  const updateRef = useRef<Update | undefined>(undefined)
   const busyRef = useRef(false)
   const autoCheckedRef = useRef(false)
+  const preferencesRef = useRef<UpdaterPreferences | undefined>(undefined)
+
+  useEffect(() => {
+    preferencesRef.current = preferences
+  }, [preferences])
 
   useEffect(() => {
     let cancelled = false
@@ -59,6 +70,7 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           setCurrentVersion(version)
           setPreferences(nextPreferences)
+          preferencesRef.current = nextPreferences
         }
       } catch (cause) {
         if (!cancelled) {
@@ -72,13 +84,10 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true
-      const pending = updateRef.current
-      updateRef.current = undefined
-      if (pending) void pending.close().catch(() => undefined)
     }
   }, [])
 
-  const checkForUpdates = useCallback(async () => {
+  const checkChannel = useCallback(async (channel: UpdateChannel) => {
     if (busyRef.current) return
 
     busyRef.current = true
@@ -89,26 +98,15 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
     setTotalBytes(undefined)
 
     try {
-      const previous = updateRef.current
-      updateRef.current = undefined
-      if (previous) await previous.close().catch(() => undefined)
-
-      const update = await check({ timeout: CHECK_TIMEOUT_MS })
+      const update = await invoke<DesktopUpdateInfo | null>("check_for_update", { channel })
       setLastCheckedAt(Date.now())
 
       if (!update) {
-        setUpdateInfo(undefined)
         setStage("up-to-date")
         return
       }
 
-      updateRef.current = update
-      setUpdateInfo({
-        currentVersion: update.currentVersion,
-        version: update.version,
-        date: update.date,
-        body: update.body,
-      })
+      setUpdateInfo(update)
       setStage("available")
     } catch (cause) {
       setStage("error")
@@ -118,56 +116,76 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const checkForUpdates = useCallback(async () => {
+    await checkChannel(preferencesRef.current?.channel ?? "stable")
+  }, [checkChannel])
+
   useEffect(() => {
     if (!preferences || autoCheckedRef.current || !import.meta.env.PROD) return
 
     autoCheckedRef.current = true
-    if (preferences.checkOnStartup) void checkForUpdates()
-  }, [preferences, checkForUpdates])
+    if (preferences.checkOnStartup) void checkChannel(preferences.channel)
+  }, [preferences, checkChannel])
 
   const installUpdate = useCallback(async () => {
-    const update = updateRef.current
-    if (!update || busyRef.current) return
+    if (!updateInfo || busyRef.current) return
 
+    const channel = preferencesRef.current?.channel ?? "stable"
     busyRef.current = true
     setStage("downloading")
     setDownloadedBytes(0)
     setTotalBytes(undefined)
     setError(undefined)
 
-    let downloaded = 0
+    const unlisten = await listen<DesktopUpdaterProgress>(PROGRESS_EVENT, ({ payload }) => {
+      switch (payload.event) {
+        case "started":
+          setStage("downloading")
+          setDownloadedBytes(0)
+          setTotalBytes(payload.totalBytes)
+          break
+        case "progress":
+          setStage("downloading")
+          setDownloadedBytes(payload.downloadedBytes)
+          if (payload.totalBytes !== undefined) setTotalBytes(payload.totalBytes)
+          break
+        case "installing":
+          setStage("installing")
+          break
+      }
+    })
 
     try {
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case "Started":
-            downloaded = 0
-            setDownloadedBytes(0)
-            setTotalBytes(event.data.contentLength ?? undefined)
-            break
-          case "Progress":
-            downloaded += event.data.chunkLength
-            setDownloadedBytes(downloaded)
-            break
-          case "Finished":
-            setStage("installing")
-            break
-        }
-      }, { timeout: DOWNLOAD_TIMEOUT_MS })
-
+      await invoke<void>("install_update", { channel })
       setStage("installing")
       await relaunch()
     } catch (cause) {
       setStage("available")
       setError(updaterErrorMessage(cause))
     } finally {
+      unlisten()
       busyRef.current = false
     }
-  }, [])
+  }, [updateInfo])
 
   const setCheckOnStartup = useCallback(async (enabled: boolean) => {
     const next = await updateUpdaterPreferences({ checkOnStartup: enabled })
+    preferencesRef.current = next
     setPreferences(next)
+  }, [])
+
+  const setChannel = useCallback(async (channel: UpdateChannel) => {
+    if (busyRef.current) return
+
+    const next = await updateUpdaterPreferences({ channel })
+    preferencesRef.current = next
+    setPreferences(next)
+    setStage("idle")
+    setUpdateInfo(undefined)
+    setDownloadedBytes(0)
+    setTotalBytes(undefined)
+    setLastCheckedAt(undefined)
+    setError(undefined)
   }, [])
 
   const value = useMemo<DesktopUpdaterContextValue>(() => ({
@@ -182,7 +200,8 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
     checkForUpdates,
     installUpdate,
     setCheckOnStartup,
-  }), [currentVersion, preferences, stage, updateInfo, downloadedBytes, totalBytes, lastCheckedAt, error, checkForUpdates, installUpdate, setCheckOnStartup])
+    setChannel,
+  }), [currentVersion, preferences, stage, updateInfo, downloadedBytes, totalBytes, lastCheckedAt, error, checkForUpdates, installUpdate, setCheckOnStartup, setChannel])
 
   return <DesktopUpdaterContext.Provider value={value}>{children}</DesktopUpdaterContext.Provider>
 }

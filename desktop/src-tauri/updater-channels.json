@@ -1,0 +1,14 @@
+{
+  "stable": [
+    "https://github.com/mewisme/discloud/releases/latest/download/latest.json"
+  ],
+  "rc": [
+    "https://github.com/mewisme/discloud/releases/latest/download/rc.json"
+  ],
+  "beta": [
+    "https://github.com/mewisme/discloud/releases/latest/download/beta.json"
+  ],
+  "alpha": [
+    "https://github.com/mewisme/discloud/releases/latest/download/alpha.json"
+  ]
+}

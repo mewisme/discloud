@@ -4,6 +4,7 @@ mod desktop_runtime;
 mod file_transfer;
 mod session;
 mod settings_transfer;
+mod updater_runtime;
 mod upload_transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,6 +60,8 @@ pub fn run() {
             commands::load_avatar,
             commands::save_recovery_codes,
             desktop_runtime::set_close_to_tray,
+            updater_runtime::check_for_update,
+            updater_runtime::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DisCloud");

@@ -137,6 +137,12 @@ jobs:
       - name: Type check App UI package
         run: pnpm app-ui:typecheck
 
+      - name: Validate updater channels
+        run: node scripts/tauri-updater-setup.js --check
+
+      - name: Lint desktop
+        run: pnpm desktop:lint
+
       - name: Type check desktop
         run: pnpm desktop:typecheck
 

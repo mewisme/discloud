@@ -50,7 +50,7 @@ changelog:
 release:
   name_template: "{{ .Tag }}"
   prerelease: auto
-  make_latest: true
+  make_latest: "{{ .Env.DISCLOUD_RELEASE_MAKE_LATEST }}"
 
 dockers_v2:
   - id: discloud
