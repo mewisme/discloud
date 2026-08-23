@@ -1,5 +1,6 @@
 "use client"
 
+import { DockStackProvider } from "@discloud/app-ui/shell/dock-stack"
 import { ThemeProvider } from "next-themes"
 import type { ReactNode } from "react"
 
@@ -12,10 +13,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
-        {children}
+        <DockStackProvider>
+          {children}
+          <RouteFocusManager />
+          <NetworkStatus />
+        </DockStackProvider>
       </TooltipProvider>
-      <RouteFocusManager />
-      <NetworkStatus />
       <Toaster richColors />
     </ThemeProvider>
   )

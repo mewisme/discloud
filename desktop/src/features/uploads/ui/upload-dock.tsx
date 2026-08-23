@@ -1,3 +1,4 @@
+import { BottomDock } from "@discloud/app-ui/shell/dock-stack"
 import { formatBytes } from "@discloud/shared/format"
 import { workspacePath } from "@discloud/shared/navigation"
 import { Button } from "@discloud/ui/components/button"
@@ -17,7 +18,6 @@ export function DesktopUploadDock({ username }: { username: string }) {
   const [completionVisible, setCompletionVisible] = useState(false)
   const previousCompletionVersion = useRef(completionVersion)
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
   const needsAttention = activeCount > 0 || failedCount > 0
   const justCompleted = !needsAttention && completionVersion !== previousCompletionVersion.current
   const showCompletion = completionVisible || justCompleted
@@ -62,90 +62,34 @@ export function DesktopUploadDock({ username }: { username: string }) {
   const totalBytes = currentTask?.file.size ?? 0
 
   return (
-    <div
-      className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md"
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-    >
-      <StatusIcon active={activeCount} failed={failedCount} finished={finished} />
+    <BottomDock slot="uploads">
+      <div className="flex min-w-0 max-w-full items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md" onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
+        <StatusIcon active={activeCount} failed={failedCount} finished={finished} />
 
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="shrink-0 text-sm font-medium">
-          {finished ? "Upload complete" : activeCount > 0 ? "Uploading" : "Upload failed"}
-        </span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-sm font-medium">{finished ? "Upload complete" : activeCount > 0 ? "Uploading" : "Upload failed"}</span>
+          {currentTask ? <span className="hidden max-w-48 truncate text-sm text-muted-foreground lg:block">{currentTask.file.name}</span> : null}
+        </div>
 
-        {currentTask ? (
-          <span className="hidden max-w-48 truncate text-sm text-muted-foreground sm:block">
-            {currentTask.file.name}
-          </span>
-        ) : null}
+        <div className="hidden h-5 w-px bg-border md:block" />
+        <Progress value={progress} className="h-1.5 w-20 shrink-0 lg:w-28" />
+        <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{Math.round(progress)}%</span>
+        {!finished && currentTask ? <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground xl:block">{formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}</span> : null}
+        {activeCount > 1 ? <span className="hidden shrink-0 text-xs text-muted-foreground xl:block">{activeCount} active</span> : null}
+        {failedCount > 0 ? <span className="hidden shrink-0 text-xs font-medium text-destructive lg:inline">{failedCount} failed</span> : null}
+
+        <div className="h-5 w-px bg-border" />
+        <Button asChild size="icon-sm" variant="ghost" className="shrink-0" aria-label="Open uploads" title="Open uploads">
+          <Link to={workspacePath(username, "uploads")}><ArrowUpRightIcon /></Link>
+        </Button>
       </div>
-
-      <div className="hidden h-5 w-px bg-border sm:block" />
-
-      <Progress value={progress} className="h-1.5 w-20 shrink-0 sm:w-28" />
-
-      <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-        {Math.round(progress)}%
-      </span>
-
-      {!finished && currentTask ? (
-        <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground md:block">
-          {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}
-        </span>
-      ) : null}
-
-      {activeCount > 1 ? (
-        <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-          {activeCount} active
-        </span>
-      ) : null}
-
-      {failedCount > 0 ? (
-        <span className="shrink-0 text-xs font-medium text-destructive">
-          {failedCount} failed
-        </span>
-      ) : null}
-
-      <div className="h-5 w-px bg-border" />
-
-      <Button asChild size="icon-sm" variant="ghost" aria-label="Open uploads" title="Open uploads">
-        <Link to={workspacePath(username, "uploads")}>
-          <ArrowUpRightIcon />
-        </Link>
-      </Button>
-    </div>
+    </BottomDock>
   )
 }
 
-function StatusIcon({ active, failed, finished }: {
-  active: number
-  failed: number
-  finished: boolean
-}) {
-  if (active > 0) {
-    return (
-      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-        <Loader2Icon className="size-4 animate-spin" aria-hidden />
-      </div>
-    )
-  }
-
-  if (failed > 0) {
-    return (
-      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive/10 text-destructive">
-        <CircleAlertIcon className="size-4" aria-hidden />
-      </div>
-    )
-  }
-
-  if (finished) {
-    return (
-      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
-        <CheckIcon className="size-4" aria-hidden />
-      </div>
-    )
-  }
-
+function StatusIcon({ active, failed, finished }: { active: number; failed: number; finished: boolean }) {
+  if (active > 0) return <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Loader2Icon className="size-4 animate-spin" aria-hidden /></div>
+  if (failed > 0) return <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive/10 text-destructive"><CircleAlertIcon className="size-4" aria-hidden /></div>
+  if (finished) return <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground"><CheckIcon className="size-4" aria-hidden /></div>
   return null
 }

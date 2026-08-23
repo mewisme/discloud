@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 
-import { BottomDockStackProvider } from "@/components/app/bottom-dock-stack"
 import { UserConfigProvider } from "@/components/settings/user-config-context"
 import { UploadManagerDock } from "@/components/uploads/upload-manager-dock"
 import { UploadProvider } from "@/components/uploads/upload-provider"
@@ -20,10 +19,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <UserConfigProvider initialConfig={config}>
       <UploadProvider>
-        <BottomDockStackProvider>
-          {children}
-          <UploadManagerDock username={user.username} />
-        </BottomDockStackProvider>
+        {children}
+        <UploadManagerDock username={user.username} />
       </UploadProvider>
     </UserConfigProvider>
   )

@@ -19,20 +19,7 @@ import { folderBrowserURL } from "@/lib/files/navigation"
 
 type ToolbarConfig = UserConfig["common"]["fileBrowserToolbar"]
 
-export function FileBrowserChrome({
-  folder,
-  breadcrumbs,
-  accessLevel,
-  options,
-  itemCount,
-  hasMore,
-  reloading,
-  toolbarConfig,
-  selectionActive,
-  onNavigate,
-  onReload,
-  onOptionsChange,
-}: {
+export function FileBrowserChrome({ folder, breadcrumbs, accessLevel, options, itemCount, hasMore, reloading, toolbarConfig, selectionActive, onNavigate, onReload, onOptionsChange }: {
   folder: Node
   breadcrumbs: readonly Node[]
   accessLevel: NodePage["accessLevel"]
@@ -81,21 +68,14 @@ export function FileBrowserChrome({
     onPublicShare: () => setPublicShareOpen(true),
   }
 
-  const headerActions = (
+  const headerActions = toolbarConfig.variant === "inline" ? (
     <>
-      {toolbarConfig.variant === "inline" ? (
-        <div className="hidden items-center gap-2 sm:flex">
-          <HorizontalFileBrowserToolbar {...toolbarProps} />
-        </div>
-      ) : null}
-
+      <div className="hidden items-center gap-2 sm:flex"><HorizontalFileBrowserToolbar {...toolbarProps} /></div>
       <div className="flex items-center justify-end gap-2 sm:hidden">
         {editable ? <CreateFolderDialog folder={folder} onReload={onReload} /> : null}
 
         {editable && uploadTarget ? (
-          <Button size="icon-sm" variant="outline" aria-label="Upload files" onClick={uploadTarget.open}>
-            <UploadIcon />
-          </Button>
+          <Button size="icon-sm" variant="outline" aria-label="Upload files" onClick={uploadTarget.open}><UploadIcon /></Button>
         ) : null}
 
         <FolderActionsMenu
@@ -111,15 +91,13 @@ export function FileBrowserChrome({
         />
       </div>
     </>
-  )
+  ) : null
 
   return (
     <>
       <FileBrowserHeader folder={folder} breadcrumbs={breadcrumbItems} itemCount={itemCount} hasMore={hasMore} actions={headerActions} onNavigate={(item) => onNavigate(item.id)} />
 
-      {toolbarConfig.variant === "dock"
-        ? <DockedFileBrowserToolbar {...toolbarProps} dockPosition={toolbarConfig.dockPosition} selectionActive={selectionActive} />
-        : null}
+      {toolbarConfig.variant === "dock" ? <DockedFileBrowserToolbar {...toolbarProps} dockPosition={toolbarConfig.dockPosition} selectionActive={selectionActive} /> : null}
 
       {shareable ? (
         <>

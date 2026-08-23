@@ -1,5 +1,6 @@
 "use client"
 
+import { BottomDock } from "@discloud/app-ui/shell/dock-stack"
 import { WifiOffIcon } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
@@ -42,21 +43,20 @@ export function NetworkStatus() {
 
   return (
     <>
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {announcement}
-      </p>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
 
-      {!online && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-          <Alert variant="destructive" className="pointer-events-auto w-full max-w-md bg-background shadow-lg">
+      {!online ? (
+        <BottomDock slot="network" className="w-full max-w-md">
+          <Alert variant="destructive" className="w-full bg-background shadow-lg">
             <WifiOffIcon />
             <AlertTitle>You&apos;re offline</AlertTitle>
             <AlertDescription>
-              Changes that require the server may fail until your network connection is restored.
+              <span className="sm:hidden">Server actions may fail until you reconnect.</span>
+              <span className="hidden sm:inline">Changes that require the server may fail until your network connection is restored.</span>
             </AlertDescription>
           </Alert>
-        </div>
-      )}
+        </BottomDock>
+      ) : null}
     </>
   )
 }

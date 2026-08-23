@@ -1,3 +1,4 @@
+import { DockStackProvider } from "@discloud/app-ui/shell/dock-stack"
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useRef } from "react"
 
@@ -28,9 +29,7 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
     uploadEngine.configure({
       onUnauthorized: () => void refreshUser(),
       onFolderChanged: (folderId) => {
-        window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, {
-          detail: { folderId },
-        }))
+        window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
       },
     })
 
@@ -40,11 +39,11 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
   const username = state.status === "connected" ? state.user?.username : undefined
 
   return (
-    <>
+    <DockStackProvider>
       {children}
       <DesktopUploadNotifications />
       {username ? <DesktopUploadDock username={username} /> : null}
-    </>
+    </DockStackProvider>
   )
 }
 
@@ -55,10 +54,7 @@ export function useUploadActions() {
 export function useUploads() {
   const tasks = useUploadTasks()
 
-  return useMemo(() => ({
-    tasks,
-    ...uploadActions,
-  }), [tasks])
+  return useMemo(() => ({ tasks, ...uploadActions }), [tasks])
 }
 
 function DesktopUploadNotifications() {
@@ -67,20 +63,14 @@ function DesktopUploadNotifications() {
   const previousCompletionVersion = useRef(completionVersion)
 
   useEffect(() => {
-    if (completionVersion > previousCompletionVersion.current) {
-      void sendDesktopNotification("Uploads complete", "All queued uploads completed successfully.")
-    }
-
+    if (completionVersion > previousCompletionVersion.current) void sendDesktopNotification("Uploads complete", "All queued uploads completed successfully.")
     previousCompletionVersion.current = completionVersion
   }, [completionVersion])
 
   useEffect(() => {
     if (failedCount > previousFailedCount.current) {
       const added = failedCount - previousFailedCount.current
-      const body = added === 1 && currentTask?.file.name
-        ? `${currentTask.file.name} needs attention.`
-        : `${added} uploads need attention.`
-
+      const body = added === 1 && currentTask?.file.name ? `${currentTask.file.name} needs attention.` : `${added} uploads need attention.`
       void sendDesktopNotification("Upload failed", body)
     }
 

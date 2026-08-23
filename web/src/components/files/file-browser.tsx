@@ -24,71 +24,29 @@ type FileBrowserProps = {
   options: BrowserOptions
 }
 
-export function FileBrowser({
-  folder: initialFolder,
-  breadcrumbs: initialBreadcrumbs,
-  initialPage,
-  options: initialOptions,
-}: FileBrowserProps) {
-  const toolbarConfig = useUserConfigSelector(
-    useShallow((config: UserConfig) => config.common.fileBrowserToolbar),
-  )
-  const browser = useFileBrowserController({
-    initialFolder,
-    initialBreadcrumbs,
-    initialPage,
-    initialOptions,
-  })
-  const selection = useFileBrowserSelection({
-    nodes: browser.nodes,
-    resetVersion: browser.resetVersion,
-    tableLoading: browser.tableLoading,
-    updateNodes: browser.updateNodes,
-  })
+export function FileBrowser({ folder: initialFolder, breadcrumbs: initialBreadcrumbs, initialPage, options: initialOptions }: FileBrowserProps) {
+  const toolbarConfig = useUserConfigSelector(useShallow((config: UserConfig) => config.common.fileBrowserToolbar))
+  const browser = useFileBrowserController({ initialFolder, initialBreadcrumbs, initialPage, initialOptions })
+  const selection = useFileBrowserSelection({ nodes: browser.nodes, resetVersion: browser.resetVersion, tableLoading: browser.tableLoading, updateNodes: browser.updateNodes })
+  const horizontalToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "bottom"
+  const rightToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "right"
+  const mergeHorizontalDocks = horizontalToolbarDocked && selection.selectedNodes.length > 0
 
-  const horizontalToolbarDocked = toolbarConfig.variant === "dock"
-    && toolbarConfig.dockPosition === "bottom"
-  const rightToolbarDocked = toolbarConfig.variant === "dock"
-    && toolbarConfig.dockPosition === "right"
-  const mergeHorizontalDocks = horizontalToolbarDocked
-    && selection.selectedNodes.length > 0
-
-  useHotkeys(
-    "r",
-    () => void browser.reloadCurrent(),
-    { enabled: selection.shortcutsEnabled },
-    [browser.reloadCurrent, selection.shortcutsEnabled],
-  )
+  useHotkeys("r", () => void browser.reloadCurrent(), { enabled: selection.shortcutsEnabled }, [browser.reloadCurrent, selection.shortcutsEnabled])
 
   return (
-    <FileUploadTarget
-      folderId={browser.folder.id}
-      disabled={browser.accessLevel === "view"}
-    >
+    <FileUploadTarget folderId={browser.folder.id} disabled={browser.accessLevel === "view"}>
       <div
         className={cn(
           "mx-auto flex w-full max-w-7xl flex-col gap-5",
-          horizontalToolbarDocked
-          && selection.selectedNodes.length === 0
-          && "pb-24",
-          horizontalToolbarDocked
-          && selection.selectedNodes.length > 0
-          && "pb-40",
-          !horizontalToolbarDocked
-          && selection.selectedNodes.length > 0
-          && "pb-28",
-          rightToolbarDocked && "sm:pr-16",
+          horizontalToolbarDocked && selection.selectedNodes.length === 0 && "pb-24",
+          horizontalToolbarDocked && selection.selectedNodes.length > 0 && "pb-40",
+          !horizontalToolbarDocked && selection.selectedNodes.length > 0 && "pb-28",
+          rightToolbarDocked && "pr-14 sm:pr-16",
         )}
       >
-        <p
-          className="sr-only"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {selection.selectedNodes.length === 0
-            ? "No items selected"
-            : `${selection.selectedNodes.length} item${selection.selectedNodes.length === 1 ? "" : "s"} selected`}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {selection.selectedNodes.length === 0 ? "No items selected" : `${selection.selectedNodes.length} item${selection.selectedNodes.length === 1 ? "" : "s"} selected`}
         </p>
 
         <FileBrowserChrome
@@ -116,18 +74,12 @@ export function FileBrowser({
           canUnfavorite={selection.bulkCanUnfavorite}
           onMove={() => selection.setMoveTargets([...selection.selectedNodes])}
           onTrash={() => selection.setTrashTargets([...selection.selectedNodes])}
-          onFavorite={() => void selection.setNodesFavorite(
-            selection.selectedNodes,
-            true,
-          )}
-          onUnfavorite={() => void selection.setNodesFavorite(
-            selection.selectedNodes,
-            false,
-          )}
+          onFavorite={() => void selection.setNodesFavorite(selection.selectedNodes, true)}
+          onUnfavorite={() => void selection.setNodesFavorite(selection.selectedNodes, false)}
           onClear={selection.clearSelection}
         />
 
-        {selection.moveTargets && (
+        {selection.moveTargets ? (
           <MoveNodesDialog
             nodes={selection.moveTargets}
             folder={browser.folder}
@@ -135,23 +87,14 @@ export function FileBrowser({
             initialPage={browser.currentPage}
             options={browser.options}
             open
-            onOpenChange={(open) => {
-              if (!open) selection.setMoveTargets(undefined)
-            }}
+            onOpenChange={(open) => { if (!open) selection.setMoveTargets(undefined) }}
             onMoved={browser.removeNodes}
           />
-        )}
+        ) : null}
 
-        {selection.trashTargets && (
-          <TrashNodesDialog
-            nodes={selection.trashTargets}
-            open
-            onOpenChange={(open) => {
-              if (!open) selection.setTrashTargets(undefined)
-            }}
-            onTrashed={browser.removeNodes}
-          />
-        )}
+        {selection.trashTargets ? (
+          <TrashNodesDialog nodes={selection.trashTargets} open onOpenChange={(open) => { if (!open) selection.setTrashTargets(undefined) }} onTrashed={browser.removeNodes} />
+        ) : null}
 
         <BrowserItems
           nodes={browser.nodes}
@@ -165,27 +108,17 @@ export function FileBrowser({
           onNavigate={(folderId) => void browser.navigateFolder(folderId)}
           onSelect={selection.select}
           onSelectAll={selection.selectAll}
-          onMoveTargets={(targets) => {
-            selection.setMoveTargets([...targets])
-          }}
-          onTrashTargets={(targets) => {
-            selection.setTrashTargets([...targets])
-          }}
+          onMoveTargets={(targets) => selection.setMoveTargets([...targets])}
+          onTrashTargets={(targets) => selection.setTrashTargets([...targets])}
           onFavoriteTargets={selection.setNodesFavorite}
           onFavorite={selection.setFavorite}
           onMoved={(nodeId) => browser.removeNodes([nodeId])}
           onReload={() => browser.reloadChildren()}
         />
 
-        {browser.nextCursor && (
-          <PaginationTrigger
-            loadKey={browser.nextCursor}
-            hasMore
-            loading={browser.loadingMore}
-            onLoadMore={browser.loadMore}
-            loadingLabel="Loading more items…"
-          />
-        )}
+        {browser.nextCursor ? (
+          <PaginationTrigger loadKey={browser.nextCursor} hasMore loading={browser.loadingMore} onLoadMore={browser.loadMore} loadingLabel="Loading more items…" />
+        ) : null}
       </div>
     </FileUploadTarget>
   )

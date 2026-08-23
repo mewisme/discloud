@@ -229,7 +229,8 @@ export function DesktopFilesPage() {
   const bulkCanUnfavorite = selectedNodes.some((node) => node.canFavorite && node.isFavorite)
   const horizontalToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "bottom"
   const rightToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "right"
-  const browserClassName = `mx-auto flex w-full max-w-7xl flex-col gap-5${horizontalToolbarDocked ? " pb-24" : ""}${rightToolbarDocked ? " sm:pr-16" : ""}`
+  const selectionDocked = selectedNodes.length > 0
+  const browserClassName = `mx-auto flex w-full max-w-7xl flex-col gap-5${horizontalToolbarDocked && selectionDocked ? " pb-40" : horizontalToolbarDocked ? " pb-24" : selectionDocked ? " pb-28" : ""}${rightToolbarDocked ? " sm:pr-16" : ""}`
   const breadcrumbItems = data.breadcrumbs.map((item) => {
     const routeRoot = item.id === data.workspace.root.id
 
