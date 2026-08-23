@@ -10,15 +10,10 @@ import { useEffect, useState } from "react"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
-import { FILE_BROWSER_CREATE_FOLDER_EVENT } from "../commands"
-
-export function DesktopCreateFolderDialog({
-  folder,
-  onCreated,
-  trigger,
-}: {
+export function DesktopCreateFolderDialog({ folder, onCreated, openEvent, trigger }: {
   folder: Node
   onCreated: () => void
+  openEvent?: string
   trigger?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -27,10 +22,12 @@ export function DesktopCreateFolderDialog({
   const [error, setError] = useState<string>()
 
   useEffect(() => {
+    if (!openEvent) return
+
     const handleOpen = () => setOpen(true)
-    window.addEventListener(FILE_BROWSER_CREATE_FOLDER_EVENT, handleOpen)
-    return () => window.removeEventListener(FILE_BROWSER_CREATE_FOLDER_EVENT, handleOpen)
-  }, [])
+    window.addEventListener(openEvent, handleOpen)
+    return () => window.removeEventListener(openEvent, handleOpen)
+  }, [openEvent])
 
   function changeOpen(next: boolean) {
     if (pending) return
@@ -47,7 +44,6 @@ export function DesktopCreateFolderDialog({
     event.preventDefault()
 
     const validation = nodeNameError(name)
-
     if (validation) {
       setError(validation)
       return
@@ -57,17 +53,11 @@ export function DesktopCreateFolderDialog({
     setError(undefined)
 
     try {
-      const input = {
-        parentId: folder.id,
-        name: normalizedNodeName(name),
-      } satisfies CreateFolderInput
-
-      await apiJSON<Node>("/api/v1/folders", {
-        method: "POST",
-        body: input,
-      })
-
-      changeOpen(false)
+      const input = { parentId: folder.id, name: normalizedNodeName(name) } satisfies CreateFolderInput
+      await apiJSON<Node>("/api/v1/folders", { method: "POST", body: input })
+      setOpen(false)
+      setName("")
+      setError(undefined)
       onCreated()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -79,12 +69,7 @@ export function DesktopCreateFolderDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        {trigger ?? (
-          <Button size="sm" variant="outline">
-            <FolderPlusIcon />
-            New folder
-          </Button>
-        )}
+        {trigger ?? <Button><FolderPlusIcon />New folder</Button>}
       </DialogTrigger>
 
       <DialogContent>
@@ -96,24 +81,14 @@ export function DesktopCreateFolderDialog({
         <form className="space-y-4" onSubmit={submit}>
           <div className="grid gap-2">
             <label htmlFor="new-folder-name" className="text-sm font-medium">Name</label>
-            <Input
-              id="new-folder-name"
-              value={name}
-              autoFocus
-              disabled={pending}
-              aria-invalid={!!error}
-              onChange={(event) => setName(event.target.value)}
-            />
+            <Input id="new-folder-name" value={name} autoFocus disabled={pending} aria-invalid={!!error} onChange={(event) => setName(event.target.value)} />
           </div>
 
           {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
           <DialogFooter>
             <Button type="button" variant="outline" disabled={pending} onClick={() => changeOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? <Loader2Icon className="animate-spin" /> : null}
-              Create
-            </Button>
+            <Button type="submit" disabled={pending}>{pending ? <Loader2Icon className="animate-spin" /> : null}Create</Button>
           </DialogFooter>
         </form>
       </DialogContent>

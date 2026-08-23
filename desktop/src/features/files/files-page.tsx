@@ -1,30 +1,26 @@
 import type { BrowserNode, Node, NodePage } from "@discloud/api/models"
-import { DockFileBrowserControls, InlineFileBrowserControls } from "@discloud/app-ui/files/file-browser-controls"
 import { FileBrowserHeader } from "@discloud/app-ui/files/file-browser-header"
 import { FileBrowserItems } from "@discloud/app-ui/files/file-browser-items"
 import { type BrowserOptions, browserSearchParams, type BrowserSort, browserURL, parseBrowserOptions } from "@discloud/shared/file-browser"
 import { workspaceFilePath, workspaceFolderPath, workspacePath } from "@discloud/shared/navigation"
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
-import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
-import { FolderUpIcon, LoaderCircleIcon, RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
+import { LoaderCircleIcon, TriangleAlertIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router"
 
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
-import { DesktopAccessDialog } from "../access/access-dialog"
 import { useDesktopUserConfig } from "../settings/ui/user-config-provider"
-import { DesktopPublicShareDialog } from "../shares/public-share-dialog"
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "../uploads/ui/upload-provider"
-import { DesktopFileUploadTarget, useDesktopFileUploadTarget } from "../uploads/ui/upload-target"
-import { DesktopCreateFolderDialog } from "./actions/create-folder-dialog"
+import { DesktopFileUploadTarget } from "../uploads/ui/upload-target"
 import { DesktopMoveNodesDialog } from "./actions/move-nodes-dialog"
 import { DesktopNodeActionsMenu } from "./actions/node-actions-menu"
 import { DesktopFileSelectionToolbar } from "./actions/selection-toolbar"
 import { DesktopTrashNodesDialog } from "./actions/trash-nodes-dialog"
 import { type DesktopFileBrowserData, loadDesktopFileBrowser, loadFolderChildren } from "./api"
+import { DesktopFileBrowserToolbar } from "./browser/file-browser-toolbar"
 
 type BrowserState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileBrowserData }
 
@@ -45,7 +41,7 @@ export function DesktopFilesPage() {
   const [favoritePending, setFavoritePending] = useState(false)
   const options = parseBrowserOptions(Object.fromEntries(searchParams))
   const { sort, order } = options
-  const toolbar = config?.common.fileBrowserToolbar
+  const toolbarConfig = config?.common.fileBrowserToolbar ?? { variant: "inline", dockPosition: "bottom" } as const
   const paginationMode = config?.common.pagination.mode ?? "manual"
   const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
   const nodes = state.status === "ready" ? state.data.page.nodes : []
@@ -224,13 +220,16 @@ export function DesktopFilesPage() {
   const { data } = state
   const workspaceUsername = data.workspace.owner.username
   const editable = data.page.accessLevel !== "view"
-  const full = data.page.accessLevel === "full"
+  const shareable = data.page.accessLevel === "full"
   const bulkEditable = selectedNodes.length > 0 && selectedNodes.every((node) => node.accessLevel !== "view")
   const bulkSameOwner = selectedNodes.length > 0 && selectedNodes.every((node) => node.ownerUserId === selectedNodes[0].ownerUserId)
   const bulkCanMove = bulkEditable && bulkSameOwner
   const bulkCanTrash = bulkEditable
   const bulkCanFavorite = selectedNodes.some((node) => node.canFavorite && !node.isFavorite)
   const bulkCanUnfavorite = selectedNodes.some((node) => node.canFavorite && node.isFavorite)
+  const horizontalToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "bottom"
+  const rightToolbarDocked = toolbarConfig.variant === "dock" && toolbarConfig.dockPosition === "right"
+  const browserClassName = `mx-auto flex w-full max-w-7xl flex-col gap-5${horizontalToolbarDocked ? " pb-24" : ""}${rightToolbarDocked ? " sm:pr-16" : ""}`
   const breadcrumbItems = data.breadcrumbs.map((item) => {
     const routeRoot = item.id === data.workspace.root.id
 
@@ -241,11 +240,10 @@ export function DesktopFilesPage() {
       isRoot: item.isRoot,
     }
   })
-  const controls = <BrowserControls variant={toolbar?.variant ?? "inline"} dockPosition={toolbar?.dockPosition ?? "bottom"} options={options} onChange={updateOptions} onSortChange={changeSort} />
 
   return (
     <DesktopFileUploadTarget folderId={data.folder.id} disabled={!editable} onError={setUploadError}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <div className={browserClassName}>
         <FileBrowserHeader
           folder={data.folder}
           breadcrumbs={breadcrumbItems}
@@ -253,20 +251,21 @@ export function DesktopFilesPage() {
           hasMore={!!data.page.nextCursor}
           onNavigate={(item) => navigateFolder(item.id, item.isRoot)}
           actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {!editable ? <Badge variant="outline">Read only</Badge> : null}
-              <Badge variant="secondary">{data.page.accessLevel}</Badge>
-
-              {editable ? <><DesktopCreateFolderDialog folder={data.folder} onCreated={changed} /><DesktopUploadButtons /></> : null}
-              {full ? <><DesktopAccessDialog resource={{ type: "folder", id: data.folder.id, name: data.folder.isRoot ? "Files" : data.folder.name }} /><DesktopPublicShareDialog resourceType="folder" resourceId={data.folder.id} resourceName={data.folder.isRoot ? "Files" : data.folder.name} /></> : null}
-
-              <Button type="button" size="icon-sm" variant="outline" aria-label="Reload folder" title="Reload folder" onClick={reload}><RefreshCwIcon /></Button>
-              {toolbar?.variant === "dock" ? null : controls}
-            </div>
+            <DesktopFileBrowserToolbar
+              folder={data.folder}
+              options={options}
+              editable={editable}
+              shareable={shareable}
+              reloading={false}
+              toolbarConfig={toolbarConfig}
+              selectionActive={selectedNodes.length > 0}
+              onReload={reload}
+              onCreated={changed}
+              onOptionsChange={updateOptions}
+              onSortChange={changeSort}
+            />
           }
         />
-
-        {toolbar?.variant === "dock" ? controls : null}
 
         <DesktopFileSelectionToolbar
           count={selectedNodes.length}
@@ -318,22 +317,6 @@ export function DesktopFilesPage() {
   )
 }
 
-function BrowserControls({ variant, dockPosition, options, onChange, onSortChange }: {
-  variant: "inline" | "dock"
-  dockPosition: "bottom" | "right"
-  options: BrowserOptions
-  onChange: (patch: Partial<BrowserOptions>) => void
-  onSortChange: (sort: BrowserSort) => void
-}) {
-  if (variant === "inline") return <InlineFileBrowserControls options={options} onChange={onChange} onSortChange={onSortChange} />
-
-  return (
-    <div className={dockPosition === "right" ? "fixed right-4 top-1/2 z-30 -translate-y-1/2 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur" : "fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur"}>
-      <DockFileBrowserControls options={options} onChange={onChange} onSortChange={onSortChange} />
-    </div>
-  )
-}
-
 function InfiniteLoadMore({ loading, onVisible }: { loading: boolean; onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
 
@@ -350,17 +333,6 @@ function InfiniteLoadMore({ loading, onVisible }: { loading: boolean; onVisible:
   }, [loading, onVisible])
 
   return <div ref={ref} className="flex min-h-12 items-center justify-center text-sm text-muted-foreground">{loading ? <><LoaderCircleIcon className="mr-2 size-4 animate-spin" />Loading more</> : "Scroll to load more"}</div>
-}
-
-function DesktopUploadButtons() {
-  const { busy, openFiles, openFolders } = useDesktopFileUploadTarget()
-
-  return (
-    <>
-      <Button type="button" size="icon-sm" variant="outline" disabled={busy} aria-label="Upload files" title="Upload files" onClick={() => void openFiles()}>{busy ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}</Button>
-      <Button type="button" size="icon-sm" variant="outline" disabled={busy} aria-label="Upload folders" title="Upload folders" onClick={() => void openFolders()}><FolderUpIcon /></Button>
-    </>
-  )
 }
 
 function FilesLoading() {
