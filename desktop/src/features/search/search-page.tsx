@@ -1,13 +1,14 @@
 import type { SearchPage, SearchQuery, WorkspaceDetails } from "@discloud/api/models"
-import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchCategory, type SearchFlag, type SearchKind, type SearchOptions, searchParamsForOptions, type SearchSort } from "@discloud/shared/search"
+import { SearchFilters } from "@discloud/app-ui/search/search-filters"
+import { defaultSearchOrder, parseSearchOptions, patchSearchOptions, type SearchOptions, searchParamsForOptions, searchRequestQuery } from "@discloud/shared/search"
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Button } from "@discloud/ui/components/button"
 import { Input } from "@discloud/ui/components/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@discloud/ui/components/select"
-import { Loader2Icon, RefreshCwIcon, SearchIcon, TriangleAlertIcon, XIcon } from "lucide-react"
+import { Loader2Icon, RefreshCwIcon, SearchIcon, TriangleAlertIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useSearchParams } from "react-router"
 
+import { useDesktopSession } from "#components/desktop-session"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -19,6 +20,8 @@ type ResultsState = { status: "loading" } | { status: "error"; message: string }
 
 export function DesktopSearchPage() {
   const { username } = useParams()
+  const { state: session } = useDesktopSession()
+  const admin = session.status === "connected" && session.user?.role === "admin"
   const [searchParams, setSearchParams] = useSearchParams()
   const queryKey = searchParams.toString()
   const options = useMemo(() => parseSearchOptions(new URLSearchParams(queryKey)), [queryKey])
@@ -37,7 +40,6 @@ export function DesktopSearchPage() {
       }
 
       setWorkspaceState({ status: "loading" })
-
       try {
         const workspace = await loadDesktopWorkspace(username)
         if (!cancelled) setWorkspaceState({ status: "ready", workspace })
@@ -60,9 +62,8 @@ export function DesktopSearchPage() {
 
     async function load() {
       setResultsState({ status: "loading" })
-
       try {
-        const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspace.owner.id) })
+        const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspace.owner.id, admin) })
         if (!cancelled) setResultsState({ status: "ready", page })
       } catch (error) {
         if (!cancelled) setResultsState({ status: "error", message: errorMessage(error) })
@@ -73,7 +74,7 @@ export function DesktopSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [workspaceState, queryKey, retryVersion])
+  }, [admin, workspaceState, queryKey, retryVersion])
 
   const replaceOptions = useCallback((patch: Partial<SearchOptions>) => {
     setSearchParams(searchParamsForOptions(patchSearchOptions(options, patch)), { replace: true })
@@ -83,15 +84,9 @@ export function DesktopSearchPage() {
     if (workspaceState.status !== "ready" || resultsState.status !== "ready" || !resultsState.page.nextCursor || loadingMore) return
 
     setLoadingMore(true)
-
     try {
-      const page = await apiJSON<SearchPage>("/api/v1/search", {
-        query: searchQuery(options, workspaceState.workspace.owner.id, resultsState.page.nextCursor),
-      })
-
-      setResultsState((current) => current.status === "ready"
-        ? { status: "ready", page: { ...page, results: appendUnique(current.page.results, page.results) } }
-        : current)
+      const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspaceState.workspace.owner.id, admin, resultsState.page.nextCursor) })
+      setResultsState((current) => current.status === "ready" ? { status: "ready", page: { ...page, results: appendUnique(current.page.results, page.results) } } : current)
     } catch (error) {
       setResultsState({ status: "error", message: errorMessage(error) })
     } finally {
@@ -112,6 +107,7 @@ export function DesktopSearchPage() {
       <SearchBox initialValue={options.q} onChange={(q) => replaceOptions({ q })} />
       <SearchFilters
         options={options}
+        admin={admin}
         onChange={replaceOptions}
         onSortChange={(sort) => replaceOptions({ sort, order: defaultSearchOrder(sort) })}
         onReset={() => setSearchParams(new URLSearchParams(), { replace: true })}
@@ -126,7 +122,6 @@ export function DesktopSearchPage() {
       ) : (
         <>
           <DesktopSearchResultsTable username={workspaceState.workspace.owner.username} results={resultsState.page.results} />
-
           {resultsState.page.nextCursor ? (
             <div className="flex justify-center">
               <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
@@ -144,10 +139,7 @@ export function DesktopSearchPage() {
 function SearchBox({ initialValue, onChange }: { initialValue: string; onChange: (value: string) => void }) {
   const [value, setValue] = useState(initialValue)
 
-  useEffect(() => {
-    setValue(initialValue)
-  }, [initialValue])
-
+  useEffect(() => setValue(initialValue), [initialValue])
   useEffect(() => {
     if (value.trim() === initialValue) return
     const timeout = setTimeout(() => onChange(value.trim()), 300)
@@ -162,89 +154,10 @@ function SearchBox({ initialValue, onChange }: { initialValue: string; onChange:
   )
 }
 
-function SearchFilters({ options, onChange, onSortChange, onReset }: { options: SearchOptions; onChange: (patch: Partial<SearchOptions>) => void; onSortChange: (sort: SearchSort) => void; onReset: () => void }) {
-  const filtered = options.kind !== "all" || options.category !== "all" || options.favorite !== "any" || options.shared !== "any"
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={options.kind} onValueChange={(value) => onChange({ kind: value as SearchKind })}>
-        <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Type</SelectLabel>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="file">Files</SelectItem>
-            <SelectItem value="folder">Folders</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-
-      <Select value={options.category} onValueChange={(value) => onChange({ category: value as SearchCategory })}>
-        <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Category</SelectLabel>
-            {["all", "image", "video", "audio", "document", "text", "archive", "application", "binary", "other"].map((value) => (
-              <SelectItem key={value} value={value}>{value === "all" ? "All categories" : value.charAt(0).toUpperCase() + value.slice(1)}</SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-
-      <Select value={options.favorite} onValueChange={(value) => onChange({ favorite: value as SearchFlag })}>
-        <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="any">Any favorite</SelectItem>
-          <SelectItem value="true">Favorites</SelectItem>
-          <SelectItem value="false">Not favorite</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={options.shared} onValueChange={(value) => onChange({ shared: value as SearchFlag })}>
-        <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="any">Any sharing</SelectItem>
-          <SelectItem value="true">Shared</SelectItem>
-          <SelectItem value="false">Not shared</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={options.sort} onValueChange={(value) => onSortChange(value as SearchSort)}>
-        <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {options.q ? <SelectItem value="relevance">Relevance</SelectItem> : null}
-          <SelectItem value="name">Name</SelectItem>
-          <SelectItem value="created">Created</SelectItem>
-          <SelectItem value="updated">Modified</SelectItem>
-          <SelectItem value="size">Size</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={options.order} onValueChange={(value) => onChange({ order: value as SearchOptions["order"] })}>
-        <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="asc">Ascending</SelectItem>
-          <SelectItem value="desc">Descending</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {options.q || filtered ? (
-        <Button size="sm" variant="ghost" onClick={onReset}>
-          <XIcon />
-          Clear
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
 function Loading({ label }: { label: string }) {
   return (
     <div className="grid min-h-64 place-items-center rounded-xl border">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2Icon className="animate-spin" />
-        {label}
-      </div>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="animate-spin" />{label}</div>
     </div>
   )
 }
@@ -256,12 +169,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry?: () => voi
       <AlertTitle>Search unavailable</AlertTitle>
       <AlertDescription className="space-y-3">
         <p>{message}</p>
-        {onRetry ? (
-          <Button size="sm" variant="outline" onClick={onRetry}>
-            <RefreshCwIcon />
-            Try again
-          </Button>
-        ) : null}
+        {onRetry ? <Button size="sm" variant="outline" onClick={onRetry}><RefreshCwIcon />Try again</Button> : null}
       </AlertDescription>
     </Alert>
   )
@@ -279,19 +187,8 @@ function EmptySearch({ query }: { query: string }) {
   )
 }
 
-function searchQuery(options: SearchOptions, ownerId: string, cursor?: string): SearchQuery {
-  return {
-    q: options.q || undefined,
-    ownerId,
-    kind: options.kind === "all" ? undefined : options.kind,
-    category: options.category === "all" ? undefined : options.category,
-    favorite: options.favorite === "any" ? undefined : options.favorite === "true",
-    shared: options.shared === "any" ? undefined : options.shared === "true",
-    sort: options.sort,
-    order: options.order,
-    limit: 50,
-    cursor,
-  }
+function searchQuery(options: SearchOptions, ownerId: string, admin: boolean, cursor?: string): SearchQuery {
+  return { ...searchRequestQuery(options, admin), ownerId, limit: 50, cursor }
 }
 
 function appendUnique(current: readonly SearchPage["results"][number][], incoming: readonly SearchPage["results"][number][]) {
