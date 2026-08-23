@@ -1,4 +1,5 @@
 import type { User } from "@discloud/api/models"
+import { SettingsBreadcrumb } from "@discloud/app-ui/settings/settings-breadcrumb"
 import { AppHeaderView } from "@discloud/app-ui/shell/app-header"
 import { AppShellFrame } from "@discloud/app-ui/shell/app-shell"
 import { type AppLinkRenderer, AppSidebarView } from "@discloud/app-ui/shell/app-sidebar"
@@ -26,6 +27,7 @@ const renderRouterLink: AppLinkRenderer = ({ href, children, onNavigate }) => <L
 
 export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user: User }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const params = useParams()
   const { config } = useDesktopUserConfig()
   const workspaceUsername = params.username ?? user.username
@@ -35,6 +37,7 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
   const syncPath = workspacePath(user.username, "sync")
   const navigation = { ...baseNavigation, primary: [...baseNavigation.primary, { title: "Sync", href: syncPath, icon: RefreshCwIcon }] }
   const title = location.pathname === syncPath || location.pathname.startsWith(`${syncPath}/`) ? "Sync" : appRouteTitle(location.pathname, workspaceUsername)
+  const settingsPage = desktopSettingsPage(location.pathname, user.username)
   const adminPath = workspacePath(user.username, "admin")
   const adminSurface = user.role === "admin" && workspaceUsername === user.username && (location.pathname === adminPath || location.pathname.startsWith(`${adminPath}/`))
     ? <DesktopAdminSurface pathname={location.pathname} username={user.username} />
@@ -64,7 +67,12 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
         />
       }
     >
-      {adminSurface ?? <Outlet />}
+      {adminSurface ?? (settingsPage ? (
+        <div className={`mx-auto w-full ${settingsPage.maxWidth} space-y-3`}>
+          <SettingsBreadcrumb title={settingsPage.title} settingsHref={workspacePath(user.username, "settings")} onNavigate={(href) => navigate(href)} />
+          <Outlet />
+        </div>
+      ) : <Outlet />)}
     </AppShellFrame>
   )
 }
@@ -168,4 +176,15 @@ function DesktopUserMenu({ user, serverUrl }: { user: User; serverUrl: string })
       </DropdownMenuContent>
     </DropdownMenu>
   )
+}
+
+function desktopSettingsPage(pathname: string, username: string) {
+  const pages = [
+    { path: workspacePath(username, "settings/common"), title: "Common", maxWidth: "max-w-6xl" },
+    { path: workspacePath(username, "settings/profile"), title: "Profile", maxWidth: "max-w-2xl" },
+    { path: workspacePath(username, "settings/security"), title: "Security", maxWidth: "max-w-2xl" },
+    { path: workspacePath(username, "settings/desktop"), title: "Desktop", maxWidth: "max-w-3xl" },
+  ] as const
+
+  return pages.find((page) => page.path === pathname)
 }
