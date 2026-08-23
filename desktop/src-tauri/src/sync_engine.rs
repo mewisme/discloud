@@ -132,7 +132,6 @@ struct BaselineFile {
     remote: Option<RemoteFingerprint>,
 }
 
-
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SyncRunEvent {
@@ -168,10 +167,20 @@ impl SyncEngineState {
     }
 
     fn configure(&self, pairs: Vec<SyncPairInput>) -> Result<(), ApiCommandError> {
-        let configured = pairs.into_iter().map(|pair| (pair.id.clone(), pair)).collect::<BTreeMap<_, _>>();
+        let configured = pairs
+            .into_iter()
+            .map(|pair| (pair.id.clone(), pair))
+            .collect::<BTreeMap<_, _>>();
         let ids = configured.keys().cloned().collect::<HashSet<_>>();
-        *self.schedules.lock().map_err(|_| ApiCommandError::internal("Sync schedule lock is poisoned."))? = configured;
-        self.last_runs.lock().map_err(|_| ApiCommandError::internal("Sync schedule state lock is poisoned."))?.retain(|pair_id, _| ids.contains(pair_id));
+        *self
+            .schedules
+            .lock()
+            .map_err(|_| ApiCommandError::internal("Sync schedule lock is poisoned."))? =
+            configured;
+        self.last_runs
+            .lock()
+            .map_err(|_| ApiCommandError::internal("Sync schedule state lock is poisoned."))?
+            .retain(|pair_id, _| ids.contains(pair_id));
         Ok(())
     }
 
@@ -182,17 +191,29 @@ impl SyncEngineState {
     }
 
     fn due_pairs(&self, now: u64) -> Vec<SyncPairInput> {
-        let Ok(active) = self.active.lock() else { return Vec::new() };
-        let Ok(schedules) = self.schedules.lock() else { return Vec::new() };
-        let Ok(last_runs) = self.last_runs.lock() else { return Vec::new() };
+        let Ok(active) = self.active.lock() else {
+            return Vec::new();
+        };
+        let Ok(schedules) = self.schedules.lock() else {
+            return Vec::new();
+        };
+        let Ok(last_runs) = self.last_runs.lock() else {
+            return Vec::new();
+        };
 
-        schedules.values().filter(|pair| {
-            if !pair.enabled || active.contains(&pair.id) {
-                return false;
-            }
-            let interval_ms = pair.interval_seconds.saturating_mul(1000);
-            last_runs.get(&pair.id).is_none_or(|last| now.saturating_sub(*last) >= interval_ms)
-        }).cloned().collect()
+        schedules
+            .values()
+            .filter(|pair| {
+                if !pair.enabled || active.contains(&pair.id) {
+                    return false;
+                }
+                let interval_ms = pair.interval_seconds.saturating_mul(1000);
+                last_runs
+                    .get(&pair.id)
+                    .is_none_or(|last| now.saturating_sub(*last) >= interval_ms)
+            })
+            .cloned()
+            .collect()
     }
 }
 
@@ -306,7 +327,11 @@ pub(crate) async fn clear_sync_pair_state(
 ) -> Result<(), ApiCommandError> {
     validate_pair_id(&pair_id)?;
     let path = baseline_path(&app, &pair_id)?;
-    for candidate in [path.clone(), path.with_extension("json.bak"), path.with_extension("json.tmp")] {
+    for candidate in [
+        path.clone(),
+        path.with_extension("json.bak"),
+        path.with_extension("json.tmp"),
+    ] {
         match fs::remove_file(candidate).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -386,12 +411,10 @@ async fn reconcile_file(
 ) -> Result<(), ApiCommandError> {
     match (local, remote) {
         (Some(local), Some(remote)) => {
-            let local_changed = previous
-                .and_then(|entry| entry.local.as_ref())
-                != Some(&local.fingerprint);
-            let remote_changed = previous
-                .and_then(|entry| entry.remote.as_ref())
-                != Some(&remote.fingerprint);
+            let local_changed =
+                previous.and_then(|entry| entry.local.as_ref()) != Some(&local.fingerprint);
+            let remote_changed =
+                previous.and_then(|entry| entry.remote.as_ref()) != Some(&remote.fingerprint);
 
             if !local_changed && !remote_changed {
                 return Ok(());
@@ -406,7 +429,8 @@ async fn reconcile_file(
             match pair.direction {
                 SyncDirection::TwoWay => {
                     if local_changed && remote_changed {
-                        keep_both_conflict(api, root, relative_path, &local, &remote, result).await?;
+                        keep_both_conflict(api, root, relative_path, &local, &remote, result)
+                            .await?;
                     } else if local_changed {
                         replace_remote_file(api, &local.path, &remote, result).await?;
                     } else {
@@ -425,7 +449,15 @@ async fn reconcile_file(
                         let original_name = remote.name.clone();
                         preserve_remote_conflict(api, &remote).await?;
 
-                        if let Err(error) = upload_local_file(api, &local.path, &remote.parent_id, &original_name, result).await {
+                        if let Err(error) = upload_local_file(
+                            api,
+                            &local.path,
+                            &remote.parent_id,
+                            &original_name,
+                            result,
+                        )
+                        .await
+                        {
                             let _ = rename_remote_file(api, &remote.id, &original_name).await;
                             return Err(error);
                         }
@@ -527,9 +559,18 @@ async fn keep_both_conflict(
     remote: &RemoteFile,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
-    let (conflict_path, conflict_name) = preserve_local_conflict(root, relative_path, &local.path).await?;
+    let (conflict_path, conflict_name) =
+        preserve_local_conflict(root, relative_path, &local.path).await?;
 
-    if let Err(error) = upload_local_file(api, &conflict_path, &remote.parent_id, &conflict_name, result).await {
+    if let Err(error) = upload_local_file(
+        api,
+        &conflict_path,
+        &remote.parent_id,
+        &conflict_name,
+        result,
+    )
+    .await
+    {
         let original_path = root.join(relative_to_path(relative_path));
         let _ = fs::rename(&conflict_path, &original_path).await;
         return Err(error);
@@ -577,7 +618,14 @@ async fn rename_remote_file(
     name: &str,
 ) -> Result<(), ApiCommandError> {
     let endpoint = format!("/api/v1/nodes/{file_id}");
-    send_json(api, Method::PATCH, &endpoint, Vec::new(), Some(json!({ "name": name }))).await?;
+    send_json(
+        api,
+        Method::PATCH,
+        &endpoint,
+        Vec::new(),
+        Some(json!({ "name": name })),
+    )
+    .await?;
     Ok(())
 }
 
@@ -591,7 +639,9 @@ async fn replace_remote_file(
     let staged_name = conflict_name(&remote.name, "replaced");
     rename_remote_file(api, &remote.id, &staged_name).await?;
 
-    if let Err(error) = upload_local_file(api, local_path, &remote.parent_id, &original_name, result).await {
+    if let Err(error) =
+        upload_local_file(api, local_path, &remote.parent_id, &original_name, result).await
+    {
         let _ = rename_remote_file(api, &remote.id, &original_name).await;
         return Err(error);
     }
@@ -637,7 +687,9 @@ async fn soft_delete_local(
     relative_path: &str,
     source: &Path,
 ) -> Result<(), ApiCommandError> {
-    let trash_root = root.join(LOCAL_TRASH_DIR).join(timestamp_millis().to_string());
+    let trash_root = root
+        .join(LOCAL_TRASH_DIR)
+        .join(timestamp_millis().to_string());
     let destination = trash_root.join(relative_to_path(relative_path));
 
     if let Some(parent) = destination.parent() {
@@ -736,7 +788,9 @@ async fn scan_local_tree(
         let mut entries = Vec::new();
 
         while let Some(entry) = reader.next_entry().await.map_err(|error| {
-            ApiCommandError::invalid_request(format!("Could not read sync directory entry: {error}"))
+            ApiCommandError::invalid_request(format!(
+                "Could not read sync directory entry: {error}"
+            ))
         })? {
             let name = entry.file_name().into_string().map_err(|_| {
                 ApiCommandError::invalid_request("Sync folder contains a non-Unicode path.")
@@ -997,7 +1051,10 @@ async fn upload_part_with_retry(
     let digest = sha256_hex(&body);
     let endpoint = format!("/api/v1/uploads/{}/parts/{part_index}", session.id);
     let headers = vec![
-        ("Content-Type".to_string(), "application/octet-stream".to_string()),
+        (
+            "Content-Type".to_string(),
+            "application/octet-stream".to_string(),
+        ),
         ("X-Chunk-SHA256".to_string(), digest),
     ];
 
@@ -1071,19 +1128,19 @@ async fn download_file(
         .and_then(|value| value.to_str())
         .unwrap_or("download");
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
-    let temp = unique_path(parent.join(format!(
-        ".{file_name}.discloud-part-{}",
-        timestamp_millis()
-    )))
-    .await?;
+    let temp =
+        unique_path(parent.join(format!(".{file_name}.discloud-part-{}", timestamp_millis())))
+            .await?;
     let mut output = File::create(&temp).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not create sync download file: {error}"))
     })?;
     let mut hasher = Sha256::new();
 
-    while let Some(chunk) = response.chunk().await.map_err(|error| {
-        ApiCommandError::network("Could not read sync download", error)
-    })? {
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| ApiCommandError::network("Could not read sync download", error))?
+    {
         hasher.update(&chunk);
         output.write_all(&chunk).await.map_err(|error| {
             ApiCommandError::internal(format!("Could not write sync download: {error}"))
@@ -1257,15 +1314,13 @@ fn build_baseline(local: &LocalTree, remote: &RemoteTree) -> SyncBaseline {
     }
 }
 
-async fn load_baseline(
-    app: &AppHandle,
-    pair_id: &str,
-) -> Result<SyncBaseline, ApiCommandError> {
+async fn load_baseline(app: &AppHandle, pair_id: &str) -> Result<SyncBaseline, ApiCommandError> {
     let path = baseline_path(app, pair_id)?;
     let backup = path.with_extension("json.bak");
     let bytes = match fs::read(&path).await {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => match fs::read(&backup).await {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => match fs::read(&backup).await
+        {
             Ok(bytes) => bytes,
             Err(backup_error) if backup_error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(SyncBaseline {
@@ -1383,7 +1438,9 @@ fn default_sync_interval_seconds() -> u64 {
 fn validate_pair(pair: &SyncPairInput) -> Result<(), ApiCommandError> {
     validate_pair_id(&pair.id)?;
     if !valid_resource_id(&pair.remote_folder_id) {
-        return Err(ApiCommandError::invalid_request("Invalid remote folder ID."));
+        return Err(ApiCommandError::invalid_request(
+            "Invalid remote folder ID.",
+        ));
     }
     if !(15..=86_400).contains(&pair.interval_seconds) {
         return Err(ApiCommandError::invalid_request(
@@ -1458,13 +1515,16 @@ fn remote_parent_id<'a>(
 }
 
 fn relative_parent(path: &str) -> &str {
-    path.rsplit_once('/').map(|(parent, _)| parent).unwrap_or("")
+    path.rsplit_once('/')
+        .map(|(parent, _)| parent)
+        .unwrap_or("")
 }
 
 fn relative_name(path: &str) -> Result<&str, ApiCommandError> {
-    path.rsplit('/').next().filter(|value| !value.is_empty()).ok_or_else(|| {
-        ApiCommandError::invalid_request("Sync relative file name is invalid.")
-    })
+    path.rsplit('/')
+        .next()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiCommandError::invalid_request("Sync relative file name is invalid."))
 }
 
 fn join_relative(parent: &str, name: &str) -> String {
@@ -1483,7 +1543,10 @@ fn relative_to_path(value: &str) -> PathBuf {
 }
 
 fn path_depth(value: &str) -> usize {
-    value.split('/').filter(|segment| !segment.is_empty()).count()
+    value
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .count()
 }
 
 fn conflict_name(name: &str, side: &str) -> String {
@@ -1502,7 +1565,10 @@ async fn unique_path(path: PathBuf) -> Result<PathBuf, ApiCommandError> {
         return Ok(path);
     }
 
-    let parent = path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+    let parent = path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -1520,12 +1586,7 @@ async fn unique_path(path: PathBuf) -> Result<PathBuf, ApiCommandError> {
     ))
 }
 
-fn ignored_path(
-    relative_path: &str,
-    name: &str,
-    is_directory: bool,
-    patterns: &[String],
-) -> bool {
+fn ignored_path(relative_path: &str, name: &str, is_directory: bool, patterns: &[String]) -> bool {
     patterns.iter().any(|raw| {
         let pattern = raw.trim().trim_start_matches("./");
         if pattern.is_empty() || pattern.starts_with('#') {
@@ -1533,7 +1594,9 @@ fn ignored_path(
         }
         if let Some(prefix) = pattern.strip_suffix('/') {
             return is_directory
-                && (name == prefix || relative_path == prefix || relative_path.starts_with(&format!("{prefix}/")));
+                && (name == prefix
+                    || relative_path == prefix
+                    || relative_path.starts_with(&format!("{prefix}/")));
         }
         wildcard_match(pattern, relative_path) || wildcard_match(pattern, name)
     })
@@ -1570,9 +1633,9 @@ fn wildcard_match(pattern: &str, value: &str) -> bool {
 fn is_internal_sync_path(relative_path: &str) -> bool {
     relative_path == LOCAL_TRASH_DIR
         || relative_path.starts_with(&format!("{LOCAL_TRASH_DIR}/"))
-        || relative_path
-            .split('/')
-            .any(|segment| segment.contains(".discloud-part-") || segment.contains(".discloud-backup-"))
+        || relative_path.split('/').any(|segment| {
+            segment.contains(".discloud-part-") || segment.contains(".discloud-backup-")
+        })
 }
 
 fn system_time_millis(value: Option<SystemTime>) -> u64 {
@@ -1619,8 +1682,18 @@ mod tests {
         assert!(wildcard_match("*.tmp", "cache.tmp"));
         assert!(wildcard_match("build/*", "build/output.js"));
         assert!(!wildcard_match("*.tmp", "notes.txt"));
-        assert!(ignored_path("node_modules", "node_modules", true, &["node_modules/".into()]));
-        assert!(ignored_path("src/node_modules", "node_modules", true, &["node_modules/".into()]));
+        assert!(ignored_path(
+            "node_modules",
+            "node_modules",
+            true,
+            &["node_modules/".into()]
+        ));
+        assert!(ignored_path(
+            "src/node_modules",
+            "node_modules",
+            true,
+            &["node_modules/".into()]
+        ));
     }
 
     #[test]

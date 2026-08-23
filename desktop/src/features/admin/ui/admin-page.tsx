@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useState } from "react"
 import { useDesktopSession } from "#components/desktop-session"
 import { errorMessage } from "#lib/instance"
 
+import { DesktopUserAvatar } from "../../avatar/ui/user-avatar"
 import { loadAdminUsers, loadStorageOverview, reconcileStorageQuota } from "../core/api"
 import { formatBytes, formatNumber } from "../core/format"
 import { AdminUserActions, CreateAdminUserDialog } from "./user-dialogs"
@@ -55,6 +56,7 @@ export function DesktopAdminPage() {
   async function loadUsers(nextOffset: number) {
     setLoading(true)
     setError(undefined)
+
     try {
       const query = { limit: pageSize, offset: nextOffset } satisfies ListUsersQuery
       const page = await loadAdminUsers(query)
@@ -116,6 +118,7 @@ function StorageSection({ storage, onChanged }: { storage: StorageOverview; onCh
   async function reconcile() {
     setPending(true)
     setError(undefined)
+
     try {
       setResult(await reconcileStorageQuota({}))
       await onChanged()
@@ -129,7 +132,10 @@ function StorageSection({ storage, onChanged }: { storage: StorageOverview; onCh
   return (
     <section className="space-y-3">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div><h2 className="text-lg font-semibold">Storage</h2><p className="text-sm text-muted-foreground">Logical usage, physical chunks, reservations, and quota consistency.</p></div>
+        <div>
+          <h2 className="text-lg font-semibold">Storage</h2>
+          <p className="text-sm text-muted-foreground">Logical usage, physical chunks, reservations, and quota consistency.</p>
+        </div>
         <Button variant="outline" onClick={() => { setResult(undefined); setError(undefined); setOpen(true) }}><RefreshCwIcon />Reconcile quota</Button>
       </div>
 
@@ -142,11 +148,23 @@ function StorageSection({ storage, onChanged }: { storage: StorageOverview; onCh
 
       <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader><DialogTitle>{result ? "Quota reconciliation complete" : "Reconcile storage quota?"}</DialogTitle><DialogDescription>{result ? `Checked ${result.users.length} accounts.` : "Recalculate used and reserved storage from canonical database state and repair cached counters."}</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{result ? "Quota reconciliation complete" : "Reconcile storage quota?"}</DialogTitle>
+            <DialogDescription>{result ? `Checked ${result.users.length} accounts.` : "Recalculate used and reserved storage from canonical database state and repair cached counters."}</DialogDescription>
+          </DialogHeader>
+
           {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           {result ? <ReconcileResult result={result} /> : null}
+
           <DialogFooter>
-            {result ? <Button onClick={() => setOpen(false)}>Done</Button> : <><Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={pending} onClick={() => void reconcile()}>{pending ? <Loader2Icon className="animate-spin" /> : null}Reconcile</Button></>}
+            {result ? (
+              <Button onClick={() => setOpen(false)}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>Cancel</Button>
+                <Button disabled={pending} onClick={() => void reconcile()}>{pending ? <Loader2Icon className="animate-spin" /> : null}Reconcile</Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -156,50 +174,161 @@ function StorageSection({ storage, onChanged }: { storage: StorageOverview; onCh
 
 function ReconcileResult({ result }: { result: QuotaReconciliationPage }) {
   const attention = result.users.filter((user) => user.changed || user.overQuota)
-  if (!attention.length) return <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">Storage quota counters were already consistent.</div>
 
-  return <div className="max-h-80 space-y-2 overflow-y-auto">{attention.map((user) => <div key={user.userId} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><div><p className="font-medium">{user.name}</p><p className="text-xs text-muted-foreground">@{user.username}</p></div><div className="flex gap-1">{user.changed ? <Badge variant="secondary">Repaired</Badge> : null}{user.overQuota ? <Badge variant="destructive">Over quota</Badge> : null}</div></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><div className="rounded-md bg-muted/50 p-2">Used: {formatBytes(user.beforeUsedBytes)} → {formatBytes(user.afterUsedBytes)}</div><div className="rounded-md bg-muted/50 p-2">Reserved: {formatBytes(user.beforeReservedBytes)} → {formatBytes(user.afterReservedBytes)}</div></div></div>)}</div>
+  if (!attention.length) {
+    return <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">Storage quota counters were already consistent.</div>
+  }
+
+  return (
+    <div className="max-h-80 space-y-2 overflow-y-auto">
+      {attention.map((user) => (
+        <div key={user.userId} className="rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="font-medium">{user.name}</p>
+              <p className="text-xs text-muted-foreground">@{user.username}</p>
+            </div>
+            <div className="flex gap-1">
+              {user.changed ? <Badge variant="secondary">Repaired</Badge> : null}
+              {user.overQuota ? <Badge variant="destructive">Over quota</Badge> : null}
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-md bg-muted/50 p-2">Used: {formatBytes(user.beforeUsedBytes)} → {formatBytes(user.afterUsedBytes)}</div>
+            <div className="rounded-md bg-muted/50 p-2">Reserved: {formatBytes(user.beforeReservedBytes)} → {formatBytes(user.afterReservedBytes)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-function UsersTable({ users, total, offset, currentUserId, loading, onLoadPage, onUpdated }: { users: readonly AdminUser[]; total: number; offset: number; currentUserId: string; loading: boolean; onLoadPage: (offset: number) => Promise<void>; onUpdated: (user: AdminUser) => void }) {
+function UsersTable({
+  users,
+  total,
+  offset,
+  currentUserId,
+  loading,
+  onLoadPage,
+  onUpdated,
+}: {
+  users: readonly AdminUser[]
+  total: number
+  offset: number
+  currentUserId: string
+  loading: boolean
+  onLoadPage: (offset: number) => Promise<void>
+  onUpdated: (user: AdminUser) => void
+}) {
   const previousDisabled = offset === 0 || loading
   const nextDisabled = offset + users.length >= total || loading
 
   return (
     <section className="space-y-3">
-      <div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Users</h2><p className="text-sm text-muted-foreground">{formatNumber(total)} account{total === 1 ? "" : "s"}</p></div>{loading ? <Loader2Icon className="size-4 animate-spin text-muted-foreground" /> : null}</div>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Users</h2>
+          <p className="text-sm text-muted-foreground">{formatNumber(total)} account{total === 1 ? "" : "s"}</p>
+        </div>
+        {loading ? <Loader2Icon className="size-4 animate-spin text-muted-foreground" /> : null}
+      </div>
+
       <div className="overflow-hidden rounded-xl border">
         <Table>
-          <TableHeader><TableRow><TableHead>User</TableHead><TableHead className="hidden sm:table-cell">Role</TableHead><TableHead className="hidden md:table-cell">Status</TableHead><TableHead className="hidden lg:table-cell">Storage</TableHead><TableHead className="hidden xl:table-cell">Quota</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User</TableHead>
+              <TableHead className="hidden sm:table-cell">Role</TableHead>
+              <TableHead className="hidden md:table-cell">Status</TableHead>
+              <TableHead className="hidden lg:table-cell">Storage</TableHead>
+              <TableHead className="hidden xl:table-cell">Quota</TableHead>
+              <TableHead className="w-12" />
+            </TableRow>
+          </TableHeader>
+
           <TableBody>
             {users.map((user) => {
               const committed = user.storageUsedBytes + user.storageReservedBytes
               const quotaPercent = user.storageQuotaBytes === null ? 0 : Math.min(100, user.storageQuotaBytes === 0 ? 100 : committed / user.storageQuotaBytes * 100)
-              return <TableRow key={user.id}>
-                <TableCell><div className="flex items-center gap-3"><div className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold">{initials(user.name)}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-medium">{user.name}</p><p className="truncate text-xs text-muted-foreground">@{user.username}</p>{user.id === currentUserId ? <Badge variant="secondary">You</Badge> : null}</div>{user.mustChangePassword ? <p className="text-xs text-muted-foreground">Password change required</p> : null}</div></div></TableCell>
-                <TableCell className="hidden sm:table-cell"><Badge variant="outline" className="capitalize">{user.role}</Badge></TableCell>
-                <TableCell className="hidden md:table-cell"><Badge variant={user.status === "active" ? "secondary" : "outline"} className="capitalize">{user.status}</Badge></TableCell>
-                <TableCell className="hidden lg:table-cell"><div className="min-w-40 space-y-1"><p className="text-sm tabular-nums">{formatBytes(user.storageUsedBytes)}{user.storageReservedBytes > 0 ? <span className="text-muted-foreground"> + {formatBytes(user.storageReservedBytes)} reserved</span> : null}</p>{user.storageQuotaBytes !== null ? <Progress value={quotaPercent} className="h-1.5" /> : null}</div></TableCell>
-                <TableCell className="hidden tabular-nums text-muted-foreground xl:table-cell">{user.storageQuotaBytes === null ? "Unlimited" : formatBytes(user.storageQuotaBytes)}</TableCell>
-                <TableCell><AdminUserActions user={user} currentUserId={currentUserId} onUpdated={onUpdated} /></TableCell>
-              </TableRow>
+
+              return (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <DesktopUserAvatar user={user} adminUserId={user.id} className="size-8" />
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium">{user.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
+                          {user.id === currentUserId ? <Badge variant="secondary">You</Badge> : null}
+                        </div>
+                        {user.mustChangePassword ? <p className="text-xs text-muted-foreground">Password change required</p> : null}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="hidden sm:table-cell"><Badge variant="outline" className="capitalize">{user.role}</Badge></TableCell>
+                  <TableCell className="hidden md:table-cell"><Badge variant={user.status === "active" ? "secondary" : "outline"} className="capitalize">{user.status}</Badge></TableCell>
+
+                  <TableCell className="hidden lg:table-cell">
+                    <div className="min-w-40 space-y-1">
+                      <p className="text-sm tabular-nums">
+                        {formatBytes(user.storageUsedBytes)}
+                        {user.storageReservedBytes > 0 ? <span className="text-muted-foreground"> + {formatBytes(user.storageReservedBytes)} reserved</span> : null}
+                      </p>
+                      {user.storageQuotaBytes !== null ? <Progress value={quotaPercent} className="h-1.5" /> : null}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="hidden tabular-nums text-muted-foreground xl:table-cell">
+                    {user.storageQuotaBytes === null ? "Unlimited" : formatBytes(user.storageQuotaBytes)}
+                  </TableCell>
+
+                  <TableCell><AdminUserActions user={user} currentUserId={currentUserId} onUpdated={onUpdated} /></TableCell>
+                </TableRow>
+              )
             })}
           </TableBody>
         </Table>
-        <div className="flex items-center justify-between border-t px-3 py-2"><p className="text-xs text-muted-foreground">{total === 0 ? "No users" : `${offset + 1}–${Math.min(offset + users.length, total)} of ${total}`}</p><div className="flex gap-2"><Button size="sm" variant="outline" disabled={previousDisabled} onClick={() => void onLoadPage(Math.max(0, offset - pageSize))}>Previous</Button><Button size="sm" variant="outline" disabled={nextDisabled} onClick={() => void onLoadPage(offset + pageSize)}>Next</Button></div></div>
+
+        <div className="flex items-center justify-between border-t px-3 py-2">
+          <p className="text-xs text-muted-foreground">{total === 0 ? "No users" : `${offset + 1}–${Math.min(offset + users.length, total)} of ${total}`}</p>
+
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={previousDisabled} onClick={() => void onLoadPage(Math.max(0, offset - pageSize))}>Previous</Button>
+            <Button size="sm" variant="outline" disabled={nextDisabled} onClick={() => void onLoadPage(offset + pageSize)}>Next</Button>
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
 function MetricCard({ icon, label, value, detail, warning = false }: { icon: ReactNode; label: string; value: string; detail: string; warning?: boolean }) {
-  return <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{label}</CardTitle><div className={warning ? "text-destructive [&>svg]:size-4" : "text-muted-foreground [&>svg]:size-4"}>{icon}</div></CardHeader><CardContent><div className="text-2xl font-semibold tabular-nums">{value}</div><p className={warning ? "mt-1 text-xs text-destructive" : "mt-1 text-xs text-muted-foreground"}>{detail}</p></CardContent></Card>
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{label}</CardTitle>
+        <div className={warning ? "text-destructive [&>svg]:size-4" : "text-muted-foreground [&>svg]:size-4"}>{icon}</div>
+      </CardHeader>
+
+      <CardContent>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+        <p className={warning ? "mt-1 text-xs text-destructive" : "mt-1 text-xs text-muted-foreground"}>{detail}</p>
+      </CardContent>
+    </Card>
+  )
 }
 
 function LoadingState({ label }: { label: string }) {
-  return <div className="grid min-h-64 place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="animate-spin" />{label}</div></div>
-}
-
-function initials(name: string) {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
+  return (
+    <div className="grid min-h-64 place-items-center">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2Icon className="animate-spin" />
+        {label}
+      </div>
+    </div>
+  )
 }

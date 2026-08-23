@@ -60,10 +60,7 @@ pub(crate) async fn check_for_update(
 }
 
 #[tauri::command]
-pub(crate) async fn install_update(
-    app: AppHandle,
-    channel: UpdateChannel,
-) -> Result<(), String> {
+pub(crate) async fn install_update(app: AppHandle, channel: UpdateChannel) -> Result<(), String> {
     let updater = updater_for(&app, channel, INSTALL_TIMEOUT)?;
     let update = updater
         .check()

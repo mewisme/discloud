@@ -6,7 +6,7 @@ import { createAppNavigation } from "@discloud/app-ui/shell/navigation"
 import { appRouteTitle, workspacePath } from "@discloud/shared/navigation"
 import { Button } from "@discloud/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
-import { DownloadIcon, LogOutIcon, RefreshCwIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
+import { ChevronDownIcon, DownloadIcon, LogOutIcon, RefreshCwIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
 import { useState } from "react"
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router"
 
@@ -14,6 +14,7 @@ import { useDesktopSession } from "#components/desktop-session"
 import { errorMessage } from "#lib/instance"
 
 import { DesktopAdminSurface } from "../features/admin/ui/admin-surface"
+import { DesktopUserAvatar } from "../features/avatar/ui/user-avatar"
 import { useDesktopUserConfig } from "../features/settings/ui/user-config-provider"
 import { useDesktopSync } from "../features/sync/ui/sync-provider"
 import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
@@ -115,16 +116,22 @@ function DesktopUserMenu({ user, serverUrl }: { user: User; serverUrl: string })
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" disabled={busy}>
-          <UserIcon />
-          <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
+        <Button type="button" variant="ghost" className="h-8 gap-2 rounded-lg px-1.5 sm:pr-2" disabled={busy} aria-label={`Open ${user.name} menu`}>
+          <DesktopUserAvatar user={user} size="sm" />
+          <span className="hidden max-w-32 truncate text-sm font-medium lg:inline">{user.name}</span>
+          <ChevronDownIcon className="hidden size-3.5 text-muted-foreground lg:block" />
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>
-          <div className="truncate">{user.name}</div>
-          <div className="truncate text-xs font-normal text-muted-foreground">@{user.username}</div>
+      <DropdownMenuContent align="end" sideOffset={8} className="w-64">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex items-center gap-3 py-1">
+            <DesktopUserAvatar user={user} size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">@{user.username} · <span className="capitalize">{user.role}</span></p>
+            </div>
+          </div>
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />

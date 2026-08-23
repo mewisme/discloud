@@ -78,9 +78,13 @@ pub(crate) async fn update_avatar(
     })
 }
 
-pub(crate) async fn load_avatar(api: &ApiState) -> Result<Option<AvatarPayload>, ApiCommandError> {
+pub(crate) async fn load_avatar(
+    api: &ApiState,
+    user_id: Option<String>,
+) -> Result<Option<AvatarPayload>, ApiCommandError> {
+    let path = avatar_request_path(user_id.as_deref())?;
     let response = api
-        .raw_request(Method::GET, "/api/v1/me/avatar", Vec::new(), Vec::new())
+        .raw_request(Method::GET, &path, Vec::new(), Vec::new())
         .await?;
 
     if response.status() == StatusCode::NOT_FOUND {
@@ -97,15 +101,21 @@ pub(crate) async fn load_avatar(api: &ApiState) -> Result<Option<AvatarPayload>,
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
+
     let bytes = response
         .bytes()
         .await
-        .map_err(|error| ApiCommandError::network("Could not load avatar", error))?
-        .to_vec();
+        .map_err(|error| ApiCommandError::network("Could not load avatar", error))?;
+
+    if bytes.len() as u64 > MAX_AVATAR_BYTES {
+        return Err(ApiCommandError::internal(
+            "Avatar response exceeds the maximum allowed size.",
+        ));
+    }
 
     Ok(Some(AvatarPayload {
         content_type,
-        bytes,
+        bytes: bytes.to_vec(),
     }))
 }
 
@@ -140,6 +150,24 @@ pub(crate) async fn save_recovery_codes(
     })
 }
 
+fn avatar_request_path(user_id: Option<&str>) -> Result<String, ApiCommandError> {
+    let Some(user_id) = user_id else {
+        return Ok("/api/v1/me/avatar".to_string());
+    };
+
+    let user_id = user_id.trim();
+
+    if user_id.is_empty()
+        || !user_id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+    {
+        return Err(ApiCommandError::invalid_request("Invalid avatar user ID."));
+    }
+
+    Ok(format!("/api/v1/admin/users/{user_id}/avatar"))
+}
+
 fn avatar_content_type(path: &str) -> &'static str {
     match Path::new(path)
         .extension()
@@ -157,7 +185,7 @@ fn avatar_content_type(path: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::avatar_content_type;
+    use super::{avatar_content_type, avatar_request_path};
 
     #[test]
     fn detects_avatar_content_type() {
@@ -168,5 +196,24 @@ mod tests {
             avatar_content_type("avatar.bin"),
             "application/octet-stream"
         );
+    }
+
+    #[test]
+    fn resolves_current_user_avatar_path() {
+        assert_eq!(avatar_request_path(None).unwrap(), "/api/v1/me/avatar");
+    }
+
+    #[test]
+    fn resolves_admin_user_avatar_path() {
+        assert_eq!(
+            avatar_request_path(Some("0198d961-20e4-7000-8000-000000000001")).unwrap(),
+            "/api/v1/admin/users/0198d961-20e4-7000-8000-000000000001/avatar"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_avatar_user_id() {
+        assert!(avatar_request_path(Some("../me")).is_err());
+        assert!(avatar_request_path(Some("")).is_err());
     }
 }

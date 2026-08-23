@@ -104,8 +104,9 @@ pub(crate) async fn update_avatar(
 #[tauri::command]
 pub(crate) async fn load_avatar(
     state: State<'_, ApiState>,
+    user_id: Option<String>,
 ) -> Result<Option<AvatarPayload>, ApiCommandError> {
-    settings_transfer::load_avatar(state.inner()).await
+    settings_transfer::load_avatar(state.inner(), user_id).await
 }
 
 #[tauri::command]
