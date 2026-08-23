@@ -17,6 +17,7 @@ import { DesktopAdminSurface } from "../features/admin/ui/admin-surface"
 import { DesktopUserAvatar } from "../features/avatar/ui/user-avatar"
 import { useDesktopUserConfig } from "../features/settings/ui/user-config-provider"
 import { useDesktopSync } from "../features/sync/ui/sync-provider"
+import { DesktopModeToggle } from "../features/theme/ui/mode-toggle"
 import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
 import { DesktopWorkspaceSwitcher } from "../features/workspaces/ui/workspace-switcher"
 
@@ -69,6 +70,8 @@ function DesktopHeaderActions({ user, serverUrl }: { user: User; serverUrl: stri
 
   return (
     <div className="flex items-center gap-1">
+      <DesktopModeToggle />
+
       {sync.pairs.length > 0 ? (
         <Button asChild variant="ghost" size="sm">
           <Link to={workspacePath(user.username, "sync")} title={syncError ? "A sync pair needs attention" : syncing ? "Sync in progress" : "Folder sync"}>
@@ -146,7 +149,6 @@ function DesktopUserMenu({ user, serverUrl }: { user: User; serverUrl: string })
 
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">{serverUrl}</DropdownMenuLabel>
-
         <DropdownMenuItem disabled={busy} onClick={() => void perform(changeServer, "/connect")}><ServerIcon />Change server</DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onClick={() => void perform(signOut, "/login")}><LogOutIcon />Sign out</DropdownMenuItem>
 

@@ -1,5 +1,3 @@
-import "client-only"
-
 const themeEffectStyleId = "discloud-theme-transition-effect"
 
 export const themeEffects = {
@@ -176,6 +174,7 @@ export const themeEffects = {
     `,
   },
   custom: {
+    title: "Custom",
     css: "",
   },
 } as const

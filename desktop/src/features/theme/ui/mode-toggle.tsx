@@ -1,26 +1,25 @@
-"use client"
-
 import { applyThemeTransitionEffect, removeThemeTransitionEffect, startThemeTransition } from "@discloud/shared/theme-transition"
+import { Button } from "@discloud/ui/components/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useLayoutEffect } from "react"
 
-import { useUserConfig } from "@/components/settings/user-config-context"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useDesktopUserConfig } from "../../settings/ui/user-config-provider"
 
-export function ModeToggle() {
+export function DesktopModeToggle() {
   const { setTheme } = useTheme()
-  const { config } = useUserConfig()
-  const { effect, custom } = config.common.theme
+  const { config } = useDesktopUserConfig()
+  const theme = config?.common.theme
 
   useLayoutEffect(() => {
-    applyThemeTransitionEffect(effect, custom.css)
+    if (!theme) return
+    applyThemeTransitionEffect(theme.effect, theme.custom.css)
     return removeThemeTransitionEffect
-  }, [effect, custom.css])
+  }, [theme])
 
-  function changeTheme(theme: "light" | "dark" | "system") {
-    startThemeTransition(() => setTheme(theme))
+  function changeTheme(nextTheme: "light" | "dark" | "system") {
+    startThemeTransition(() => setTheme(nextTheme))
   }
 
   return (
