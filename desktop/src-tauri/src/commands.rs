@@ -57,7 +57,12 @@ pub(crate) async fn api_request(
 
     let result = api_state.request(request).await;
 
-    if session_check && result.as_ref().err().is_some_and(|error| error.is_unauthorized()) {
+    if session_check
+        && result
+            .as_ref()
+            .err()
+            .is_some_and(|error| error.is_unauthorized())
+    {
         let _ = upload_engine::reset(
             &app,
             api_state.inner(),

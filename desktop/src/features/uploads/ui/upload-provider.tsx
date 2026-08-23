@@ -5,9 +5,8 @@ import { useEffect, useMemo, useRef } from "react"
 import { useDesktopSession } from "#components/desktop-session"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
-import { subscribeNativeUploads } from "../core/native"
-import { uploadEngine } from "../core/upload-engine"
-import { applyUploadRemovedEvent, applyUploadTaskEvent, replaceUploadSnapshot, useUploadDockState, useUploadTasks } from "../core/upload-store"
+import { addNativeUploadPaths, cancelNativeUploadTask, removeNativeUploadTask, retryNativeUploadTask, subscribeNativeUploads } from "../core/native"
+import { applyUploadRemovedEvent, applyUploadTaskEvent, replaceUploadSnapshot, resetUploadProjection, useUploadDockState, useUploadTasks } from "../core/upload-store"
 import { DesktopUploadDock } from "./upload-dock"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
@@ -17,10 +16,10 @@ export type UploadCompletedDetail = {
 }
 
 const uploadActions = {
-  addPaths: (folderId: string, paths: readonly string[]) => uploadEngine.addPaths(folderId, paths),
-  retry: (taskId: string) => uploadEngine.retry(taskId),
-  cancel: (taskId: string) => uploadEngine.cancel(taskId),
-  remove: (taskId: string) => uploadEngine.remove(taskId),
+  addPaths: addNativeUploadPaths,
+  retry: retryNativeUploadTask,
+  cancel: cancelNativeUploadTask,
+  remove: removeNativeUploadTask,
 }
 
 export function DesktopUploadProvider({ children }: { children: ReactNode }) {
@@ -31,21 +30,36 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined
 
     void subscribeNativeUploads({
-      onSnapshot: replaceUploadSnapshot,
-      onTask: applyUploadTaskEvent,
-      onRemoved: applyUploadRemovedEvent,
-      onFolderChanged: ({ folderId }) => {
-        window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
+      onSnapshot: (snapshot) => {
+        if (!disposed) replaceUploadSnapshot(snapshot)
       },
-      onUnauthorized: () => void refreshUser(),
+      onTask: (event) => {
+        if (!disposed) applyUploadTaskEvent(event)
+      },
+      onRemoved: (event) => {
+        if (!disposed) applyUploadRemovedEvent(event)
+      },
+      onFolderChanged: ({ folderId }) => {
+        if (!disposed) window.dispatchEvent(new CustomEvent<UploadCompletedDetail>(UPLOAD_COMPLETED_EVENT, { detail: { folderId } }))
+      },
+      onUnauthorized: () => {
+        if (!disposed) void refreshUser()
+      },
     }).then((dispose) => {
-      if (disposed) dispose()
-      else unsubscribe = dispose
-    }).catch(() => undefined)
+      if (disposed) {
+        dispose()
+        resetUploadProjection()
+      } else {
+        unsubscribe = dispose
+      }
+    }).catch(() => {
+      if (!disposed) resetUploadProjection()
+    })
 
     return () => {
       disposed = true
       unsubscribe?.()
+      resetUploadProjection()
     }
   }, [refreshUser])
 

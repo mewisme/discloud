@@ -5,16 +5,11 @@ export function isActiveUploadTask(task: UploadTask) {
 }
 
 export function canCancelUploadTask(task: UploadTask) {
-  return task.status === "queued"
-    || task.status === "preparing"
-    || !!task.sessionId && ["uploading", "error"].includes(task.status)
+  return task.canCancel
 }
 
 export function canRemoveUploadTask(task: UploadTask) {
-  return task.status === "completed"
-    || task.status === "skipped"
-    || task.status === "cancelled"
-    || task.status === "error" && !task.sessionId
+  return task.canRemove
 }
 
 export function uploadTaskStatusLabel(task: UploadTask) {

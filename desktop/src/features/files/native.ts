@@ -17,7 +17,7 @@ export function nativeFileContentURL(fileId: string, collectionId?: string) {
     ? `collections/${collectionId}/files/${fileId}`
     : `files/${fileId}`
 
-  return convertFileSrc(resource, "discloud").replace(/%2F/gi, "/")
+  return convertFileSrc(resource, "discloud")
 }
 
 export async function downloadNativeFile(file: NativeFile, collectionId?: string) {

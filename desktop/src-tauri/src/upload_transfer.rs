@@ -7,7 +7,7 @@ use std::{
 };
 
 use reqwest::Method;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -26,24 +26,18 @@ pub(crate) struct UploadTransferState {
     tasks: Arc<RwLock<HashMap<String, watch::Sender<bool>>>>,
 }
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub(crate) struct LocalUploadFile {
-    #[serde(skip_serializing)]
     pub(crate) path: String,
     pub(crate) name: String,
     pub(crate) size: u64,
     pub(crate) relative_path: String,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct UploadPartResult {
     size: u64,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct UploadRunInput {
     pub(crate) task_id: String,
     pub(crate) upload_id: Option<String>,
@@ -53,16 +47,13 @@ pub(crate) struct UploadRunInput {
     pub(crate) size: u64,
 }
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub(crate) struct UploadTransferEvent {
     pub(crate) status: &'static str,
     pub(crate) session_id: String,
     pub(crate) uploaded_bytes: u64,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct UploadRunResult {
     pub(crate) session_id: String,
     pub(crate) uploaded_bytes: u64,
@@ -219,6 +210,8 @@ where
             .await?
         }
     };
+
+    publish_upload_event(&mut on_progress, "uploading", &session.id, 0);
 
     if session.parent_folder_id != input.folder_id || session.size != input.size {
         return Err(ApiCommandError::invalid_response(
@@ -484,11 +477,7 @@ async fn get_upload_session(
         return Err(ApiCommandError::invalid_request("Invalid upload ID."));
     }
 
-    let request = api.request_json(
-        Method::GET,
-        format!("/api/v1/uploads/{upload_id}"),
-        None,
-    );
+    let request = api.request_json(Method::GET, format!("/api/v1/uploads/{upload_id}"), None);
 
     tokio::select! {
         _ = wait_for_cancel(cancellation) => Err(ApiCommandError::cancelled()),
@@ -522,8 +511,7 @@ fn publish_upload_event<F>(
     status: &'static str,
     session_id: &str,
     uploaded_bytes: u64,
-)
-where
+) where
     F: FnMut(UploadTransferEvent),
 {
     on_progress(UploadTransferEvent {
@@ -555,12 +543,12 @@ fn plan_upload_parts(size: u64, chunk_size: u64) -> Result<Vec<UploadPartPlan>, 
             offset,
             size: part_size,
         });
-        offset = offset.checked_add(part_size).ok_or_else(|| {
-            ApiCommandError::invalid_response("Upload part range overflowed.")
-        })?;
-        index = index.checked_add(1).ok_or_else(|| {
-            ApiCommandError::invalid_response("Upload has too many parts.")
-        })?;
+        offset = offset
+            .checked_add(part_size)
+            .ok_or_else(|| ApiCommandError::invalid_response("Upload part range overflowed."))?;
+        index = index
+            .checked_add(1)
+            .ok_or_else(|| ApiCommandError::invalid_response("Upload has too many parts."))?;
     }
 
     Ok(parts)
@@ -777,7 +765,7 @@ fn valid_resource_id(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        join_relative_path, plan_upload_parts, sha256_hex, validate_part_range, LocalUploadFile,
+        join_relative_path, plan_upload_parts, sha256_hex, validate_part_range,
     };
 
     #[test]
@@ -807,23 +795,6 @@ mod tests {
         assert_eq!(parts[2].index, 2);
         assert_eq!(parts[2].offset, 10);
         assert_eq!(parts[2].size, 1);
-    }
-
-    #[test]
-    fn hides_local_paths_from_webview_payloads() {
-        let value = serde_json::to_value(LocalUploadFile {
-            path: "C:/private/file.txt".to_string(),
-            name: "file.txt".to_string(),
-            size: 4,
-            relative_path: "file.txt".to_string(),
-        })
-        .unwrap();
-
-        assert!(value.get("path").is_none());
-        assert_eq!(
-            value.get("name").and_then(|value| value.as_str()),
-            Some("file.txt"),
-        );
     }
 
     #[test]

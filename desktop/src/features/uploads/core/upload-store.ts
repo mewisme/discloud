@@ -73,6 +73,7 @@ export function replaceUploadSnapshot(snapshot: NativeUploadSnapshot) {
 
   const tasks = new Map(snapshot.tasks.map((task) => [task.id, task]))
   const order = snapshot.tasks.map((task) => task.id)
+  const orderSet = new Set(order)
   const taskRevisions = new Map<string, number>()
   const removedRevisions = new Map<string, number>()
 
@@ -83,7 +84,10 @@ export function replaceUploadSnapshot(snapshot: NativeUploadSnapshot) {
     if (!task) continue
 
     tasks.set(taskId, task)
-    if (!order.includes(taskId)) order.push(taskId)
+    if (!orderSet.has(taskId)) {
+      order.push(taskId)
+      orderSet.add(taskId)
+    }
     taskRevisions.set(taskId, revision)
   }
 
@@ -171,6 +175,34 @@ export function applyUploadRemovedEvent(event: NativeUploadRemovedEvent) {
     removedRevisions,
     completionVersion: Math.max(state.completionVersion, event.completionVersion),
     ...currentSummary(state.tasks),
+  })
+}
+
+export function resetUploadProjection() {
+  const state = uploadStore.getState()
+
+  activeIds.clear()
+  uploadingIds.clear()
+  finalizingIds.clear()
+  failedIds.clear()
+  lastFailedId = undefined
+  cachedTasksVersion = -1
+  cachedProgressVersion = -1
+  cachedTasks = []
+
+  uploadStore.setState({
+    tasks: new Map(),
+    order: [],
+    tasksVersion: state.tasksVersion + 1,
+    progressVersion: state.progressVersion + 1,
+    baselineRevision: -1,
+    latestRevision: -1,
+    taskRevisions: new Map(),
+    removedRevisions: new Map(),
+    activeCount: 0,
+    failedCount: 0,
+    currentTask: undefined,
+    completionVersion: 0,
   })
 }
 

@@ -68,27 +68,46 @@ pub(crate) enum UploadTaskStatus {
     Cancelled,
 }
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct UploadTask {
+#[derive(Clone)]
+struct UploadTask {
     id: String,
     file: LocalUploadFile,
     folder_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     relative_path: Option<String>,
     skip_existing: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
     session_id: Option<String>,
     status: UploadTaskStatus,
     uploaded_bytes: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct UploadFileView {
+    name: String,
+    size: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadTaskView {
+    id: String,
+    file: UploadFileView,
+    folder_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    relative_path: Option<String>,
+    status: UploadTaskStatus,
+    uploaded_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    can_cancel: bool,
+    can_remove: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct UploadSnapshot {
-    tasks: Vec<UploadTask>,
+    tasks: Vec<UploadTaskView>,
     completion_version: u64,
     revision: u64,
 }
@@ -96,7 +115,7 @@ pub(crate) struct UploadSnapshot {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct UploadTaskEvent {
-    task: UploadTask,
+    task: UploadTaskView,
     completion_version: u64,
     revision: u64,
 }
@@ -286,7 +305,7 @@ pub(crate) fn retry(
             task.uploaded_bytes = 0;
         }
         task.error = None;
-        let task = task.clone();
+        let task = upload_task_view(task);
         inner.queue.push_back(task_id);
         inner.revision = inner.revision.wrapping_add(1);
 
@@ -319,7 +338,7 @@ pub(crate) async fn cancel(
             task.status = UploadTaskStatus::Cancelled;
             task.uploaded_bytes = 0;
             task.error = None;
-            let task = task.clone();
+            let task = upload_task_view(task);
             inner.revision = inner.revision.wrapping_add(1);
             let event = UploadTaskEvent {
                 task,
@@ -343,16 +362,18 @@ pub(crate) async fn cancel(
         }
 
         if task.status != UploadTaskStatus::Preparing
-            && !(matches!(task.status, UploadTaskStatus::Uploading | UploadTaskStatus::Error)
-                && task.session_id.is_some())
+            && !(matches!(
+                task.status,
+                UploadTaskStatus::Uploading | UploadTaskStatus::Error
+            ) && task.session_id.is_some())
         {
             return Ok(());
         }
 
         task.status = UploadTaskStatus::Cancelling;
         task.error = None;
-        let task = task.clone();
         let upload_id = task.session_id.clone();
+        let task = upload_task_view(task);
         inner.revision = inner.revision.wrapping_add(1);
         (
             UploadTaskEvent {
@@ -389,7 +410,7 @@ pub(crate) async fn cancel(
         task.status = UploadTaskStatus::Cancelled;
         task.uploaded_bytes = 0;
         task.error = None;
-        let task = task.clone();
+        let task = upload_task_view(task);
         inner.revision = inner.revision.wrapping_add(1);
         UploadTaskEvent {
             task,
@@ -413,12 +434,7 @@ pub(crate) fn remove(
             return Ok(());
         };
 
-        let removable = matches!(
-            task.status,
-            UploadTaskStatus::Completed | UploadTaskStatus::Skipped | UploadTaskStatus::Cancelled
-        ) || task.status == UploadTaskStatus::Error && task.session_id.is_none();
-
-        if !removable {
+        if !can_remove_task(task) {
             return Ok(());
         }
 
@@ -481,15 +497,27 @@ pub(crate) async fn reset(
         let _ = transfers.cancel(task_id);
     }
 
-    for upload_id in upload_ids {
-        let _ = upload_transfer::cancel_upload(api, &upload_id).await;
-    }
-
     for task_id in task_ids {
         let _ = transfers.finish(&task_id);
     }
 
     let _ = app.emit(SNAPSHOT_EVENT, snapshot);
+
+    let cancellations = upload_ids
+        .into_iter()
+        .map(|upload_id| {
+            let api = api.clone();
+
+            tauri::async_runtime::spawn(async move {
+                let _ = upload_transfer::cancel_upload(&api, &upload_id).await;
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for cancellation in cancellations {
+        let _ = cancellation.await;
+    }
+
     Ok(())
 }
 
@@ -574,7 +602,12 @@ async fn run_engine_task(
     };
 
     if let Err(error) = transfers.begin(task_id.clone()) {
-        if let Ok(Some(event)) = set_task_error(&engine, &task_id, Some(generation), error.message().to_string()) {
+        if let Ok(Some(event)) = set_task_error(
+            &engine,
+            &task_id,
+            Some(generation),
+            error.message().to_string(),
+        ) {
             emit_task_event(&app, event);
         }
         return;
@@ -604,12 +637,9 @@ async fn run_engine_task(
             size: initial.file.size,
         },
         move |event| {
-            if let Ok(Some(event)) = apply_transfer_event(
-                &progress_engine,
-                &progress_task_id,
-                generation,
-                event,
-            ) {
+            if let Ok(Some(event)) =
+                apply_transfer_event(&progress_engine, &progress_task_id, generation, event)
+            {
                 emit_task_event(&progress_app, event);
             }
         },
@@ -674,7 +704,7 @@ fn set_task_preparing(
 
     task.status = UploadTaskStatus::Preparing;
     task.error = None;
-    let task = task.clone();
+    let task = upload_task_view(task);
     inner.revision = inner.revision.wrapping_add(1);
 
     Ok(Some(UploadTaskEvent {
@@ -700,18 +730,23 @@ fn apply_transfer_event(
         return Ok(None);
     };
 
-    if matches!(task.status, UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled) {
+    if matches!(
+        task.status,
+        UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled
+    ) {
         return Ok(None);
     }
 
     task.session_id = Some(transfer.session_id);
-    task.uploaded_bytes = task.uploaded_bytes.max(transfer.uploaded_bytes.min(task.file.size));
+    task.uploaded_bytes = task
+        .uploaded_bytes
+        .max(transfer.uploaded_bytes.min(task.file.size));
     task.status = if transfer.status == "finalizing" {
         UploadTaskStatus::Finalizing
     } else {
         UploadTaskStatus::Uploading
     };
-    let task = task.clone();
+    let task = upload_task_view(task);
     inner.revision = inner.revision.wrapping_add(1);
 
     Ok(Some(UploadTaskEvent {
@@ -737,7 +772,10 @@ fn complete_task(
             return Ok(None);
         };
 
-        if matches!(task.status, UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled) {
+        if matches!(
+            task.status,
+            UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled
+        ) {
             return Ok(None);
         }
 
@@ -747,7 +785,10 @@ fn complete_task(
         task.error = None;
     }
 
-    if !inner.tasks.values().any(|task| is_active_status(task.status))
+    if !inner
+        .tasks
+        .values()
+        .any(|task| is_active_status(task.status))
         && !inner
             .tasks
             .values()
@@ -759,8 +800,8 @@ fn complete_task(
     inner.revision = inner.revision.wrapping_add(1);
     let completion_version = inner.completion_version;
     let revision = inner.revision;
-    Ok(inner.tasks.get(task_id).cloned().map(|task| UploadTaskEvent {
-        task,
+    Ok(inner.tasks.get(task_id).map(|task| UploadTaskEvent {
+        task: upload_task_view(task),
         completion_version,
         revision,
     }))
@@ -782,7 +823,10 @@ fn fail_task(
         return Ok(None);
     };
 
-    if matches!(task.status, UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled) {
+    if matches!(
+        task.status,
+        UploadTaskStatus::Cancelling | UploadTaskStatus::Cancelled
+    ) {
         return Ok(None);
     }
 
@@ -799,7 +843,7 @@ fn fail_task(
         task.error = Some(upload_error_message(error));
     }
 
-    let task = task.clone();
+    let task = upload_task_view(task);
     inner.revision = inner.revision.wrapping_add(1);
     Ok(Some(UploadTaskEvent {
         task,
@@ -826,7 +870,7 @@ fn set_task_error(
 
     task.status = UploadTaskStatus::Error;
     task.error = Some(message);
-    let task = task.clone();
+    let task = upload_task_view(task);
     inner.revision = inner.revision.wrapping_add(1);
 
     Ok(Some(UploadTaskEvent {
@@ -843,11 +887,46 @@ fn upload_error_message(error: &ApiCommandError) -> String {
     }
 }
 
+fn upload_task_view(task: &UploadTask) -> UploadTaskView {
+    UploadTaskView {
+        id: task.id.clone(),
+        file: UploadFileView {
+            name: task.file.name.clone(),
+            size: task.file.size,
+        },
+        folder_id: task.folder_id.clone(),
+        relative_path: task.relative_path.clone(),
+        status: task.status,
+        uploaded_bytes: task.uploaded_bytes,
+        error: task.error.clone(),
+        can_cancel: can_cancel_task(task),
+        can_remove: can_remove_task(task),
+    }
+}
+
+fn can_cancel_task(task: &UploadTask) -> bool {
+    matches!(
+        task.status,
+        UploadTaskStatus::Queued | UploadTaskStatus::Preparing
+    ) || task.session_id.is_some()
+        && matches!(
+            task.status,
+            UploadTaskStatus::Uploading | UploadTaskStatus::Error
+        )
+}
+
+fn can_remove_task(task: &UploadTask) -> bool {
+    matches!(
+        task.status,
+        UploadTaskStatus::Completed | UploadTaskStatus::Skipped | UploadTaskStatus::Cancelled
+    ) || task.status == UploadTaskStatus::Error && task.session_id.is_none()
+}
+
 fn snapshot_from_inner(inner: &UploadEngineInner) -> UploadSnapshot {
     let tasks = inner
         .order
         .iter()
-        .filter_map(|id| inner.tasks.get(id).cloned())
+        .filter_map(|id| inner.tasks.get(id).map(upload_task_view))
         .collect();
 
     UploadSnapshot {
@@ -898,19 +977,23 @@ async fn plan_upload_files(
         });
     }
 
-    let (resolved, created_folders) = resolve_folder_paths(api, parent_folder_id, &folder_paths).await?;
+    let (resolved, created_folders) =
+        resolve_folder_paths(api, parent_folder_id, &folder_paths).await?;
     let files = entries
         .into_iter()
         .map(|entry| {
             let folder_id = if entry.directory_path.is_empty() {
                 parent_folder_id.to_string()
             } else {
-                resolved.get(&entry.directory_path).cloned().ok_or_else(|| {
-                    ApiCommandError::invalid_response(format!(
-                        "Could not resolve upload folder: {}",
-                        entry.directory_path
-                    ))
-                })?
+                resolved
+                    .get(&entry.directory_path)
+                    .cloned()
+                    .ok_or_else(|| {
+                        ApiCommandError::invalid_response(format!(
+                            "Could not resolve upload folder: {}",
+                            entry.directory_path
+                        ))
+                    })?
             };
 
             Ok(PlannedUploadFile {
@@ -1159,7 +1242,9 @@ fn take_folder_batch(
 }
 
 fn parent_path(path: &str) -> &str {
-    path.rsplit_once('/').map(|(parent, _)| parent).unwrap_or("")
+    path.rsplit_once('/')
+        .map(|(parent, _)| parent)
+        .unwrap_or("")
 }
 
 fn folder_name(path: &str) -> &str {
@@ -1194,7 +1279,10 @@ mod tests {
 
     use crate::upload_transfer::LocalUploadFile;
 
-    use super::{build_upload_tree, folder_depth, normalize_segment, take_folder_batch};
+    use super::{
+        build_upload_tree, folder_depth, normalize_segment, take_folder_batch, upload_task_view,
+        UploadTask, UploadTaskStatus,
+    };
 
     #[test]
     fn builds_upload_folder_tree() {
@@ -1217,6 +1305,36 @@ mod tests {
         assert!(normalize_segment("..").is_err());
         assert!(normalize_segment("folder/name").is_err());
         assert!(normalize_segment("folder\\name").is_err());
+    }
+
+    #[test]
+    fn upload_view_hides_native_transfer_state() {
+        let task = UploadTask {
+            id: "task-id".to_string(),
+            file: LocalUploadFile {
+                path: "C:/secret/file.txt".to_string(),
+                name: "file.txt".to_string(),
+                size: 12,
+                relative_path: "folder/file.txt".to_string(),
+            },
+            folder_id: "folder-id".to_string(),
+            relative_path: Some("folder/file.txt".to_string()),
+            skip_existing: true,
+            session_id: Some("session-id".to_string()),
+            status: UploadTaskStatus::Uploading,
+            uploaded_bytes: 6,
+            error: None,
+        };
+        let value = serde_json::to_value(upload_task_view(&task)).unwrap();
+
+        assert_eq!(value["file"]["name"], "file.txt");
+        assert_eq!(value["file"]["size"], 12);
+        assert!(value["file"].get("relativePath").is_none());
+        assert_eq!(value["canCancel"], true);
+        assert_eq!(value["canRemove"], false);
+        assert!(value.get("sessionId").is_none());
+        assert!(value.get("skipExisting").is_none());
+        assert!(value["file"].get("path").is_none());
     }
 
     #[test]

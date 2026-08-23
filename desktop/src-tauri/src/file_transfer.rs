@@ -43,9 +43,9 @@ pub(crate) struct DownloadResult {
     bytes_written: u64,
 }
 
-struct FileRequestContext<'a> {
-    file_id: &'a str,
-    collection_id: Option<&'a str>,
+struct FileRequestContext {
+    file_id: String,
+    collection_id: Option<String>,
 }
 
 pub(crate) fn respond_file_protocol(
@@ -166,7 +166,7 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
         );
     };
 
-    let path = match file_api_path(context.file_id, "content") {
+    let path = match file_api_path(&context.file_id, "content") {
         Ok(path) => path,
 
         Err(error) => {
@@ -178,7 +178,7 @@ async fn handle_file_protocol(app: AppHandle, request: Request<Vec<u8>>) -> Resp
         }
     };
 
-    let query = match collection_query(context.collection_id) {
+    let query = match collection_query(context.collection_id.as_deref()) {
         Ok(query) => query,
 
         Err(error) => {
@@ -296,12 +296,13 @@ fn protocol_response(
         .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-fn protocol_file_context(path: &str) -> Option<FileRequestContext<'_>> {
-    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+fn protocol_file_context(path: &str) -> Option<FileRequestContext> {
+    let normalized = normalize_protocol_path(path);
+    let segments = normalized.trim_matches('/').split('/').collect::<Vec<_>>();
 
     match segments.as_slice() {
         ["files", file_id] if valid_resource_id(file_id) => Some(FileRequestContext {
-            file_id,
+            file_id: (*file_id).to_string(),
             collection_id: None,
         }),
 
@@ -309,13 +310,17 @@ fn protocol_file_context(path: &str) -> Option<FileRequestContext<'_>> {
             if valid_resource_id(collection_id) && valid_resource_id(file_id) =>
         {
             Some(FileRequestContext {
-                file_id,
-                collection_id: Some(collection_id),
+                file_id: (*file_id).to_string(),
+                collection_id: Some((*collection_id).to_string()),
             })
         }
 
         _ => None,
     }
+}
+
+fn normalize_protocol_path(path: &str) -> String {
+    path.replace("%2F", "/").replace("%2f", "/")
 }
 
 fn collection_query(collection_id: Option<&str>) -> Result<Vec<(String, String)>, ApiCommandError> {
@@ -378,6 +383,10 @@ mod tests {
 
         assert_eq!(context.file_id, "file-id");
         assert_eq!(context.collection_id, None);
+
+        let context = protocol_file_context("/files%2Ffile-id").unwrap();
+        assert_eq!(context.file_id, "file-id");
+        assert_eq!(context.collection_id, None);
     }
 
     #[test]
@@ -385,7 +394,12 @@ mod tests {
         let context = protocol_file_context("/collections/collection-id/files/file-id").unwrap();
 
         assert_eq!(context.file_id, "file-id");
-        assert_eq!(context.collection_id, Some("collection-id"));
+        assert_eq!(context.collection_id.as_deref(), Some("collection-id"));
+
+        let context =
+            protocol_file_context("/collections%2Fcollection-id%2Ffiles%2Ffile-id").unwrap();
+        assert_eq!(context.file_id, "file-id");
+        assert_eq!(context.collection_id.as_deref(), Some("collection-id"));
     }
 
     #[test]

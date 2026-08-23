@@ -12,7 +12,6 @@ const uploadUnauthorizedEvent = "discloud-upload-unauthorized"
 export type NativeUploadFile = {
   name: string
   size: number
-  relativePath: string
 }
 
 export type NativeUploadTaskStatus = "queued" | "preparing" | "uploading" | "finalizing" | "completed" | "skipped" | "error" | "cancelling" | "cancelled"
@@ -22,11 +21,11 @@ export type NativeUploadTask = {
   file: NativeUploadFile
   folderId: string
   relativePath?: string
-  skipExisting: boolean
-  sessionId?: string
   status: NativeUploadTaskStatus
   uploadedBytes: number
   error?: string
+  canCancel: boolean
+  canRemove: boolean
 }
 
 export type NativeUploadSnapshot = {
