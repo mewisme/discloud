@@ -11,6 +11,7 @@ import { type ConnectedDesktopSessionState, useDesktopSession } from "#component
 import { changePassword, completeSetup, login, verifyMFA } from "#lib/auth"
 
 import { DesktopUserConfigProvider } from "./features/settings/ui/user-config-provider"
+import { DesktopSyncProvider } from "./features/sync/ui/sync-provider"
 import { DesktopUploadProvider } from "./features/uploads/ui/upload-provider"
 
 const ChangePasswordForm = lazy(() => import("@discloud/app-ui/auth/change-password-form").then((module) => ({ default: module.ChangePasswordForm })))
@@ -31,6 +32,7 @@ const DesktopNativeSettingsPage = lazy(() => import("./features/settings/ui/desk
 const DesktopProfileSettingsPage = lazy(() => import("./features/settings/ui/profile-settings-page").then((module) => ({ default: module.DesktopProfileSettingsPage })))
 const DesktopSecuritySettingsPage = lazy(() => import("./features/settings/ui/security-settings-page").then((module) => ({ default: module.DesktopSecuritySettingsPage })))
 const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
+const DesktopSyncPage = lazy(() => import("./features/sync/ui/sync-page").then((module) => ({ default: module.DesktopSyncPage })))
 const DesktopTrashPage = lazy(() => import("./features/trash/trash-page").then((module) => ({ default: module.DesktopTrashPage })))
 const DesktopUploadsPage = lazy(() => import("./features/uploads/ui/uploads-page").then((module) => ({ default: module.DesktopUploadsPage })))
 
@@ -58,6 +60,7 @@ export const router = createHashRouter([
         Component: ActorRouteGuard,
         children: [
           { path: "uploads", Component: UploadsRoute },
+          { path: "sync", Component: SyncRoute },
           { path: "settings", Component: SettingsRoute },
           { path: "settings/common", Component: CommonSettingsRoute },
           { path: "settings/desktop", Component: DesktopSettingsRoute },
@@ -89,12 +92,7 @@ function ConnectRoute() {
   const { state, acceptConnection } = useDesktopSession()
   if (state.status === "loading") return <LoadingScreen />
   if (state.status === "connected") return <Navigate to={connectedTarget(state)} replace />
-
-  return (
-    <Suspense fallback={<LoadingScreen label="Loading connection screen" />}>
-      <ServerConnectionScreen initialServerUrl={state.serverUrl} initialError={state.error} onConnected={(connection) => void acceptConnection(connection)} />
-    </Suspense>
-  )
+  return <Suspense fallback={<LoadingScreen label="Loading connection screen" />}><ServerConnectionScreen initialServerUrl={state.serverUrl} initialError={state.error} onConnected={(connection) => void acceptConnection(connection)} /></Suspense>
 }
 
 function SetupRoute() {
@@ -110,13 +108,7 @@ function SetupRoute() {
     navigate("/login", { replace: true })
   }
 
-  return (
-    <AuthRouteFrame serverUrl={state.serverUrl}>
-      <Suspense fallback={<AuthContentLoading />}>
-        <SetupForm completeSetup={completeSetup} onCompleted={completed} onAlreadyCompleted={completed} />
-      </Suspense>
-    </AuthRouteFrame>
-  )
+  return <AuthRouteFrame serverUrl={state.serverUrl}><Suspense fallback={<AuthContentLoading />}><SetupForm completeSetup={completeSetup} onCompleted={completed} onAlreadyCompleted={completed} /></Suspense></AuthRouteFrame>
 }
 
 function LoginRoute() {
@@ -133,13 +125,7 @@ function LoginRoute() {
     navigate(authenticatedPath(user), { replace: true })
   }
 
-  return (
-    <AuthRouteFrame serverUrl={state.serverUrl}>
-      <Suspense fallback={<AuthContentLoading />}>
-        <LoginForm login={login} verifyMFA={verifyMFA} onAuthenticated={authenticated} />
-      </Suspense>
-    </AuthRouteFrame>
-  )
+  return <AuthRouteFrame serverUrl={state.serverUrl}><Suspense fallback={<AuthContentLoading />}><LoginForm login={login} verifyMFA={verifyMFA} onAuthenticated={authenticated} /></Suspense></AuthRouteFrame>
 }
 
 function ChangePasswordRoute() {
@@ -152,16 +138,10 @@ function ChangePasswordRoute() {
   if (!state.user) return <Navigate to="/login" replace />
   if (!state.user.mustChangePassword) return <Navigate to={workspacePath(state.user.username)} replace />
 
-  return (
-    <AuthRouteFrame serverUrl={state.serverUrl}>
-      <Suspense fallback={<AuthContentLoading />}>
-        <ChangePasswordForm changePassword={changePassword} onChanged={async () => {
-          const user = await refreshUser()
-          navigate(user ? authenticatedPath(user) : "/login", { replace: true })
-        }} />
-      </Suspense>
-    </AuthRouteFrame>
-  )
+  return <AuthRouteFrame serverUrl={state.serverUrl}><Suspense fallback={<AuthContentLoading />}><ChangePasswordForm changePassword={changePassword} onChanged={async () => {
+    const user = await refreshUser()
+    navigate(user ? authenticatedPath(user) : "/login", { replace: true })
+  }} /></Suspense></AuthRouteFrame>
 }
 
 function AuthenticatedRoute() {
@@ -174,13 +154,15 @@ function AuthenticatedRoute() {
   if (state.user.mustChangePassword) return <Navigate to="/change-password" replace />
 
   return (
-    <DesktopUserConfigProvider>
-      <DesktopUploadProvider>
-        <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
-          <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
-        </Suspense>
-      </DesktopUploadProvider>
-    </DesktopUserConfigProvider>
+    <DesktopSyncProvider>
+      <DesktopUserConfigProvider>
+        <DesktopUploadProvider>
+          <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
+            <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
+          </Suspense>
+        </DesktopUploadProvider>
+      </DesktopUserConfigProvider>
+    </DesktopSyncProvider>
   )
 }
 
@@ -224,6 +206,10 @@ function UploadsRoute() {
   return <RouteSuspense label="Loading uploads"><DesktopUploadsPage /></RouteSuspense>
 }
 
+function SyncRoute() {
+  return <RouteSuspense label="Loading sync"><DesktopSyncPage /></RouteSuspense>
+}
+
 function SettingsRoute() {
   return <RouteSuspense label="Loading settings"><DesktopSettingsPage /></RouteSuspense>
 }
@@ -258,13 +244,16 @@ function ActorRouteGuard() {
 
   const currentRoot = workspacePath(params.username)
   const suffix = location.pathname.startsWith(`${currentRoot}/`) ? location.pathname.slice(currentRoot.length) : ""
+
   return <Navigate to={`${workspacePath(state.user.username)}${suffix}`} replace />
 }
 
 function AdminRouteGuard() {
   const { state } = useDesktopSession()
+
   if (state.status !== "connected" || !state.user) return <Outlet />
   if (state.user.role === "admin") return <Outlet />
+
   return <Navigate to={workspacePath(state.user.username)} replace />
 }
 

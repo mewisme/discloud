@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    App, AppHandle, Manager, Runtime, State, Window, WindowEvent,
+    App, AppHandle, Emitter, Manager, Runtime, State, Window, WindowEvent,
 };
 
 pub(crate) struct DesktopRuntimeState {
@@ -36,8 +36,9 @@ pub(crate) fn set_close_to_tray(state: State<'_, DesktopRuntimeState>, enabled: 
 pub(crate) fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "Show DisCloud", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "Hide DisCloud", true, None::<&str>)?;
+    let sync = MenuItem::with_id(app, "sync", "Sync now", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &hide, &sync, &quit])?;
     let mut tray = TrayIconBuilder::new()
         .tooltip("DisCloud")
         .menu(&menu)
@@ -45,6 +46,9 @@ pub(crate) fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
             "hide" => hide_main_window(app),
+            "sync" => {
+                let _ = app.emit("desktop-sync-requested", ());
+            }
             "quit" => app.exit(0),
             _ => {}
         });

@@ -4,6 +4,7 @@ mod desktop_runtime;
 mod file_transfer;
 mod session;
 mod settings_transfer;
+mod sync_engine;
 mod updater_runtime;
 mod upload_transfer;
 
@@ -21,6 +22,7 @@ pub fn run() {
     builder = builder
         .manage(api::ApiState::default())
         .manage(desktop_runtime::DesktopRuntimeState::default())
+        .manage(sync_engine::SyncEngineState::default())
         .manage(upload_transfer::UploadTransferState::default())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -40,6 +42,7 @@ pub fn run() {
     builder
         .setup(|app| {
             desktop_runtime::setup(app)?;
+            sync_engine::start_scheduler(app.handle().clone());
             Ok(())
         })
         .on_window_event(desktop_runtime::handle_window_event)
@@ -60,6 +63,9 @@ pub fn run() {
             commands::load_avatar,
             commands::save_recovery_codes,
             desktop_runtime::set_close_to_tray,
+            sync_engine::run_sync_pair,
+            sync_engine::clear_sync_pair_state,
+            sync_engine::configure_sync_pairs,
             updater_runtime::check_for_update,
             updater_runtime::install_update,
         ])
