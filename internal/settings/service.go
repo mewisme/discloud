@@ -413,7 +413,7 @@ func defaultFilePreviewConfig() FilePreviewConfig {
 func defaultSidebarConfig() SidebarConfig {
 	return SidebarConfig{
 		Side:        "left",
-		Variant:     "inset",
+		Variant:     "sidebar",
 		Collapsible: "icon",
 	}
 }
@@ -478,8 +478,11 @@ func decodeUserConfig(raw []byte, revision int64) (UserConfig, error) {
 	if strings.TrimSpace(stored.Common.Sidebar.Side) != "" {
 		sidebar.Side = stored.Common.Sidebar.Side
 	}
-	if strings.TrimSpace(stored.Common.Sidebar.Variant) != "" {
-		sidebar.Variant = stored.Common.Sidebar.Variant
+	if variant := strings.TrimSpace(stored.Common.Sidebar.Variant); variant != "" {
+		if variant == "inset" {
+			variant = "sidebar"
+		}
+		sidebar.Variant = variant
 	}
 	if strings.TrimSpace(stored.Common.Sidebar.Collapsible) != "" {
 		sidebar.Collapsible = stored.Common.Sidebar.Collapsible
@@ -568,7 +571,7 @@ func validateSidebarConfig(value SidebarConfig) (SidebarConfig, error) {
 	if value.Side != "left" && value.Side != "right" {
 		return SidebarConfig{}, ErrInvalidSidebar
 	}
-	if value.Variant != "sidebar" && value.Variant != "floating" && value.Variant != "inset" {
+	if value.Variant != "sidebar" && value.Variant != "floating" {
 		return SidebarConfig{}, ErrInvalidSidebar
 	}
 	if value.Collapsible != "offcanvas" && value.Collapsible != "icon" && value.Collapsible != "none" {

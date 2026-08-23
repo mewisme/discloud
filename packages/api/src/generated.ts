@@ -2003,10 +2003,10 @@ export type components = {
              */
             readonly side: "left" | "right";
             /**
-             * @default inset
+             * @default sidebar
              * @enum {string}
              */
-            readonly variant: "sidebar" | "floating" | "inset";
+            readonly variant: "sidebar" | "floating";
         };
         readonly StorageOverview: {
             /** Format: int64 */

@@ -11,7 +11,7 @@ export type AppLinkRenderer = (props: { href: string; children: ReactNode; onNav
 
 export function AppSidebarView({
   side = "left",
-  variant = "inset",
+  variant = "sidebar",
   collapsible = "icon",
   pathname,
   primaryItems,
@@ -22,7 +22,7 @@ export function AppSidebarView({
   renderLink,
 }: {
   side?: "left" | "right"
-  variant?: "sidebar" | "floating" | "inset"
+  variant?: "sidebar" | "floating"
   collapsible?: "offcanvas" | "icon" | "none"
   pathname: string
   primaryItems: AppNavItem[]

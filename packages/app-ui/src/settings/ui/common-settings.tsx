@@ -124,7 +124,7 @@ export function SidebarSettings({ side, variant, collapsible, onSideChange, onVa
         <SettingsRow title="Variant" description="Control how the sidebar is visually attached to the application.">
           <Select value={variant} onValueChange={(value) => onVariantChange(value as SidebarVariant)}>
             <SelectTrigger className="w-full sm:w-48" aria-label="Sidebar variant"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectGroup><SelectLabel>Variant</SelectLabel><SelectItem value="sidebar">Sidebar</SelectItem><SelectItem value="floating">Floating</SelectItem><SelectItem value="inset">Inset</SelectItem></SelectGroup></SelectContent>
+            <SelectContent><SelectGroup><SelectLabel>Variant</SelectLabel><SelectItem value="sidebar">Sidebar</SelectItem><SelectItem value="floating">Floating</SelectItem></SelectGroup></SelectContent>
           </Select>
         </SettingsRow>
         <SettingsRow title="Collapse behavior" description="Choose how the sidebar behaves when it is collapsed." last>

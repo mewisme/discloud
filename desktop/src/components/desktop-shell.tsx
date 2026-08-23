@@ -49,7 +49,7 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
       sidebar={
         <AppSidebarView
           side={sidebarSide}
-          variant={sidebar?.variant ?? "inset"}
+          variant={sidebar?.variant ?? "sidebar"}
           collapsible={sidebar?.collapsible ?? "icon"}
           pathname={location.pathname}
           primaryItems={navigation.primary}

@@ -99,10 +99,8 @@ func TestValidateSidebarConfig(t *testing.T) {
 	for _, config := range []SidebarConfig{
 		{Side: "left", Variant: "sidebar", Collapsible: "offcanvas"},
 		{Side: "left", Variant: "floating", Collapsible: "icon"},
-		{Side: "left", Variant: "inset", Collapsible: "none"},
 		{Side: "right", Variant: "sidebar", Collapsible: "icon"},
 		{Side: "right", Variant: "floating", Collapsible: "offcanvas"},
-		{Side: "right", Variant: "inset", Collapsible: "icon"},
 	} {
 		if _, err := validateSidebarConfig(config); err != nil {
 			t.Fatalf("validateSidebarConfig(%+v): %v", config, err)
@@ -110,12 +108,13 @@ func TestValidateSidebarConfig(t *testing.T) {
 	}
 
 	for _, config := range []SidebarConfig{
-		{Side: "", Variant: "inset", Collapsible: "icon"},
-		{Side: "top", Variant: "inset", Collapsible: "icon"},
+		{Side: "", Variant: "sidebar", Collapsible: "icon"},
+		{Side: "top", Variant: "sidebar", Collapsible: "icon"},
 		{Side: "left", Variant: "", Collapsible: "icon"},
 		{Side: "left", Variant: "card", Collapsible: "icon"},
-		{Side: "left", Variant: "inset", Collapsible: ""},
-		{Side: "left", Variant: "inset", Collapsible: "collapsed"},
+		{Side: "left", Variant: "inset", Collapsible: "icon"},
+		{Side: "left", Variant: "sidebar", Collapsible: ""},
+		{Side: "left", Variant: "sidebar", Collapsible: "collapsed"},
 	} {
 		if _, err := validateSidebarConfig(config); !errors.Is(err, ErrInvalidSidebar) {
 			t.Fatalf("validateSidebarConfig(%+v) error = %v, want ErrInvalidSidebar", config, err)
@@ -149,8 +148,8 @@ func TestDecodeUserConfigDefaultsLegacyPreferences(t *testing.T) {
 	if config.Common.Sidebar.Side != "left" {
 		t.Fatalf("sidebar side = %q, want left", config.Common.Sidebar.Side)
 	}
-	if config.Common.Sidebar.Variant != "inset" {
-		t.Fatalf("sidebar variant = %q, want inset", config.Common.Sidebar.Variant)
+	if config.Common.Sidebar.Variant != "sidebar" {
+		t.Fatalf("sidebar variant = %q, want sidebar", config.Common.Sidebar.Variant)
 	}
 	if config.Common.Sidebar.Collapsible != "icon" {
 		t.Fatalf("sidebar collapsible = %q, want icon", config.Common.Sidebar.Collapsible)
@@ -202,6 +201,25 @@ func TestDecodeUserConfigSidebar(t *testing.T) {
 	}
 	if config.Common.Sidebar.Collapsible != "offcanvas" {
 		t.Fatalf("sidebar collapsible = %q, want offcanvas", config.Common.Sidebar.Collapsible)
+	}
+}
+
+func TestDecodeUserConfigLegacyInsetSidebar(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeUserConfig([]byte(`{"common":{"timezone":"UTC","sidebar":{"side":"right","variant":"inset","collapsible":"none"}}}`), 5)
+	if err != nil {
+		t.Fatalf("decodeUserConfig: %v", err)
+	}
+
+	if config.Common.Sidebar.Side != "right" {
+		t.Fatalf("sidebar side = %q, want right", config.Common.Sidebar.Side)
+	}
+	if config.Common.Sidebar.Variant != "sidebar" {
+		t.Fatalf("sidebar variant = %q, want sidebar", config.Common.Sidebar.Variant)
+	}
+	if config.Common.Sidebar.Collapsible != "none" {
+		t.Fatalf("sidebar collapsible = %q, want none", config.Common.Sidebar.Collapsible)
 	}
 }
 
