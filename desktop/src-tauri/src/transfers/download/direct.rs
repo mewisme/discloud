@@ -19,7 +19,10 @@ use tokio::{
     time::sleep,
 };
 
-use crate::api::{response_error, ApiCommandError, ApiState};
+use crate::{
+    api::{response_error, ApiCommandError, ApiState},
+    diagnostics,
+};
 
 const DIRECT_CHUNK_CONCURRENCY: usize = 4;
 const DIRECT_CHUNK_RETRIES: usize = 3;
@@ -97,11 +100,35 @@ where
     F: FnMut(u64, u64) -> Result<(), ApiCommandError>,
 {
     let manifest = file_manifest(api, file_id, collection_id).await?;
-    if manifest.id != file_id || manifest.chunk_window_size == 0 || manifest.sha256.len() != 64 {
-        return Err(ApiCommandError::internal("Invalid direct download manifest.").into());
+    validate_file_manifest(&manifest, file_id)?;
+    if manifest.sha256.is_empty() {
+        diagnostics::warn(
+            "download.direct",
+            format!(
+                "file_id={file_id} whole_file_sha256=missing resume=false chunk_integrity=true"
+            ),
+        );
     }
+    diagnostics::info(
+        "download.direct",
+        format!(
+            "start file_id={file_id} size={} chunk_count={} whole_file_sha256={}",
+            manifest.size,
+            manifest.chunk_count,
+            if manifest.sha256.is_empty() {
+                "missing"
+            } else {
+                "present"
+            }
+        ),
+    );
     let (temporary, sidecar) = resume_paths(destination)?;
-    let mut completed = load_resume(&sidecar, &manifest).await;
+    let mut completed = if manifest.sha256.is_empty() {
+        let _ = fs::remove_file(&sidecar).await;
+        HashSet::new()
+    } else {
+        load_resume(&sidecar, &temporary, &manifest).await
+    };
     let mut output = OpenOptions::new()
         .create(true)
         .read(true)
@@ -184,10 +211,21 @@ where
     })?;
     drop(output);
     ensure_not_cancelled(cancel.as_ref())?;
-    verify_file(&temporary, manifest.size, &manifest.sha256).await?;
+    if let Err(error) = verify_file(&temporary, manifest.size, &manifest.sha256).await {
+        let _ = fs::remove_file(&sidecar).await;
+        diagnostics::error(
+            "download.direct",
+            format!("verify_failed file_id={file_id} error={}", error.message()),
+        );
+        return Err(error.into());
+    }
     replace_destination(&temporary, destination).await?;
     let _ = fs::remove_file(&sidecar).await;
     progress(manifest.size, manifest.size)?;
+    diagnostics::info(
+        "download.direct",
+        format!("complete file_id={file_id} size={}", manifest.size),
+    );
     Ok(manifest.size)
 }
 
@@ -351,13 +389,25 @@ async fn download_chunk(
                 continue;
             }
             Err(error) => {
-                return Err(ApiCommandError::network("Direct CDN download failed", error).into())
+                return Err(ApiCommandError::network(
+                    "Direct CDN download failed",
+                    error.without_url(),
+                )
+                .into())
             }
         };
         if matches!(
             response.status(),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND
         ) {
+            diagnostics::warn(
+                "download.direct",
+                format!(
+                    "refresh_url file_id={file_id} chunk={} status={}",
+                    chunk.index,
+                    response.status()
+                ),
+            );
             let refresh = chunk_window(
                 api,
                 &file_id,
@@ -388,9 +438,11 @@ async fn download_chunk(
                     }
                 }
                 Err(error) if attempt + 1 == DIRECT_CHUNK_RETRIES => {
-                    return Err(
-                        ApiCommandError::network("Could not read direct CDN chunk", error).into(),
+                    return Err(ApiCommandError::network(
+                        "Could not read direct CDN chunk",
+                        error.without_url(),
                     )
+                    .into())
                 }
                 Err(_) => {}
             }
@@ -410,6 +462,54 @@ async fn download_chunk(
         sleep(Duration::from_millis(300 * (1u64 << attempt))).await;
     }
     Err(ApiCommandError::internal("Direct download retry loop exited unexpectedly.").into())
+}
+
+fn validate_file_manifest(
+    manifest: &DirectFileManifest,
+    file_id: &str,
+) -> Result<(), DirectDownloadError> {
+    let invalid = |reason: String| {
+        diagnostics::error(
+            "download.direct.manifest",
+            format!("file_id={file_id} {reason}"),
+        );
+        DirectDownloadError::from(ApiCommandError::internal(reason))
+    };
+    if manifest.id != file_id {
+        return Err(invalid(
+            "Direct download manifest file ID does not match the requested file.".to_string(),
+        ));
+    }
+    if manifest.chunk_size == 0 {
+        return Err(invalid(
+            "Direct download manifest has an invalid chunk size.".to_string(),
+        ));
+    }
+    if manifest.chunk_window_size == 0 {
+        return Err(invalid(
+            "Direct download manifest has an invalid chunk window size.".to_string(),
+        ));
+    }
+    let expected_chunks = if manifest.size == 0 {
+        0
+    } else {
+        manifest.size.div_ceil(manifest.chunk_size)
+    };
+    if manifest.chunk_count as u64 != expected_chunks {
+        return Err(invalid(format!(
+            "Direct download manifest chunk count is invalid: expected {expected_chunks}, got {}.",
+            manifest.chunk_count
+        )));
+    }
+    if !manifest.sha256.is_empty()
+        && (manifest.sha256.len() != 64
+            || !manifest.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        return Err(invalid(
+            "Direct download manifest contains an invalid SHA-256 digest.".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn control_query(collection_id: Option<&str>) -> Vec<(String, String)> {
@@ -466,6 +566,9 @@ async fn verify_file(
             "Downloaded file size verification failed.",
         ));
     }
+    if expected_sha.is_empty() {
+        return Ok(());
+    }
     let mut file = File::open(path).await.map_err(|error| {
         ApiCommandError::internal(format!(
             "Could not open downloaded file for verification: {error}"
@@ -503,7 +606,17 @@ fn resume_paths(destination: &Path) -> Result<(PathBuf, PathBuf), ApiCommandErro
     Ok((temporary, PathBuf::from(sidecar)))
 }
 
-async fn load_resume(sidecar: &Path, manifest: &DirectFileManifest) -> HashSet<usize> {
+async fn load_resume(
+    sidecar: &Path,
+    temporary: &Path,
+    manifest: &DirectFileManifest,
+) -> HashSet<usize> {
+    let Ok(metadata) = fs::metadata(temporary).await else {
+        return HashSet::new();
+    };
+    if metadata.len() != manifest.size {
+        return HashSet::new();
+    }
     let Ok(bytes) = fs::read(sidecar).await else {
         return HashSet::new();
     };
@@ -591,5 +704,31 @@ async fn replace_destination(temporary: &Path, destination: &Path) -> Result<(),
                 "Could not finalize download: {error}"
             )))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_file_manifest, DirectFileManifest};
+
+    fn manifest(sha256: &str) -> DirectFileManifest {
+        DirectFileManifest {
+            id: "file-1".to_string(),
+            size: 10,
+            chunk_size: 4,
+            chunk_count: 3,
+            chunk_window_size: 16,
+            sha256: sha256.to_string(),
+        }
+    }
+
+    #[test]
+    fn direct_manifest_allows_missing_whole_file_sha256() {
+        assert!(validate_file_manifest(&manifest(""), "file-1").is_ok());
+    }
+
+    #[test]
+    fn direct_manifest_rejects_malformed_whole_file_sha256() {
+        assert!(validate_file_manifest(&manifest("not-a-sha"), "file-1").is_err());
     }
 }

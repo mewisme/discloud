@@ -1,5 +1,6 @@
 mod api;
 mod commands;
+mod diagnostics;
 mod runtime;
 mod settings;
 mod sync;
@@ -41,6 +42,7 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            diagnostics::setup(app.handle());
             runtime::desktop::setup(app)?;
             sync::engine::start_scheduler(app.handle().clone());
             Ok(())
@@ -55,6 +57,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::api_request,
+            diagnostics::get_desktop_diagnostics,
+            diagnostics::export_desktop_logs,
+            diagnostics::clear_desktop_logs,
+            diagnostics::open_desktop_log_folder,
             commands::connect_server,
             commands::disconnect_server,
             commands::download_file,

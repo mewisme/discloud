@@ -100,7 +100,16 @@ pub(crate) async fn download_folder(
     folder_id: String,
     destination: String,
 ) -> Result<(), ApiCommandError> {
-    download_engine::download_folder_direct(state.inner(), folder_id, destination).await
+    let diagnostic_folder_id = folder_id.clone();
+    let result =
+        download_engine::download_folder_direct(state.inner(), folder_id, destination).await;
+    if let Err(error) = &result {
+        crate::diagnostics::error(
+            "download.folder",
+            format!("folder_id={diagnostic_folder_id} error={}", error.message()),
+        );
+    }
+    result
 }
 
 #[tauri::command]

@@ -13,6 +13,7 @@ fn spawn_download(app: AppHandle, api: ApiState, engine: DownloadEngineState, ta
             }
             Err(DownloadRunError::Failed(error)) => {
                 let message = error.message().to_string();
+                crate::diagnostics::error("download.task", format!("task_id={task_id} error={message}"));
                 let _ = mutate_task(&app, &engine, &task_id, |task| {
                     task.status = DownloadTaskStatus::Error;
                     task.bytes_per_second = None;

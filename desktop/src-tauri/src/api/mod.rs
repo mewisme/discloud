@@ -606,7 +606,9 @@ async fn forget_persisted_session(client: &DesktopApiClient) {
 }
 
 fn session_persistence_warning(context: &str, error: &ApiCommandError) {
-    eprintln!("DisCloud desktop: {context}: {}", error.message());
+    let message = format!("{context}: {}", error.message());
+    eprintln!("DisCloud desktop: {message}");
+    crate::diagnostics::warn("session", message);
 }
 
 fn with_request_header(
