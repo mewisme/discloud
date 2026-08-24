@@ -56,6 +56,7 @@ pub(crate) struct UploadTransferEvent {
 
 pub(crate) struct UploadRunResult {
     pub(crate) session_id: String,
+    pub(crate) file_id: String,
     pub(crate) uploaded_bytes: u64,
 }
 
@@ -70,6 +71,8 @@ struct UploadSession {
     recommended_part_concurrency: usize,
     status: String,
     #[serde(default)]
+    committed_file_id: Option<String>,
+    #[serde(default)]
     parts: Vec<UploadSessionPart>,
 }
 
@@ -78,6 +81,12 @@ struct UploadSession {
 struct UploadSessionPart {
     part_index: u32,
     size: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompletedFile {
+    id: String,
 }
 
 struct UploadPartPlan {
@@ -220,8 +229,19 @@ where
     }
 
     if session.status == "completed" {
+        let file_id = session
+            .committed_file_id
+            .clone()
+            .filter(|value| valid_resource_id(value))
+            .ok_or_else(|| {
+                ApiCommandError::invalid_response(
+                    "Completed upload session has no committed file ID.",
+                )
+            })?;
+
         return Ok(UploadRunResult {
             session_id: session.id,
+            file_id,
             uploaded_bytes: input.size,
         });
     }
@@ -347,10 +367,11 @@ where
     }
 
     publish_upload_event(&mut on_progress, "finalizing", &session.id, input.size);
-    complete_upload_session(api, &mut cancellation, &session.id).await?;
+    let completed = complete_upload_session(api, &mut cancellation, &session.id).await?;
 
     Ok(UploadRunResult {
         session_id: session.id,
+        file_id: completed.id,
         uploaded_bytes: input.size,
     })
 }
@@ -489,12 +510,12 @@ async fn complete_upload_session(
     api: &ApiState,
     cancellation: &mut watch::Receiver<bool>,
     upload_id: &str,
-) -> Result<(), ApiCommandError> {
+) -> Result<CompletedFile, ApiCommandError> {
     if !valid_resource_id(upload_id) {
         return Err(ApiCommandError::invalid_request("Invalid upload ID."));
     }
 
-    let request = api.request_empty(
+    let request = api.request_json(
         Method::POST,
         format!("/api/v1/uploads/{upload_id}/complete"),
         None,

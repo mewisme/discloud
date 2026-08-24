@@ -129,8 +129,17 @@ async fn run_engine_task(
         Ok(result) => {
             if let Ok(Some(event)) = complete_task(&engine, &task_id, generation, result) {
                 let folder_id = event.task.folder_id.clone();
+                let thumbnail_target = event
+                    .task
+                    .thumbnail_key
+                    .clone()
+                    .zip(event.task.committed_file_id.clone());
                 emit_task_event(&app, event);
                 emit_folder_changed(&app, &folder_id);
+
+                if let Some((thumbnail_key, file_id)) = thumbnail_target {
+                    spawn_thumbnail_publish(app.clone(), api.clone(), thumbnail_key, file_id);
+                }
             }
         }
         Err(error) => {
@@ -257,6 +266,7 @@ fn complete_task(
         }
 
         task.session_id = Some(result.session_id);
+        task.committed_file_id = Some(result.file_id);
         task.status = UploadTaskStatus::Completed;
         task.uploaded_bytes = result.uploaded_bytes.min(task.file.size);
         task.error = None;
@@ -357,6 +367,103 @@ fn set_task_error(
     }))
 }
 
+fn spawn_task_thumbnail(
+    app: AppHandle,
+    api: ApiState,
+    engine: UploadEngineState,
+    task_id: String,
+    generation: u64,
+    path: String,
+) {
+    tauri::async_runtime::spawn(async move {
+        let thumbnail = match crate::thumbnails::get_thumbnail(
+            &app,
+            std::path::Path::new(&path),
+            512,
+        )
+        .await
+        {
+            Ok(thumbnail) => thumbnail,
+            Err(_) => return,
+        };
+
+        let event = match set_task_thumbnail(
+            &engine,
+            &task_id,
+            generation,
+            thumbnail.key.clone(),
+        ) {
+            Ok(Some(event)) => event,
+            _ => return,
+        };
+        let target = event
+            .task
+            .committed_file_id
+            .clone()
+            .map(|file_id| (thumbnail.key, file_id));
+        emit_task_event(&app, event);
+
+        if let Some((thumbnail_key, file_id)) = target {
+            spawn_thumbnail_publish(app, api, thumbnail_key, file_id);
+        }
+    });
+}
+
+fn set_task_thumbnail(
+    engine: &UploadEngineState,
+    task_id: &str,
+    generation: u64,
+    thumbnail_key: String,
+) -> Result<Option<UploadTaskEvent>, ApiCommandError> {
+    let mut inner = engine.lock()?;
+    if inner.generation != generation {
+        return Ok(None);
+    }
+
+    let completion_version = inner.completion_version;
+    let Some(task) = inner.tasks.get_mut(task_id) else {
+        return Ok(None);
+    };
+
+    if task.thumbnail_key.is_some()
+        || matches!(task.status, UploadTaskStatus::Cancelled | UploadTaskStatus::Skipped)
+    {
+        return Ok(None);
+    }
+
+    task.thumbnail_key = Some(thumbnail_key);
+    let task = upload_task_view(task);
+    inner.revision = inner.revision.wrapping_add(1);
+    Ok(Some(UploadTaskEvent {
+        task,
+        completion_version,
+        revision: inner.revision,
+    }))
+}
+
+fn spawn_thumbnail_publish(
+    app: AppHandle,
+    api: ApiState,
+    thumbnail_key: String,
+    file_id: String,
+) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = crate::thumbnails::publish_cached_thumbnail(
+            &app,
+            &api,
+            &file_id,
+            &thumbnail_key,
+        )
+        .await
+        {
+            crate::diagnostics::warn(
+                "thumbnail.upload",
+                format!("file_id={file_id} error={}", error.message()),
+            );
+        }
+    });
+}
+
 fn upload_error_message(error: &ApiCommandError) -> String {
     match error.request_id() {
         Some(request_id) => format!("{} · {request_id}", error.message()),
@@ -373,6 +480,8 @@ fn upload_task_view(task: &UploadTask) -> UploadTaskView {
         },
         folder_id: task.folder_id.clone(),
         relative_path: task.relative_path.clone(),
+        thumbnail_key: task.thumbnail_key.clone(),
+        committed_file_id: task.committed_file_id.clone(),
         status: task.status,
         uploaded_bytes: task.uploaded_bytes,
         error: task.error.clone(),

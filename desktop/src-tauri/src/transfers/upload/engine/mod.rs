@@ -76,6 +76,8 @@ struct UploadTask {
     relative_path: Option<String>,
     skip_existing: bool,
     session_id: Option<String>,
+    thumbnail_key: Option<String>,
+    committed_file_id: Option<String>,
     status: UploadTaskStatus,
     uploaded_bytes: u64,
     error: Option<String>,
@@ -96,6 +98,10 @@ struct UploadTaskView {
     folder_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     relative_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thumbnail_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    committed_file_id: Option<String>,
     status: UploadTaskStatus,
     uploaded_bytes: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -217,7 +223,7 @@ pub(crate) async fn add_paths(
         }
     };
 
-    let snapshot = {
+    let (snapshot, thumbnail_jobs) = {
         let mut inner = engine.lock()?;
         if inner.generation != generation {
             return Ok(());
@@ -236,6 +242,7 @@ pub(crate) async fn add_paths(
             .map(|task| (task.folder_id.clone(), task.file.name.clone()))
             .collect::<HashSet<_>>();
         let mut added = false;
+        let mut thumbnail_jobs = Vec::new();
 
         for planned in plan.files {
             let key = (planned.folder_id.clone(), planned.file.name.clone());
@@ -244,6 +251,7 @@ pub(crate) async fn add_paths(
             }
 
             let id = engine.next_task_id();
+            thumbnail_jobs.push((id.clone(), planned.file.path.clone()));
             let task = UploadTask {
                 id: id.clone(),
                 relative_path: (planned.relative_path != planned.file.name)
@@ -252,6 +260,8 @@ pub(crate) async fn add_paths(
                 folder_id: planned.folder_id,
                 skip_existing: planned.skip_existing,
                 session_id: None,
+                thumbnail_key: None,
+                committed_file_id: None,
                 status: UploadTaskStatus::Queued,
                 uploaded_bytes: 0,
                 error: None,
@@ -263,12 +273,13 @@ pub(crate) async fn add_paths(
             added = true;
         }
 
-        if added {
+        let snapshot = if added {
             inner.revision = inner.revision.wrapping_add(1);
             Some(snapshot_from_inner(&inner))
         } else {
             None
-        }
+        };
+        (snapshot, thumbnail_jobs)
     };
 
     if let Some(snapshot) = snapshot {
@@ -277,6 +288,17 @@ pub(crate) async fn add_paths(
 
     if plan.created_folders > 0 {
         emit_folder_changed(&app, &folder_id);
+    }
+
+    for (task_id, path) in thumbnail_jobs {
+        spawn_task_thumbnail(
+            app.clone(),
+            api.clone(),
+            engine.clone(),
+            task_id,
+            generation,
+            path,
+        );
     }
 
     pump(app, api, transfers, engine)
@@ -518,6 +540,7 @@ pub(crate) async fn reset(
         let _ = cancellation.await;
     }
 
+    crate::thumbnails::clear_cache(app);
     Ok(())
 }
 

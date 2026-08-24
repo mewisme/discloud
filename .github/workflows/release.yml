@@ -408,11 +408,50 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+  prepare-desktop-ffmpeg:
+    name: Prepare FFmpeg (${{ matrix.target-triple }})
+    needs:
+      - release-info
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target-triple: x86_64-unknown-linux-gnu
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          - target-triple: x86_64-pc-windows-msvc
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          - target-triple: aarch64-apple-darwin
+            staged-file: desktop/src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          - target-triple: x86_64-apple-darwin
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download, verify and stage FFmpeg
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/prepare-ffmpeg-sidecar.js --target "${{ matrix.target-triple }}" --output desktop/src-tauri/binaries
+
+      - name: Upload target FFmpeg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target-triple }}
+          path: ${{ matrix.staged-file }}
+          if-no-files-found: error
+          retention-days: 1
+
   release-desktop:
     name: Release desktop (${{ matrix.name }})
     needs:
       - release-info
       - release-backend
+      - prepare-desktop-ffmpeg
     permissions:
       contents: write
     strategy:
@@ -424,23 +463,38 @@ jobs:
             platform: ubuntu-22.04
             args: ""
             rust-target: ""
+            target-triple: x86_64-unknown-linux-gnu
           - name: Windows x64
             platform: windows-latest
             args: ""
             rust-target: ""
+            target-triple: x86_64-pc-windows-msvc
           - name: macOS Apple Silicon
             platform: macos-latest
             args: --target aarch64-apple-darwin
             rust-target: aarch64-apple-darwin
+            target-triple: aarch64-apple-darwin
           - name: macOS Intel
             platform: macos-latest
             args: --target x86_64-apple-darwin
             rust-target: x86_64-apple-darwin
+            target-triple: x86_64-apple-darwin
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Download FFmpeg sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target-triple }}
+          path: desktop/src-tauri/binaries
+
+      - name: Make FFmpeg executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: chmod +x "desktop/src-tauri/binaries/ffmpeg-${{ matrix.target-triple }}"
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -498,7 +552,7 @@ jobs:
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           uploadUpdaterSignatures: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
 
       - name: Add job summary
         if: ${{ always() }}

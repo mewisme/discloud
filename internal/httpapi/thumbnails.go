@@ -24,7 +24,7 @@ func registerThumbnailRoutes(mux *http.ServeMux, service *thumbnails.Service, fi
 		if writeFileContextError(w, r, err) {
 			return
 		}
-		if file.Category != "image" && file.Category != "video" {
+		if file.Category != "image" && file.Category != "video" && file.Category != "audio" {
 			WriteProblem(w, r, http.StatusNotFound, "Not Found", "thumbnail not available")
 			return
 		}
@@ -53,8 +53,8 @@ func registerThumbnailRoutes(mux *http.ServeMux, service *thumbnails.Service, fi
 			WriteProblem(w, r, http.StatusConflict, "Conflict", "file metadata is not ready")
 			return
 		}
-		if file.Category != "image" && file.Category != "video" {
-			WriteProblem(w, r, http.StatusUnsupportedMediaType, "Unsupported Media Type", "thumbnail is only supported for image and video files")
+		if file.Category != "image" && file.Category != "video" && file.Category != "audio" {
+			WriteProblem(w, r, http.StatusUnsupportedMediaType, "Unsupported Media Type", "thumbnail is only supported for image, video, and audio files")
 			return
 		}
 		if r.ContentLength > media.ClientThumbnailMaxBytes {

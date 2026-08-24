@@ -4,6 +4,7 @@ import { Progress } from "@discloud/ui/components/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
 import { CircleCheckIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react"
 
+import { nativeUploadThumbnailURL } from "../core/native"
 import type { UploadTask } from "../core/upload-store"
 import { canCancelUploadTask, canRemoveUploadTask, isActiveUploadTask, uploadTaskPercent, uploadTaskStatusLabel } from "../core/upload-task"
 import { useUploads } from "./upload-provider"
@@ -114,11 +115,13 @@ function UploadRow({ task, onRetry, onCancel, onRemove }: {
       <TableCell>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            {task.status === "completed"
-              ? <CircleCheckIcon className="size-4 shrink-0" />
-              : isActiveUploadTask(task)
-                ? <Loader2Icon className="size-4 shrink-0 animate-spin" />
-                : <UploadIcon className="size-4 shrink-0" />}
+            {task.thumbnailKey
+              ? <img src={nativeUploadThumbnailURL(task.thumbnailKey)} alt="" draggable={false} className="size-9 shrink-0 rounded-md object-cover" />
+              : task.status === "completed"
+                ? <CircleCheckIcon className="size-4 shrink-0" />
+                : isActiveUploadTask(task)
+                  ? <Loader2Icon className="size-4 shrink-0 animate-spin" />
+                  : <UploadIcon className="size-4 shrink-0" />}
 
             <span className="truncate font-medium">{task.file.name}</span>
           </div>

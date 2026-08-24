@@ -364,6 +364,8 @@ mod tests {
             relative_path: Some("folder/file.txt".to_string()),
             skip_existing: true,
             session_id: Some("session-id".to_string()),
+            thumbnail_key: None,
+            committed_file_id: None,
             status: UploadTaskStatus::Uploading,
             uploaded_bytes: 6,
             error: None,

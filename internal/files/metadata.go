@@ -197,7 +197,7 @@ func (p *MetadataProcessor) finish(ctx context.Context, fileID string, outcome m
 			return ErrNotFound
 		}
 
-		if outcome.Status != "ready" || (outcome.Category != "image" && outcome.Category != "video") {
+		if outcome.Status != "ready" || (outcome.Category != "image" && outcome.Category != "video" && outcome.Category != "audio") {
 			return nil
 		}
 

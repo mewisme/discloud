@@ -10,6 +10,7 @@ import { type DownloadTask,downloadTaskPercent, isActiveDownloadTask } from "../
 import { downloadTaskActivityLabel, downloadTaskChunkLabel, formatDownloadEta } from "../../downloads/core/download-task"
 import { useDownloadTasks } from "../../downloads/ui/download-provider"
 import { useDesktopSync } from "../../sync/ui/sync-provider"
+import { nativeUploadThumbnailURL } from "../../uploads/core/native"
 import { isActiveUploadTask, uploadTaskPercent } from "../../uploads/core/upload-task"
 import { useUploadTasks } from "../../uploads/ui/upload-provider"
 
@@ -39,12 +40,14 @@ export function DesktopTransferDock({ username }: { username: string }) {
           : failedUpload
             ? { kind: "upload" as const, title: "Upload failed", name: failedUpload.file.name, progress: uploadTaskPercent(failedUpload), detail: failedUpload.error }
             : { kind: "sync" as const, title: "Sync failed", name: failedSyncPair?.remoteFolderName ?? "Folder sync", progress: undefined, detail: failedSyncPair ? sync.runtimes[failedSyncPair.id]?.error : undefined }
+  const focusedUpload = focus.kind === "upload" ? activeUpload ?? failedUpload : undefined
+  const focusThumbnail = focusedUpload?.thumbnailKey ? nativeUploadThumbnailURL(focusedUpload.thumbnailKey) : undefined
 
   return (
     <BottomDock slot="uploads">
       <div className="flex min-w-0 max-w-full items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur-md">
-        <div className={`grid size-8 shrink-0 place-items-center rounded-lg ${failedCount > 0 && activeCount === 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
-          {failedCount > 0 && activeCount === 0 ? <CircleAlertIcon className="size-4" /> : <Loader2Icon className="size-4 animate-spin" />}
+        <div className={`grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg ${failedCount > 0 && activeCount === 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+          {focusThumbnail ? <img src={focusThumbnail} alt="" draggable={false} className="size-full object-cover" /> : failedCount > 0 && activeCount === 0 ? <CircleAlertIcon className="size-4" /> : <Loader2Icon className="size-4 animate-spin" />}
         </div>
 
         <div className="flex min-w-0 items-center gap-1.5">

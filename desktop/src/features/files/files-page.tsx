@@ -14,7 +14,7 @@ import { errorMessage } from "#lib/instance"
 
 import { useDesktopUserConfig } from "../settings/ui/user-config-provider"
 import { DesktopSyncFolderBadge } from "../sync/ui/sync-folder-badge"
-import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail } from "../uploads/ui/upload-provider"
+import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail, useUploadTasks } from "../uploads/ui/upload-provider"
 import { DesktopFileUploadTarget } from "../uploads/ui/upload-target"
 import { contextMenuTargets } from "./actions/context-menu-targets"
 import { DesktopMoveNodesDialog } from "./actions/move-nodes-dialog"
@@ -23,6 +23,7 @@ import { DesktopFileSelectionToolbar } from "./actions/selection-toolbar"
 import { DesktopTrashNodesDialog } from "./actions/trash-nodes-dialog"
 import { type DesktopFileBrowserData, loadDesktopFileBrowser, loadFolderChildren } from "./api"
 import { DesktopFileBrowserToolbar } from "./browser/file-browser-toolbar"
+import { DesktopFileNodeVisual } from "./file-node-visual"
 import { downloadNativeFile, downloadNativeFolder } from "./native"
 
 type BrowserState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileBrowserData }
@@ -31,6 +32,7 @@ export function DesktopFilesPage() {
   const { username, folderId } = useParams()
   const navigate = useNavigate()
   const { config } = useDesktopUserConfig()
+  const uploadTasks = useUploadTasks()
   const [searchParams, setSearchParams] = useSearchParams()
   const [state, setState] = useState<BrowserState>({ status: "loading" })
   const [reloadVersion, setReloadVersion] = useState(0)
@@ -49,6 +51,13 @@ export function DesktopFilesPage() {
   const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
   const nodes = state.status === "ready" ? state.data.page.nodes : []
   const selectedNodes = useMemo(() => nodes.filter((node) => selected.has(node.id)), [nodes, selected])
+  const localThumbnails = useMemo(() => {
+    const thumbnails = new Map<string, string>()
+    for (const task of uploadTasks) {
+      if (task.committedFileId && task.thumbnailKey) thumbnails.set(task.committedFileId, task.thumbnailKey)
+    }
+    return thumbnails
+  }, [uploadTasks])
 
   useEffect(() => {
     let cancelled = false
@@ -242,6 +251,7 @@ export function DesktopFilesPage() {
           fileHref={(id) => hashPath(workspaceFilePath(workspaceUsername, id))}
           onNavigateFolder={navigateFolder}
           onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
+          renderNodeVisual={(node, className, iconClassName) => <DesktopFileNodeVisual node={node} localThumbnailKey={localThumbnails.get(node.id)} className={className} iconClassName={iconClassName} />}
           renderNodeActions={(node) => <DesktopNodeActionsMenu node={node} folder={data.folder} breadcrumbs={data.breadcrumbs} page={data.page} favoritePending={favoritePending} onReload={changed} onFavorite={setFavorite} onOpen={open} onDownload={download} />}
           renderNodeStatus={(node) => <DesktopSyncFolderBadge node={node} />}
           wrapNode={(node, children) => <DesktopNodeContextMenu node={node} targets={contextMenuTargets(node, selected, selectedNodes)} favoritePending={favoritePending} onReload={changed} onOpen={(target) => target.kind === "folder" ? navigateFolder(target.id, target.isRoot) : navigate(workspaceFilePath(workspaceUsername, target.id))} onDownload={download} onMove={(targets) => setMoveTargets([...targets])} onTrash={(targets) => setTrashTargets([...targets])} onFavoriteMany={setFavorites}>{children}</DesktopNodeContextMenu>}

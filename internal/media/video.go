@@ -21,6 +21,10 @@ const (
 )
 
 func ProcessVideoThumbnail(ctx context.Context, sourceURL string) (ProcessedImage, error) {
+	return ProcessMediaThumbnail(ctx, sourceURL, "video")
+}
+
+func ProcessMediaThumbnail(ctx context.Context, sourceURL, category string) (ProcessedImage, error) {
 	if strings.TrimSpace(sourceURL) == "" {
 		return ProcessedImage{}, errors.New("video source is unavailable")
 	}
@@ -35,6 +39,11 @@ func ProcessVideoThumbnail(ctx context.Context, sourceURL string) (ProcessedImag
 		return ProcessedImage{}, fmt.Errorf("close video thumbnail output: %w", err)
 	}
 	defer os.Remove(outputPath)
+
+	filter := "thumbnail=30,scale=512:512:force_original_aspect_ratio=decrease"
+	if category == "audio" {
+		filter = "scale=512:512:force_original_aspect_ratio=decrease"
+	}
 
 	stderr := &cappedBuffer{limit: videoThumbnailStderrMaxBytes}
 	command := exec.CommandContext(
@@ -54,7 +63,7 @@ func ProcessVideoThumbnail(ctx context.Context, sourceURL string) (ProcessedImag
 		"-an",
 		"-sn",
 		"-dn",
-		"-vf", "thumbnail=30,scale=512:512:force_original_aspect_ratio=decrease",
+		"-vf", filter,
 		"-frames:v", "1",
 		"-q:v", "3",
 		"-y",

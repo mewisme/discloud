@@ -4,6 +4,7 @@ mod diagnostics;
 mod runtime;
 mod settings;
 mod sync;
+mod thumbnails;
 mod transfers;
 mod updater;
 
@@ -20,6 +21,7 @@ pub fn run() {
 
     builder = builder
         .manage(api::ApiState::default())
+        .manage(thumbnails::ThumbnailState::default())
         .manage(runtime::desktop::DesktopRuntimeState::default())
         .manage(transfers::download::DownloadEngineState::default())
         .manage(sync::engine::SyncEngineState::default())
@@ -27,7 +29,8 @@ pub fn run() {
         .manage(transfers::upload::transfer::UploadTransferState::default())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_shell::init());
 
     #[cfg(desktop)]
     {
@@ -43,6 +46,7 @@ pub fn run() {
     builder
         .setup(|app| {
             diagnostics::setup(app.handle());
+            thumbnails::setup(app.handle());
             runtime::desktop::setup(app)?;
             sync::engine::start_scheduler(app.handle().clone());
             Ok(())
@@ -55,6 +59,12 @@ pub fn run() {
                 responder,
             );
         })
+        .register_asynchronous_uri_scheme_protocol(
+            "discloud-thumbnail",
+            |context, request, responder| {
+                thumbnails::respond_protocol(context.app_handle().clone(), request, responder);
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             commands::api_request,
             diagnostics::get_desktop_diagnostics,

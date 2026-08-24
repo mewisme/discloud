@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core"
+import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 
 import { nativeError } from "#lib/api/transport"
@@ -21,6 +21,8 @@ export type NativeUploadTask = {
   file: NativeUploadFile
   folderId: string
   relativePath?: string
+  thumbnailKey?: string
+  committedFileId?: string
   status: NativeUploadTaskStatus
   uploadedBytes: number
   error?: string
@@ -56,6 +58,10 @@ type NativeUploadEventHandlers = {
   onRemoved: (event: NativeUploadRemovedEvent) => void
   onFolderChanged: (event: NativeUploadFolderChangedEvent) => void
   onUnauthorized: () => void
+}
+
+export function nativeUploadThumbnailURL(thumbnailKey: string) {
+  return convertFileSrc(`local/${encodeURIComponent(thumbnailKey)}`, "discloud-thumbnail")
 }
 
 export async function getNativeUploadSnapshot() {

@@ -44,7 +44,7 @@ func New(pool *pgxpool.Pool, fileService *files.Service, objectService *objects.
 	}
 }
 
-// UploadFromClient stores a browser-generated thumbnail. The caller is
+// UploadFromClient stores a client-generated thumbnail. The caller is
 // responsible for permission and media checks; the input is re-validated here.
 func (s *Service) UploadFromClient(ctx context.Context, fileID string, src io.Reader) (media.ProcessedImage, error) {
 	if s == nil || s.pool == nil || s.objects == nil {
@@ -116,7 +116,7 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 		return s.retryOrFail(ctx, job, input.FileID, err)
 	}
 
-	if file.Category != "image" && file.Category != "video" {
+	if file.Category != "image" && file.Category != "video" && file.Category != "audio" {
 		_, err := s.finishPending(ctx, file.ID, "skipped", "", 0, 0, "thumbnail is not supported for this file type")
 		return err
 	}
@@ -129,7 +129,7 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	if file.Category == "image" {
 		processed, err = s.processImageThumbnail(ctx, file)
 	} else {
-		processed, err = s.processVideoThumbnail(ctx, file)
+		processed, err = s.processMediaThumbnail(ctx, file)
 	}
 
 	if errors.Is(err, ErrNotPending) {
@@ -180,7 +180,7 @@ func (s *Service) processImageThumbnail(ctx context.Context, file files.File) (m
 	return processed, nil
 }
 
-func (s *Service) processVideoThumbnail(ctx context.Context, file files.File) (media.ProcessedImage, error) {
+func (s *Service) processMediaThumbnail(ctx context.Context, file files.File) (media.ProcessedImage, error) {
 	if s.videoSlots == nil {
 		return media.ProcessedImage{}, errors.New("video thumbnail capacity is unavailable")
 	}
@@ -213,7 +213,7 @@ func (s *Service) processVideoThumbnail(ctx context.Context, file files.File) (m
 		return media.ProcessedImage{}, err
 	}
 
-	processed, processErr := media.ProcessVideoThumbnail(processCtx, source.URL())
+	processed, processErr := media.ProcessMediaThumbnail(processCtx, source.URL(), file.Category)
 	closeErr := source.Close()
 
 	if processErr != nil {
