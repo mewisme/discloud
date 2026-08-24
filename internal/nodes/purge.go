@@ -123,23 +123,63 @@ WHERE folder_id IN (SELECT id FROM subtree WHERE kind = 'folder')
 			return err
 		}
 
-		tag, err := tx.Exec(ctx, purgeSubtreeCTE+`,
-target_files AS (SELECT id FROM subtree WHERE kind='file'),
-target_chunks AS MATERIALIZED (
-    SELECT fc.chunk_id FROM file_chunks fc WHERE fc.file_id IN (SELECT id FROM target_files)
-    UNION
-    SELECT fvc.chunk_id FROM file_version_chunks fvc JOIN file_versions fv ON fv.id=fvc.version_id WHERE fv.file_id IN (SELECT id FROM target_files)
-),
-deleted_current AS (DELETE FROM file_chunks WHERE file_id IN (SELECT id FROM target_files) RETURNING file_id),
-deleted_files AS (DELETE FROM files WHERE node_id IN (SELECT id FROM target_files) RETURNING node_id)
-DELETE FROM chunks c
-WHERE c.id IN (SELECT chunk_id FROM target_chunks)
-  AND NOT EXISTS (SELECT 1 FROM file_chunks fc WHERE fc.chunk_id=c.id)
-  AND NOT EXISTS (SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id=c.id)
-  AND NOT EXISTS (SELECT 1 FROM upload_parts up WHERE up.chunk_id=c.id)
+		targetChunkIDs := make([]string, 0)
+		rows, err := tx.Query(ctx, purgeSubtreeCTE+`,
+target_files AS (SELECT id FROM subtree WHERE kind = 'file'),
+target_chunks AS (
+	SELECT fc.chunk_id
+	FROM file_chunks fc
+	WHERE fc.file_id IN (SELECT id FROM target_files)
+
+	UNION
+
+	SELECT fvc.chunk_id
+	FROM file_version_chunks fvc
+	JOIN file_versions fv ON fv.id = fvc.version_id
+	WHERE fv.file_id IN (SELECT id FROM target_files)
+)
+SELECT chunk_id::text
+FROM target_chunks
 `, current.ID)
 		if err != nil {
-			return fmt.Errorf("delete purge file storage: %w", err)
+			return fmt.Errorf("load purge chunks: %w", err)
+		}
+		for rows.Next() {
+			var chunkID string
+			if err := rows.Scan(&chunkID); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan purge chunk: %w", err)
+			}
+			targetChunkIDs = append(targetChunkIDs, chunkID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("read purge chunks: %w", err)
+		}
+		rows.Close()
+
+		if err := purgeExec(ctx, tx, current.ID, "delete purge file chunks", purgeSubtreeCTE+`
+DELETE FROM file_chunks
+WHERE file_id IN (SELECT id FROM subtree WHERE kind = 'file')
+`); err != nil {
+			return err
+		}
+		if err := purgeExec(ctx, tx, current.ID, "delete purge files", purgeSubtreeCTE+`
+DELETE FROM files
+WHERE node_id IN (SELECT id FROM subtree WHERE kind = 'file')
+`); err != nil {
+			return err
+		}
+
+		tag, err := tx.Exec(ctx, `
+DELETE FROM chunks c
+WHERE c.id::text = ANY($1::text[])
+  AND NOT EXISTS (SELECT 1 FROM file_chunks fc WHERE fc.chunk_id = c.id)
+  AND NOT EXISTS (SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id = c.id)
+  AND NOT EXISTS (SELECT 1 FROM upload_parts up WHERE up.chunk_id = c.id)
+`, targetChunkIDs)
+		if err != nil {
+			return fmt.Errorf("delete purge chunks: %w", err)
 		}
 		deletedChunkRows := tag.RowsAffected()
 
