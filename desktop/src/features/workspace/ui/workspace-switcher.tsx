@@ -12,6 +12,8 @@ import { Link, useLocation, useNavigate } from "react-router"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
+import { loadDesktopWorkspace } from "../api"
+
 const pageSize = 100
 
 type AdminDirectoryUser = Pick<AdminUser, "id" | "username" | "name" | "role" | "status">
@@ -44,7 +46,7 @@ export function DesktopWorkspaceSwitcher({ currentUser, workspaceUsername, sideb
 
     setWorkspace(undefined)
 
-    void apiJSON<WorkspaceDetails>(`/api/v1/workspaces/${encodeURIComponent(workspaceUsername)}`)
+    void loadDesktopWorkspace(workspaceUsername)
       .then((details) => {
         if (!cancelled) setWorkspace(details.owner)
       })

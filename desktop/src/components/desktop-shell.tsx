@@ -20,7 +20,7 @@ import { useDesktopUserConfig } from "../features/settings/ui/user-config-provid
 import { useDesktopSync } from "../features/sync/ui/sync-provider"
 import { DesktopModeToggle } from "../features/theme/ui/mode-toggle"
 import { useDesktopUpdater } from "../features/updater/ui/updater-provider"
-import { DesktopWorkspaceSwitcher } from "../features/workspaces/ui/workspace-switcher"
+import { DesktopWorkspaceSwitcher } from "../features/workspace/ui/workspace-switcher"
 import { DesktopCommandPalette } from "./command-palette"
 
 const renderRouterLink: AppLinkRenderer = ({ href, children, onNavigate }) => <Link to={href} onClick={onNavigate}>{children}</Link>
