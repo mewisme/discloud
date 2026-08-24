@@ -2,11 +2,13 @@ use tauri::{AppHandle, State};
 
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
-    download_engine::{self, DownloadEngineState, DownloadSnapshot, DownloadTaskView},
-    file_transfer::{self, DownloadResult},
-    settings_transfer::{self, AvatarInfo, AvatarPayload},
-    upload_engine::{self, UploadEngineState, UploadSnapshot},
-    upload_transfer::UploadTransferState,
+    settings::transfer::{self as settings_transfer, AvatarInfo, AvatarPayload},
+    transfers::download::{
+        self as download_engine, DownloadEngineState, DownloadSnapshot, DownloadTaskView,
+    },
+    transfers::file::{self as file_transfer, DownloadResult},
+    transfers::upload::engine::{self as upload_engine, UploadEngineState, UploadSnapshot},
+    transfers::upload::transfer::UploadTransferState,
 };
 
 #[tauri::command]

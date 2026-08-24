@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::{Updater, UpdaterExt};
 
-const CHANNELS_JSON: &str = include_str!("../updater-channels.json");
+const CHANNELS_JSON: &str = include_str!("../../updater-channels.json");
 const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const PROGRESS_EVENT: &str = "desktop-updater-progress";
