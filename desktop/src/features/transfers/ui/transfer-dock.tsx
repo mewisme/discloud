@@ -7,7 +7,7 @@ import { CircleAlertIcon, DownloadIcon, Loader2Icon, RefreshCwIcon, UploadIcon }
 import { Link } from "react-router"
 
 import { type DownloadTask,downloadTaskPercent, isActiveDownloadTask } from "../../downloads/core/download-store"
-import { formatDownloadEta } from "../../downloads/core/download-task"
+import { downloadTaskActivityLabel, downloadTaskChunkLabel, formatDownloadEta } from "../../downloads/core/download-task"
 import { useDownloadTasks } from "../../downloads/ui/download-provider"
 import { useDesktopSync } from "../../sync/ui/sync-provider"
 import { isActiveUploadTask, uploadTaskPercent } from "../../uploads/core/upload-task"
@@ -29,7 +29,7 @@ export function DesktopTransferDock({ username }: { username: string }) {
   if (!activeCount && !failedCount) return null
 
   const focus = activeDownload
-    ? { kind: "download" as const, title: "Downloading", name: activeDownload.fileName, progress: downloadTaskPercent(activeDownload), detail: downloadDetail(activeDownload) }
+    ? { kind: "download" as const, title: downloadTaskActivityLabel(activeDownload), name: activeDownload.fileName, progress: downloadTaskPercent(activeDownload), detail: downloadDetail(activeDownload) }
     : activeUpload
       ? { kind: "upload" as const, title: "Uploading", name: activeUpload.file.name, progress: uploadTaskPercent(activeUpload), detail: `${formatBytes(activeUpload.uploadedBytes)} / ${formatBytes(activeUpload.file.size)}` }
       : syncingPair
@@ -68,6 +68,8 @@ export function DesktopTransferDock({ username }: { username: string }) {
 
 function downloadDetail(task: DownloadTask) {
   const parts = [task.totalBytes !== undefined ? `${formatBytes(task.downloadedBytes)} / ${formatBytes(task.totalBytes)}` : formatBytes(task.downloadedBytes)]
+  const chunks = downloadTaskChunkLabel(task)
+  if (chunks) parts.push(chunks)
   if (task.bytesPerSecond) parts.push(`${formatBytes(task.bytesPerSecond)}/s`)
   if (task.etaSeconds !== undefined) parts.push(`${formatDownloadEta(task.etaSeconds)} left`)
   return parts.join(" · ")

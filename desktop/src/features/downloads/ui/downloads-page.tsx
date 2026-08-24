@@ -8,7 +8,7 @@ import { useState } from "react"
 import { errorMessage } from "#lib/instance"
 
 import { type DownloadTask,downloadTaskPercent, isActiveDownloadTask } from "../core/download-store"
-import { downloadTaskStatusLabel, formatDownloadEta } from "../core/download-task"
+import { downloadTaskActivityLabel, downloadTaskChunkLabel, downloadTaskPhaseLabel, downloadTaskStatusLabel, formatDownloadEta } from "../core/download-task"
 import { useDownloads } from "./download-provider"
 
 export function DesktopDownloadsPage() {
@@ -101,15 +101,15 @@ function DownloadRow({ task, perform, retry, cancel, remove, reveal }: {
             {task.status === "completed" ? <CircleCheckIcon className="size-4 shrink-0" /> : isActiveDownloadTask(task) ? <Loader2Icon className="size-4 shrink-0 animate-spin" /> : <DownloadIcon className="size-4 shrink-0" />}
             <span className="truncate font-medium">{task.fileName}</span>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">{downloadTaskStatusLabel(task)} · {formatBytes(task.downloadedBytes)}{task.totalBytes !== undefined ? ` / ${formatBytes(task.totalBytes)}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">{downloadTaskActivityLabel(task)} · {formatBytes(task.downloadedBytes)}{task.totalBytes !== undefined ? ` / ${formatBytes(task.totalBytes)}` : ""}{downloadTaskChunkLabel(task) ? ` · ${downloadTaskChunkLabel(task)}` : ""}</p>
           {task.error ? <p role="alert" className="mt-1 wrap-break-word text-xs text-destructive">{task.error}</p> : null}
         </div>
       </TableCell>
-      <TableCell className="hidden text-muted-foreground sm:table-cell">{downloadTaskStatusLabel(task)}</TableCell>
+      <TableCell className="hidden sm:table-cell"><div>{downloadTaskStatusLabel(task)}</div>{downloadTaskPhaseLabel(task) ? <div className="mt-0.5 text-xs text-muted-foreground">{downloadTaskPhaseLabel(task)}</div> : null}</TableCell>
       <TableCell className="hidden md:table-cell">
         <div className="space-y-1">
           <Progress value={percent} className="h-1.5" />
-          <div className="flex justify-between gap-3 text-xs tabular-nums text-muted-foreground"><span>{formatBytes(task.downloadedBytes)}{task.totalBytes !== undefined ? ` / ${formatBytes(task.totalBytes)}` : ""}</span><span>{Math.round(percent)}%</span></div>
+          <div className="flex justify-between gap-3 text-xs tabular-nums text-muted-foreground"><span>{formatBytes(task.downloadedBytes)}{task.totalBytes !== undefined ? ` / ${formatBytes(task.totalBytes)}` : ""}{downloadTaskChunkLabel(task) ? ` · ${downloadTaskChunkLabel(task)}` : ""}</span><span>{Math.round(percent)}%</span></div>
         </div>
       </TableCell>
       <TableCell className="hidden text-xs tabular-nums text-muted-foreground lg:table-cell">

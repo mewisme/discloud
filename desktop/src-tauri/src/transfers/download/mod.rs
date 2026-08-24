@@ -53,6 +53,17 @@ pub(crate) enum DownloadTaskStatus {
     Cancelled,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum DownloadTaskPhase {
+    Preparing,
+    Resuming,
+    Resolving,
+    Transferring,
+    Verifying,
+    Finalizing,
+}
+
 #[derive(Clone)]
 struct DownloadTask {
     id: String,
@@ -61,8 +72,11 @@ struct DownloadTask {
     file_name: String,
     destination: PathBuf,
     status: DownloadTaskStatus,
+    phase: Option<DownloadTaskPhase>,
     downloaded_bytes: u64,
     total_bytes: Option<u64>,
+    completed_chunks: Option<usize>,
+    total_chunks: Option<usize>,
     bytes_per_second: Option<u64>,
     eta_seconds: Option<u64>,
     error: Option<String>,
@@ -78,9 +92,15 @@ pub(crate) struct DownloadTaskView {
     id: String,
     file_name: String,
     status: DownloadTaskStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phase: Option<DownloadTaskPhase>,
     downloaded_bytes: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     total_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    completed_chunks: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_chunks: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bytes_per_second: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,8 +201,11 @@ pub(crate) fn start_download(
         file_name,
         destination,
         status: DownloadTaskStatus::Queued,
+        phase: None,
         downloaded_bytes: 0,
         total_bytes: None,
+        completed_chunks: None,
+        total_chunks: None,
         bytes_per_second: None,
         eta_seconds: None,
         error: None,
@@ -223,8 +246,11 @@ pub(crate) fn retry_download(
         }
 
         task.status = DownloadTaskStatus::Queued;
+        task.phase = None;
         task.downloaded_bytes = 0;
         task.total_bytes = None;
+        task.completed_chunks = None;
+        task.total_chunks = None;
         task.bytes_per_second = None;
         task.eta_seconds = None;
         task.error = None;

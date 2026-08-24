@@ -38,16 +38,25 @@ async fn run_download(
         let task = inner.tasks.get(task_id).ok_or_else(|| ApiCommandError::invalid_request("Download task not found."))?;
         (task.file_id.clone(), task.collection_id.clone(), task.destination.clone(), Arc::clone(&task.cancel), Arc::clone(&task.cancel_notify))
     };
-    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Downloading; task.started_at = Some(now_millis()); task.finished_at = None; task.error = None; Ok(()) })?;
+    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Downloading; task.phase = Some(DownloadTaskPhase::Preparing); task.started_at = Some(now_millis()); task.finished_at = None; task.error = None; Ok(()) })?;
     let mut sample_bytes = 0u64;
     let mut sample_started = Instant::now();
-    let result = direct::download_file_direct(api, &file_id, collection_id.as_deref(), &destination, Some((cancel, cancel_notify)), |downloaded, total| {
+    let mut last_phase = None;
+    let result = direct::download_file_direct(api, &file_id, collection_id.as_deref(), &destination, Some((cancel, cancel_notify)), |update| {
+        let phase_changed = last_phase != Some(update.phase);
+        if phase_changed {
+            last_phase = Some(update.phase);
+            sample_bytes = update.downloaded_bytes;
+            sample_started = Instant::now();
+            return update_progress(app, engine, task_id, update.phase, update.downloaded_bytes, update.total_bytes, update.completed_chunks, update.total_chunks, None, None);
+        }
+        if update.phase != DownloadTaskPhase::Transferring { return Ok(()); }
         let elapsed = sample_started.elapsed();
-        if elapsed >= PROGRESS_INTERVAL || downloaded >= total {
-            let speed = speed_bytes_per_second(downloaded.saturating_sub(sample_bytes), elapsed);
-            let eta = eta_seconds(downloaded, Some(total), speed);
-            update_progress(app, engine, task_id, downloaded, Some(total), speed, eta)?;
-            sample_bytes = downloaded; sample_started = Instant::now();
+        if elapsed >= PROGRESS_INTERVAL || update.total_bytes.is_some_and(|total| update.downloaded_bytes >= total) {
+            let speed = speed_bytes_per_second(update.downloaded_bytes.saturating_sub(sample_bytes), elapsed);
+            let eta = eta_seconds(update.downloaded_bytes, update.total_bytes, speed);
+            update_progress(app, engine, task_id, update.phase, update.downloaded_bytes, update.total_bytes, update.completed_chunks, update.total_chunks, speed, eta)?;
+            sample_bytes = update.downloaded_bytes; sample_started = Instant::now();
         }
         Ok(())
     }).await;
@@ -56,7 +65,7 @@ async fn run_download(
         Err(direct::DirectDownloadError::Cancelled) => return Err(DownloadRunError::Cancelled),
         Err(direct::DirectDownloadError::Failed(error)) => return Err(DownloadRunError::Failed(error)),
     };
-    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Completed; task.downloaded_bytes = downloaded; task.total_bytes = Some(downloaded); task.bytes_per_second = None; task.eta_seconds = Some(0); task.error = None; task.finished_at = Some(now_millis()); Ok(()) })?;
+    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Completed; task.phase = None; task.downloaded_bytes = downloaded; task.total_bytes = Some(downloaded); task.completed_chunks = task.total_chunks; task.bytes_per_second = None; task.eta_seconds = Some(0); task.error = None; task.finished_at = Some(now_millis()); Ok(()) })?;
     Ok(())
 }
 
@@ -64,14 +73,20 @@ fn update_progress(
     app: &AppHandle,
     engine: &DownloadEngineState,
     task_id: &str,
+    phase: DownloadTaskPhase,
     downloaded_bytes: u64,
     total_bytes: Option<u64>,
+    completed_chunks: usize,
+    total_chunks: Option<usize>,
     bytes_per_second: Option<u64>,
     eta_seconds: Option<u64>,
 ) -> Result<(), ApiCommandError> {
     mutate_task(app, engine, task_id, |task| {
+        task.phase = Some(phase);
         task.downloaded_bytes = downloaded_bytes;
         task.total_bytes = total_bytes;
+        task.completed_chunks = Some(completed_chunks);
+        task.total_chunks = total_chunks;
         task.bytes_per_second = bytes_per_second;
         task.eta_seconds = eta_seconds;
         Ok(())
@@ -147,8 +162,11 @@ fn task_view(task: &DownloadTask) -> DownloadTaskView {
         id: task.id.clone(),
         file_name: task.file_name.clone(),
         status: task.status,
+        phase: task.phase,
         downloaded_bytes: task.downloaded_bytes,
         total_bytes: task.total_bytes,
+        completed_chunks: task.completed_chunks,
+        total_chunks: task.total_chunks,
         bytes_per_second: task.bytes_per_second,
         eta_seconds: task.eta_seconds,
         error: task.error.clone(),

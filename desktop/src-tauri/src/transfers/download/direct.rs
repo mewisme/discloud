@@ -78,6 +78,15 @@ struct ResumeState {
     completed: Vec<usize>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct DirectDownloadProgress {
+    pub(super) phase: super::DownloadTaskPhase,
+    pub(super) downloaded_bytes: u64,
+    pub(super) total_bytes: Option<u64>,
+    pub(super) completed_chunks: usize,
+    pub(super) total_chunks: Option<usize>,
+}
+
 pub(super) enum DirectDownloadError {
     Cancelled,
     Failed(ApiCommandError),
@@ -97,8 +106,15 @@ pub(super) async fn download_file_direct<F>(
     mut progress: F,
 ) -> Result<u64, DirectDownloadError>
 where
-    F: FnMut(u64, u64) -> Result<(), ApiCommandError>,
+    F: FnMut(DirectDownloadProgress) -> Result<(), ApiCommandError>,
 {
+    progress(DirectDownloadProgress {
+        phase: super::DownloadTaskPhase::Preparing,
+        downloaded_bytes: 0,
+        total_bytes: None,
+        completed_chunks: 0,
+        total_chunks: None,
+    })?;
     let manifest = file_manifest(api, file_id, collection_id).await?;
     validate_file_manifest(&manifest, file_id)?;
     if manifest.sha256.is_empty() {
@@ -143,12 +159,23 @@ where
     })?;
     completed.retain(|index| *index < manifest.chunk_count);
     let mut downloaded = resume_completed_bytes(&completed, &manifest);
-    if downloaded > 0 {
-        progress(downloaded, manifest.size)?;
-    }
+    progress(DirectDownloadProgress {
+        phase: super::DownloadTaskPhase::Resuming,
+        downloaded_bytes: downloaded,
+        total_bytes: Some(manifest.size),
+        completed_chunks: completed.len(),
+        total_chunks: Some(manifest.chunk_count),
+    })?;
     let mut next = 0usize;
     while next < manifest.chunk_count {
         ensure_not_cancelled(cancel.as_ref())?;
+        progress(DirectDownloadProgress {
+            phase: super::DownloadTaskPhase::Resolving,
+            downloaded_bytes: downloaded,
+            total_bytes: Some(manifest.size),
+            completed_chunks: completed.len(),
+            total_chunks: Some(manifest.chunk_count),
+        })?;
         let window = chunk_window(
             api,
             file_id,
@@ -161,6 +188,13 @@ where
         if window.chunks.is_empty() {
             return Err(ApiCommandError::internal("Direct download chunk window is empty.").into());
         }
+        progress(DirectDownloadProgress {
+            phase: super::DownloadTaskPhase::Transferring,
+            downloaded_bytes: downloaded,
+            total_bytes: Some(manifest.size),
+            completed_chunks: completed.len(),
+            total_chunks: Some(manifest.chunk_count),
+        })?;
         for group in window.chunks.chunks(DIRECT_CHUNK_CONCURRENCY) {
             ensure_not_cancelled(cancel.as_ref())?;
             let mut jobs = Vec::new();
@@ -194,7 +228,13 @@ where
                 })?;
                 completed.insert(chunk.index);
                 downloaded = downloaded.saturating_add(chunk.size).min(manifest.size);
-                progress(downloaded.min(manifest.size), manifest.size)?;
+                progress(DirectDownloadProgress {
+                    phase: super::DownloadTaskPhase::Transferring,
+                    downloaded_bytes: downloaded.min(manifest.size),
+                    total_bytes: Some(manifest.size),
+                    completed_chunks: completed.len(),
+                    total_chunks: Some(manifest.chunk_count),
+                })?;
             }
             save_resume(&sidecar, &manifest, &completed).await?;
         }
@@ -211,6 +251,13 @@ where
     })?;
     drop(output);
     ensure_not_cancelled(cancel.as_ref())?;
+    progress(DirectDownloadProgress {
+        phase: super::DownloadTaskPhase::Verifying,
+        downloaded_bytes: manifest.size,
+        total_bytes: Some(manifest.size),
+        completed_chunks: completed.len(),
+        total_chunks: Some(manifest.chunk_count),
+    })?;
     if let Err(error) = verify_file(&temporary, manifest.size, &manifest.sha256).await {
         let _ = fs::remove_file(&sidecar).await;
         diagnostics::error(
@@ -219,9 +266,15 @@ where
         );
         return Err(error.into());
     }
+    progress(DirectDownloadProgress {
+        phase: super::DownloadTaskPhase::Finalizing,
+        downloaded_bytes: manifest.size,
+        total_bytes: Some(manifest.size),
+        completed_chunks: completed.len(),
+        total_chunks: Some(manifest.chunk_count),
+    })?;
     replace_destination(&temporary, destination).await?;
     let _ = fs::remove_file(&sidecar).await;
-    progress(manifest.size, manifest.size)?;
     diagnostics::info(
         "download.direct",
         format!("complete file_id={file_id} size={}", manifest.size),
@@ -289,7 +342,7 @@ pub(crate) async fn download_folder_direct(
                 let file_id = entry.file_id.ok_or_else(|| {
                     ApiCommandError::internal("Folder manifest file is missing an ID.")
                 })?;
-                download_file_direct(api, &file_id, None, &target, None, |_, _| Ok(()))
+                download_file_direct(api, &file_id, None, &target, None, |_| Ok(()))
                     .await
                     .map_err(|error| match error {
                         DirectDownloadError::Cancelled => {

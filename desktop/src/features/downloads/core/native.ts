@@ -8,13 +8,17 @@ const downloadTaskEvent = "discloud-download-task"
 const downloadRemovedEvent = "discloud-download-removed"
 
 export type NativeDownloadTaskStatus = "queued" | "downloading" | "completed" | "error" | "cancelling" | "cancelled"
+export type NativeDownloadTaskPhase = "preparing" | "resuming" | "resolving" | "transferring" | "verifying" | "finalizing"
 
 export type NativeDownloadTask = {
   id: string
   fileName: string
   status: NativeDownloadTaskStatus
+  phase?: NativeDownloadTaskPhase
   downloadedBytes: number
   totalBytes?: number
+  completedChunks?: number
+  totalChunks?: number
   bytesPerSecond?: number
   etaSeconds?: number
   error?: string

@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { cn } from "#lib/utils"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -41,27 +42,33 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
+type ButtonProps = React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & {
+  asChild?: boolean
+  tooltip?: React.ReactNode
+}
+
+function Button({ className, variant = "default", size = "default", asChild = false, tooltip, title, ...props }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button"
+  const iconOnly = isIconButtonSize(size)
+  const child = asChild && React.isValidElement(props.children) ? props.children : undefined
+  const childProps = child?.props as Record<string, unknown> | undefined
+  const content = tooltip ?? title ?? props["aria-label"] ?? childProps?.title ?? childProps?.["aria-label"]
+  const ariaLabel = props["aria-label"] ?? (typeof content === "string" ? content : undefined)
+  const button = <Comp data-slot="button" data-variant={variant} data-size={size} className={cn(buttonVariants({ variant, size, className }))} title={iconOnly ? undefined : title} aria-label={ariaLabel} {...props} />
+  if (!iconOnly || !content) return button
 
   return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild><span className="inline-flex">{button}</span></TooltipTrigger>
+        <TooltipContent sideOffset={4}>{content as React.ReactNode}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
+}
+
+function isIconButtonSize(size: ButtonProps["size"]) {
+  return size === "icon" || size === "icon-xs" || size === "icon-sm" || size === "icon-lg"
 }
 
 export { Button, buttonVariants }

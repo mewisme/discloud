@@ -263,6 +263,7 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon-sm"
+      tooltip="Toggle sidebar"
       className={cn(className)}
       onClick={(event) => {
         onClick?.(event)
