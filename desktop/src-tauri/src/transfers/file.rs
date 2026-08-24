@@ -63,22 +63,8 @@ pub(crate) async fn download_file(
     file_id: String,
     collection_id: Option<String>,
     version_id: Option<String>,
-    destination: String,
+    destination: PathBuf,
 ) -> Result<DownloadResult, ApiCommandError> {
-    if destination.trim().is_empty() {
-        return Err(ApiCommandError::invalid_request(
-            "Download destination is required.",
-        ));
-    }
-
-    let destination = PathBuf::from(destination);
-
-    if destination.file_name().is_none() {
-        return Err(ApiCommandError::invalid_request(
-            "Download destination must be a file path.",
-        ));
-    }
-
     let path = match version_id.as_deref() {
         Some(version_id) => {
             if collection_id.is_some() {

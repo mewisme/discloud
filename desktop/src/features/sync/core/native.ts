@@ -6,7 +6,7 @@ import { nativeError } from "#lib/api/transport"
 import type { SyncConflict, SyncConflictResolution, SyncPair, SyncRunResult } from "./types"
 
 export async function pickSyncFolder() {
-  const path = await open({ directory: true, multiple: false, title: "Choose a local folder to sync" })
+  const path = await open({ directory: true, multiple: false, recursive: true, title: "Choose a local folder to sync" })
   return typeof path === "string" ? path : undefined
 }
 
@@ -34,9 +34,9 @@ export async function resolveNativeSyncConflict(pair: SyncPair, conflictId: stri
   }
 }
 
-export async function openNativeSyncPath(localPath: string) {
+export async function openNativeSyncPath(pairId: string, localPath: string) {
   try {
-    await invoke<void>("open_sync_local_path", { localPath })
+    await invoke<void>("open_sync_local_path", { pairId, localPath })
   } catch (error) {
     throw nativeError(error)
   }
@@ -45,6 +45,14 @@ export async function openNativeSyncPath(localPath: string) {
 export async function clearNativeSyncPairState(pairId: string) {
   try {
     await invoke<void>("clear_sync_pair_state", { pairId })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}
+
+export async function revokeNativeSyncPairAuthorization(pairId: string) {
+  try {
+    await invoke<void>("revoke_sync_pair_authorization", { pairId })
   } catch (error) {
     throw nativeError(error)
   }

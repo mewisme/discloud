@@ -108,6 +108,7 @@ pub(super) async fn download_file_direct<F>(
 where
     F: FnMut(DirectDownloadProgress) -> Result<(), ApiCommandError>,
 {
+    validate_output_file_path(destination).await?;
     progress(DirectDownloadProgress {
         phase: super::DownloadTaskPhase::Preparing,
         downloaded_bytes: 0,
@@ -139,6 +140,8 @@ where
         ),
     );
     let (temporary, sidecar) = resume_paths(destination)?;
+    validate_output_file_path(&temporary).await?;
+    validate_output_file_path(&sidecar).await?;
     let mut completed = if manifest.sha256.is_empty() {
         let _ = fs::remove_file(&sidecar).await;
         HashSet::new()
@@ -285,23 +288,14 @@ where
 pub(crate) async fn download_folder_direct(
     api: &ApiState,
     folder_id: String,
-    destination: String,
+    root: PathBuf,
 ) -> Result<(), ApiCommandError> {
-    let root = PathBuf::from(destination);
-    if root.as_os_str().is_empty() {
-        return Err(ApiCommandError::invalid_request(
-            "Download destination is required.",
-        ));
-    }
-    fs::create_dir_all(&root).await.map_err(|error| {
-        ApiCommandError::internal(format!("Could not create download directory: {error}"))
-    })?;
-    let metadata = fs::metadata(&root).await.map_err(|error| {
+    let metadata = fs::symlink_metadata(&root).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not inspect download directory: {error}"))
     })?;
-    if !metadata.is_dir() {
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(ApiCommandError::invalid_request(
-            "Folder download destination must be a directory.",
+            "Folder download destination must be a regular directory.",
         ));
     }
     let response = api
@@ -325,6 +319,7 @@ pub(crate) async fn download_folder_direct(
         })?;
     for entry in manifest.entries {
         let target = safe_manifest_path(&root, &entry.path)?;
+        ensure_safe_descendant(&root, &target).await?;
         match entry.kind.as_str() {
             "folder" => fs::create_dir_all(&target).await.map_err(|error| {
                 ApiCommandError::internal(format!(
@@ -722,7 +717,8 @@ fn resume_completed_bytes(completed: &HashSet<usize>, manifest: &DirectFileManif
 
 fn safe_manifest_path(root: &Path, value: &str) -> Result<PathBuf, ApiCommandError> {
     let relative = Path::new(value);
-    if relative.is_absolute()
+    if value.is_empty()
+        || relative.is_absolute()
         || relative
             .components()
             .any(|component| !matches!(component, Component::Normal(_)))
@@ -734,8 +730,68 @@ fn safe_manifest_path(root: &Path, value: &str) -> Result<PathBuf, ApiCommandErr
     Ok(root.join(relative))
 }
 
+async fn ensure_safe_descendant(root: &Path, target: &Path) -> Result<(), ApiCommandError> {
+    let relative = target.strip_prefix(root).map_err(|_| {
+        ApiCommandError::invalid_request("Folder download target escaped the selected directory.")
+    })?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        match fs::symlink_metadata(&current).await {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(ApiCommandError::invalid_request(
+                    "Folder download destination contains a symbolic link.",
+                ));
+            }
+            Ok(metadata) if current != target && !metadata.is_dir() => {
+                return Err(ApiCommandError::invalid_request(
+                    "Folder download destination contains a non-directory path component.",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => {
+                return Err(ApiCommandError::internal(format!(
+                    "Could not inspect folder download destination: {error}"
+                )))
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn validate_output_file_path(path: &Path) -> Result<(), ApiCommandError> {
+    let parent = path.parent().ok_or_else(|| {
+        ApiCommandError::invalid_request("Download destination must have a parent directory.")
+    })?;
+    let parent_metadata = fs::symlink_metadata(parent).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!(
+            "Could not inspect download destination parent: {error}"
+        ))
+    })?;
+    if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
+        return Err(ApiCommandError::invalid_request(
+            "Download destination parent must be a regular directory.",
+        ));
+    }
+    match fs::symlink_metadata(path).await {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(ApiCommandError::invalid_request(
+            "Download destination must not be a symbolic link.",
+        )),
+        Ok(metadata) if !metadata.is_file() => Err(ApiCommandError::invalid_request(
+            "Download destination must be a file path.",
+        )),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ApiCommandError::internal(format!(
+            "Could not inspect download destination: {error}"
+        ))),
+    }
+}
+
 async fn replace_destination(temporary: &Path, destination: &Path) -> Result<(), ApiCommandError> {
-    if fs::metadata(destination).await.is_err() {
+    validate_output_file_path(destination).await?;
+    if fs::symlink_metadata(destination).await.is_err() {
         return fs::rename(temporary, destination).await.map_err(|error| {
             ApiCommandError::internal(format!("Could not finalize download: {error}"))
         });
@@ -762,7 +818,9 @@ async fn replace_destination(temporary: &Path, destination: &Path) -> Result<(),
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_file_manifest, DirectFileManifest};
+    use std::path::Path;
+
+    use super::{safe_manifest_path, validate_file_manifest, DirectFileManifest};
 
     fn manifest(sha256: &str) -> DirectFileManifest {
         DirectFileManifest {
@@ -783,5 +841,14 @@ mod tests {
     #[test]
     fn direct_manifest_rejects_malformed_whole_file_sha256() {
         assert!(validate_file_manifest(&manifest("not-a-sha"), "file-1").is_err());
+    }
+
+    #[test]
+    fn rejects_unsafe_folder_manifest_paths() {
+        let root = Path::new("root");
+        assert!(safe_manifest_path(root, "folder/file.txt").is_ok());
+        assert!(safe_manifest_path(root, "").is_err());
+        assert!(safe_manifest_path(root, "../file.txt").is_err());
+        assert!(safe_manifest_path(root, "/file.txt").is_err());
     }
 }

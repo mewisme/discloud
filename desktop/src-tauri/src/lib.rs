@@ -1,6 +1,9 @@
+use tauri_plugin_fs::FsExt;
+
 mod api;
 mod commands;
 mod diagnostics;
+mod path_security;
 mod runtime;
 mod settings;
 mod sync;
@@ -28,6 +31,7 @@ pub fn run() {
         .manage(transfers::upload::engine::UploadEngineState::default())
         .manage(transfers::upload::transfer::UploadTransferState::default())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_shell::init());
@@ -52,6 +56,18 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(runtime::desktop::handle_window_event)
+        .on_webview_event(|webview, event| {
+            if let tauri::WebviewEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let scope = webview.fs_scope();
+                for path in paths {
+                    if path.is_file() {
+                        let _ = scope.allow_file(path);
+                    } else if path.is_dir() {
+                        let _ = scope.allow_directory(path, true);
+                    }
+                }
+            }
+        })
         .register_asynchronous_uri_scheme_protocol("discloud", |context, request, responder| {
             transfers::file::respond_file_protocol(
                 context.app_handle().clone(),
@@ -96,6 +112,7 @@ pub fn run() {
             sync::engine::open_sync_local_path,
             sync::engine::clear_sync_pair_state,
             sync::engine::configure_sync_pairs,
+            sync::grants::revoke_sync_pair_authorization,
             sync::validation::validate_sync_pairs,
             updater::check_for_update,
             updater::install_update,

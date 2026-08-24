@@ -67,14 +67,16 @@ pub(crate) async fn list_sync_conflicts(app: AppHandle, pair_id: String) -> Resu
 
 #[tauri::command]
 pub(crate) async fn resolve_sync_conflict(
+    window: WebviewWindow,
     app: AppHandle,
     api_state: State<'_, ApiState>,
     sync_state: State<'_, SyncEngineState>,
-    pair: SyncPairInput,
+    mut pair: SyncPairInput,
     conflict_id: String,
     resolution: SyncConflictResolution,
 ) -> Result<SyncRunResult, ApiCommandError> {
     validate_pair(&pair)?;
+    authorize_pair_local_root(&window, &mut pair).await?;
     if conflict_id.is_empty() || conflict_id.len() > 128 || !conflict_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(ApiCommandError::invalid_request("Invalid sync conflict ID."));
     }
@@ -196,12 +198,16 @@ fn conflicts_path(app: &AppHandle, pair_id: &str) -> Result<PathBuf, ApiCommandE
 }
 
 #[tauri::command]
-pub(crate) fn open_sync_local_path(local_path: String) -> Result<(), ApiCommandError> {
-    let path = PathBuf::from(local_path);
-    if !path.is_absolute() {
-        return Err(ApiCommandError::invalid_request("Sync local path must be absolute."));
-    }
-    let metadata = std::fs::metadata(&path).map_err(|error| ApiCommandError::invalid_request(format!("Could not inspect sync local path: {error}")))?;
+pub(crate) async fn open_sync_local_path(
+    pair_id: String,
+    local_path: String,
+) -> Result<(), ApiCommandError> {
+    validate_pair_id(&pair_id)?;
+    let root = super::grants::authorized_root(&pair_id).await?;
+    let path = crate::path_security::canonical_path_within(&root, &local_path, "Sync local path").await?;
+    let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not inspect sync local path: {error}"))
+    })?;
     open_local_path(&path, metadata.is_dir())
 }
 

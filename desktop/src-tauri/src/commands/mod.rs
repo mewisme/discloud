@@ -1,7 +1,8 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
+    path_security,
     settings::transfer::{self as settings_transfer, AvatarInfo, AvatarPayload},
     transfers::download::{
         self as download_engine, DownloadEngineState, DownloadSnapshot, DownloadTaskView,
@@ -86,12 +87,15 @@ pub(crate) async fn api_request(
 
 #[tauri::command]
 pub(crate) async fn download_file(
+    window: WebviewWindow,
     state: State<'_, ApiState>,
     file_id: String,
     collection_id: Option<String>,
     version_id: Option<String>,
     destination: String,
 ) -> Result<DownloadResult, ApiCommandError> {
+    let destination =
+        path_security::scoped_output_file(&window, &destination, "Download destination").await?;
     file_transfer::download_file(
         state.inner(),
         file_id,
@@ -104,10 +108,17 @@ pub(crate) async fn download_file(
 
 #[tauri::command]
 pub(crate) async fn download_folder(
+    window: WebviewWindow,
     state: State<'_, ApiState>,
     folder_id: String,
     destination: String,
 ) -> Result<(), ApiCommandError> {
+    let destination = path_security::scoped_existing_directory(
+        &window,
+        &destination,
+        "Folder download destination",
+    )
+    .await?;
     let diagnostic_folder_id = folder_id.clone();
     let result =
         download_engine::download_folder_direct(state.inner(), folder_id, destination).await;
@@ -128,7 +139,8 @@ pub(crate) fn get_download_snapshot(
 }
 
 #[tauri::command]
-pub(crate) fn start_download(
+pub(crate) async fn start_download(
+    window: WebviewWindow,
     app: AppHandle,
     api_state: State<'_, ApiState>,
     download_state: State<'_, DownloadEngineState>,
@@ -137,6 +149,8 @@ pub(crate) fn start_download(
     file_name: String,
     destination: String,
 ) -> Result<DownloadTaskView, ApiCommandError> {
+    let destination =
+        path_security::scoped_output_file(&window, &destination, "Download destination").await?;
     download_engine::start_download(
         app,
         api_state.inner().clone(),
@@ -182,11 +196,17 @@ pub(crate) fn remove_download_task(
 }
 
 #[tauri::command]
-pub(crate) fn reveal_download_task(
+pub(crate) async fn reveal_download_task(
+    window: WebviewWindow,
     download_state: State<'_, DownloadEngineState>,
     task_id: String,
 ) -> Result<(), ApiCommandError> {
-    download_engine::reveal_download(download_state.inner(), task_id)
+    let destination =
+        download_engine::download_destination_for_reveal(download_state.inner(), task_id)?;
+    let destination =
+        path_security::scoped_existing_file_path(&window, &destination, "Download destination")
+            .await?;
+    download_engine::reveal_path(&destination)
 }
 
 #[tauri::command]
@@ -198,6 +218,7 @@ pub(crate) fn get_upload_snapshot(
 
 #[tauri::command]
 pub(crate) async fn add_upload_paths(
+    window: WebviewWindow,
     app: AppHandle,
     api_state: State<'_, ApiState>,
     upload_state: State<'_, UploadTransferState>,
@@ -205,13 +226,17 @@ pub(crate) async fn add_upload_paths(
     folder_id: String,
     paths: Vec<String>,
 ) -> Result<(), ApiCommandError> {
+    let mut authorized = Vec::with_capacity(paths.len());
+    for path in paths {
+        authorized.push(path_security::scoped_existing_path(&window, &path, "Upload path").await?);
+    }
     upload_engine::add_paths(
         app,
         api_state.inner().clone(),
         upload_state.inner().clone(),
         upload_engine_state.inner().clone(),
         folder_id,
-        paths,
+        authorized,
     )
     .await
 }
@@ -262,9 +287,11 @@ pub(crate) fn remove_upload_task(
 
 #[tauri::command]
 pub(crate) async fn update_avatar(
+    window: WebviewWindow,
     state: State<'_, ApiState>,
     path: String,
 ) -> Result<AvatarInfo, ApiCommandError> {
+    let path = path_security::scoped_existing_file(&window, &path, "Avatar path").await?;
     settings_transfer::update_avatar(state.inner(), path).await
 }
 
@@ -278,8 +305,12 @@ pub(crate) async fn load_avatar(
 
 #[tauri::command]
 pub(crate) async fn save_recovery_codes(
+    window: WebviewWindow,
     destination: String,
     codes: Vec<String>,
 ) -> Result<(), ApiCommandError> {
+    let destination =
+        path_security::scoped_output_file(&window, &destination, "Recovery code destination")
+            .await?;
     settings_transfer::save_recovery_codes(destination, codes).await
 }

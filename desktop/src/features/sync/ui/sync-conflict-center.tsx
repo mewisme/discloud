@@ -49,7 +49,7 @@ export function DesktopSyncConflictCenter() {
                 <Badge variant="outline" className="shrink-0">Conflict</Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="ghost" onClick={() => void sync.openLocalPath(conflict.localPath).catch((cause) => setError(errorMessage(cause)))}><FolderOpenIcon />Open local</Button>
+                <Button size="sm" variant="ghost" onClick={() => void sync.openLocalPath(conflict.pairId, conflict.localPath).catch((cause) => setError(errorMessage(cause)))}><FolderOpenIcon />Open local</Button>
                 <Button asChild size="sm" variant="ghost"><Link to={workspaceFilePath(pair.username, conflict.remoteFileId)}><ExternalLinkIcon />Open remote</Link></Button>
                 <div className="hidden flex-1 sm:block" />
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void resolve(pair.id, conflict.id, "keep-local")}>{busy && resolving === conflict.id ? <Loader2Icon className="animate-spin" /> : null}Keep local</Button>

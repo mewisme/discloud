@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use reqwest::{header::CONTENT_TYPE, Method, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub(crate) struct AvatarPayload {
 
 pub(crate) async fn update_avatar(
     api: &ApiState,
-    path: String,
+    path: PathBuf,
 ) -> Result<AvatarInfo, ApiCommandError> {
     let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not read avatar file: {error}"))
@@ -42,6 +42,14 @@ pub(crate) async fn update_avatar(
         ));
     }
 
+    let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not revalidate avatar file: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ApiCommandError::invalid_request(
+            "Avatar path changed before it could be read.",
+        ));
+    }
     let body = fs::read(&path).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not read avatar file: {error}"))
     })?;
@@ -120,32 +128,17 @@ pub(crate) async fn load_avatar(
 }
 
 pub(crate) async fn save_recovery_codes(
-    destination: String,
+    destination: PathBuf,
     codes: Vec<String>,
 ) -> Result<(), ApiCommandError> {
-    if destination.trim().is_empty() {
-        return Err(ApiCommandError::invalid_request(
-            "Recovery code destination is required.",
-        ));
-    }
-
     if codes.is_empty() || codes.iter().any(|code| code.trim().is_empty()) {
         return Err(ApiCommandError::invalid_request(
             "Recovery codes are missing.",
         ));
     }
 
-    let destination = Path::new(&destination);
-
-    if destination.file_name().is_none() {
-        return Err(ApiCommandError::invalid_request(
-            "Recovery code destination must be a file path.",
-        ));
-    }
-
     let content = format!("DisCloud recovery codes\n\n{}\n", codes.join("\n"));
-
-    fs::write(destination, content).await.map_err(|error| {
+    fs::write(&destination, content).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not save recovery codes: {error}"))
     })
 }
@@ -168,8 +161,8 @@ fn avatar_request_path(user_id: Option<&str>) -> Result<String, ApiCommandError>
     Ok(format!("/api/v1/admin/users/{user_id}/avatar"))
 }
 
-fn avatar_content_type(path: &str) -> &'static str {
-    match Path::new(path)
+fn avatar_content_type(path: &Path) -> &'static str {
+    match path
         .extension()
         .and_then(|value| value.to_str())
         .map(str::to_ascii_lowercase)
@@ -185,15 +178,17 @@ fn avatar_content_type(path: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::{avatar_content_type, avatar_request_path};
 
     #[test]
     fn detects_avatar_content_type() {
-        assert_eq!(avatar_content_type("avatar.jpg"), "image/jpeg");
-        assert_eq!(avatar_content_type("avatar.PNG"), "image/png");
-        assert_eq!(avatar_content_type("avatar.webp"), "image/webp");
+        assert_eq!(avatar_content_type(Path::new("avatar.jpg")), "image/jpeg");
+        assert_eq!(avatar_content_type(Path::new("avatar.PNG")), "image/png");
+        assert_eq!(avatar_content_type(Path::new("avatar.webp")), "image/webp");
         assert_eq!(
-            avatar_content_type("avatar.bin"),
+            avatar_content_type(Path::new("avatar.bin")),
             "application/octet-stream"
         );
     }

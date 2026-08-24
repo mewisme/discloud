@@ -179,7 +179,7 @@ pub(crate) fn start_download(
     file_id: String,
     collection_id: Option<String>,
     file_name: String,
-    destination: String,
+    destination: PathBuf,
 ) -> Result<DownloadTaskView, ApiCommandError> {
     validate_resource_id(&file_id, "file")?;
     if let Some(collection_id) = collection_id.as_deref() {
@@ -192,7 +192,6 @@ pub(crate) fn start_download(
         ));
     }
 
-    let destination = validate_destination(destination)?;
     let id = engine.next_task_id();
     let task = DownloadTask {
         id: id.clone(),
@@ -324,27 +323,23 @@ pub(crate) fn remove_download(
         })
 }
 
-pub(crate) fn reveal_download(
+pub(crate) fn download_destination_for_reveal(
     engine: &DownloadEngineState,
     task_id: String,
-) -> Result<(), ApiCommandError> {
-    let destination = {
-        let inner = engine.lock()?;
-        let task = inner
-            .tasks
-            .get(&task_id)
-            .ok_or_else(|| ApiCommandError::invalid_request("Download task not found."))?;
+) -> Result<PathBuf, ApiCommandError> {
+    let inner = engine.lock()?;
+    let task = inner
+        .tasks
+        .get(&task_id)
+        .ok_or_else(|| ApiCommandError::invalid_request("Download task not found."))?;
 
-        if task.status != DownloadTaskStatus::Completed {
-            return Err(ApiCommandError::invalid_request(
-                "Only completed downloads can be revealed.",
-            ));
-        }
+    if task.status != DownloadTaskStatus::Completed {
+        return Err(ApiCommandError::invalid_request(
+            "Only completed downloads can be revealed.",
+        ));
+    }
 
-        task.destination.clone()
-    };
-
-    reveal_path(&destination)
+    Ok(task.destination.clone())
 }
 
 pub(crate) fn reset(app: &AppHandle, engine: &DownloadEngineState) -> Result<(), ApiCommandError> {

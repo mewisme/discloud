@@ -6,7 +6,7 @@ import { useDesktopSession } from "#components/desktop-session"
 import { apiJSON } from "#lib/api/transport"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
-import { clearNativeSyncPairState, configureNativeSyncPairs, listNativeSyncConflicts, openNativeSyncPath, resolveNativeSyncConflict, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
+import { clearNativeSyncPairState, configureNativeSyncPairs, listNativeSyncConflicts, openNativeSyncPath, resolveNativeSyncConflict, revokeNativeSyncPairAuthorization, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
 import { patchScopedSyncPair, scopedSyncPairs, syncPairsForValidation, type UpdateSyncPairInput } from "../core/pairs"
 import { loadSyncPairs, saveSyncPairs } from "../core/preferences"
 import type { SyncConflict, SyncConflictResolution, SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
@@ -27,7 +27,7 @@ type DesktopSyncContextValue = {
   runAll: () => Promise<void>
   refreshConflicts: () => Promise<void>
   resolveConflict: (pairId: string, conflictId: string, resolution: SyncConflictResolution) => Promise<SyncRunResult | undefined>
-  openLocalPath: (localPath: string) => Promise<void>
+  openLocalPath: (pairId: string, localPath: string) => Promise<void>
 }
 
 const DesktopSyncContext = createContext<DesktopSyncContextValue | null>(null)
@@ -121,6 +121,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     const current = allPairsRef.current.find((pair) => pair.id === pairId)
     if (!current || !scopeServerUrl || !scopeUsername || current.serverUrl !== scopeServerUrl || current.username !== scopeUsername) return
     await clearNativeSyncPairState(pairId).catch(() => undefined)
+    await revokeNativeSyncPairAuthorization(pairId)
     setRuntimes((current) => {
       const next = { ...current }
       delete next[pairId]
@@ -251,7 +252,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     }
   }, [pairs, refreshConflicts])
 
-  const openLocalPath = useCallback((localPath: string) => openNativeSyncPath(localPath), [])
+  const openLocalPath = useCallback((pairId: string, localPath: string) => openNativeSyncPath(pairId, localPath), [])
   const value = useMemo<DesktopSyncContextValue>(() => ({ pairs, runtimes, conflicts, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll, refreshConflicts, resolveConflict, openLocalPath }), [pairs, runtimes, conflicts, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll, refreshConflicts, resolveConflict, openLocalPath])
   return <DesktopSyncContext.Provider value={value}>{children}</DesktopSyncContext.Provider>
 }

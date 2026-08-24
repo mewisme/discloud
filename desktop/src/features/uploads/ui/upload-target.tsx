@@ -75,6 +75,7 @@ export function DesktopFileUploadTarget({
         title: "Upload folders",
         directory: true,
         multiple: true,
+        recursive: true,
       })
 
       await enqueuePaths(normalizeSelection(selected))

@@ -193,23 +193,6 @@ fn validate_resource_id(value: &str, kind: &str) -> Result<(), ApiCommandError> 
     Ok(())
 }
 
-fn validate_destination(destination: String) -> Result<PathBuf, ApiCommandError> {
-    if destination.trim().is_empty() {
-        return Err(ApiCommandError::invalid_request(
-            "Download destination is required.",
-        ));
-    }
-
-    let destination = PathBuf::from(destination);
-    if destination.file_name().is_none() {
-        return Err(ApiCommandError::invalid_request(
-            "Download destination must be a file path.",
-        ));
-    }
-
-    Ok(destination)
-}
-
 fn speed_bytes_per_second(bytes: u64, elapsed: Duration) -> Option<u64> {
     if bytes == 0 || elapsed.is_zero() {
         return None;
@@ -236,7 +219,7 @@ fn now_millis() -> u64 {
 }
 
 #[cfg(target_os = "windows")]
-fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
+pub(crate) fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
     Command::new("explorer.exe")
         .arg(format!("/select,{}", path.to_string_lossy()))
         .spawn()
@@ -245,7 +228,7 @@ fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
 }
 
 #[cfg(target_os = "macos")]
-fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
+pub(crate) fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
     Command::new("open")
         .arg("-R")
         .arg(path)
@@ -255,7 +238,7 @@ fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
+pub(crate) fn reveal_path(path: &Path) -> Result<(), ApiCommandError> {
     let parent = path.parent().unwrap_or(path);
     Command::new("xdg-open")
         .arg(parent)

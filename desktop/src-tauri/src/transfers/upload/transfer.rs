@@ -150,12 +150,11 @@ impl UploadTransferState {
 }
 
 pub(crate) async fn inspect_files(
-    paths: Vec<String>,
+    paths: Vec<PathBuf>,
 ) -> Result<Vec<LocalUploadFile>, ApiCommandError> {
     let mut files = Vec::new();
 
-    for source in paths {
-        let path = PathBuf::from(source);
+    for path in paths {
         let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
             ApiCommandError::invalid_request(format!(
                 "Could not read upload path metadata: {error}"
@@ -689,10 +688,17 @@ async fn read_part(
     size: u64,
     cancellation: &mut watch::Receiver<bool>,
 ) -> Result<Vec<u8>, ApiCommandError> {
+    let path_metadata = fs::symlink_metadata(path).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not revalidate upload file: {error}"))
+    })?;
+    if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
+        return Err(ApiCommandError::invalid_request(
+            "Upload path changed before the file could be read.",
+        ));
+    }
     let mut file = File::open(path).await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not open upload file: {error}"))
     })?;
-
     let metadata = file.metadata().await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not read upload file metadata: {error}"))
     })?;

@@ -20,7 +20,7 @@ export function nativeFileContentURL(fileId: string, collectionId?: string) {
 
 export async function downloadNativeFolder(folder: NativeFile) {
   try {
-    const destination = await open({ title: `Download ${folder.name} to`, directory: true, multiple: false })
+    const destination = await open({ title: `Download ${folder.name} to`, directory: true, multiple: false, recursive: true })
     if (!destination) return undefined
     await invoke("download_folder", { folderId: folder.id, destination })
   } catch (error) {

@@ -8,9 +8,9 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, WebviewWindow};
 
-use crate::api::ApiCommandError;
+use crate::{api::ApiCommandError, path_security};
 
 const LOG_FILE_NAME: &str = "discloud-desktop.log";
 const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
@@ -265,14 +265,13 @@ pub(crate) fn clear_desktop_logs() -> Result<(), ApiCommandError> {
 }
 
 #[tauri::command]
-pub(crate) fn export_desktop_logs(destination: String) -> Result<(), ApiCommandError> {
+pub(crate) async fn export_desktop_logs(
+    window: WebviewWindow,
+    destination: String,
+) -> Result<(), ApiCommandError> {
     let directory = directory()?;
-    let destination = PathBuf::from(destination);
-    if destination.as_os_str().is_empty() || destination.file_name().is_none() {
-        return Err(ApiCommandError::invalid_request(
-            "Log export destination must be a file path.",
-        ));
-    }
+    let destination =
+        path_security::scoped_output_file(&window, &destination, "Log export destination").await?;
     let _guard = LOG_LOCK
         .lock()
         .map_err(|_| ApiCommandError::internal("Desktop diagnostics log lock is poisoned."))?;

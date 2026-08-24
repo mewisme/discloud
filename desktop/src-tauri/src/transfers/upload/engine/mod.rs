@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex, MutexGuard,
@@ -201,7 +202,7 @@ pub(crate) async fn add_paths(
     transfers: UploadTransferState,
     engine: UploadEngineState,
     folder_id: String,
-    paths: Vec<String>,
+    paths: Vec<PathBuf>,
 ) -> Result<(), ApiCommandError> {
     if !valid_resource_id(&folder_id) {
         return Err(ApiCommandError::invalid_request("Invalid folder ID."));

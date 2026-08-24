@@ -9,7 +9,7 @@ use reqwest::{header::ETAG, Method};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tokio::{
     fs::{self, File},
     io::{AsyncReadExt, AsyncWriteExt},
@@ -242,6 +242,18 @@ impl SyncPairInput {
     }
 }
 
+async fn authorize_pair_local_root(
+    window: &WebviewWindow,
+    pair: &mut SyncPairInput,
+) -> Result<(), ApiCommandError> {
+    let root = super::grants::authorize_pair(window, &pair.id, &pair.local_path).await?;
+    pair.local_path = root
+        .to_str()
+        .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))?
+        .to_string();
+    Ok(())
+}
+
 pub(crate) fn start_scheduler(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
@@ -259,12 +271,14 @@ pub(crate) fn start_scheduler(app: AppHandle) {
 }
 
 #[tauri::command]
-pub(crate) fn configure_sync_pairs(
+pub(crate) async fn configure_sync_pairs(
+    window: WebviewWindow,
     state: State<'_, SyncEngineState>,
-    pairs: Vec<SyncPairInput>,
+    mut pairs: Vec<SyncPairInput>,
 ) -> Result<(), ApiCommandError> {
-    for pair in &pairs {
+    for pair in &mut pairs {
         validate_pair(pair)?;
+        authorize_pair_local_root(&window, pair).await?;
     }
     state.configure(pairs)
 }
@@ -316,12 +330,14 @@ async fn run_scheduled_pair(app: &AppHandle, pair: SyncPairInput) {
 
 #[tauri::command]
 pub(crate) async fn run_sync_pair(
+    window: WebviewWindow,
     app: AppHandle,
     api_state: State<'_, ApiState>,
     sync_state: State<'_, SyncEngineState>,
-    pair: SyncPairInput,
+    mut pair: SyncPairInput,
 ) -> Result<SyncRunResult, ApiCommandError> {
     validate_pair(&pair)?;
+    authorize_pair_local_root(&window, &mut pair).await?;
 
     if !sync_state.begin(&pair.id)? {
         return Err(ApiCommandError::invalid_request(

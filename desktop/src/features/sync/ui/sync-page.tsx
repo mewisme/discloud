@@ -98,7 +98,7 @@ export function DesktopSyncPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
                   <p className="text-xs text-muted-foreground">{runtime?.nextRunAt && pair.enabled ? `Next automatic sync ${formatTime(runtime.nextRunAt)}` : pair.enabled ? "Waiting for automatic sync" : "Automatic sync paused"}</p>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => void sync.openLocalPath(pair.localPath).catch((error) => setActionError(errorMessage(error)))}><FolderOpenIcon />Open local folder</Button>
+                    <Button size="sm" variant="ghost" onClick={() => void sync.openLocalPath(pair.id, pair.localPath).catch((error) => setActionError(errorMessage(error)))}><FolderOpenIcon />Open local folder</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => void reset(pair)}><RotateCcwIcon />Reset baseline</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(pair)}><PencilIcon />Edit settings</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove(pair)}><Trash2Icon />Remove</Button>

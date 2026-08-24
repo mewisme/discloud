@@ -1,12 +1,8 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::Path};
 
 use reqwest::Method;
 use serde::Deserialize;
-use tauri::State;
-use tokio::fs;
+use tauri::{State, WebviewWindow};
 
 use crate::api::{response_error, ApiCommandError, ApiState};
 
@@ -53,13 +49,15 @@ struct ValidatedPair {
 
 #[tauri::command]
 pub(crate) async fn validate_sync_pairs(
+    window: WebviewWindow,
     api_state: State<'_, ApiState>,
     pairs: Vec<SyncValidationPair>,
 ) -> Result<(), ApiCommandError> {
-    validate_sync_pair_topology(api_state.inner(), &pairs).await
+    validate_sync_pair_topology(&window, api_state.inner(), &pairs).await
 }
 
 pub(crate) async fn validate_sync_pair_topology(
+    window: &WebviewWindow,
     api: &ApiState,
     pairs: &[SyncValidationPair],
 ) -> Result<(), ApiCommandError> {
@@ -74,7 +72,7 @@ pub(crate) async fn validate_sync_pair_topology(
         if !pair.enabled {
             continue;
         }
-        let local_root = canonical_local_root(&pair.local_path).await?;
+        let local_root = super::grants::authorize_pair(window, &pair.id, &pair.local_path).await?;
         let remote_path = load_remote_path(api, &pair.remote_folder_id).await?;
         let access_level = load_remote_access(api, &pair.remote_folder_id).await?;
 
@@ -111,28 +109,6 @@ pub(crate) async fn validate_sync_pair_topology(
     }
 
     Ok(())
-}
-
-async fn canonical_local_root(value: &str) -> Result<PathBuf, ApiCommandError> {
-    let path = PathBuf::from(value.trim());
-    if !path.is_absolute() {
-        return Err(ApiCommandError::invalid_request(
-            "Sync local folder must be an absolute path.",
-        ));
-    }
-
-    let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
-        ApiCommandError::invalid_request(format!("Could not read sync local folder: {error}"))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(ApiCommandError::invalid_request(
-            "Sync local path must be a real directory, not a symbolic link.",
-        ));
-    }
-
-    fs::canonicalize(&path).await.map_err(|error| {
-        ApiCommandError::invalid_request(format!("Could not resolve sync local folder: {error}"))
-    })
 }
 
 async fn load_remote_path(api: &ApiState, folder_id: &str) -> Result<Vec<String>, ApiCommandError> {
