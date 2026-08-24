@@ -15,8 +15,8 @@ export function FileBrowserList(props: FileBrowserViewProps) {
   const someSelected = !!props.selection && props.nodes.some((node) => props.selection!.selected.has(node.id))
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <Table>
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-card">
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
             {props.selection ? (
@@ -30,7 +30,7 @@ export function FileBrowserList(props: FileBrowserViewProps) {
             ) : null}
 
             <TableHead>Name</TableHead>
-            <TableHead className="hidden md:table-cell">Type</TableHead>
+            <TableHead className="hidden w-32 md:table-cell">Type</TableHead>
             <TableHead className="hidden w-28 sm:table-cell">Size</TableHead>
             <TableHead className="hidden w-36 lg:table-cell">Modified</TableHead>
             {props.renderNodeActions ? <TableHead className="w-10" /> : null}
@@ -80,14 +80,15 @@ export function FileBrowserList(props: FileBrowserViewProps) {
                   </TableCell>
                 ) : null}
 
-                <TableCell>
-                  <div className="flex min-w-0 items-center gap-2">
+                <TableCell className="min-w-0 overflow-hidden">
+                  <div className="flex w-full min-w-0 items-center gap-2">
                     {props.renderNodeVisual
-                      ? props.renderNodeVisual(node, "size-9", "size-4")
-                      : <FileNodeVisual node={node} className="size-9" iconClassName="size-4" />}
+                      ? props.renderNodeVisual(node, "size-9 shrink-0", "size-4")
+                      : <FileNodeVisual node={node} className="size-9 shrink-0" iconClassName="size-4" />}
 
                     <a
-                      className="truncate font-medium hover:underline"
+                      className="block min-w-0 flex-1 truncate font-medium hover:underline"
+                      title={node.name}
                       href={node.kind === "folder" ? props.folderHref(node.id, node.isRoot) : props.fileHref(node.id)}
                       onClick={(event) => handleClientNavigation(event, () => node.kind === "folder" ? props.onNavigateFolder(node.id, node.isRoot) : props.onOpenFile(node.id))}
                     >
@@ -98,7 +99,7 @@ export function FileBrowserList(props: FileBrowserViewProps) {
                   </div>
                 </TableCell>
 
-                <TableCell className="hidden text-muted-foreground md:table-cell">{browserNodeType(node)}</TableCell>
+                <TableCell className="hidden w-32 truncate text-muted-foreground md:table-cell" title={browserNodeType(node)}>{browserNodeType(node)}</TableCell>
                 <TableCell className="hidden text-muted-foreground sm:table-cell">{browserNodeSizeLabel(node)}</TableCell>
                 <TableCell className="hidden text-muted-foreground lg:table-cell" title={node.updatedAt}>
                   {props.renderModified ? props.renderModified(node) : formatDate(node.updatedAt)}

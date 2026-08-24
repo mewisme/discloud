@@ -10,7 +10,7 @@ export function FileBrowserItems(props: FileBrowserItemsProps) {
   const empty = props.nodes.length === 0 && !parent
 
   return (
-    <div className="relative min-h-24" aria-busy={props.loading}>
+    <div className="relative min-h-24 min-w-0 w-full max-w-full" aria-busy={props.loading}>
       {empty
         ? <EmptyFolder description={props.emptyDescription} />
         : props.view === "grid"
