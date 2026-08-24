@@ -70,6 +70,7 @@ export function FileBrowserGrid(props: FileBrowserViewProps) {
                   {node.name}
                 </a>
 
+                {props.renderNodeStatus ? props.renderNodeStatus(node) : null}
                 {node.isFavorite ? <StarIcon className="size-3 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" /> : null}
               </div>
 

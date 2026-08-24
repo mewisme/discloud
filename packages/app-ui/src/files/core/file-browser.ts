@@ -11,6 +11,7 @@ export type FileBrowserSelection = {
 
 export type FileBrowserNodeVisualRenderer = (node: BrowserNode, className?: string, iconClassName?: string) => ReactNode
 export type FileBrowserNodeActionsRenderer = (node: BrowserNode) => ReactNode
+export type FileBrowserNodeStatusRenderer = (node: BrowserNode) => ReactNode
 export type FileBrowserModifiedRenderer = (node: BrowserNode) => ReactNode
 export type FileBrowserNodeWrapper = (node: BrowserNode, children: ReactElement) => ReactNode
 
@@ -24,6 +25,7 @@ export type FileBrowserViewProps = {
   onOpenFile: (fileId: string) => void
   renderNodeVisual?: FileBrowserNodeVisualRenderer
   renderNodeActions?: FileBrowserNodeActionsRenderer
+  renderNodeStatus?: FileBrowserNodeStatusRenderer
   renderModified?: FileBrowserModifiedRenderer
   wrapNode?: FileBrowserNodeWrapper
 }

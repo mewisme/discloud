@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 
 import { nativeError } from "#lib/api/transport"
 
-import type { SyncPair, SyncRunResult } from "./types"
+import type { SyncConflict, SyncConflictResolution, SyncPair, SyncRunResult } from "./types"
 
 export async function pickSyncFolder() {
   const path = await open({ directory: true, multiple: false, title: "Choose a local folder to sync" })
@@ -13,6 +13,30 @@ export async function pickSyncFolder() {
 export async function runNativeSyncPair(pair: SyncPair) {
   try {
     return await invoke<SyncRunResult>("run_sync_pair", { pair: nativeSyncPair(pair) })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}
+
+export async function listNativeSyncConflicts(pairId: string) {
+  try {
+    return await invoke<SyncConflict[]>("list_sync_conflicts", { pairId })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}
+
+export async function resolveNativeSyncConflict(pair: SyncPair, conflictId: string, resolution: SyncConflictResolution) {
+  try {
+    return await invoke<SyncRunResult>("resolve_sync_conflict", { pair: nativeSyncPair(pair), conflictId, resolution })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}
+
+export async function openNativeSyncPath(localPath: string) {
+  try {
+    await invoke<void>("open_sync_local_path", { localPath })
   } catch (error) {
     throw nativeError(error)
   }

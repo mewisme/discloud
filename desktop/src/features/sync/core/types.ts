@@ -1,6 +1,7 @@
 export type SyncDirection = "two-way" | "download-only" | "upload-only"
 export type SyncDeletePolicy = "preserve" | "propagate"
 export type SyncPairStatus = "idle" | "syncing" | "error"
+export type SyncConflictResolution = "keep-local" | "keep-remote" | "keep-both"
 
 export type SyncPair = {
   id: string
@@ -35,6 +36,20 @@ export type SyncPairRuntime = {
   nextRunAt?: number
   lastResult?: SyncRunResult
   error?: string
+}
+
+export type SyncConflict = {
+  id: string
+  pairId: string
+  relativePath: string
+  localPath: string
+  remoteFileId: string
+  remoteName: string
+  localSize: number
+  remoteSize: number
+  localModifiedAt: number
+  remoteUpdatedAt: string
+  detectedAt: number
 }
 
 export const syncIntervalOptions = [15, 30, 60, 300, 900] as const

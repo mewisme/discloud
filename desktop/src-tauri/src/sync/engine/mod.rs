@@ -342,6 +342,7 @@ pub(crate) async fn clear_sync_pair_state(
             }
         }
     }
+    clear_sync_conflicts(&app, &pair_id).await?;
     Ok(())
 }
 
@@ -352,6 +353,11 @@ async fn run_pair(
 ) -> Result<SyncRunResult, ApiCommandError> {
     let root = canonical_local_root(&pair.local_path).await?;
     let baseline = load_baseline(app, &pair.id).await?;
+    let mut pending_conflicts = load_sync_conflicts(app, &pair.id)
+        .await?
+        .into_iter()
+        .map(|conflict| (conflict.relative_path.clone(), conflict))
+        .collect::<BTreeMap<_, _>>();
     let mut local = scan_local_tree(&root, &pair.ignore_patterns).await?;
     let mut remote = scan_remote_tree(api, &pair.remote_folder_id, &pair.ignore_patterns).await?;
     let mut result = SyncRunResult {
@@ -372,6 +378,10 @@ async fn run_pair(
     let paths = union_file_paths(&local, &remote);
 
     for relative_path in paths {
+        if pending_conflicts.contains_key(&relative_path) {
+            result.conflicts += 1;
+            continue;
+        }
         let current_local = local.files.get(&relative_path).cloned();
         let current_remote = remote.files.get(&relative_path).cloned();
         let previous = baseline.files.get(&relative_path);
@@ -385,6 +395,7 @@ async fn run_pair(
             current_remote,
             previous,
             &remote.directories,
+            &mut pending_conflicts,
             &mut result,
         )
         .await?;
@@ -392,12 +403,28 @@ async fn run_pair(
 
     let final_local = scan_local_tree(&root, &pair.ignore_patterns).await?;
     let final_remote = scan_remote_tree(api, &pair.remote_folder_id, &pair.ignore_patterns).await?;
-    let next_baseline = build_baseline(&final_local, &final_remote);
+    let mut next_baseline = build_baseline(&final_local, &final_remote);
+    for relative_path in pending_conflicts.keys() {
+        if let Some(previous) = baseline.files.get(relative_path) {
+            next_baseline
+                .files
+                .insert(relative_path.clone(), previous.clone());
+        } else {
+            next_baseline.files.remove(relative_path);
+        }
+    }
     save_baseline(app, &pair.id, &next_baseline).await?;
+    save_sync_conflicts(
+        app,
+        &pair.id,
+        &pending_conflicts.into_values().collect::<Vec<_>>(),
+    )
+    .await?;
 
     Ok(result)
 }
 
+include!("conflicts.rs");
 include!("reconcile.rs");
 include!("scan.rs");
 include!("transfer.rs");

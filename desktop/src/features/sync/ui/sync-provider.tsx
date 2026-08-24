@@ -5,16 +5,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useDesktopSession } from "#components/desktop-session"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
-import { clearNativeSyncPairState, configureNativeSyncPairs, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
+import { clearNativeSyncPairState, configureNativeSyncPairs, listNativeSyncConflicts, openNativeSyncPath, resolveNativeSyncConflict, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
 import { patchScopedSyncPair, scopedSyncPairs, syncPairsForValidation, type UpdateSyncPairInput } from "../core/pairs"
 import { loadSyncPairs, saveSyncPairs } from "../core/preferences"
-import type { SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
+import type { SyncConflict, SyncConflictResolution, SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
 
 type CreateSyncPairInput = Omit<SyncPair, "id" | "serverUrl" | "username" | "createdAt">
 
 type DesktopSyncContextValue = {
   pairs: SyncPair[]
   runtimes: Record<string, SyncPairRuntime>
+  conflicts: SyncConflict[]
   loading: boolean
   error?: string
   addPair: (input: CreateSyncPairInput) => Promise<SyncPair>
@@ -23,6 +24,9 @@ type DesktopSyncContextValue = {
   resetPairState: (pairId: string) => Promise<void>
   runPair: (pairId: string) => Promise<SyncRunResult | undefined>
   runAll: () => Promise<void>
+  refreshConflicts: () => Promise<void>
+  resolveConflict: (pairId: string, conflictId: string, resolution: SyncConflictResolution) => Promise<SyncRunResult | undefined>
+  openLocalPath: (localPath: string) => Promise<void>
 }
 
 const DesktopSyncContext = createContext<DesktopSyncContextValue | null>(null)
@@ -40,6 +44,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const { state } = useDesktopSession()
   const [allPairs, setAllPairs] = useState<SyncPair[]>([])
   const [runtimes, setRuntimes] = useState<Record<string, SyncPairRuntime>>({})
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
   const allPairsRef = useRef<SyncPair[]>([])
@@ -66,6 +71,11 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const scopeServerUrl = state.status === "connected" && state.user ? state.serverUrl : undefined
   const scopeUsername = state.status === "connected" && state.user ? state.user.username : undefined
   const pairs = useMemo(() => scopedSyncPairs(allPairs, scopeServerUrl, scopeUsername), [allPairs, scopeServerUrl, scopeUsername])
+
+  const refreshConflicts = useCallback(async () => {
+    const rows = await Promise.all(pairs.map((pair) => listNativeSyncConflicts(pair.id)))
+    setConflicts(rows.flat())
+  }, [pairs])
 
   const persist = useCallback(async (next: SyncPair[]) => {
     try {
@@ -101,6 +111,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const resetPairState = useCallback(async (pairId: string) => {
     if (runningRef.current.has(pairId)) throw new Error("Wait for this sync to finish before resetting its baseline.")
     await clearNativeSyncPairState(pairId)
+    setConflicts((current) => current.filter((conflict) => conflict.pairId !== pairId))
     setRuntimes((current) => ({ ...current, [pairId]: { status: "idle" } }))
   }, [])
 
@@ -114,6 +125,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
       delete next[pairId]
       return next
     })
+    setConflicts((current) => current.filter((conflict) => conflict.pairId !== pairId))
     await persist(allPairsRef.current.filter((pair) => pair.id !== pairId))
   }, [persist, scopeServerUrl, scopeUsername])
 
@@ -133,8 +145,9 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
       const finishedAt = Date.now()
       const nextRunAt = finishedAt + pair.intervalSeconds * 1000
       setRuntimes((current) => ({ ...current, [pairId]: { status: "idle", lastStartedAt: startedAt, lastFinishedAt: finishedAt, nextRunAt, lastResult: result } }))
+      await refreshConflicts().catch(() => undefined)
       window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId, result } }))
-      if (result.conflicts > 0) void sendDesktopNotification("DisCloud sync preserved a conflict", `${pair.remoteFolderName}: ${result.conflicts} conflict${result.conflicts === 1 ? "" : "s"} kept as separate copies.`)
+      if (result.conflicts > 0) void sendDesktopNotification("Sync conflict needs attention", `${pair.remoteFolderName}: ${result.conflicts} pending conflict${result.conflicts === 1 ? "" : "s"}.`)
       return result
     } catch (cause) {
       const message = syncErrorMessage(cause)
@@ -145,7 +158,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     } finally {
       runningRef.current.delete(pairId)
     }
-  }, [scopeServerUrl, scopeUsername])
+  }, [refreshConflicts, scopeServerUrl, scopeUsername])
 
   const runAll = useCallback(async () => {
     for (const pair of allPairsRef.current) {
@@ -157,6 +170,10 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void configureNativeSyncPairs(pairs).then(() => setError(undefined)).catch((cause) => setError(syncErrorMessage(cause)))
   }, [pairs])
+
+  useEffect(() => {
+    void refreshConflicts().catch((cause) => setError(syncErrorMessage(cause)))
+  }, [refreshConflicts])
 
   useEffect(() => () => {
     void configureNativeSyncPairs([]).catch(() => undefined)
@@ -192,8 +209,9 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
 
       if (payload.result) {
         setRuntimes((current) => ({ ...current, [payload.pairId]: { status: "idle", lastStartedAt: payload.startedAt, lastFinishedAt: finishedAt, nextRunAt: finishedAt + pair.intervalSeconds * 1000, lastResult: payload.result } }))
+        void refreshConflicts().catch(() => undefined)
         window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId: payload.pairId, result: payload.result } }))
-        if (payload.result.conflicts > 0) void sendDesktopNotification("DisCloud sync preserved a conflict", `${pair.remoteFolderName}: ${payload.result.conflicts} conflict${payload.result.conflicts === 1 ? "" : "s"} kept as separate copies.`)
+        if (payload.result.conflicts > 0) void sendDesktopNotification("Sync conflict needs attention", `${pair.remoteFolderName}: ${payload.result.conflicts} pending conflict${payload.result.conflicts === 1 ? "" : "s"}.`)
       }
     }).then((unlisten) => {
       if (disposed) unlisten()
@@ -204,9 +222,34 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
       disposed = true
       cleanups.forEach((cleanup) => cleanup())
     }
-  }, [runAll])
+  }, [refreshConflicts, runAll])
 
-  const value = useMemo<DesktopSyncContextValue>(() => ({ pairs, runtimes, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll }), [pairs, runtimes, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll])
+  const resolveConflict = useCallback(async (pairId: string, conflictId: string, resolution: SyncConflictResolution) => {
+    if (runningRef.current.has(pairId)) return undefined
+    const pair = pairs.find((item) => item.id === pairId)
+    if (!pair) return undefined
+    runningRef.current.add(pairId)
+    const startedAt = Date.now()
+    setRuntimes((current) => ({ ...current, [pairId]: { ...current[pairId], status: "syncing", lastStartedAt: startedAt, error: undefined } }))
+    try {
+      const result = await resolveNativeSyncConflict(pair, conflictId, resolution)
+      const finishedAt = Date.now()
+      setRuntimes((current) => ({ ...current, [pairId]: { status: "idle", lastStartedAt: startedAt, lastFinishedAt: finishedAt, nextRunAt: finishedAt + pair.intervalSeconds * 1000, lastResult: result } }))
+      await refreshConflicts()
+      window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId, result } }))
+      return result
+    } catch (cause) {
+      const message = syncErrorMessage(cause)
+      const finishedAt = Date.now()
+      setRuntimes((current) => ({ ...current, [pairId]: { ...current[pairId], status: "error", lastStartedAt: startedAt, lastFinishedAt: finishedAt, error: message } }))
+      throw cause
+    } finally {
+      runningRef.current.delete(pairId)
+    }
+  }, [pairs, refreshConflicts])
+
+  const openLocalPath = useCallback((localPath: string) => openNativeSyncPath(localPath), [])
+  const value = useMemo<DesktopSyncContextValue>(() => ({ pairs, runtimes, conflicts, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll, refreshConflicts, resolveConflict, openLocalPath }), [pairs, runtimes, conflicts, loading, error, addPair, updatePair, removePair, resetPairState, runPair, runAll, refreshConflicts, resolveConflict, openLocalPath])
   return <DesktopSyncContext.Provider value={value}>{children}</DesktopSyncContext.Provider>
 }
 

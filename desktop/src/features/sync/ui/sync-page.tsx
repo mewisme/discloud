@@ -3,10 +3,11 @@ import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Switch } from "@discloud/ui/components/switch"
-import { FolderSyncIcon, Loader2Icon, PencilIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
+import { FolderOpenIcon, FolderSyncIcon, Loader2Icon, PencilIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { useState } from "react"
 
 import type { SyncDirection, SyncPair, SyncPairRuntime, SyncRunResult } from "../core/types"
+import { DesktopSyncConflictCenter } from "./sync-conflict-center"
 import { DesktopSyncPairDialog, intervalLabel } from "./sync-pair-dialog"
 import { useDesktopSync } from "./sync-provider"
 
@@ -54,6 +55,8 @@ export function DesktopSyncPage() {
         <AlertDescription>Each local subtree and each DisCloud subtree can belong to only one sync pair. Overlapping roots are rejected before configuration is saved.</AlertDescription>
       </Alert>
 
+      <DesktopSyncConflictCenter />
+
       {sync.loading ? <div className="grid min-h-48 place-items-center text-sm text-muted-foreground"><span className="flex items-center gap-2"><Loader2Icon className="size-4 animate-spin" />Loading sync pairs</span></div> : null}
 
       {!sync.loading && sync.pairs.length === 0 ? (
@@ -95,6 +98,7 @@ export function DesktopSyncPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
                   <p className="text-xs text-muted-foreground">{runtime?.nextRunAt && pair.enabled ? `Next automatic sync ${formatTime(runtime.nextRunAt)}` : pair.enabled ? "Waiting for automatic sync" : "Automatic sync paused"}</p>
                   <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => void sync.openLocalPath(pair.localPath).catch((error) => setActionError(errorMessage(error)))}><FolderOpenIcon />Open local folder</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => void reset(pair)}><RotateCcwIcon />Reset baseline</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(pair)}><PencilIcon />Edit settings</Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove(pair)}><Trash2Icon />Remove</Button>
@@ -121,7 +125,7 @@ function SyncStatusBadge({ pair, runtime }: { pair: SyncPair; runtime?: SyncPair
 
 function ResultSummary({ result, finishedAt }: { result: SyncRunResult; finishedAt?: number }) {
   const changes = result.uploaded + result.downloaded + result.remoteDeleted + result.localDeleted + result.createdRemoteFolders + result.createdLocalFolders
-  return <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground"><span>{finishedAt ? `Synced ${formatTime(finishedAt)}` : "Last sync"}</span><span>{changes} change{changes === 1 ? "" : "s"}</span><span>{result.uploaded} uploaded</span><span>{result.downloaded} downloaded</span>{result.conflicts > 0 ? <span className="font-medium text-foreground">{result.conflicts} conflict{result.conflicts === 1 ? "" : "s"} preserved</span> : null}</div>
+  return <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground"><span>{finishedAt ? `Synced ${formatTime(finishedAt)}` : "Last sync"}</span><span>{changes} change{changes === 1 ? "" : "s"}</span><span>{result.uploaded} uploaded</span><span>{result.downloaded} downloaded</span>{result.conflicts > 0 ? <span className="font-medium text-foreground">{result.conflicts} pending conflict{result.conflicts === 1 ? "" : "s"}</span> : null}</div>
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

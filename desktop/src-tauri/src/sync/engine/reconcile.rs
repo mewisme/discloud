@@ -7,6 +7,7 @@ async fn reconcile_file(
     remote: Option<RemoteFile>,
     previous: Option<&BaselineFile>,
     remote_directories: &BTreeMap<String, String>,
+    pending_conflicts: &mut BTreeMap<String, SyncConflict>,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
     match (local, remote) {
@@ -29,8 +30,7 @@ async fn reconcile_file(
             match pair.direction {
                 SyncDirection::TwoWay => {
                     if local_changed && remote_changed {
-                        keep_both_conflict(api, root, relative_path, &local, &remote, result)
-                            .await?;
+                        queue_sync_conflict(pair, relative_path, &local, &remote, pending_conflicts, result);
                     } else if local_changed {
                         replace_remote_file(api, &local.path, &remote, result).await?;
                     } else {
@@ -39,30 +39,14 @@ async fn reconcile_file(
                 }
                 SyncDirection::DownloadOnly => {
                     if local_changed {
-                        preserve_local_conflict(root, relative_path, &local.path).await?;
-                        result.conflicts += 1;
+                        queue_sync_conflict(pair, relative_path, &local, &remote, pending_conflicts, result);
+                    } else {
+                        download_remote_file(api, root, relative_path, &remote, result).await?;
                     }
-                    download_remote_file(api, root, relative_path, &remote, result).await?;
                 }
                 SyncDirection::UploadOnly => {
                     if remote_changed {
-                        let original_name = remote.name.clone();
-                        preserve_remote_conflict(api, &remote).await?;
-
-                        if let Err(error) = upload_local_file(
-                            api,
-                            &local.path,
-                            &remote.parent_id,
-                            &original_name,
-                            result,
-                        )
-                        .await
-                        {
-                            let _ = rename_remote_file(api, &remote.id, &original_name).await;
-                            return Err(error);
-                        }
-
-                        result.conflicts += 1;
+                        queue_sync_conflict(pair, relative_path, &local, &remote, pending_conflicts, result);
                     } else {
                         replace_remote_file(api, &local.path, &remote, result).await?;
                     }
@@ -204,6 +188,7 @@ async fn preserve_local_conflict(
     Ok((destination, final_name))
 }
 
+#[allow(dead_code)]
 async fn preserve_remote_conflict(
     api: &ApiState,
     remote: &RemoteFile,
