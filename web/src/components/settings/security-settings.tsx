@@ -168,17 +168,6 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
     actionForm.reset()
   }
 
-  async function copyRecoveryCodes() {
-    if (!recoveryCodes?.length) return
-
-    try {
-      await navigator.clipboard.writeText(recoveryCodes.join("\n"))
-      toast.success("Recovery codes copied")
-    } catch {
-      toast.error("Could not copy recovery codes")
-    }
-  }
-
   function downloadRecoveryCodes() {
     if (!recoveryCodes?.length) return
 
@@ -210,7 +199,7 @@ export function SecuritySettings({ initialEnabled }: { initialEnabled: boolean }
       {recoveryCodes && (
         <RecoveryCodes
           codes={recoveryCodes}
-          onCopy={() => void copyRecoveryCodes()}
+          onCopyError={() => toast.error("Could not copy recovery codes")}
           onDownload={downloadRecoveryCodes}
           onDismiss={() => setRecoveryCodes(undefined)}
         />

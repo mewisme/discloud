@@ -3,10 +3,11 @@ import { APIError } from "@discloud/api/types"
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
+import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Input } from "@discloud/ui/components/input"
 import { save } from "@tauri-apps/plugin-dialog"
-import { CheckIcon, ClipboardIcon, DownloadIcon, KeyRoundIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, ShieldOffIcon, TriangleAlertIcon } from "lucide-react"
+import { CheckIcon, DownloadIcon, KeyRoundIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, ShieldOffIcon, TriangleAlertIcon } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type FormEvent, useEffect, useState } from "react"
 
@@ -332,18 +333,7 @@ function MFACard({ enabled, enrollment, onEnrollment, onEnabled, onRecoveryCodes
 }
 
 function RecoveryCodes({ codes, onDismiss, onError }: { codes: readonly string[]; onDismiss: () => void; onError: (message?: string) => void }) {
-  const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(codes.join("\n"))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (cause) {
-      onError(errorMessage(cause))
-    }
-  }
 
   async function download() {
     setSaving(true)
@@ -367,7 +357,7 @@ function RecoveryCodes({ codes, onDismiss, onError }: { codes: readonly string[]
         <p>Each code can be used once. DisCloud will not show this set again after you dismiss it.</p>
         <div className="grid gap-1 rounded-lg border bg-muted/50 p-3 font-mono text-xs sm:grid-cols-2">{codes.map((code) => <code key={code}>{code}</code>)}</div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => void copy()}><ClipboardIcon />{copied ? "Copied" : "Copy"}</Button>
+          <CopyButton value={codes.join("\n")} label="Copy recovery codes" type="button" size="sm" variant="outline" onCopyError={(cause) => onError(errorMessage(cause))}>Copy</CopyButton>
           <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void download()}>{saving ? <Loader2Icon className="animate-spin" /> : <DownloadIcon />}{saving ? "Saving..." : "Download"}</Button>
           <Button type="button" size="sm" variant="ghost" onClick={onDismiss}><CheckIcon />I saved them</Button>
         </div>

@@ -1,15 +1,16 @@
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Button } from "@discloud/ui/components/button"
-import { CheckIcon, ClipboardIcon, DownloadIcon, KeyRoundIcon } from "lucide-react"
+import { CopyButton } from "@discloud/ui/components/copy-button"
+import { CheckIcon, DownloadIcon, KeyRoundIcon } from "lucide-react"
 
 export function RecoveryCodes({
   codes,
-  onCopy,
+  onCopyError,
   onDownload,
   onDismiss,
 }: {
   codes: readonly string[]
-  onCopy: () => void
+  onCopyError: (error: unknown) => void
   onDownload: () => void
   onDismiss: () => void
 }) {
@@ -25,10 +26,7 @@ export function RecoveryCodes({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onCopy}>
-            <ClipboardIcon />
-            Copy
-          </Button>
+          <CopyButton value={codes.join("\n")} label="Copy recovery codes" type="button" size="sm" variant="outline" onCopyError={onCopyError}>Copy</CopyButton>
           <Button type="button" size="sm" variant="outline" onClick={onDownload}>
             <DownloadIcon />
             Download

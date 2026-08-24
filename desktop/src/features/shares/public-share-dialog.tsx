@@ -4,9 +4,10 @@ import { PublicShareSettings } from "@discloud/app-ui/shares/public-share-settin
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@discloud/ui/components/alert-dialog"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
+import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@discloud/ui/components/dialog"
 import { Input } from "@discloud/ui/components/input"
-import { CopyIcon, Globe2Icon, Loader2Icon, RefreshCwIcon, Trash2Icon } from "lucide-react"
+import { Globe2Icon, Loader2Icon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 
@@ -34,7 +35,6 @@ export function DesktopPublicShareDialog({
   const [share, setShare] = useState<Share>()
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [revokeOpen, setRevokeOpen] = useState(false)
   const [error, setError] = useState<string>()
   const open = controlledOpen ?? internalOpen
@@ -83,7 +83,6 @@ export function DesktopPublicShareDialog({
     onOpenChange?.(next)
 
     if (!next) {
-      setCopied(false)
       setError(undefined)
     }
   }
@@ -127,18 +126,6 @@ export function DesktopPublicShareDialog({
       setError(errorMessage(cause))
     } finally {
       setPending(false)
-    }
-  }
-
-  async function copy() {
-    if (!publicURL) return
-
-    try {
-      await navigator.clipboard.writeText(publicURL)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (cause) {
-      setError(errorMessage(cause))
     }
   }
 
@@ -206,12 +193,9 @@ export function DesktopPublicShareDialog({
 
                 <div className="flex gap-2">
                   <Input readOnly value={publicURL} className="font-mono text-xs" />
-                  <Button size="icon" variant="outline" aria-label="Copy public link" onClick={() => void copy()}>
-                    <CopyIcon />
-                  </Button>
+                  <CopyButton value={publicURL} label="Copy public link" size="icon" variant="outline" onCopyError={(cause) => setError(errorMessage(cause))} />
                 </div>
 
-                {copied ? <p className="mt-2 text-xs text-muted-foreground">Copied.</p> : null}
               </div>
 
               <PublicShareSettings share={share} pending={pending} onSave={saveSettings} onRevokeSessions={revokeSessions} />

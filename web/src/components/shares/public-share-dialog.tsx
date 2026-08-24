@@ -5,9 +5,10 @@ import { PublicShareSettings } from "@discloud/app-ui/shares/public-share-settin
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@discloud/ui/components/alert-dialog"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
+import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@discloud/ui/components/dialog"
 import { Input } from "@discloud/ui/components/input"
-import { CopyIcon, ExternalLinkIcon, Globe2Icon, Loader2Icon, RefreshCwIcon, Trash2Icon } from "lucide-react"
+import { ExternalLinkIcon, Globe2Icon, Loader2Icon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -116,17 +117,6 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
     }
   }
 
-  async function copy() {
-    if (!publicPath) return
-
-    try {
-      await navigator.clipboard.writeText(new URL(publicPath, window.location.origin).toString())
-      toast.success("Public link copied")
-    } catch {
-      toast.error("Could not copy link")
-    }
-  }
-
   async function revoke() {
     if (!share) return
     setPending(true)
@@ -196,9 +186,7 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
 
               <div className="flex gap-2">
                 <Input readOnly value={publicPath} className="font-mono text-xs" />
-                <Button size="icon" variant="outline" aria-label="Copy public link" onClick={() => void copy()}>
-                  <CopyIcon />
-                </Button>
+                <CopyButton value={() => new URL(publicPath, window.location.origin).toString()} label="Copy public link" size="icon" variant="outline" onCopyError={() => toast.error("Could not copy link")} />
               </div>
             </div>
 
