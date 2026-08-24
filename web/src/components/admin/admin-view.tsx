@@ -1,6 +1,6 @@
 "use client"
 
-import { ShieldCheckIcon } from "lucide-react"
+import { AdminPageHeader } from "@discloud/app-ui/admin/admin-page-header"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -74,20 +74,7 @@ export function AdminView({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheckIcon className="size-6" />
-            <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-          </div>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage users and inspect DisCloud storage state.
-          </p>
-        </div>
-
-        <CreateUserDialog onCreated={userCreated} />
-      </div>
+      <AdminPageHeader action={<CreateUserDialog onCreated={userCreated} />} />
 
       <section className="space-y-3">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">

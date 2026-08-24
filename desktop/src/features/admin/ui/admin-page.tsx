@@ -1,4 +1,5 @@
 import type { AdminUser, ListUsersQuery, QuotaReconciliationPage, StorageOverview } from "@discloud/api/models"
+import { AdminPageHeader } from "@discloud/app-ui/admin/admin-page-header"
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
@@ -6,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@discloud/ui/component
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@discloud/ui/components/dialog"
 import { Progress } from "@discloud/ui/components/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
-import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, TriangleAlertIcon, UsersIcon } from "lucide-react"
+import { DatabaseIcon, FileIcon, HardDriveIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, UsersIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 
 import { useDesktopSession } from "#components/desktop-session"
@@ -88,13 +89,7 @@ export function DesktopAdminPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex items-center gap-2"><ShieldCheckIcon className="size-6" /><h1 className="text-2xl font-semibold tracking-tight">Admin</h1></div>
-          <p className="mt-1 text-sm text-muted-foreground">Manage users and inspect DisCloud storage state.</p>
-        </div>
-        <CreateAdminUserDialog onCreated={() => load(0)} />
-      </div>
+      <AdminPageHeader action={<CreateAdminUserDialog onCreated={() => load(0)} />} />
 
       {error ? <Alert variant="destructive"><TriangleAlertIcon /><AlertTitle>Admin action failed</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
 

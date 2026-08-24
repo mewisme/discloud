@@ -1,18 +1,20 @@
 "use client"
 
+import { SearchResultsTable } from "@discloud/app-ui/search/search-results-table"
 import { type SearchOptions, searchRequestQuery } from "@discloud/shared/search"
 import { Button } from "@discloud/ui/components/button"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@discloud/ui/components/table"
-import { Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
+import { DownloadIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { useWorkspace } from "@/components/app/workspace-context"
+import { DateTime } from "@/components/common/date-time"
 import { PaginationTrigger } from "@/components/common/pagination-trigger"
-import { SearchResultRow } from "@/components/search/search-result-row"
 import { apiJSON } from "@/lib/api/client"
 import type { SearchPage, SearchQuery, SearchResult } from "@/lib/api/models"
 import { APIError } from "@/lib/api/types"
+import { fileBrowserPath, folderBrowserPath } from "@/lib/files/navigation"
 import { apiErrorMessage } from "@/lib/helpers"
 
 export function SearchResults({ options, admin }: { options: SearchOptions; admin: boolean }) {
@@ -28,137 +30,41 @@ export function SearchResults({ options, admin }: { options: SearchOptions; admi
 
   useEffect(() => {
     const controller = new AbortController()
-
     async function load() {
       try {
         const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspace.id, admin), signal: controller.signal })
-        setResults([...page.results])
-        setNextCursor(page.nextCursor)
+        setResults([...page.results]); setNextCursor(page.nextCursor)
       } catch (cause) {
         if (controller.signal.aborted) return
-        if (cause instanceof APIError && cause.status === 401) {
-          router.replace("/login")
-          router.refresh()
-          return
-        }
+        if (cause instanceof APIError && cause.status === 401) { router.replace("/login"); router.refresh(); return }
         setError(apiErrorMessage(cause, "Could not search files"))
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
+      } finally { if (!controller.signal.aborted) setLoading(false) }
     }
-
     void load()
-    return () => {
-      controller.abort()
-      moreController.current?.abort()
-    }
+    return () => { controller.abort(); moreController.current?.abort() }
   }, [admin, options, retryKey, router, workspace.id])
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
-
-    const controller = new AbortController()
-    moreController.current?.abort()
-    moreController.current = controller
-    setError(undefined)
-    setLoadingMore(true)
-
+    const controller = new AbortController(); moreController.current?.abort(); moreController.current = controller; setError(undefined); setLoadingMore(true)
     try {
       const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspace.id, admin, nextCursor), signal: controller.signal })
-      setResults((current) => appendUniqueResults(current, page.results))
-      setNextCursor(page.nextCursor)
+      setResults((current) => appendUniqueResults(current, page.results)); setNextCursor(page.nextCursor)
     } catch (cause) {
       if (controller.signal.aborted) return
-      if (cause instanceof APIError && cause.status === 401) {
-        router.replace("/login")
-        router.refresh()
-        return
-      }
-      setError(apiErrorMessage(cause, "Could not load more results"))
-      throw cause
-    } finally {
-      if (moreController.current === controller) {
-        moreController.current = null
-        setLoadingMore(false)
-      }
-    }
+      if (cause instanceof APIError && cause.status === 401) { router.replace("/login"); router.refresh(); return }
+      setError(apiErrorMessage(cause, "Could not load more results")); throw cause
+    } finally { if (moreController.current === controller) { moreController.current = null; setLoadingMore(false) } }
   }
 
-  function retry() {
-    setError(undefined)
-    setLoading(true)
-    setRetryKey((current) => current + 1)
-  }
+  function retry() { setError(undefined); setLoading(true); setRetryKey((current) => current + 1) }
+  if (loading) return <div className="grid min-h-64 place-items-center rounded-xl border"><div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" aria-hidden />Searching…</div></div>
+  if (error && results.length === 0) return <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center"><div className="space-y-3"><div role="alert"><p className="font-medium">Search unavailable</p><p className="mt-1 text-sm text-muted-foreground">{error}</p></div><Button size="sm" variant="outline" onClick={retry}><RefreshCwIcon />Try again</Button></div></div>
+  if (results.length === 0) return <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center"><div><SearchIcon className="mx-auto mb-3 size-9 text-muted-foreground" /><p className="font-medium">{options.q ? "No matching items" : "No files or folders found"}</p><p className="mt-1 text-sm text-muted-foreground">{options.q ? "Try a different query or remove some filters." : "Files and folders will appear here when available."}</p></div></div>
 
-  if (loading) {
-    return (
-      <div className="grid min-h-64 place-items-center rounded-xl border">
-        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" aria-hidden />Searching…</div>
-      </div>
-    )
-  }
-
-  if (error && results.length === 0) {
-    return (
-      <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center">
-        <div className="space-y-3">
-          <div role="alert">
-            <p className="font-medium">Search unavailable</p>
-            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-          </div>
-          <Button size="sm" variant="outline" onClick={retry}><RefreshCwIcon />Try again</Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (results.length === 0) {
-    return (
-      <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center">
-        <div>
-          <SearchIcon className="mx-auto mb-3 size-9 text-muted-foreground" />
-          <p className="font-medium">{options.q ? "No matching items" : "No files or folders found"}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{options.q ? "Try a different query or remove some filters." : "Files and folders will appear here when available."}</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="sr-only" role="status" aria-live="polite">{results.length} result{results.length === 1 ? "" : "s"} loaded.</p>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-
-      <div className="overflow-hidden rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Type</TableHead>
-              <TableHead className="hidden sm:table-cell">Access</TableHead>
-              <TableHead className="hidden w-32 lg:table-cell">Size</TableHead>
-              <TableHead className="hidden w-44 xl:table-cell">Modified</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>{results.map((result) => <SearchResultRow key={result.id} result={result} />)}</TableBody>
-        </Table>
-      </div>
-
-      {nextCursor && <PaginationTrigger loadKey={nextCursor} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more results…" />}
-    </div>
-  )
+  return <div className="space-y-4"><p className="sr-only" role="status" aria-live="polite">{results.length} result{results.length === 1 ? "" : "s"} loaded.</p>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}<SearchResultsTable results={results} renderLink={(result, className, children) => <Link href={resultHref(workspace.username, result)} className={className}>{children}</Link>} renderModified={(result) => <DateTime value={result.updatedAt} />} renderActions={(result) => result.kind === "file" ? <Button size="icon-sm" variant="ghost" asChild><a href={`/api/backend/api/v1/files/${encodeURIComponent(result.id)}/download`} aria-label={`Download ${result.name}`} title="Download"><DownloadIcon /></a></Button> : null} />{nextCursor ? <PaginationTrigger loadKey={nextCursor} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more results…" /> : null}</div>
 }
 
-function searchQuery(options: SearchOptions, ownerId: string, admin: boolean, cursor?: string): SearchQuery {
-  return { ...searchRequestQuery(options, admin), ownerId, limit: 50, cursor }
-}
-
-function appendUniqueResults(current: readonly SearchResult[], incoming: readonly SearchResult[]) {
-  const ids = new Set(current.map((result) => result.id))
-  return [...current, ...incoming.filter((result) => {
-    if (ids.has(result.id)) return false
-    ids.add(result.id)
-    return true
-  })]
-}
+function resultHref(username: string, result: SearchResult) { return result.kind === "folder" ? folderBrowserPath(username, result.id) : fileBrowserPath(username, result.id) }
+function searchQuery(options: SearchOptions, ownerId: string, admin: boolean, cursor?: string): SearchQuery { return { ...searchRequestQuery(options, admin), ownerId, limit: 50, cursor } }
+function appendUniqueResults(current: readonly SearchResult[], incoming: readonly SearchResult[]) { const ids = new Set(current.map((result) => result.id)); return [...current, ...incoming.filter((result) => { if (ids.has(result.id)) return false; ids.add(result.id); return true })] }

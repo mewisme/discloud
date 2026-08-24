@@ -5,13 +5,18 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./admin/*": "./src/admin/ui/*.tsx",
     "./auth/*": "./src/auth/ui/*.tsx",
+    "./collections/*": "./src/collections/ui/*.tsx",
+    "./favorites/*": "./src/favorites/ui/*.tsx",
     "./files/file-browser": "./src/files/core/file-browser.ts",
     "./files/*": "./src/files/ui/*.tsx",
     "./search/*": "./src/search/ui/*.tsx",
+    "./shared/*": "./src/shared/ui/*.tsx",
     "./settings/*": "./src/settings/ui/*.tsx",
     "./shell/navigation": "./src/shell/core/navigation.ts",
-    "./shell/*": "./src/shell/ui/*.tsx"
+    "./shell/*": "./src/shell/ui/*.tsx",
+    "./trash/*": "./src/trash/ui/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
