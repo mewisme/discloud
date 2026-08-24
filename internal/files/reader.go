@@ -15,6 +15,7 @@ var ErrStorageInvariant = errors.New("file storage invariant violated")
 
 type chunk struct {
 	SizeBytes int64
+	SHA256    [32]byte
 	Location  blobstore.ChunkLocation
 }
 
@@ -188,6 +189,7 @@ func (s *Service) chunkWindow(ctx context.Context, fileID string, start, end int
 		SELECT
 			fc.part_index,
 			fc.part_size_bytes,
+			c.sha256,
 			c.discord_channel_id,
 			c.discord_message_id,
 			c.discord_attachment_id
@@ -210,10 +212,12 @@ func (s *Service) chunkWindow(ctx context.Context, fileID string, start, end int
 	for rows.Next() {
 		var partIndex int
 		var part chunk
+		var sha256 []byte
 
 		if err := rows.Scan(
 			&partIndex,
 			&part.SizeBytes,
+			&sha256,
 			&part.Location.DiscordChannelID,
 			&part.Location.DiscordMessageID,
 			&part.Location.DiscordAttachmentID,
@@ -223,6 +227,10 @@ func (s *Service) chunkWindow(ctx context.Context, fileID string, start, end int
 		if partIndex != expectedIndex {
 			return nil, fmt.Errorf("%w: expected chunk %d, got %d", ErrStorageInvariant, expectedIndex, partIndex)
 		}
+		if len(sha256) != len(part.SHA256) {
+			return nil, fmt.Errorf("%w: chunk %d has invalid SHA-256", ErrStorageInvariant, partIndex)
+		}
+		copy(part.SHA256[:], sha256)
 
 		window = append(window, part)
 		expectedIndex++

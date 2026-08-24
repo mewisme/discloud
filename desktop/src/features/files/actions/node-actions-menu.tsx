@@ -55,7 +55,7 @@ export function DesktopNodeActionsMenu({ node, folder, breadcrumbs, page, favori
         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${node.name}`}><MoreHorizontalIcon /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onSelect={() => onOpen(node)}><FolderOpenIcon />Open</DropdownMenuItem>
-          {node.kind === "file" ? <DropdownMenuItem onSelect={() => void onDownload(node)}><DownloadIcon />Download</DropdownMenuItem> : null}
+          <DropdownMenuItem onSelect={() => void onDownload(node)}><DownloadIcon />Download</DropdownMenuItem>
           {hasSecondaryActions ? <DropdownMenuSeparator /> : null}
           {editable ? <><DropdownMenuItem onSelect={() => setRenameOpen(true)}><PencilIcon />Rename</DropdownMenuItem><DropdownMenuItem onSelect={() => setMoveOpen(true)}><MoveIcon />Move</DropdownMenuItem></> : null}
           {syncable ? <>{editable ? <DropdownMenuSeparator /> : null}<DropdownMenuItem onSelect={() => setSyncOpen(true)}><FolderSyncIcon />{syncPair ? "Sync settings" : "Sync"}</DropdownMenuItem></> : null}
@@ -99,7 +99,7 @@ export function DesktopNodeContextMenu({ node, targets, children, favoritePendin
         <ContextMenuTrigger asChild onContextMenu={(event) => event.stopPropagation()}>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           {!single ? <ContextMenuLabel>{targets.length} selected</ContextMenuLabel> : null}
-          {single ? <><ContextMenuItem onSelect={() => onOpen(node)}><FolderOpenIcon />Open</ContextMenuItem>{node.kind === "file" ? <ContextMenuItem onSelect={() => void onDownload(node)}><DownloadIcon />Download</ContextMenuItem> : null}<ContextMenuSeparator /></> : null}
+          {single ? <><ContextMenuItem onSelect={() => onOpen(node)}><FolderOpenIcon />Open</ContextMenuItem><ContextMenuItem onSelect={() => void onDownload(node)}><DownloadIcon />Download</ContextMenuItem><ContextMenuSeparator /></> : null}
           {single && editable ? <ContextMenuItem onSelect={() => setRenameOpen(true)}><PencilIcon />Rename</ContextMenuItem> : null}
           {canMove ? <ContextMenuItem onSelect={() => onMove(targets)}><MoveIcon />{single ? "Move" : `Move ${targets.length} items`}</ContextMenuItem> : null}
           {syncable ? <ContextMenuItem onSelect={() => setSyncOpen(true)}><FolderSyncIcon />{syncPair ? "Sync settings" : "Sync"}</ContextMenuItem> : null}

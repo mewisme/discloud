@@ -111,6 +111,11 @@ func (s *Store) ResolveAttachmentURL(ctx context.Context, location blobstore.Loc
 	return rawURL, expiresAt, nil
 }
 
+func (s *Store) RefreshAttachmentURL(ctx context.Context, location blobstore.Location) (string, time.Time, error) {
+	s.cdnURLs.Delete(location)
+	return s.ResolveAttachmentURL(ctx, location)
+}
+
 func (s *Store) resolveAttachmentURL(ctx context.Context, location blobstore.Location) (string, time.Time, error) {
 	excluded := make([]string, 0, s.scheduler.Len())
 	var lastErr error

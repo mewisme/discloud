@@ -58,6 +58,7 @@ pub fn run() {
             commands::connect_server,
             commands::disconnect_server,
             commands::download_file,
+            commands::download_folder,
             commands::get_download_snapshot,
             commands::start_download,
             commands::retry_download_task,

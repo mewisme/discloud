@@ -1,5 +1,5 @@
-import { convertFileSrc } from "@tauri-apps/api/core"
-import { save } from "@tauri-apps/plugin-dialog"
+import { convertFileSrc, invoke } from "@tauri-apps/api/core"
+import { open, save } from "@tauri-apps/plugin-dialog"
 
 import { nativeError } from "#lib/api/transport"
 
@@ -16,6 +16,16 @@ export function nativeFileContentURL(fileId: string, collectionId?: string) {
     : `files/${fileId}`
 
   return convertFileSrc(resource, "discloud")
+}
+
+export async function downloadNativeFolder(folder: NativeFile) {
+  try {
+    const destination = await open({ title: `Download ${folder.name} to`, directory: true, multiple: false })
+    if (!destination) return undefined
+    await invoke("download_folder", { folderId: folder.id, destination })
+  } catch (error) {
+    throw nativeError(error)
+  }
 }
 
 export async function downloadNativeFile(file: NativeFile, collectionId?: string) {

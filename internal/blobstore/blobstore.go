@@ -79,6 +79,14 @@ type DirectObjectStore interface {
 	DeleteObject(ctx context.Context, location Location) error
 }
 
+type AttachmentURLResolver interface {
+	ResolveAttachmentURL(ctx context.Context, location Location) (rawURL string, expiresAt time.Time, err error)
+}
+
+type AttachmentURLRefresher interface {
+	RefreshAttachmentURL(ctx context.Context, location Location) (rawURL string, expiresAt time.Time, err error)
+}
+
 type TechnicalBlobStore interface {
 	DeleteChunk(ctx context.Context, location ChunkLocation) error
 }

@@ -22,7 +22,7 @@ import { DesktopFileSelectionToolbar } from "./actions/selection-toolbar"
 import { DesktopTrashNodesDialog } from "./actions/trash-nodes-dialog"
 import { type DesktopFileBrowserData, loadDesktopFileBrowser, loadFolderChildren } from "./api"
 import { DesktopFileBrowserToolbar } from "./browser/file-browser-toolbar"
-import { downloadNativeFile } from "./native"
+import { downloadNativeFile, downloadNativeFolder } from "./native"
 
 type BrowserState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileBrowserData }
 
@@ -164,10 +164,10 @@ export function DesktopFilesPage() {
   }
 
   async function download(node: BrowserNode) {
-    if (node.kind !== "file") return
     setActionError(undefined)
     try {
-      await downloadNativeFile(node)
+      if (node.kind === "folder") await downloadNativeFolder(node)
+      else await downloadNativeFile(node)
     } catch (cause) {
       setActionError(errorMessage(cause))
     }

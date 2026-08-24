@@ -34,136 +34,28 @@ async fn run_download(
 ) -> Result<(), DownloadRunError> {
     let (file_id, collection_id, destination, cancel, cancel_notify) = {
         let inner = engine.lock()?;
-        let task = inner
-            .tasks
-            .get(task_id)
-            .ok_or_else(|| ApiCommandError::invalid_request("Download task not found."))?;
-
-        (
-            task.file_id.clone(),
-            task.collection_id.clone(),
-            task.destination.clone(),
-            Arc::clone(&task.cancel),
-            Arc::clone(&task.cancel_notify),
-        )
+        let task = inner.tasks.get(task_id).ok_or_else(|| ApiCommandError::invalid_request("Download task not found."))?;
+        (task.file_id.clone(), task.collection_id.clone(), task.destination.clone(), Arc::clone(&task.cancel), Arc::clone(&task.cancel_notify))
     };
-
-    if cancel.load(Ordering::Relaxed) {
-        return Err(DownloadRunError::Cancelled);
-    }
-
-    let path = format!("/api/v1/files/{file_id}/download");
-    let query = collection_id
-        .as_deref()
-        .map(|id| vec![("collectionId".to_string(), id.to_string())])
-        .unwrap_or_default();
-    let mut response = tokio::select! {
-        _ = cancel_notify.notified() => return Err(DownloadRunError::Cancelled),
-        result = api.raw_request(Method::GET, &path, query, Vec::new()) => result?,
-    };
-
-    if cancel.load(Ordering::Relaxed) {
-        return Err(DownloadRunError::Cancelled);
-    }
-
-    if !response.status().is_success() {
-        return Err(response_error(response).await.into());
-    }
-
-    if cancel.load(Ordering::Relaxed) {
-        return Err(DownloadRunError::Cancelled);
-    }
-
-    let total_bytes = response.content_length();
-    mutate_task(app, engine, task_id, |task| {
-        task.status = DownloadTaskStatus::Downloading;
-        task.total_bytes = total_bytes;
-        task.started_at = Some(now_millis());
-        task.finished_at = None;
-        task.error = None;
-        Ok(())
-    })?;
-
-    let temporary = temporary_download_path(&destination, task_id)?;
-    let _ = fs::remove_file(&temporary).await;
-    let mut output = File::create_new(&temporary).await.map_err(|error| {
-        ApiCommandError::internal(format!("Could not create download file: {error}"))
-    })?;
-    let mut downloaded_bytes = 0u64;
+    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Downloading; task.started_at = Some(now_millis()); task.finished_at = None; task.error = None; Ok(()) })?;
     let mut sample_bytes = 0u64;
     let mut sample_started = Instant::now();
-
-    let result: Result<(), DownloadRunError> = async {
-        loop {
-            if cancel.load(Ordering::Relaxed) {
-                return Err(DownloadRunError::Cancelled);
-            }
-
-            let chunk = tokio::select! {
-                _ = cancel_notify.notified() => return Err(DownloadRunError::Cancelled),
-                result = response.chunk() => result.map_err(|error| ApiCommandError::network("Download failed", error))?,
-            };
-            let Some(chunk) = chunk else { break };
-
-            output.write_all(&chunk).await.map_err(|error| {
-                ApiCommandError::internal(format!("Could not write download file: {error}"))
-            })?;
-            downloaded_bytes += chunk.len() as u64;
-
-            let elapsed = sample_started.elapsed();
-            let complete = total_bytes.is_some_and(|total| downloaded_bytes >= total);
-            if elapsed >= PROGRESS_INTERVAL || complete {
-                let delta = downloaded_bytes.saturating_sub(sample_bytes);
-                let speed = speed_bytes_per_second(delta, elapsed);
-                let eta = eta_seconds(downloaded_bytes, total_bytes, speed);
-                update_progress(app, engine, task_id, downloaded_bytes, total_bytes, speed, eta)?;
-                sample_bytes = downloaded_bytes;
-                sample_started = Instant::now();
-            }
+    let result = direct::download_file_direct(api, &file_id, collection_id.as_deref(), &destination, Some((cancel, cancel_notify)), |downloaded, total| {
+        let elapsed = sample_started.elapsed();
+        if elapsed >= PROGRESS_INTERVAL || downloaded >= total {
+            let speed = speed_bytes_per_second(downloaded.saturating_sub(sample_bytes), elapsed);
+            let eta = eta_seconds(downloaded, Some(total), speed);
+            update_progress(app, engine, task_id, downloaded, Some(total), speed, eta)?;
+            sample_bytes = downloaded; sample_started = Instant::now();
         }
-
-        if cancel.load(Ordering::Relaxed) {
-            return Err(DownloadRunError::Cancelled);
-        }
-
-        output.flush().await.map_err(|error| {
-            ApiCommandError::internal(format!("Could not flush download file: {error}"))
-        })?;
-
-        if total_bytes.is_some_and(|expected| expected != downloaded_bytes) {
-            return Err(ApiCommandError::internal("Downloaded file size does not match the server response.").into());
-        }
-
         Ok(())
-    }
-    .await;
-
-    drop(output);
-
-    if let Err(error) = result {
-        let _ = fs::remove_file(&temporary).await;
-        return Err(error);
-    }
-
-    if let Err(error) = fs::rename(&temporary, &destination).await {
-        let _ = fs::remove_file(&temporary).await;
-        return Err(ApiCommandError::internal(format!(
-            "Could not finalize download file: {error}"
-        ))
-        .into());
-    }
-
-    mutate_task(app, engine, task_id, |task| {
-        task.status = DownloadTaskStatus::Completed;
-        task.downloaded_bytes = downloaded_bytes;
-        task.total_bytes = total_bytes.or(Some(downloaded_bytes));
-        task.bytes_per_second = None;
-        task.eta_seconds = Some(0);
-        task.error = None;
-        task.finished_at = Some(now_millis());
-        Ok(())
-    })?;
-
+    }).await;
+    let downloaded = match result {
+        Ok(bytes) => bytes,
+        Err(direct::DirectDownloadError::Cancelled) => return Err(DownloadRunError::Cancelled),
+        Err(direct::DirectDownloadError::Failed(error)) => return Err(DownloadRunError::Failed(error)),
+    };
+    mutate_task(app, engine, task_id, |task| { task.status = DownloadTaskStatus::Completed; task.downloaded_bytes = downloaded; task.total_bytes = Some(downloaded); task.bytes_per_second = None; task.eta_seconds = Some(0); task.error = None; task.finished_at = Some(now_millis()); Ok(()) })?;
     Ok(())
 }
 
@@ -297,16 +189,6 @@ fn validate_destination(destination: String) -> Result<PathBuf, ApiCommandError>
     }
 
     Ok(destination)
-}
-
-fn temporary_download_path(destination: &Path, task_id: &str) -> Result<PathBuf, ApiCommandError> {
-    let original = destination.file_name().ok_or_else(|| {
-        ApiCommandError::invalid_request("Download destination must be a file path.")
-    })?;
-    let mut file_name = OsString::from(".");
-    file_name.push(original);
-    file_name.push(format!(".{task_id}.part"));
-    Ok(destination.with_file_name(file_name))
 }
 
 fn speed_bytes_per_second(bytes: u64, elapsed: Duration) -> Option<u64> {

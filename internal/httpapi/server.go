@@ -129,6 +129,7 @@ func NewRouter(
 
 	if deps.Files != nil && deps.Auth != nil {
 		registerFileRoutes(mux, deps.Files, deps.Collections, deps.Auth, authConfig)
+		registerDesktopDownloadRoutes(mux, deps.Files, deps.Folders, deps.Collections, deps.Auth, authConfig)
 	}
 
 	if deps.Thumbnails != nil && deps.Files != nil && deps.Auth != nil {

@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    ffi::OsString,
     path::{Path, PathBuf},
     process::Command,
     sync::{
@@ -10,16 +9,11 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use reqwest::Method;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tokio::{
-    fs::{self, File},
-    io::AsyncWriteExt,
-    sync::Notify,
-};
+use tokio::sync::Notify;
 
-use crate::api::{response_error, ApiCommandError, ApiState};
+use crate::api::{ApiCommandError, ApiState};
 
 const SNAPSHOT_EVENT: &str = "discloud-download-snapshot";
 const TASK_EVENT: &str = "discloud-download-task";
@@ -344,5 +338,9 @@ pub(crate) fn reset(app: &AppHandle, engine: &DownloadEngineState) -> Result<(),
         ApiCommandError::internal(format!("Could not emit download reset: {error}"))
     })
 }
+
+mod direct;
+
+pub(crate) use direct::download_folder_direct;
 
 include!("runner.rs");

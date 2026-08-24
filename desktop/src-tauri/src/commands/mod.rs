@@ -95,6 +95,15 @@ pub(crate) async fn download_file(
 }
 
 #[tauri::command]
+pub(crate) async fn download_folder(
+    state: State<'_, ApiState>,
+    folder_id: String,
+    destination: String,
+) -> Result<(), ApiCommandError> {
+    download_engine::download_folder_direct(state.inner(), folder_id, destination).await
+}
+
+#[tauri::command]
 pub(crate) fn get_download_snapshot(
     state: State<'_, DownloadEngineState>,
 ) -> Result<DownloadSnapshot, ApiCommandError> {

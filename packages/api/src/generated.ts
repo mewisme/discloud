@@ -620,6 +620,40 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/files/{fileId}/desktop-download/chunks": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Resolve a window of temporary Discord CDN chunk URLs for Desktop */
+        readonly get: operations["getDesktopFileDownloadChunks"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/files/{fileId}/desktop-download/manifest": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Desktop direct-download file manifest */
+        readonly get: operations["getDesktopFileDownloadManifest"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/files/{fileId}/download": {
         readonly parameters: {
             readonly query?: never;
@@ -740,6 +774,23 @@ export type paths = {
             readonly cookie?: never;
         };
         readonly get: operations["listFolderChildren"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/folders/{folderId}/desktop-download/manifest": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Desktop direct-download folder tree manifest */
+        readonly get: operations["getDesktopFolderDownloadManifest"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -3765,6 +3816,86 @@ export interface operations {
             readonly default: components["responses"]["Problem"];
         };
     };
+    readonly getDesktopFileDownloadChunks: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Collection access context for a collection-only file. */
+                readonly collectionId?: components["parameters"]["collectionIdQuery"];
+                readonly limit?: number;
+                readonly refresh?: boolean;
+                readonly start?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Temporary CDN URL window. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly chunks: readonly {
+                            /** Format: date-time */
+                            readonly expiresAt: string;
+                            readonly index: number;
+                            /** Format: int64 */
+                            readonly offset: number;
+                            readonly sha256: string;
+                            /** Format: int64 */
+                            readonly size: number;
+                            /** Format: uri */
+                            readonly url: string;
+                        }[];
+                        readonly nextStart?: number;
+                    };
+                };
+            };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getDesktopFileDownloadManifest: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Collection access context for a collection-only file. */
+                readonly collectionId?: components["parameters"]["collectionIdQuery"];
+            };
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Desktop direct-download file manifest. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly chunkCount: number;
+                        /** Format: int64 */
+                        readonly chunkSize: number;
+                        readonly chunkWindowSize: number;
+                        /** Format: uuid */
+                        readonly id: string;
+                        readonly name: string;
+                        readonly sha256: string;
+                        /** Format: int64 */
+                        readonly size: number;
+                    };
+                };
+            };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
     readonly downloadFile: {
         readonly parameters: {
             readonly query?: {
@@ -3940,6 +4071,39 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["NodePage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getDesktopFolderDownloadManifest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly folderId: components["parameters"]["folderId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Folder tree for native Desktop download. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly entries: readonly {
+                            /** Format: uuid */
+                            readonly fileId?: string;
+                            /** @enum {string} */
+                            readonly kind: "file" | "folder";
+                            readonly path: string;
+                            /** Format: int64 */
+                            readonly size?: number;
+                        }[];
+                    };
+                };
+            };
             readonly default: components["responses"]["Problem"];
         };
     };
