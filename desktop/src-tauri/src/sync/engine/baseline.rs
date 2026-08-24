@@ -272,11 +272,8 @@ fn join_relative(parent: &str, name: &str) -> String {
     }
 }
 
-fn relative_to_path(value: &str) -> PathBuf {
-    value.split('/').fold(PathBuf::new(), |mut path, segment| {
-        path.push(segment);
-        path
-    })
+fn relative_to_path(value: &str) -> Result<PathBuf, ApiCommandError> {
+    crate::path_security::safe_relative_path(value, "Sync relative path")
 }
 
 fn path_depth(value: &str) -> usize {
@@ -298,7 +295,7 @@ fn conflict_name(name: &str, side: &str) -> String {
 }
 
 async fn unique_path(path: PathBuf) -> Result<PathBuf, ApiCommandError> {
-    if fs::metadata(&path).await.is_err() {
+    if fs::symlink_metadata(&path).await.is_err() {
         return Ok(path);
     }
 
@@ -313,7 +310,7 @@ async fn unique_path(path: PathBuf) -> Result<PathBuf, ApiCommandError> {
 
     for index in 2..10_000 {
         let candidate = parent.join(format!("{file_name} {index}"));
-        if fs::metadata(&candidate).await.is_err() {
+        if fs::symlink_metadata(&candidate).await.is_err() {
             return Ok(candidate);
         }
     }

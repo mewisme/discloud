@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use tauri::WebviewWindow;
 use tauri_plugin_fs::FsExt;
@@ -43,6 +43,16 @@ pub(crate) async fn scoped_output_file(
 ) -> Result<PathBuf, ApiCommandError> {
     let path = absolute_path(value, label)?;
     ensure_scoped(window, &path, label)?;
+    let canonical = output_file_path(&path, label).await?;
+    ensure_scoped(window, &canonical, label)?;
+    Ok(canonical)
+}
+
+pub(crate) async fn output_file_path(path: &Path, label: &str) -> Result<PathBuf, ApiCommandError> {
+    let value = path
+        .to_str()
+        .ok_or_else(|| invalid_path(label, "must be valid UTF-8"))?;
+    let path = absolute_path(value, label)?;
     let name = path
         .file_name()
         .ok_or_else(|| invalid_path(label, "must be a file path"))?;
@@ -66,7 +76,6 @@ pub(crate) async fn scoped_output_file(
         )
     })?;
     let canonical = canonical_parent.join(name);
-    ensure_scoped(window, &canonical, label)?;
     match fs::symlink_metadata(&canonical).await {
         Ok(metadata) if metadata.file_type().is_symlink() => {
             Err(invalid_path(label, "must not be a symbolic link"))
@@ -150,6 +159,192 @@ pub(crate) async fn canonical_path_within(
     Ok(canonical)
 }
 
+pub(crate) fn safe_relative_path(value: &str, label: &str) -> Result<PathBuf, ApiCommandError> {
+    if value.is_empty() || value.as_bytes().contains(&0) {
+        return Err(invalid_path(label, "must be a non-empty relative path"));
+    }
+    #[cfg(windows)]
+    if value.contains('\\') {
+        return Err(invalid_path(label, "must use normalized path separators"));
+    }
+
+    let path = Path::new(value);
+    if path.is_absolute() {
+        return Err(invalid_path(label, "must be a relative path"));
+    }
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        let Component::Normal(segment) = component else {
+            return Err(invalid_path(label, "contains an unsafe path component"));
+        };
+        #[cfg(windows)]
+        validate_windows_component(segment, label)?;
+        normalized.push(segment);
+    }
+    if normalized.as_os_str().is_empty() {
+        return Err(invalid_path(label, "must be a non-empty relative path"));
+    }
+    Ok(normalized)
+}
+
+pub(crate) async fn checked_child_path(
+    root: &Path,
+    relative: &str,
+    label: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    let root = canonical_root(root, label).await?;
+    let relative = safe_relative_path(relative, label)?;
+    inspect_child_components(&root, &relative, label).await?;
+    Ok(root.join(relative))
+}
+
+pub(crate) async fn ensure_child_directory(
+    root: &Path,
+    relative: &str,
+    label: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    let root = canonical_root(root, label).await?;
+    let relative = safe_relative_path(relative, label)?;
+    let mut current = root;
+    for component in relative.components() {
+        let Component::Normal(segment) = component else {
+            return Err(invalid_path(label, "contains an unsafe path component"));
+        };
+        current.push(segment);
+        match fs::symlink_metadata(&current).await {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(invalid_path(
+                    label,
+                    "contains a symbolic link or non-directory component",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match fs::create_dir(&current).await {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => {
+                        return Err(invalid_path(
+                            label,
+                            format!("could not create directory: {error}"),
+                        ))
+                    }
+                }
+                let metadata = fs::symlink_metadata(&current).await.map_err(|error| {
+                    invalid_path(
+                        label,
+                        format!("could not verify created directory: {error}"),
+                    )
+                })?;
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    return Err(invalid_path(
+                        label,
+                        "created path is not a regular directory",
+                    ));
+                }
+            }
+            Err(error) => {
+                return Err(invalid_path(
+                    label,
+                    format!("could not inspect directory: {error}"),
+                ))
+            }
+        }
+    }
+    Ok(current)
+}
+
+pub(crate) async fn checked_child_output_file(
+    root: &Path,
+    relative: &str,
+    label: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    let root = canonical_root(root, label).await?;
+    let relative = safe_relative_path(relative, label)?;
+    let parent = relative
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty());
+    if let Some(parent) = parent {
+        let parent = parent
+            .to_str()
+            .ok_or_else(|| invalid_path(label, "must be valid UTF-8"))?;
+        ensure_child_directory(&root, parent, label).await?;
+    }
+    let target = root.join(&relative);
+    match fs::symlink_metadata(&target).await {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(invalid_path(label, "must not be a symbolic link"))
+        }
+        Ok(metadata) if !metadata.is_file() => {
+            Err(invalid_path(label, "must resolve to a file path"))
+        }
+        Ok(_) => Ok(target),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(target),
+        Err(error) => Err(invalid_path(
+            label,
+            format!("could not inspect destination: {error}"),
+        )),
+    }
+}
+
+async fn canonical_root(root: &Path, label: &str) -> Result<PathBuf, ApiCommandError> {
+    let metadata = fs::symlink_metadata(root).await.map_err(|error| {
+        invalid_path(label, format!("could not inspect authorized root: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(invalid_path(
+            label,
+            "authorized root must be a regular directory",
+        ));
+    }
+    fs::canonicalize(root)
+        .await
+        .map_err(|error| invalid_path(label, format!("could not resolve authorized root: {error}")))
+}
+
+async fn inspect_child_components(
+    root: &Path,
+    relative: &Path,
+    label: &str,
+) -> Result<(), ApiCommandError> {
+    let components = relative.components().collect::<Vec<_>>();
+    let mut current = root.to_path_buf();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(segment) = component else {
+            return Err(invalid_path(label, "contains an unsafe path component"));
+        };
+        current.push(segment);
+        match fs::symlink_metadata(&current).await {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(invalid_path(label, "contains a symbolic link"));
+            }
+            Ok(metadata) if index + 1 < components.len() && !metadata.is_dir() => {
+                return Err(invalid_path(
+                    label,
+                    "contains a non-directory parent component",
+                ));
+            }
+            Ok(metadata)
+                if index + 1 == components.len() && !metadata.is_file() && !metadata.is_dir() =>
+            {
+                return Err(invalid_path(
+                    label,
+                    "does not resolve to a regular file or directory",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => {
+                return Err(invalid_path(
+                    label,
+                    format!("could not inspect child path: {error}"),
+                ))
+            }
+        }
+    }
+    Ok(())
+}
+
 fn absolute_path(value: &str, label: &str) -> Result<PathBuf, ApiCommandError> {
     if value.is_empty() || value.trim() != value {
         return Err(invalid_path(
@@ -197,6 +392,39 @@ fn ensure_scoped(window: &WebviewWindow, path: &Path, label: &str) -> Result<(),
 }
 
 #[cfg(windows)]
+fn validate_windows_component(value: &std::ffi::OsStr, label: &str) -> Result<(), ApiCommandError> {
+    let value = value
+        .to_str()
+        .ok_or_else(|| invalid_path(label, "must be valid UTF-8"))?;
+    if value.contains(':') || value.ends_with(' ') || value.ends_with('.') {
+        return Err(invalid_path(
+            label,
+            "contains a Windows-unsafe path component",
+        ));
+    }
+    let stem = value
+        .split('.')
+        .next()
+        .unwrap_or(value)
+        .trim_end_matches([' ', '.'])
+        .to_ascii_uppercase();
+    if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || stem.strip_prefix("COM").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        })
+        || stem.strip_prefix("LPT").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        })
+    {
+        return Err(invalid_path(
+            label,
+            "contains a reserved Windows device name",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
 fn reject_device_namespace(path: &Path, label: &str) -> Result<(), ApiCommandError> {
     use std::path::{Component, Prefix};
 
@@ -223,7 +451,7 @@ fn invalid_path(label: &str, reason: impl AsRef<str>) -> ApiCommandError {
 
 #[cfg(test)]
 mod tests {
-    use super::absolute_path;
+    use super::{absolute_path, safe_relative_path};
 
     #[test]
     fn rejects_relative_and_trimmed_paths() {
@@ -237,5 +465,20 @@ mod tests {
         assert!(absolute_path(r"C:\Users\test\file.txt", "Path").is_ok());
         #[cfg(not(windows))]
         assert!(absolute_path("/tmp/file.txt", "Path").is_ok());
+    }
+
+    #[test]
+    fn rejects_unsafe_relative_paths() {
+        assert!(safe_relative_path("folder/file.txt", "Path").is_ok());
+        assert!(safe_relative_path("", "Path").is_err());
+        assert!(safe_relative_path("../file.txt", "Path").is_err());
+        assert!(safe_relative_path("folder/../file.txt", "Path").is_err());
+        assert!(safe_relative_path("/absolute.txt", "Path").is_err());
+        #[cfg(windows)]
+        {
+            assert!(safe_relative_path(r"folder\file.txt", "Path").is_err());
+            assert!(safe_relative_path("folder/file.txt:stream", "Path").is_err());
+            assert!(safe_relative_path("CON.txt", "Path").is_err());
+        }
     }
 }

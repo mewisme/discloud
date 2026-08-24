@@ -86,6 +86,8 @@ pub(crate) async fn download_file(
     }
 
     let expected_length = response.content_length();
+    let destination =
+        crate::path_security::output_file_path(&destination, "Download destination").await?;
     let temporary = temporary_download_path(&destination)?;
     let mut output = File::create_new(&temporary).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not create download file: {error}"))
@@ -126,6 +128,8 @@ pub(crate) async fn download_file(
         return Err(error);
     }
 
+    let destination =
+        crate::path_security::output_file_path(&destination, "Download destination").await?;
     if let Err(error) = fs::rename(&temporary, &destination).await {
         let _ = fs::remove_file(&temporary).await;
 

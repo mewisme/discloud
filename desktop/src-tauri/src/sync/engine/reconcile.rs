@@ -124,7 +124,7 @@ async fn reconcile_file(
                     if local_changed && remote_changed {
                         queue_sync_conflict(pair, relative_path, &local, &remote, pending_conflicts, result);
                     } else if local_changed {
-                        replace_remote_file(api, &local.path, &remote, result).await?;
+                        replace_remote_file(api, root, relative_path, &remote, result).await?;
                     } else {
                         download_remote_file(api, root, relative_path, &remote, result).await?;
                     }
@@ -140,7 +140,7 @@ async fn reconcile_file(
                     if remote_changed {
                         queue_sync_conflict(pair, relative_path, &local, &remote, pending_conflicts, result);
                     } else {
-                        replace_remote_file(api, &local.path, &remote, result).await?;
+                        replace_remote_file(api, root, relative_path, &remote, result).await?;
                     }
                 }
             }
@@ -153,7 +153,7 @@ async fn reconcile_file(
             match pair.direction {
                 SyncDirection::DownloadOnly => {
                     if should_propagate_remote_file_deletion(pair, previous_remote.is_some(), local_changed) {
-                        soft_delete_local(root, relative_path, &local.path).await?;
+                        soft_delete_local(root, relative_path).await?;
                         result.local_deleted += 1;
                     } else {
                         result.skipped += 1;
@@ -161,7 +161,7 @@ async fn reconcile_file(
                 }
                 SyncDirection::TwoWay => {
                     if should_propagate_remote_file_deletion(pair, previous_remote.is_some(), local_changed) {
-                        soft_delete_local(root, relative_path, &local.path).await?;
+                        soft_delete_local(root, relative_path).await?;
                         result.local_deleted += 1;
                     } else {
                         if previous_remote.is_some() && local_changed {
@@ -169,13 +169,13 @@ async fn reconcile_file(
                         }
                         let parent = remote_parent_id(relative_path, remote_directories)?;
                         let name = relative_name(relative_path)?;
-                        upload_local_file(api, &local.path, parent, name, result).await?;
+                        upload_local_file(api, root, &local.path, parent, name, result).await?;
                     }
                 }
                 SyncDirection::UploadOnly => {
                     let parent = remote_parent_id(relative_path, remote_directories)?;
                     let name = relative_name(relative_path)?;
-                    upload_local_file(api, &local.path, parent, name, result).await?;
+                    upload_local_file(api, root, &local.path, parent, name, result).await?;
                 }
             }
         }
@@ -259,8 +259,7 @@ async fn reconcile_directory_deletions(
 
         match deletion {
             DirectoryDeletion::Local => {
-                let source = root.join(relative_to_path(&relative));
-                soft_delete_local(root, &relative, &source).await?;
+                soft_delete_local(root, &relative).await?;
                 remove_local_subtree(local, &relative);
                 result.local_deleted += 1;
             }
@@ -354,15 +353,14 @@ async fn keep_both_conflict(
     api: &ApiState,
     root: &Path,
     relative_path: &str,
-    local: &LocalFile,
     remote: &RemoteFile,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
-    let (conflict_path, conflict_name) =
-        preserve_local_conflict(root, relative_path, &local.path).await?;
+    let (conflict_path, conflict_name) = preserve_local_conflict(root, relative_path).await?;
 
     if let Err(error) = upload_local_file(
         api,
+        root,
         &conflict_path,
         &remote.parent_id,
         &conflict_name,
@@ -370,7 +368,7 @@ async fn keep_both_conflict(
     )
     .await
     {
-        let original_path = root.join(relative_to_path(relative_path));
+        let original_path = crate::path_security::checked_child_output_file(root, relative_path, "Sync conflict rollback path").await?;
         let _ = fs::rename(&conflict_path, &original_path).await;
         return Err(error);
     }
@@ -383,14 +381,17 @@ async fn keep_both_conflict(
 async fn preserve_local_conflict(
     root: &Path,
     relative_path: &str,
-    source: &Path,
 ) -> Result<(PathBuf, String), ApiCommandError> {
+    let source = crate::path_security::checked_child_path(root, relative_path, "Sync conflict source").await?;
     let name = relative_name(relative_path)?;
     let conflict_name = conflict_name(name, "local");
     let parent = source.parent().unwrap_or(root);
     let destination = unique_path(parent.join(&conflict_name)).await?;
+    let destination_relative = destination.strip_prefix(root).map_err(|_| ApiCommandError::invalid_request("Sync conflict path escaped the authorized root."))?;
+    let destination_relative = destination_relative.to_str().ok_or_else(|| ApiCommandError::invalid_request("Sync conflict path must be valid UTF-8."))?.replace('\\', "/");
+    let destination = crate::path_security::checked_child_output_file(root, &destination_relative, "Sync conflict destination").await?;
 
-    fs::rename(source, &destination).await.map_err(|error| {
+    fs::rename(&source, &destination).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not preserve local conflict copy: {error}"))
     })?;
 
@@ -431,16 +432,18 @@ async fn rename_remote_file(
 
 async fn replace_remote_file(
     api: &ApiState,
-    local_path: &Path,
+    root: &Path,
+    relative_path: &str,
     remote: &RemoteFile,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
+    let local_path = crate::path_security::checked_child_path(root, relative_path, "Sync upload source").await?;
     let original_name = remote.name.clone();
     let staged_name = conflict_name(&remote.name, "replaced");
     rename_remote_file(api, &remote.id, &staged_name).await?;
 
     if let Err(error) =
-        upload_local_file(api, local_path, &remote.parent_id, &original_name, result).await
+        upload_local_file(api, root, &local_path, &remote.parent_id, &original_name, result).await
     {
         let _ = rename_remote_file(api, &remote.id, &original_name).await;
         return Err(error);
@@ -453,12 +456,15 @@ async fn replace_remote_file(
 
 async fn upload_local_file(
     api: &ApiState,
+    root: &Path,
     local_path: &Path,
     parent_id: &str,
     name: &str,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
-    upload_file(api, local_path, parent_id, name).await?;
+    let local_path = local_path.to_str().ok_or_else(|| ApiCommandError::invalid_request("Sync upload path must be valid UTF-8."))?;
+    let local_path = crate::path_security::canonical_path_within(root, local_path, "Sync upload source").await?;
+    upload_file(api, &local_path, parent_id, name).await?;
     result.uploaded += 1;
     Ok(())
 }
@@ -470,8 +476,7 @@ async fn download_remote_file(
     remote: &RemoteFile,
     result: &mut SyncRunResult,
 ) -> Result<(), ApiCommandError> {
-    let destination = root.join(relative_to_path(relative_path));
-    download_file(api, &remote.id, &destination).await?;
+    download_file(api, &remote.id, root, relative_path).await?;
     result.downloaded += 1;
     Ok(())
 }
@@ -491,20 +496,16 @@ async fn trash_remote_folder(api: &ApiState, folder_id: &str) -> Result<(), ApiC
 async fn soft_delete_local(
     root: &Path,
     relative_path: &str,
-    source: &Path,
 ) -> Result<(), ApiCommandError> {
-    let trash_root = root
-        .join(LOCAL_TRASH_DIR)
-        .join(timestamp_millis().to_string());
-    let destination = trash_root.join(relative_to_path(relative_path));
+    let source = crate::path_security::checked_child_path(root, relative_path, "Sync delete source").await?;
+    let trash_relative = format!("{LOCAL_TRASH_DIR}/{}/{}", timestamp_millis(), relative_path);
+    let trash_path = relative_to_path(&trash_relative)?;
+    let parent = trash_path.parent().ok_or_else(|| ApiCommandError::internal("Sync trash path has no parent."))?;
+    let parent = parent.to_str().ok_or_else(|| ApiCommandError::invalid_request("Sync trash path must be valid UTF-8."))?.replace('\\', "/");
+    crate::path_security::ensure_child_directory(root, &parent, "Sync trash directory").await?;
+    let destination = crate::path_security::checked_child_path(root, &trash_relative, "Sync trash destination").await?;
 
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).await.map_err(|error| {
-            ApiCommandError::internal(format!("Could not create local sync trash: {error}"))
-        })?;
-    }
-
-    fs::rename(source, destination).await.map_err(|error| {
+    fs::rename(&source, destination).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not move local sync path to trash: {error}"))
     })
 }
@@ -524,13 +525,7 @@ async fn ensure_local_directories(
     directories.sort_by_key(|path| path_depth(path));
 
     for relative in directories {
-        let path = root.join(relative_to_path(&relative));
-        fs::create_dir_all(&path).await.map_err(|error| {
-            ApiCommandError::internal(format!(
-                "Could not create local sync directory {}: {error}",
-                path.display()
-            ))
-        })?;
+        crate::path_security::ensure_child_directory(root, &relative, "Sync local directory").await?;
         local.directories.insert(relative);
         result.created_local_folders += 1;
     }

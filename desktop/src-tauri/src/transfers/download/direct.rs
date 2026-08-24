@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     ffi::OsString,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -318,22 +318,23 @@ pub(crate) async fn download_folder_direct(
             ))
         })?;
     for entry in manifest.entries {
-        let target = safe_manifest_path(&root, &entry.path)?;
-        ensure_safe_descendant(&root, &target).await?;
+        safe_manifest_path(&root, &entry.path)?;
         match entry.kind.as_str() {
-            "folder" => fs::create_dir_all(&target).await.map_err(|error| {
-                ApiCommandError::internal(format!(
-                    "Could not create folder download directory: {error}"
-                ))
-            })?,
+            "folder" => {
+                crate::path_security::ensure_child_directory(
+                    &root,
+                    &entry.path,
+                    "Folder download path",
+                )
+                .await?;
+            }
             "file" => {
-                if let Some(parent) = target.parent() {
-                    fs::create_dir_all(parent).await.map_err(|error| {
-                        ApiCommandError::internal(format!(
-                            "Could not create folder download directory: {error}"
-                        ))
-                    })?;
-                }
+                let target = crate::path_security::checked_child_output_file(
+                    &root,
+                    &entry.path,
+                    "Folder download file",
+                )
+                .await?;
                 let file_id = entry.file_id.ok_or_else(|| {
                     ApiCommandError::internal("Folder manifest file is missing an ID.")
                 })?;
@@ -716,48 +717,8 @@ fn resume_completed_bytes(completed: &HashSet<usize>, manifest: &DirectFileManif
 }
 
 fn safe_manifest_path(root: &Path, value: &str) -> Result<PathBuf, ApiCommandError> {
-    let relative = Path::new(value);
-    if value.is_empty()
-        || relative.is_absolute()
-        || relative
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err(ApiCommandError::internal(
-            "Folder manifest contains an unsafe path.",
-        ));
-    }
+    let relative = crate::path_security::safe_relative_path(value, "Folder manifest path")?;
     Ok(root.join(relative))
-}
-
-async fn ensure_safe_descendant(root: &Path, target: &Path) -> Result<(), ApiCommandError> {
-    let relative = target.strip_prefix(root).map_err(|_| {
-        ApiCommandError::invalid_request("Folder download target escaped the selected directory.")
-    })?;
-    let mut current = root.to_path_buf();
-    for component in relative.components() {
-        current.push(component.as_os_str());
-        match fs::symlink_metadata(&current).await {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(ApiCommandError::invalid_request(
-                    "Folder download destination contains a symbolic link.",
-                ));
-            }
-            Ok(metadata) if current != target && !metadata.is_dir() => {
-                return Err(ApiCommandError::invalid_request(
-                    "Folder download destination contains a non-directory path component.",
-                ));
-            }
-            Ok(_) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
-            Err(error) => {
-                return Err(ApiCommandError::internal(format!(
-                    "Could not inspect folder download destination: {error}"
-                )))
-            }
-        }
-    }
-    Ok(())
 }
 
 async fn validate_output_file_path(path: &Path) -> Result<(), ApiCommandError> {

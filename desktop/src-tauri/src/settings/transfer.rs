@@ -137,6 +137,8 @@ pub(crate) async fn save_recovery_codes(
         ));
     }
 
+    let destination =
+        crate::path_security::output_file_path(&destination, "Recovery code destination").await?;
     let content = format!("DisCloud recovery codes\n\n{}\n", codes.join("\n"));
     fs::write(&destination, content).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not save recovery codes: {error}"))

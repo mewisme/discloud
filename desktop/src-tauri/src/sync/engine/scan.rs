@@ -36,6 +36,7 @@ async fn scan_local_tree(
                 ))
             })?;
             let relative = join_relative(&relative_directory, &name);
+            crate::path_security::safe_relative_path(&relative, "Local sync path")?;
             let is_directory = metadata.is_dir();
 
             if is_internal_sync_path(&relative)
@@ -123,6 +124,7 @@ async fn scan_remote_tree(
                 let name = json_string(node, "name")?;
                 let updated_at = json_string(node, "updatedAt")?;
                 let relative = join_relative(&relative_directory, &name);
+                crate::path_security::safe_relative_path(&relative, "Remote sync path")?;
                 let is_directory = kind == "folder";
 
                 if is_internal_sync_path(&relative)

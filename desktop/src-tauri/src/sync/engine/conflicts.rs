@@ -109,7 +109,7 @@ async fn resolve_sync_conflict_item(
     let mut remote_tree = scan_remote_tree(api, &pair.remote_folder_id, &pair.ignore_patterns).await?;
     let local = local_tree.files.remove(&conflict.relative_path);
     let remote = remote_tree.files.remove(&conflict.relative_path);
-    let (local, remote) = match (local, remote) {
+    let (_local, remote) = match (local, remote) {
         (Some(local), Some(remote)) => (local, remote),
         _ => {
             conflicts.remove(index);
@@ -119,10 +119,10 @@ async fn resolve_sync_conflict_item(
     };
     let mut result = SyncRunResult::default();
     match resolution {
-        SyncConflictResolution::KeepLocal => replace_remote_file(api, &local.path, &remote, &mut result).await?,
+        SyncConflictResolution::KeepLocal => replace_remote_file(api, &root, &conflict.relative_path, &remote, &mut result).await?,
         SyncConflictResolution::KeepRemote => download_remote_file(api, &root, &conflict.relative_path, &remote, &mut result).await?,
         SyncConflictResolution::KeepBoth => {
-            keep_both_conflict(api, &root, &conflict.relative_path, &local, &remote, &mut result).await?;
+            keep_both_conflict(api, &root, &conflict.relative_path, &remote, &mut result).await?;
             result.conflicts = 0;
         }
     }

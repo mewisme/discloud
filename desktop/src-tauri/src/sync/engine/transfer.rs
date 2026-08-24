@@ -4,12 +4,12 @@ async fn upload_file(
     parent_folder_id: &str,
     name: &str,
 ) -> Result<String, ApiCommandError> {
-    let metadata = fs::metadata(path).await.map_err(|error| {
+    let metadata = fs::symlink_metadata(path).await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not read sync upload file: {error}"))
     })?;
-    if !metadata.is_file() {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(ApiCommandError::invalid_request(
-            "Sync upload source is not a file.",
+            "Sync upload source must be a regular file, not a symbolic link.",
         ));
     }
 
@@ -70,6 +70,14 @@ async fn upload_file_parts(
     path: &Path,
     session: &UploadSession,
 ) -> Result<(), ApiCommandError> {
+    let metadata = fs::symlink_metadata(path).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not inspect sync upload file: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ApiCommandError::invalid_request(
+            "Sync upload source changed into a symbolic link or non-file path.",
+        ));
+    }
     let mut file = File::open(path).await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not open sync upload file: {error}"))
     })?;
@@ -157,8 +165,15 @@ async fn upload_part_with_retry(
 async fn download_file(
     api: &ApiState,
     file_id: &str,
-    destination: &Path,
+    root: &Path,
+    relative_path: &str,
 ) -> Result<(), ApiCommandError> {
+    let destination = crate::path_security::checked_child_output_file(
+        root,
+        relative_path,
+        "Sync download destination",
+    )
+    .await?;
     let endpoint = format!("/api/v1/files/{file_id}/download");
     let mut response = api
         .raw_request(Method::GET, &endpoint, Vec::new(), Vec::new())
@@ -176,21 +191,29 @@ async fn download_file(
         .map(|value| value.trim_start_matches("W/").trim_matches('"').to_string())
         .filter(|value| value.len() == 64);
 
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).await.map_err(|error| {
-            ApiCommandError::internal(format!("Could not create sync download directory: {error}"))
-        })?;
-    }
-
     let file_name = destination
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or("download");
-    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
-    let temp =
-        unique_path(parent.join(format!(".{file_name}.discloud-part-{}", timestamp_millis())))
-            .await?;
-    let mut output = File::create(&temp).await.map_err(|error| {
+    let parent_relative = relative_parent(relative_path);
+    let temp_name = format!(".{file_name}.discloud-part-{}", timestamp_millis());
+    let temp_relative = if parent_relative.is_empty() {
+        temp_name
+    } else {
+        format!("{parent_relative}/{temp_name}")
+    };
+    let temp = crate::path_security::checked_child_output_file(
+        root,
+        &temp_relative,
+        "Sync temporary download path",
+    )
+    .await?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .await
+        .map_err(|error| {
         ApiCommandError::internal(format!("Could not create sync download file: {error}"))
     })?;
     let mut hasher = Sha256::new();
@@ -220,12 +243,22 @@ async fn download_file(
         }
     }
 
-    replace_local_file(destination, &temp).await
+    replace_local_file(root, relative_path, &temp).await
 }
 
-async fn replace_local_file(destination: &Path, temp: &Path) -> Result<(), ApiCommandError> {
-    if fs::metadata(destination).await.is_err() {
-        return fs::rename(temp, destination).await.map_err(|error| {
+async fn replace_local_file(root: &Path, relative_path: &str, temp: &Path) -> Result<(), ApiCommandError> {
+    let destination = crate::path_security::checked_child_output_file(
+        root,
+        relative_path,
+        "Sync download destination",
+    )
+    .await?;
+    let temp = temp
+        .to_str()
+        .ok_or_else(|| ApiCommandError::invalid_request("Sync temporary path must be valid UTF-8."))?;
+    let temp = crate::path_security::canonical_path_within(root, temp, "Sync temporary download path").await?;
+    if fs::symlink_metadata(&destination).await.is_err() {
+        return fs::rename(&temp, &destination).await.map_err(|error| {
             ApiCommandError::internal(format!("Could not finalize sync download: {error}"))
         });
     }
@@ -234,25 +267,33 @@ async fn replace_local_file(destination: &Path, temp: &Path) -> Result<(), ApiCo
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or("file");
-    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
-    let backup = unique_path(parent.join(format!(
-        ".{file_name}.discloud-backup-{}",
-        timestamp_millis()
-    )))
+    let parent_relative = relative_parent(relative_path);
+    let backup_name = format!(".{file_name}.discloud-backup-{}", timestamp_millis());
+    let backup_relative = if parent_relative.is_empty() {
+        backup_name
+    } else {
+        format!("{parent_relative}/{backup_name}")
+    };
+    let backup_candidate = crate::path_security::checked_child_output_file(
+        root,
+        &backup_relative,
+        "Sync backup path",
+    )
     .await?;
+    let backup = unique_path(backup_candidate).await?;
 
-    fs::rename(destination, &backup).await.map_err(|error| {
+    fs::rename(&destination, &backup).await.map_err(|error| {
         ApiCommandError::internal(format!("Could not stage existing local file: {error}"))
     })?;
 
-    match fs::rename(temp, destination).await {
+    match fs::rename(&temp, &destination).await {
         Ok(()) => {
             let _ = fs::remove_file(backup).await;
             Ok(())
         }
         Err(error) => {
-            let _ = fs::rename(&backup, destination).await;
-            let _ = fs::remove_file(temp).await;
+            let _ = fs::rename(&backup, &destination).await;
+            let _ = fs::remove_file(&temp).await;
             Err(ApiCommandError::internal(format!(
                 "Could not replace local sync file: {error}"
             )))
@@ -280,6 +321,14 @@ async fn same_file_content(
 }
 
 async fn file_sha256(path: &Path) -> Result<String, ApiCommandError> {
+    let metadata = fs::symlink_metadata(path).await.map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not inspect local sync file: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ApiCommandError::invalid_request(
+            "Local sync file must be a regular file, not a symbolic link.",
+        ));
+    }
     let mut file = File::open(path).await.map_err(|error| {
         ApiCommandError::invalid_request(format!("Could not open local sync file: {error}"))
     })?;

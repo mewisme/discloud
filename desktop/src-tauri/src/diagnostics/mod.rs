@@ -272,6 +272,8 @@ pub(crate) async fn export_desktop_logs(
     let directory = directory()?;
     let destination =
         path_security::scoped_output_file(&window, &destination, "Log export destination").await?;
+    let destination =
+        path_security::output_file_path(&destination, "Log export destination").await?;
     let _guard = LOG_LOCK
         .lock()
         .map_err(|_| ApiCommandError::internal("Desktop diagnostics log lock is poisoned."))?;
