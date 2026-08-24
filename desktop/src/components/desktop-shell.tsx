@@ -37,8 +37,8 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
   const uploadsPath = workspacePath(user.username, "uploads")
   const downloadsPath = workspacePath(user.username, "downloads")
   const syncPath = workspacePath(user.username, "sync")
-  const transferItems = [...baseNavigation.primary.filter((item) => item.href === uploadsPath), { title: "Downloads", href: downloadsPath, icon: DownloadIcon }]
-  const navigation = { ...baseNavigation, primary: [...baseNavigation.primary.filter((item) => item.href !== uploadsPath), { title: "Sync", href: syncPath, icon: RefreshCwIcon }] }
+  const transferItems = [...baseNavigation.primary.filter((item) => item.href === uploadsPath), { title: "Downloads", href: downloadsPath, icon: DownloadIcon }, { title: "Sync", href: syncPath, icon: RefreshCwIcon }]
+  const navigation = { ...baseNavigation, primary: baseNavigation.primary.filter((item) => item.href !== uploadsPath) }
   const title = location.pathname === syncPath || location.pathname.startsWith(`${syncPath}/`) ? "Sync" : appRouteTitle(location.pathname, workspaceUsername)
   const settingsPage = desktopSettingsPage(location.pathname, user.username)
   const adminPath = workspacePath(user.username, "admin")
