@@ -7,7 +7,7 @@ import { createAppNavigation } from "@discloud/app-ui/shell/navigation"
 import { appRouteTitle, workspacePath } from "@discloud/shared/navigation"
 import { Button } from "@discloud/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
-import { ChevronDownIcon, DownloadIcon, LogOutIcon, RefreshCwIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
+import { ArrowUpDownIcon, ChevronDownIcon, DownloadIcon, LogOutIcon, RefreshCwIcon, ServerIcon, SettingsIcon, UserIcon } from "lucide-react"
 import { useState } from "react"
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router"
 
@@ -34,8 +34,11 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
   const sidebar = config?.common.sidebar
   const sidebarSide = sidebar?.side ?? "left"
   const baseNavigation = createAppNavigation({ actorUsername: user.username, workspaceUsername, isAdmin: user.role === "admin" })
+  const uploadsPath = workspacePath(user.username, "uploads")
+  const downloadsPath = workspacePath(user.username, "downloads")
   const syncPath = workspacePath(user.username, "sync")
-  const navigation = { ...baseNavigation, primary: [...baseNavigation.primary, { title: "Sync", href: syncPath, icon: RefreshCwIcon }] }
+  const transferItems = [...baseNavigation.primary.filter((item) => item.href === uploadsPath), { title: "Downloads", href: downloadsPath, icon: DownloadIcon }]
+  const navigation = { ...baseNavigation, primary: [...baseNavigation.primary.filter((item) => item.href !== uploadsPath), { title: "Sync", href: syncPath, icon: RefreshCwIcon }] }
   const title = location.pathname === syncPath || location.pathname.startsWith(`${syncPath}/`) ? "Sync" : appRouteTitle(location.pathname, workspaceUsername)
   const settingsPage = desktopSettingsPage(location.pathname, user.username)
   const adminPath = workspacePath(user.username, "admin")
@@ -53,6 +56,7 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
           collapsible={sidebar?.collapsible ?? "icon"}
           pathname={location.pathname}
           primaryItems={navigation.primary}
+          workspaceGroups={[{ title: "Transfers", icon: ArrowUpDownIcon, items: transferItems }]}
           libraryItems={navigation.library}
           administrationItems={navigation.administration}
           header={<DesktopWorkspaceSwitcher currentUser={user} workspaceUsername={workspaceUsername} sidebarSide={sidebarSide} />}

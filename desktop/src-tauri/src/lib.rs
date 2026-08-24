@@ -1,6 +1,7 @@
 mod api;
 mod commands;
 mod desktop_runtime;
+mod download_engine;
 mod file_transfer;
 mod session;
 mod settings_transfer;
@@ -24,6 +25,7 @@ pub fn run() {
     builder = builder
         .manage(api::ApiState::default())
         .manage(desktop_runtime::DesktopRuntimeState::default())
+        .manage(download_engine::DownloadEngineState::default())
         .manage(sync_engine::SyncEngineState::default())
         .manage(upload_engine::UploadEngineState::default())
         .manage(upload_transfer::UploadTransferState::default())
@@ -57,6 +59,12 @@ pub fn run() {
             commands::connect_server,
             commands::disconnect_server,
             commands::download_file,
+            commands::get_download_snapshot,
+            commands::start_download,
+            commands::retry_download_task,
+            commands::cancel_download_task,
+            commands::remove_download_task,
+            commands::reveal_download_task,
             commands::get_upload_snapshot,
             commands::add_upload_paths,
             commands::retry_upload_task,

@@ -2,6 +2,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     api::{ApiCommandError, ApiRequest, ApiResponse, ApiState, ConnectedServer},
+    download_engine::{self, DownloadEngineState, DownloadSnapshot, DownloadTaskView},
     file_transfer::{self, DownloadResult},
     settings_transfer::{self, AvatarInfo, AvatarPayload},
     upload_engine::{self, UploadEngineState, UploadSnapshot},
@@ -20,9 +21,12 @@ pub(crate) async fn connect_server(
 pub(crate) async fn disconnect_server(
     app: AppHandle,
     api_state: State<'_, ApiState>,
+    download_state: State<'_, DownloadEngineState>,
     upload_state: State<'_, UploadTransferState>,
     upload_engine_state: State<'_, UploadEngineState>,
 ) -> Result<(), ApiCommandError> {
+    download_engine::reset(&app, download_state.inner())?;
+
     upload_engine::reset(
         &app,
         api_state.inner(),
@@ -38,6 +42,7 @@ pub(crate) async fn disconnect_server(
 pub(crate) async fn api_request(
     app: AppHandle,
     api_state: State<'_, ApiState>,
+    download_state: State<'_, DownloadEngineState>,
     upload_state: State<'_, UploadTransferState>,
     upload_engine_state: State<'_, UploadEngineState>,
     request: ApiRequest,
@@ -46,6 +51,7 @@ pub(crate) async fn api_request(
     let session_check = request.is_session_check();
 
     if logout {
+        download_engine::reset(&app, download_state.inner())?;
         upload_engine::reset(
             &app,
             api_state.inner(),
@@ -63,6 +69,7 @@ pub(crate) async fn api_request(
             .err()
             .is_some_and(|error| error.is_unauthorized())
     {
+        let _ = download_engine::reset(&app, download_state.inner());
         let _ = upload_engine::reset(
             &app,
             api_state.inner(),
@@ -83,6 +90,75 @@ pub(crate) async fn download_file(
     destination: String,
 ) -> Result<DownloadResult, ApiCommandError> {
     file_transfer::download_file(state.inner(), file_id, collection_id, destination).await
+}
+
+#[tauri::command]
+pub(crate) fn get_download_snapshot(
+    state: State<'_, DownloadEngineState>,
+) -> Result<DownloadSnapshot, ApiCommandError> {
+    state.snapshot()
+}
+
+#[tauri::command]
+pub(crate) fn start_download(
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    download_state: State<'_, DownloadEngineState>,
+    file_id: String,
+    collection_id: Option<String>,
+    file_name: String,
+    destination: String,
+) -> Result<DownloadTaskView, ApiCommandError> {
+    download_engine::start_download(
+        app,
+        api_state.inner().clone(),
+        download_state.inner().clone(),
+        file_id,
+        collection_id,
+        file_name,
+        destination,
+    )
+}
+
+#[tauri::command]
+pub(crate) fn retry_download_task(
+    app: AppHandle,
+    api_state: State<'_, ApiState>,
+    download_state: State<'_, DownloadEngineState>,
+    task_id: String,
+) -> Result<(), ApiCommandError> {
+    download_engine::retry_download(
+        app,
+        api_state.inner().clone(),
+        download_state.inner().clone(),
+        task_id,
+    )
+}
+
+#[tauri::command]
+pub(crate) fn cancel_download_task(
+    app: AppHandle,
+    download_state: State<'_, DownloadEngineState>,
+    task_id: String,
+) -> Result<(), ApiCommandError> {
+    download_engine::cancel_download(app, download_state.inner(), task_id)
+}
+
+#[tauri::command]
+pub(crate) fn remove_download_task(
+    app: AppHandle,
+    download_state: State<'_, DownloadEngineState>,
+    task_id: String,
+) -> Result<(), ApiCommandError> {
+    download_engine::remove_download(app, download_state.inner(), task_id)
+}
+
+#[tauri::command]
+pub(crate) fn reveal_download_task(
+    download_state: State<'_, DownloadEngineState>,
+    task_id: String,
+) -> Result<(), ApiCommandError> {
+    download_engine::reveal_download(download_state.inner(), task_id)
 }
 
 #[tauri::command]

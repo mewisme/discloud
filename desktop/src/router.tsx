@@ -11,8 +11,10 @@ import { useDesktopSession } from "#components/desktop-session"
 import { changePassword, completeSetup, login, verifyMFA } from "#lib/auth"
 
 import { actorRouteRedirect, adminRouteRedirect, authenticatedPath, connectedRouteTarget } from "./features/desktop/core/route-guards"
+import { DesktopDownloadProvider } from "./features/downloads/ui/download-provider"
 import { DesktopUserConfigProvider } from "./features/settings/ui/user-config-provider"
 import { DesktopSyncProvider } from "./features/sync/ui/sync-provider"
+import { DesktopTransferDock } from "./features/transfers/ui/transfer-dock"
 import { DesktopUploadProvider } from "./features/uploads/ui/upload-provider"
 
 const ChangePasswordForm = lazy(() => import("@discloud/app-ui/auth/change-password-form").then((module) => ({ default: module.ChangePasswordForm })))
@@ -23,6 +25,7 @@ const ServerConnectionScreen = lazy(() => import("#components/server-connection"
 const DesktopCollectionFilePage = lazy(() => import("./features/collections/collection-file-page").then((module) => ({ default: module.DesktopCollectionFilePage })))
 const DesktopCollectionPage = lazy(() => import("./features/collections/collection-page").then((module) => ({ default: module.DesktopCollectionPage })))
 const DesktopCollectionsPage = lazy(() => import("./features/collections/collections-page").then((module) => ({ default: module.DesktopCollectionsPage })))
+const DesktopDownloadsPage = lazy(() => import("./features/downloads/ui/downloads-page").then((module) => ({ default: module.DesktopDownloadsPage })))
 const DesktopFavoritesPage = lazy(() => import("./features/favorites/favorites-page").then((module) => ({ default: module.DesktopFavoritesPage })))
 const DesktopFilePage = lazy(() => import("./features/files/file-page").then((module) => ({ default: module.DesktopFilePage })))
 const DesktopFilesPage = lazy(() => import("./features/files/files-page").then((module) => ({ default: module.DesktopFilesPage })))
@@ -61,6 +64,7 @@ export const router = createHashRouter([
         Component: ActorRouteGuard,
         children: [
           { path: "uploads", Component: UploadsRoute },
+          { path: "downloads", Component: DownloadsRoute },
           { path: "sync", Component: SyncRoute },
           { path: "settings", Component: SettingsRoute },
           { path: "settings/common", Component: CommonSettingsRoute },
@@ -158,9 +162,12 @@ function AuthenticatedRoute() {
     <DesktopSyncProvider>
       <DesktopUserConfigProvider>
         <DesktopUploadProvider>
-          <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
-            <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
-          </Suspense>
+          <DesktopDownloadProvider>
+            <Suspense fallback={<LoadingScreen label="Loading workspace" />}>
+              <DesktopAppLayout serverUrl={state.serverUrl} user={state.user} />
+            </Suspense>
+            <DesktopTransferDock username={state.user.username} />
+          </DesktopDownloadProvider>
         </DesktopUploadProvider>
       </DesktopUserConfigProvider>
     </DesktopSyncProvider>
@@ -205,6 +212,10 @@ function TrashRoute() {
 
 function UploadsRoute() {
   return <RouteSuspense label="Loading uploads"><DesktopUploadsPage /></RouteSuspense>
+}
+
+function DownloadsRoute() {
+  return <RouteSuspense label="Loading downloads"><DesktopDownloadsPage /></RouteSuspense>
 }
 
 function SyncRoute() {

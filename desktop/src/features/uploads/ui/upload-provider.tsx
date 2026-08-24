@@ -7,7 +7,6 @@ import { useDesktopSession } from "#components/desktop-session"
 import { sendDesktopNotification } from "../../desktop/core/notifications"
 import { addNativeUploadPaths, cancelNativeUploadTask, removeNativeUploadTask, retryNativeUploadTask, subscribeNativeUploads } from "../core/native"
 import { applyUploadRemovedEvent, applyUploadTaskEvent, replaceUploadSnapshot, resetUploadProjection, useUploadDockState, useUploadTasks } from "../core/upload-store"
-import { DesktopUploadDock } from "./upload-dock"
 
 export const UPLOAD_COMPLETED_EVENT = "discloud:upload-completed"
 
@@ -23,7 +22,7 @@ const uploadActions = {
 }
 
 export function DesktopUploadProvider({ children }: { children: ReactNode }) {
-  const { state, refreshUser } = useDesktopSession()
+  const { refreshUser } = useDesktopSession()
 
   useEffect(() => {
     let disposed = false
@@ -63,13 +62,10 @@ export function DesktopUploadProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshUser])
 
-  const username = state.status === "connected" ? state.user?.username : undefined
-
   return (
     <DockStackProvider>
       {children}
       <DesktopUploadNotifications />
-      {username ? <DesktopUploadDock username={username} /> : null}
     </DockStackProvider>
   )
 }

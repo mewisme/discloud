@@ -4,10 +4,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@discloud/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarRail, useSidebar } from "@discloud/ui/components/sidebar"
 import { ChevronRightIcon, LibraryIcon } from "lucide-react"
-import { type ReactElement, type ReactNode, useEffect, useState } from "react"
+import { type ComponentType, type ReactElement, type ReactNode, useEffect, useState } from "react"
 import { type AppNavItem, isAppNavItemActive } from "../core/navigation"
 
 export type AppLinkRenderer = (props: { href: string; children: ReactNode; onNavigate?: () => void }) => ReactElement
+export type AppNavGroup = { title: string; icon: ComponentType<{ className?: string }>; items: AppNavItem[] }
 
 export function AppSidebarView({
   side = "left",
@@ -16,6 +17,7 @@ export function AppSidebarView({
   pathname,
   primaryItems,
   libraryItems,
+  workspaceGroups = [],
   administrationItems = [],
   header,
   footer,
@@ -27,6 +29,7 @@ export function AppSidebarView({
   pathname: string
   primaryItems: AppNavItem[]
   libraryItems: AppNavItem[]
+  workspaceGroups?: AppNavGroup[]
   administrationItems?: AppNavItem[]
   header?: ReactNode
   footer?: ReactNode
@@ -44,7 +47,8 @@ export function AppSidebarView({
           <SidebarGroupContent>
             <SidebarMenu>
               <AppNavItems pathname={pathname} items={primaryItems} renderLink={renderLink} />
-              <GroupedNavItem title="Library" items={libraryItems} pathname={pathname} dropdownSide={submenuSide} renderLink={renderLink} />
+              {workspaceGroups.map((group) => <GroupedNavItem key={group.title} title={group.title} icon={group.icon} items={group.items} pathname={pathname} dropdownSide={submenuSide} renderLink={renderLink} />)}
+              <GroupedNavItem title="Library" icon={LibraryIcon} items={libraryItems} pathname={pathname} dropdownSide={submenuSide} renderLink={renderLink} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -90,12 +94,14 @@ function AppNavItems({ pathname, items, renderLink }: { pathname: string; items:
 
 function GroupedNavItem({
   title,
+  icon: Icon,
   items,
   pathname,
   dropdownSide,
   renderLink,
 }: {
   title: string
+  icon: ComponentType<{ className?: string }>
   items: AppNavItem[]
   pathname: string
   dropdownSide: "left" | "right"
@@ -115,7 +121,7 @@ function GroupedNavItem({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton isActive={active} tooltip={title}>
-              <LibraryIcon />
+              <Icon />
               <span>{title}</span>
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -146,7 +152,7 @@ function GroupedNavItem({
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton isActive={active} tooltip={title}>
-            <LibraryIcon />
+            <Icon />
             <span>{title}</span>
             <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
           </SidebarMenuButton>

@@ -1,11 +1,9 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core"
+import { convertFileSrc } from "@tauri-apps/api/core"
 import { save } from "@tauri-apps/plugin-dialog"
 
 import { nativeError } from "#lib/api/transport"
 
-export type NativeDownloadResult = {
-  bytesWritten: number
-}
+import { startNativeDownload } from "../downloads/core/native"
 
 export type NativeFile = {
   id: string
@@ -25,11 +23,7 @@ export async function downloadNativeFile(file: NativeFile, collectionId?: string
     const destination = await save({ title: `Save ${file.name}`, defaultPath: safeDownloadName(file.name) })
     if (!destination) return undefined
 
-    return await invoke<NativeDownloadResult>("download_file", {
-      fileId: file.id,
-      collectionId,
-      destination,
-    })
+    return await startNativeDownload({ fileId: file.id, collectionId, fileName: file.name, destination })
   } catch (error) {
     throw nativeError(error)
   }
