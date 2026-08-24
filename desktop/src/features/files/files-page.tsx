@@ -13,7 +13,9 @@ import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
 import { useDesktopUserConfig } from "../settings/ui/user-config-provider"
+import { syncPairForRemotePath } from "../sync/core/pairs"
 import { DesktopSyncFolderBadge } from "../sync/ui/sync-folder-badge"
+import { useDesktopSync } from "../sync/ui/sync-provider"
 import { UPLOAD_COMPLETED_EVENT, type UploadCompletedDetail, useUploadTasks } from "../uploads/ui/upload-provider"
 import { DesktopFileUploadTarget } from "../uploads/ui/upload-target"
 import { contextMenuTargets } from "./actions/context-menu-targets"
@@ -32,6 +34,7 @@ export function DesktopFilesPage() {
   const { username, folderId } = useParams()
   const navigate = useNavigate()
   const { config } = useDesktopUserConfig()
+  const sync = useDesktopSync()
   const uploadTasks = useUploadTasks()
   const [searchParams, setSearchParams] = useSearchParams()
   const [state, setState] = useState<BrowserState>({ status: "loading" })
@@ -49,6 +52,7 @@ export function DesktopFilesPage() {
   const toolbarConfig = config?.common.fileBrowserToolbar ?? { variant: "inline", dockPosition: "bottom" } as const
   const paginationMode = config?.common.pagination.mode ?? "manual"
   const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
+  const currentSyncPair = state.status === "ready" ? syncPairForRemotePath(sync.pairs, state.data.breadcrumbs.map((item) => item.id)) : undefined
   const nodes = state.status === "ready" ? state.data.page.nodes : []
   const selectedNodes = useMemo(() => nodes.filter((node) => selected.has(node.id)), [nodes, selected])
   const localThumbnails = useMemo(() => {
@@ -111,6 +115,18 @@ export function DesktopFilesPage() {
       if (reloadTimer) clearTimeout(reloadTimer)
     }
   }, [currentFolderId])
+
+  useEffect(() => {
+    if (!currentSyncPair) return
+    const pairId = currentSyncPair.id
+    function keydown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== "s" || isEditableTarget(event.target)) return
+      event.preventDefault()
+      void sync.runPair(pairId).then(() => setReloadVersion((value) => value + 1)).catch((cause) => setActionError(errorMessage(cause)))
+    }
+    window.addEventListener("keydown", keydown)
+    return () => window.removeEventListener("keydown", keydown)
+  }, [currentSyncPair, sync.runPair])
 
   function reload() {
     setReloadVersion((value) => value + 1)
@@ -292,6 +308,11 @@ function FilesError({ message, onRetry }: { message: string; onRetry: () => void
 function mergePages(current: NodePage, next: NodePage): NodePage {
   const ids = new Set(current.nodes.map((node) => node.id))
   return { ...next, nodes: [...current.nodes, ...next.nodes.filter((node) => !ids.has(node.id))] }
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || target.matches("input, textarea, select, [role='textbox']")
 }
 
 function hashPath(path: string) {
