@@ -116,14 +116,14 @@ export function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
       </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-40">Updated</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="hidden md:table-cell">Attempts</TableHead>
-              <TableHead className="hidden lg:table-cell">Run at</TableHead>
+              <TableHead className="w-28">Status</TableHead>
+              <TableHead className="hidden w-24 md:table-cell">Attempts</TableHead>
+              <TableHead className="hidden w-40 lg:table-cell">Run at</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -135,7 +135,7 @@ export function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
                   <DateTime value={job.updatedAt} />
                 </TableCell>
 
-                <TableCell className="font-mono text-xs">{job.type}</TableCell>
+                <TableCell className="min-w-0 overflow-hidden"><div className="truncate font-mono text-xs" title={job.type}>{job.type}</div></TableCell>
                 <TableCell><StatusBadge status={job.status} /></TableCell>
 
                 <TableCell className="hidden tabular-nums md:table-cell">

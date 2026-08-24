@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "#compo
 
 type CopyValue = string | number | (() => string | number | Promise<string | number>)
 
-type CopyButtonProps = Omit<ComponentProps<typeof Button>, "onClick"> & {
+type CopyButtonProps = Omit<ComponentProps<typeof Button>, "onClick" | "value"> & {
   value: CopyValue
   label: string
   copiedLabel?: string

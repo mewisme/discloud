@@ -38,7 +38,7 @@ export function BotRuntimeTable({
       </div>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>Bot</TableHead>
@@ -69,7 +69,7 @@ export function BotRuntimeTable({
               return (
                 <Fragment key={key}>
                   <TableRow>
-                    <TableCell>
+                    <TableCell className="min-w-0 overflow-hidden">
                       <div className="flex min-w-0 items-center gap-2">
                         <UserAvatar
                           className="size-9 shrink-0"
@@ -78,10 +78,10 @@ export function BotRuntimeTable({
                           src={bot.avatarUrl}
                         />
 
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium" title={name}>{name}</p>
                           {bot.resolved ? (
-                            <p className="truncate text-xs text-muted-foreground">@{username}</p>
+                            <p className="truncate text-xs text-muted-foreground" title={`@${username}`}>@{username}</p>
                           ) : (
                             <p className="truncate text-xs text-muted-foreground">
                               Config index {bot.configIndex} · identity unresolved
@@ -183,9 +183,9 @@ function CurrentWork({ bot }: { bot: BotRuntimeBot }) {
 
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="capitalize">{lease.operation}</Badge>
-        {target && <span className="max-w-64 truncate text-sm">{target}</span>}
+      <div className="flex min-w-0 items-center gap-2">
+        <Badge variant="outline" className="shrink-0 capitalize">{lease.operation}</Badge>
+        {target && <span className="min-w-0 flex-1 truncate text-sm" title={target}>{target}</span>}
       </div>
       {details && <p className="mt-1 text-xs text-muted-foreground">{details}</p>}
     </div>

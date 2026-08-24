@@ -49,14 +49,14 @@ export function AdminUsersTable({
       </div>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead className="hidden w-24 sm:table-cell">Role</TableHead>
               <TableHead className="hidden w-28 md:table-cell">Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Storage</TableHead>
-              <TableHead className="hidden xl:table-cell">Quota</TableHead>
+              <TableHead className="hidden w-48 lg:table-cell">Storage</TableHead>
+              <TableHead className="hidden w-28 xl:table-cell">Quota</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -74,18 +74,17 @@ export function AdminUsersTable({
 
               return (
                 <TableRow key={user.id}>
-                  <TableCell>
+                  <TableCell className="min-w-0 overflow-hidden">
                     <div className="flex min-w-0 items-center gap-2">
                       <UserAvatar className="size-8 shrink-0" name={user.name} username={user.username} src={avatarSrc} />
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate font-medium">{user.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate font-medium" title={user.name}>{user.name}</p>
                           {user.id === currentUserId && <Badge variant="secondary">You</Badge>}
                         </div>
-
-                        {user.mustChangePassword && <p className="text-xs text-muted-foreground">Password change required</p>}
+                        <p className="truncate text-xs text-muted-foreground" title={`@${user.username}`}>@{user.username}</p>
+                        {user.mustChangePassword && <p className="truncate text-xs text-muted-foreground">Password change required</p>}
                       </div>
                     </div>
                   </TableCell>

@@ -91,11 +91,11 @@ function BotTable({ bots, now, onChanged }: { bots: readonly BotRuntimeBot[]; no
     <section className="space-y-3">
       <div><h2 className="text-lg font-semibold">Bots</h2><p className="text-sm text-muted-foreground">Configured identities, leases, cooldowns and process-local metrics.</p></div>
       <div className="overflow-hidden rounded-xl border">
-        <Table>
-          <TableHeader><TableRow><TableHead>Bot</TableHead><TableHead>State</TableHead><TableHead>Current work</TableHead><TableHead className="hidden md:table-cell">Throughput</TableHead><TableHead className="hidden lg:table-cell">Failures</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+        <Table className="table-fixed">
+          <TableHeader><TableRow><TableHead>Bot</TableHead><TableHead className="w-28">State</TableHead><TableHead>Current work</TableHead><TableHead className="hidden w-32 md:table-cell">Throughput</TableHead><TableHead className="hidden w-24 lg:table-cell">Failures</TableHead><TableHead className="w-52">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {bots.length ? bots.map((bot) => <TableRow key={`config-${bot.configIndex}`}>
-              <TableCell><div><p className="font-medium">{bot.displayName || bot.username || `Configured bot #${bot.configIndex + 1}`}</p><p className="text-xs text-muted-foreground">{bot.resolved ? `@${bot.username}` : `Config index ${bot.configIndex} · unresolved`}</p>{bot.resolved && bot.metrics.lastSuccessAt ? <p className="mt-1 text-[11px] text-muted-foreground">Last success {formatDateTime(bot.metrics.lastSuccessAt)}</p> : null}</div></TableCell>
+              <TableCell className="min-w-0 overflow-hidden"><div className="min-w-0"><p className="truncate font-medium" title={bot.displayName || bot.username || `Configured bot #${bot.configIndex + 1}`}>{bot.displayName || bot.username || `Configured bot #${bot.configIndex + 1}`}</p><p className="truncate text-xs text-muted-foreground" title={bot.resolved ? `@${bot.username}` : `Config index ${bot.configIndex} · unresolved`}>{bot.resolved ? `@${bot.username}` : `Config index ${bot.configIndex} · unresolved`}</p>{bot.resolved && bot.metrics.lastSuccessAt ? <p className="truncate text-[11px] text-muted-foreground">Last success {formatDateTime(bot.metrics.lastSuccessAt)}</p> : null}</div></TableCell>
               <TableCell><BotState bot={bot} now={now} /></TableCell>
               <TableCell><BotWork bot={bot} /></TableCell>
               <TableCell className="hidden tabular-nums text-muted-foreground md:table-cell">{bot.metrics.lastThroughputBytesPerSecond > 0 ? `${formatBytes(bot.metrics.lastThroughputBytesPerSecond)}/s` : "—"}</TableCell>
@@ -120,7 +120,7 @@ function BotWork({ bot }: { bot: BotRuntimeBot }) {
   if (!bot.resolved) return <span className="text-sm text-destructive">Discord identity unavailable</span>
   if (!bot.lease) return <span className="text-sm text-muted-foreground">{bot.state === "disabled" ? "Disabled" : bot.state === "cooldown" ? "Cooling down" : "Waiting for work"}</span>
   const target = bot.lease.fileName || bot.lease.resourceId || bot.lease.uploadId
-  return <div><div className="flex items-center gap-2"><Badge variant="outline" className="capitalize">{bot.lease.operation}</Badge>{target ? <span className="max-w-56 truncate text-sm">{target}</span> : null}</div><p className="mt-1 text-xs text-muted-foreground">{bot.lease.partIndex !== undefined ? `part ${bot.lease.partIndex + 1} · ` : ""}{bot.lease.sizeBytes > 0 ? formatBytes(bot.lease.sizeBytes) : ""}</p></div>
+  return <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><Badge variant="outline" className="shrink-0 capitalize">{bot.lease.operation}</Badge>{target ? <span className="min-w-0 flex-1 truncate text-sm" title={target}>{target}</span> : null}</div><p className="mt-1 truncate text-xs text-muted-foreground">{bot.lease.partIndex !== undefined ? `part ${bot.lease.partIndex + 1} · ` : ""}{bot.lease.sizeBytes > 0 ? formatBytes(bot.lease.sizeBytes) : ""}</p></div>
 }
 
 function BotActions({ bot, onChanged }: { bot: BotRuntimeBot; onChanged: () => Promise<void> }) {

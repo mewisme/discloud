@@ -140,15 +140,15 @@ export function UploadDiagnostics({
       </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-40">Updated</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="hidden md:table-cell">Parts</TableHead>
-              <TableHead className="hidden lg:table-cell">Size</TableHead>
-              <TableHead className="hidden xl:table-cell">Failures</TableHead>
+              <TableHead className="w-28">Status</TableHead>
+              <TableHead className="hidden w-24 md:table-cell">Parts</TableHead>
+              <TableHead className="hidden w-28 lg:table-cell">Size</TableHead>
+              <TableHead className="hidden w-24 xl:table-cell">Failures</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -160,15 +160,15 @@ export function UploadDiagnostics({
                   <DateTime value={upload.updatedAt} />
                 </TableCell>
 
-                <TableCell>
-                  <div className="max-w-72">
-                    <div className="truncate font-medium">{upload.name}</div>
+                <TableCell className="min-w-0 overflow-hidden">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium" title={upload.name}>{upload.name}</div>
 
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="truncate text-xs text-muted-foreground" title={`Owner: ${upload.ownerName} · @${upload.ownerUsername}`}>
                       Owner: <span className="text-foreground">{upload.ownerName}</span> · @{upload.ownerUsername}
                     </div>
 
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="truncate text-xs text-muted-foreground" title={`Actor: ${upload.actorName} · @${upload.actorUsername}`}>
                       Actor: <span className="text-foreground">{upload.actorName}</span> · @{upload.actorUsername}
                     </div>
 

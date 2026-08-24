@@ -142,12 +142,12 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
       </DiagnosticsFilterBar>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead className="hidden lg:table-cell">Actor</TableHead>
+              <TableHead className="w-40">Time</TableHead>
+              <TableHead className="w-48">Action</TableHead>
+              <TableHead className="hidden w-48 lg:table-cell">Actor</TableHead>
               <TableHead className="hidden md:table-cell">Resource</TableHead>
               <TableHead className="w-12" />
             </TableRow>
@@ -160,18 +160,18 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
                   <DateTime value={event.createdAt} />
                 </TableCell>
 
-                <TableCell>
-                  <Badge variant="outline" className="font-mono font-normal">
-                    {event.action}
+                <TableCell className="min-w-0 overflow-hidden">
+                  <Badge variant="outline" className="max-w-full overflow-hidden font-mono font-normal">
+                    <span className="truncate" title={event.action}>{event.action}</span>
                   </Badge>
                 </TableCell>
 
-                <TableCell className="hidden max-w-56 lg:table-cell">
+                <TableCell className="hidden min-w-0 overflow-hidden lg:table-cell">
                   {!event.actorUserId ? (
                     <span className="text-sm text-muted-foreground">system</span>
                   ) : event.actorName || event.actorUsername ? (
                     <div className="min-w-0">
-                      <p className="truncate text-sm">
+                      <p className="truncate text-sm" title={event.actorName || `@${event.actorUsername}`}>
                         {event.actorName || `@${event.actorUsername}`}
                       </p>
 
@@ -188,13 +188,13 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
                   )}
                 </TableCell>
 
-                <TableCell className="hidden md:table-cell">
-                  <div className="max-w-64">
+                <TableCell className="hidden min-w-0 overflow-hidden md:table-cell">
+                  <div className="min-w-0">
                     <div className="text-sm">{event.resourceType || "—"}</div>
 
                     {event.resourceName || event.resourceUsername ? (
                       <>
-                        <div className="truncate text-sm">
+                        <div className="truncate text-sm" title={event.resourceName || `@${event.resourceUsername}`}>
                           {event.resourceName || `@${event.resourceUsername}`}
                         </div>
 

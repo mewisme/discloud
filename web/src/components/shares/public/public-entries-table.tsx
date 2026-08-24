@@ -43,11 +43,11 @@ export function PublicEntriesTable({
 
   return (
     <div className="relative overflow-hidden rounded-xl border bg-background">
-      <Table>
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead className="hidden md:table-cell">Type</TableHead>
+            <TableHead className="hidden w-36 md:table-cell">Type</TableHead>
             <TableHead className="hidden w-28 sm:table-cell">Size</TableHead>
             <TableHead className="hidden w-36 lg:table-cell">Modified</TableHead>
             <TableHead className="w-12" />
@@ -91,13 +91,14 @@ export function PublicEntriesTable({
                 }
               }}
             >
-              <TableCell>
+              <TableCell className="min-w-0 overflow-hidden">
                 <div className="flex min-w-0 items-center gap-2">
                   <PublicNodeIcon node={node} />
 
                   <button
                     type="button"
-                    className="truncate text-left font-medium hover:underline"
+                    className="min-w-0 flex-1 truncate text-left font-medium hover:underline"
+                    title={node.name}
                     onClick={() => {
                       if (node.kind === "folder") {
                         onOpenFolder?.(node)
@@ -111,7 +112,7 @@ export function PublicEntriesTable({
                 </div>
               </TableCell>
 
-              <TableCell className="hidden capitalize text-muted-foreground md:table-cell">
+              <TableCell className="hidden overflow-hidden text-ellipsis capitalize text-muted-foreground md:table-cell">
                 {node.kind === "folder"
                   ? "Folder"
                   : node.category || node.mimeType || "File"}

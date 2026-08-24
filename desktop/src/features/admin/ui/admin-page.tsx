@@ -230,14 +230,14 @@ function UsersTable({
       </div>
 
       <div className="overflow-hidden rounded-xl border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
-              <TableHead className="hidden sm:table-cell">Role</TableHead>
-              <TableHead className="hidden md:table-cell">Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Storage</TableHead>
-              <TableHead className="hidden xl:table-cell">Quota</TableHead>
+              <TableHead className="hidden w-24 sm:table-cell">Role</TableHead>
+              <TableHead className="hidden w-28 md:table-cell">Status</TableHead>
+              <TableHead className="hidden w-48 lg:table-cell">Storage</TableHead>
+              <TableHead className="hidden w-28 xl:table-cell">Quota</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -249,17 +249,17 @@ function UsersTable({
 
               return (
                 <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <DesktopUserAvatar user={user} adminUserId={user.id} className="size-8" />
+                  <TableCell className="min-w-0 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <DesktopUserAvatar user={user} adminUserId={user.id} className="size-8 shrink-0" />
 
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate font-medium">{user.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate font-medium" title={user.name}>{user.name}</p>
                           {user.id === currentUserId ? <Badge variant="secondary">You</Badge> : null}
                         </div>
-                        {user.mustChangePassword ? <p className="text-xs text-muted-foreground">Password change required</p> : null}
+                        <p className="truncate text-xs text-muted-foreground" title={`@${user.username}`}>@{user.username}</p>
+                        {user.mustChangePassword ? <p className="truncate text-xs text-muted-foreground">Password change required</p> : null}
                       </div>
                     </div>
                   </TableCell>
