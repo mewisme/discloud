@@ -24,7 +24,32 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost discloud: http://discloud.localhost",
+        "img-src": "'self' blob: discloud: http://discloud.localhost discloud-thumbnail: http://discloud-thumbnail.localhost",
+        "media-src": "'self' discloud: http://discloud.localhost",
+        "frame-src": "'self' discloud: http://discloud.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self'",
+        "connect-src": "'self' ws://127.0.0.1:5173 ipc: http://ipc.localhost discloud: http://discloud.localhost",
+        "img-src": "'self' blob: discloud: http://discloud.localhost discloud-thumbnail: http://discloud-thumbnail.localhost",
+        "media-src": "'self' discloud: http://discloud.localhost",
+        "frame-src": "'self' discloud: http://discloud.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      },
       "capabilities": [
         "default"
       ]
