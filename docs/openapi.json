@@ -73,6 +73,9 @@
       "name": "Public Shares"
     },
     {
+      "name": "Activity"
+    },
+    {
       "name": "Storage"
     },
     {
@@ -3161,6 +3164,86 @@
         "responses": {
           "200": {
             "$ref": "./openapi/components.json#/responses/StorageAnalyzer"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/activity": {
+      "get": {
+        "tags": [
+          "Activity"
+        ],
+        "operationId": "listRecentActivity",
+        "summary": "Recent workspace activity",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            }
+          },
+          {
+            "name": "beforeAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/RecentActivityPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/activity/sync": {
+      "post": {
+        "tags": [
+          "Activity"
+        ],
+        "operationId": "recordSyncActivity",
+        "summary": "Record a completed desktop sync run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./openapi/components.json#/schemas/SyncActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Activity recorded."
           },
           "default": {
             "$ref": "./openapi/components.json#/responses/Problem"

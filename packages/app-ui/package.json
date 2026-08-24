@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./activity/*": "./src/activity/ui/*.tsx",
     "./admin/*": "./src/admin/ui/*.tsx",
     "./auth/*": "./src/auth/ui/*.tsx",
     "./collections/*": "./src/collections/ui/*.tsx",

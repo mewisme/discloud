@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
 import { useDesktopSession } from "#components/desktop-session"
+import { apiJSON } from "#lib/api/transport"
 
 import { sendDesktopNotification } from "../../desktop/core/notifications"
 import { clearNativeSyncPairState, configureNativeSyncPairs, listNativeSyncConflicts, openNativeSyncPath, resolveNativeSyncConflict, runNativeSyncPair, validateNativeSyncPairs } from "../core/native"
@@ -147,6 +148,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
       setRuntimes((current) => ({ ...current, [pairId]: { status: "idle", lastStartedAt: startedAt, lastFinishedAt: finishedAt, nextRunAt, lastResult: result } }))
       await refreshConflicts().catch(() => undefined)
       window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId, result } }))
+      void recordSyncActivity(pair, result)
       if (result.conflicts > 0) void sendDesktopNotification("Sync conflict needs attention", `${pair.remoteFolderName}: ${result.conflicts} pending conflict${result.conflicts === 1 ? "" : "s"}.`)
       return result
     } catch (cause) {
@@ -211,6 +213,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
         setRuntimes((current) => ({ ...current, [payload.pairId]: { status: "idle", lastStartedAt: payload.startedAt, lastFinishedAt: finishedAt, nextRunAt: finishedAt + pair.intervalSeconds * 1000, lastResult: payload.result } }))
         void refreshConflicts().catch(() => undefined)
         window.dispatchEvent(new CustomEvent("discloud:sync-completed", { detail: { pairId: payload.pairId, result: payload.result } }))
+        void recordSyncActivity(pair, payload.result)
         if (payload.result.conflicts > 0) void sendDesktopNotification("Sync conflict needs attention", `${pair.remoteFolderName}: ${payload.result.conflicts} pending conflict${payload.result.conflicts === 1 ? "" : "s"}.`)
       }
     }).then((unlisten) => {
@@ -259,6 +262,10 @@ export function useDesktopSync() {
   return context
 }
 
+
+function recordSyncActivity(pair: SyncPair, result: SyncRunResult) {
+  return apiJSON<void>("/api/v1/activity/sync", { method: "POST", body: { pairId: pair.id, remoteFolderId: pair.remoteFolderId, remoteFolderName: pair.remoteFolderName, direction: pair.direction, result } }).catch(() => undefined)
+}
 
 function syncErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message

@@ -5,6 +5,7 @@ import {
   FolderIcon,
   HardDriveIcon,
   HeartIcon,
+  HistoryIcon,
   LibraryIcon,
   SearchIcon,
   Share2Icon,
@@ -77,6 +78,11 @@ export function createAppNavigation({
         title: "Shared",
         href: workspacePath(workspaceUsername, "shared"),
         icon: Share2Icon,
+      },
+      {
+        title: "Activity",
+        href: workspacePath(workspaceUsername, "activity"),
+        icon: HistoryIcon,
       },
       {
         title: "Storage",

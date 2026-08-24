@@ -4,6 +4,40 @@
  */
 
 export type paths = {
+    readonly "/api/v1/activity": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Recent workspace activity */
+        readonly get: operations["listRecentActivity"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/activity/sync": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Record a completed desktop sync run */
+        readonly post: operations["recordSyncActivity"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/admin/audit": {
         readonly parameters: {
             readonly query?: never;
@@ -2120,6 +2154,42 @@ export type components = {
             readonly userId: string;
             readonly username: string;
         };
+        readonly RecentActivityCursor: {
+            /** Format: date-time */
+            readonly beforeAt: string;
+            /** Format: uuid */
+            readonly beforeId: string;
+        };
+        readonly RecentActivityItem: {
+            /** @enum {string} */
+            readonly action: "file.create" | "file.version.create" | "node.rename" | "node.move" | "node.trash" | "node.restore" | "share.create" | "share.update" | "share.revoke" | "sync.run" | "user.create" | "user.update" | "user.quota_update" | "user.password_reset" | "user.active" | "user.disabled";
+            readonly actor: components["schemas"]["RecentActivityPerson"];
+            readonly adminOnly?: boolean;
+            /** Format: date-time */
+            readonly createdAt: string;
+            readonly detail?: string;
+            /** Format: uuid */
+            readonly id: string;
+            /** @enum {string} */
+            readonly kind: "upload" | "rename" | "move" | "trash" | "restore" | "share" | "sync" | "admin";
+            readonly target: components["schemas"]["RecentActivityTarget"];
+        };
+        readonly RecentActivityPage: {
+            readonly items: readonly components["schemas"]["RecentActivityItem"][];
+            readonly nextCursor?: components["schemas"]["RecentActivityCursor"];
+        };
+        readonly RecentActivityPerson: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly username: string;
+        };
+        readonly RecentActivityTarget: {
+            readonly id: string;
+            readonly name: string;
+            /** @enum {string} */
+            readonly type: "file" | "folder" | "node" | "collection" | "user";
+        };
         readonly SearchResult: {
             readonly category?: string;
             /** Format: uuid */
@@ -2313,6 +2383,33 @@ export type components = {
             readonly uniqueChunkCount: number;
             /** Format: int64 */
             readonly userCount: number;
+        };
+        readonly SyncActivityInput: {
+            /** @enum {string} */
+            readonly direction: "two-way" | "download-only" | "upload-only";
+            readonly pairId: string;
+            /** Format: uuid */
+            readonly remoteFolderId: string;
+            readonly remoteFolderName: string;
+            readonly result: components["schemas"]["SyncRunResult"];
+        };
+        readonly SyncRunResult: {
+            /** Format: int64 */
+            readonly conflicts: number;
+            /** Format: int64 */
+            readonly createdLocalFolders: number;
+            /** Format: int64 */
+            readonly createdRemoteFolders: number;
+            /** Format: int64 */
+            readonly downloaded: number;
+            /** Format: int64 */
+            readonly localDeleted: number;
+            /** Format: int64 */
+            readonly remoteDeleted: number;
+            /** Format: int64 */
+            readonly skipped: number;
+            /** Format: int64 */
+            readonly uploaded: number;
         };
         readonly ThemeConfig: {
             readonly custom: components["schemas"]["CustomThemeEffectConfig"];
@@ -2812,6 +2909,15 @@ export type components = {
                 readonly "application/json": {
                     readonly users: readonly components["schemas"]["QuotaReconciliation"][];
                 };
+            };
+        };
+        /** @description Successful response. */
+        readonly RecentActivityPage: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["RecentActivityPage"];
             };
         };
         /** @description Successful response. */
@@ -3351,6 +3457,47 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    readonly listRecentActivity: {
+        readonly parameters: {
+            readonly query?: {
+                readonly beforeAt?: string;
+                readonly beforeId?: string;
+                readonly limit?: number;
+                readonly ownerId?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["RecentActivityPage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly recordSyncActivity: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["SyncActivityInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Activity recorded. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
     readonly listAuditEvents: {
         readonly parameters: {
             readonly query?: {

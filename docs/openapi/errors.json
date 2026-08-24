@@ -467,6 +467,12 @@
       410,
       500
     ],
+    "listRecentActivity": [
+      400,
+      401,
+      403,
+      500
+    ],
     "listSessions": [
       401,
       500
@@ -563,6 +569,12 @@
       401,
       403,
       404,
+      500
+    ],
+    "recordSyncActivity": [
+      400,
+      401,
+      403,
       500
     ],
     "regenerateRecoveryCodes": [

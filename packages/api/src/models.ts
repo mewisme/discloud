@@ -139,4 +139,9 @@ export type SearchQuery = OperationQuery<"search">
 export type SearchPage = OperationJSON<"search", 200>
 export type SearchResult = SearchPage["results"][number]
 
+export type RecentActivityQuery = OperationQuery<"listRecentActivity">
+export type RecentActivityPage = OperationJSON<"listRecentActivity", 200>
+export type RecentActivityItem = RecentActivityPage["items"][number]
+export type SyncActivityInput = OperationBody<"recordSyncActivity">
+
 export type StorageAnalyzerSnapshot = OperationJSON<"getStorageAnalyzer", 200>

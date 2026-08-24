@@ -16,6 +16,7 @@ import (
 	"github.com/mewisme/discloud/internal/folders"
 	"github.com/mewisme/discloud/internal/nodes"
 	"github.com/mewisme/discloud/internal/observability"
+	"github.com/mewisme/discloud/internal/recentactivity"
 	"github.com/mewisme/discloud/internal/search"
 	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
@@ -45,6 +46,7 @@ type RouterDependencies struct {
 	Collections  *collections.Service
 	Shares       *shares.Service
 	Search       *search.Service
+	Activity     *recentactivity.Service
 	Storage      *storageanalyzer.Service
 	Settings     *settings.Service
 }
@@ -153,6 +155,10 @@ func NewRouter(
 
 	if deps.Search != nil && deps.Auth != nil {
 		registerSearchRoutes(mux, deps.Search, deps.Auth, authConfig)
+	}
+
+	if deps.Activity != nil && deps.Auth != nil {
+		registerRecentActivityRoutes(mux, deps.Activity, deps.Auth, authConfig)
 	}
 
 	if deps.Storage != nil && deps.Auth != nil {

@@ -2985,6 +2985,243 @@
         "oldFiles",
         "duplicates"
       ]
+    },
+    "RecentActivityPerson": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "username": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "name"
+      ]
+    },
+    "RecentActivityTarget": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "folder",
+            "node",
+            "collection",
+            "user"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name"
+      ]
+    },
+    "RecentActivityItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "upload",
+            "rename",
+            "move",
+            "trash",
+            "restore",
+            "share",
+            "sync",
+            "admin"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "file.create",
+            "file.version.create",
+            "node.rename",
+            "node.move",
+            "node.trash",
+            "node.restore",
+            "share.create",
+            "share.update",
+            "share.revoke",
+            "sync.run",
+            "user.create",
+            "user.update",
+            "user.quota_update",
+            "user.password_reset",
+            "user.active",
+            "user.disabled"
+          ]
+        },
+        "actor": {
+          "$ref": "#/schemas/RecentActivityPerson"
+        },
+        "target": {
+          "$ref": "#/schemas/RecentActivityTarget"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "adminOnly": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "action",
+        "actor",
+        "target",
+        "createdAt"
+      ]
+    },
+    "RecentActivityCursor": {
+      "type": "object",
+      "properties": {
+        "beforeAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "beforeId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "beforeAt",
+        "beforeId"
+      ]
+    },
+    "RecentActivityPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/RecentActivityItem"
+          }
+        },
+        "nextCursor": {
+          "$ref": "#/schemas/RecentActivityCursor"
+        }
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "SyncRunResult": {
+      "type": "object",
+      "properties": {
+        "uploaded": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "downloaded": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "remoteDeleted": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "localDeleted": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "conflicts": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "createdRemoteFolders": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "createdLocalFolders": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "uploaded",
+        "downloaded",
+        "remoteDeleted",
+        "localDeleted",
+        "conflicts",
+        "createdRemoteFolders",
+        "createdLocalFolders",
+        "skipped"
+      ]
+    },
+    "SyncActivityInput": {
+      "type": "object",
+      "properties": {
+        "pairId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "remoteFolderId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "remoteFolderName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "two-way",
+            "download-only",
+            "upload-only"
+          ]
+        },
+        "result": {
+          "$ref": "#/schemas/SyncRunResult"
+        }
+      },
+      "required": [
+        "pairId",
+        "remoteFolderId",
+        "remoteFolderName",
+        "direction",
+        "result"
+      ]
     }
   },
   "requestBodies": {
@@ -4777,6 +5014,16 @@
         "application/json": {
           "schema": {
             "$ref": "#/schemas/StorageAnalyzer"
+          }
+        }
+      }
+    },
+    "RecentActivityPage": {
+      "description": "Successful response.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/schemas/RecentActivityPage"
           }
         }
       }

@@ -28,6 +28,7 @@ import (
 	"github.com/mewisme/discloud/internal/orphangc"
 	"github.com/mewisme/discloud/internal/postgres"
 	"github.com/mewisme/discloud/internal/postgres/migrate"
+	"github.com/mewisme/discloud/internal/recentactivity"
 	"github.com/mewisme/discloud/internal/search"
 	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
@@ -155,6 +156,7 @@ func Run() error {
 	collectionService := collections.New(pool)
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
+	recentActivityService := recentactivity.New(pool)
 	storageAnalyzerService := storageanalyzer.New(pool)
 	settingsService := settings.New(pool)
 	objectService := objects.New(pool, blobStore, objects.DefaultMaxSize)
@@ -225,6 +227,7 @@ func Run() error {
 			Collections:  collectionService,
 			Shares:       shareService,
 			Search:       searchService,
+			Activity:     recentActivityService,
 			Storage:      storageAnalyzerService,
 			Settings:     settingsService,
 		},

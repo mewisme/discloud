@@ -22,6 +22,7 @@ const LoginForm = lazy(() => import("@discloud/app-ui/auth/login-form").then((mo
 const SetupForm = lazy(() => import("@discloud/app-ui/auth/setup-form").then((module) => ({ default: module.SetupForm })))
 const DesktopAppLayout = lazy(() => import("#components/desktop-shell").then((module) => ({ default: module.DesktopAppLayout })))
 const ServerConnectionScreen = lazy(() => import("#components/server-connection").then((module) => ({ default: module.ServerConnectionScreen })))
+const DesktopActivityPage = lazy(() => import("./features/activity/activity-page").then((module) => ({ default: module.DesktopActivityPage })))
 const DesktopCollectionFilePage = lazy(() => import("./features/collections/collection-file-page").then((module) => ({ default: module.DesktopCollectionFilePage })))
 const DesktopCollectionPage = lazy(() => import("./features/collections/collection-page").then((module) => ({ default: module.DesktopCollectionPage })))
 const DesktopCollectionsPage = lazy(() => import("./features/collections/collections-page").then((module) => ({ default: module.DesktopCollectionsPage })))
@@ -60,6 +61,7 @@ export const router = createHashRouter([
       { path: "collections/:collectionId", Component: CollectionRoute },
       { path: "collections/:collectionId/files/:fileId", Component: CollectionFileRoute },
       { path: "shared", Component: SharedRoute },
+      { path: "activity", Component: ActivityRoute },
       { path: "storage", Component: StorageRoute },
       { path: "trash", Component: TrashRoute },
       {
@@ -206,6 +208,10 @@ function CollectionFileRoute() {
 
 function SharedRoute() {
   return <RouteSuspense label="Loading shared items"><DesktopSharedPage /></RouteSuspense>
+}
+
+function ActivityRoute() {
+  return <RouteSuspense label="Loading activity"><DesktopActivityPage /></RouteSuspense>
 }
 
 function StorageRoute() {

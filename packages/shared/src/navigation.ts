@@ -66,6 +66,7 @@ export function appRouteTitle(pathname: string, username: string) {
   if (path.startsWith("/favorites")) return "Favorites"
   if (path.startsWith("/shared")) return "Shared"
   if (path.startsWith("/search")) return "Search"
+  if (path.startsWith("/activity")) return "Activity"
   if (path.startsWith("/storage")) return "Storage"
   if (path.startsWith("/trash")) return "Trash"
 
