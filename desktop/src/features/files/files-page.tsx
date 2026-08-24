@@ -158,6 +158,11 @@ export function DesktopFilesPage() {
     reload()
   }
 
+  function open(node: BrowserNode) {
+    if (node.kind === "folder") navigateFolder(node.id, node.isRoot)
+    else navigate(workspaceFilePath(workspaceUsername, node.id))
+  }
+
   async function download(node: BrowserNode) {
     if (node.kind !== "file") return
     setActionError(undefined)
@@ -236,7 +241,7 @@ export function DesktopFilesPage() {
           fileHref={(id) => hashPath(workspaceFilePath(workspaceUsername, id))}
           onNavigateFolder={navigateFolder}
           onOpenFile={(id) => navigate(workspaceFilePath(workspaceUsername, id))}
-          renderNodeActions={(node) => <DesktopNodeActionsMenu node={node} folder={data.folder} breadcrumbs={data.breadcrumbs} page={data.page} favoritePending={favoritePending} onReload={changed} onFavorite={setFavorite} />}
+          renderNodeActions={(node) => <DesktopNodeActionsMenu node={node} folder={data.folder} breadcrumbs={data.breadcrumbs} page={data.page} favoritePending={favoritePending} onReload={changed} onFavorite={setFavorite} onOpen={open} onDownload={download} />}
           wrapNode={(node, children) => <DesktopNodeContextMenu node={node} targets={contextMenuTargets(node, selected, selectedNodes)} favoritePending={favoritePending} onReload={changed} onOpen={(target) => target.kind === "folder" ? navigateFolder(target.id, target.isRoot) : navigate(workspaceFilePath(workspaceUsername, target.id))} onDownload={download} onMove={(targets) => setMoveTargets([...targets])} onTrash={(targets) => setTrashTargets([...targets])} onFavoriteMany={setFavorites}>{children}</DesktopNodeContextMenu>}
           emptyDescription={editable ? "Drop files or folders here, or use Upload." : "No files or folders here."}
         />

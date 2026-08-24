@@ -21,6 +21,8 @@ type NodeMenuProps = {
   favoritePending: boolean
   onReload: () => void
   onFavorite: (node: BrowserNode, favorite: boolean) => Promise<void>
+  onOpen: (node: BrowserNode) => void
+  onDownload: (node: BrowserNode) => Promise<void>
 }
 
 type NodeContextMenuProps = Pick<NodeMenuProps, "node" | "favoritePending" | "onReload"> & {
@@ -33,7 +35,7 @@ type NodeContextMenuProps = Pick<NodeMenuProps, "node" | "favoritePending" | "on
   onFavoriteMany: (nodes: readonly BrowserNode[], favorite: boolean) => Promise<void>
 }
 
-export function DesktopNodeActionsMenu({ node, folder, breadcrumbs, page, favoritePending, onReload, onFavorite }: NodeMenuProps) {
+export function DesktopNodeActionsMenu({ node, folder, breadcrumbs, page, favoritePending, onReload, onFavorite, onOpen, onDownload }: NodeMenuProps) {
   const sync = useDesktopSync()
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -45,19 +47,21 @@ export function DesktopNodeActionsMenu({ node, folder, breadcrumbs, page, favori
   const full = node.accessLevel === "full"
   const syncable = node.kind === "folder"
   const syncPair = syncable ? sync.pairs.find((pair) => pair.remoteFolderId === node.id) : undefined
-
-  if (!editable && !node.canFavorite && !full && !syncable) return null
+  const hasSecondaryActions = editable || syncable || full || node.canFavorite
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${node.name}`}><MoreHorizontalIcon /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={() => onOpen(node)}><FolderOpenIcon />Open</DropdownMenuItem>
+          {node.kind === "file" ? <DropdownMenuItem onSelect={() => void onDownload(node)}><DownloadIcon />Download</DropdownMenuItem> : null}
+          {hasSecondaryActions ? <DropdownMenuSeparator /> : null}
           {editable ? <><DropdownMenuItem onSelect={() => setRenameOpen(true)}><PencilIcon />Rename</DropdownMenuItem><DropdownMenuItem onSelect={() => setMoveOpen(true)}><MoveIcon />Move</DropdownMenuItem></> : null}
-          {syncable ? <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => setSyncOpen(true)}><FolderSyncIcon />{syncPair ? "Sync settings" : "Sync"}</DropdownMenuItem></> : null}
+          {syncable ? <>{editable ? <DropdownMenuSeparator /> : null}<DropdownMenuItem onSelect={() => setSyncOpen(true)}><FolderSyncIcon />{syncPair ? "Sync settings" : "Sync"}</DropdownMenuItem></> : null}
           {full && node.kind === "folder" ? <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => setAccessOpen(true)}><Share2Icon />Manage access</DropdownMenuItem></> : null}
           {full ? <DropdownMenuItem onSelect={() => setPublicShareOpen(true)}><Globe2Icon />Public link</DropdownMenuItem> : null}
-          {node.canFavorite ? <><DropdownMenuSeparator /><DropdownMenuItem disabled={favoritePending} onSelect={() => void onFavorite(node, !node.isFavorite)}>{favoritePending ? <Loader2Icon className="animate-spin" /> : node.isFavorite ? <StarOffIcon /> : <StarIcon />}{node.isFavorite ? "Remove from favorites" : "Add to favorites"}</DropdownMenuItem></> : null}
+          {node.canFavorite ? <>{editable || syncable || full ? <DropdownMenuSeparator /> : null}<DropdownMenuItem disabled={favoritePending} onSelect={() => void onFavorite(node, !node.isFavorite)}>{favoritePending ? <Loader2Icon className="animate-spin" /> : node.isFavorite ? <StarOffIcon /> : <StarIcon />}{node.isFavorite ? "Remove from favorites" : "Add to favorites"}</DropdownMenuItem></> : null}
           {editable ? <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => setTrashOpen(true)}><Trash2Icon />Move to trash</DropdownMenuItem></> : null}
         </DropdownMenuContent>
       </DropdownMenu>

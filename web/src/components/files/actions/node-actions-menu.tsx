@@ -2,7 +2,7 @@
 
 import { Button } from "@discloud/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@discloud/ui/components/dropdown-menu"
-import { Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon } from "lucide-react"
+import { DownloadIcon, FolderOpenIcon, Globe2Icon, Loader2Icon, MoreHorizontalIcon, MoveIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -22,6 +22,7 @@ export function NodeActionsMenu({
   onReload,
   onMoved,
   onFavorite,
+  onOpen,
 }: {
   node: BrowserNode
   folder: Node
@@ -31,6 +32,7 @@ export function NodeActionsMenu({
   onReload: () => Promise<void>
   onMoved: (nodeId: string) => void
   onFavorite: (node: BrowserNode, favorite: boolean) => Promise<void>
+  onOpen: (node: BrowserNode) => void
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -39,8 +41,7 @@ export function NodeActionsMenu({
   const [favoritePending, setFavoritePending] = useState(false)
   const editable = node.accessLevel !== "view"
   const canPublicShare = node.accessLevel === "full"
-
-  if (!editable && !node.canFavorite && !canPublicShare) return null
+  const hasSecondaryActions = editable || canPublicShare || node.canFavorite
 
   async function favorite() {
     setFavoritePending(true)
@@ -62,6 +63,22 @@ export function NodeActionsMenu({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={() => onOpen(node)}>
+            <FolderOpenIcon />
+            Open
+          </DropdownMenuItem>
+
+          {node.kind === "file" && (
+            <DropdownMenuItem asChild>
+              <a href={`/api/backend/api/v1/files/${encodeURIComponent(node.id)}/download`}>
+                <DownloadIcon />
+                Download
+              </a>
+            </DropdownMenuItem>
+          )}
+
+          {hasSecondaryActions && <DropdownMenuSeparator />}
+
           {editable && (
             <>
               <DropdownMenuItem onSelect={() => setRenameOpen(true)}>

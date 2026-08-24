@@ -30,7 +30,7 @@ export function FileBrowserGrid(props: BrowserItemsViewProps) {
       onNavigateFolder={(folderId) => props.onNavigate(folderId)}
       onOpenFile={(fileId) => router.push(fileBrowserPath(workspace.username, fileId))}
       renderNodeVisual={(node, className, iconClassName) => <FileNodeVisual node={node} className={className} iconClassName={iconClassName} />}
-      renderNodeActions={(node) => <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} />}
+      renderNodeActions={(node) => <NodeActionsMenu node={node} folder={props.folder} breadcrumbs={props.breadcrumbs} page={props.page} options={props.options} onReload={props.onReload} onMoved={props.onMoved} onFavorite={props.onFavorite} onOpen={open} />}
       wrapNode={(node, children) => <FileNodeContextMenu node={node} targets={browserContextTargets(props, node)} favoritePending={props.favoritePending} onOpen={open} onMove={props.onMoveTargets} onTrash={props.onTrashTargets} onFavorite={props.onFavoriteTargets} onReload={props.onReload}>{children}</FileNodeContextMenu>}
     />
   )
