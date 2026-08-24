@@ -2,6 +2,10 @@ import type { SyncPair } from "./types"
 
 export type UpdateSyncPairInput = Partial<Pick<SyncPair, "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
 
+export function normalizeSyncPair(pair: SyncPair): SyncPair {
+  return pair.direction === "two-way" && pair.deletePolicy !== "propagate" ? { ...pair, deletePolicy: "propagate" } : pair
+}
+
 export function scopedSyncPairs(pairs: readonly SyncPair[], serverUrl?: string, username?: string): SyncPair[] {
   if (!serverUrl || !username) return []
   return pairs.filter((pair) => pair.serverUrl === serverUrl && pair.username === username)
@@ -10,7 +14,7 @@ export function scopedSyncPairs(pairs: readonly SyncPair[], serverUrl?: string, 
 export function patchScopedSyncPair(pairs: readonly SyncPair[], pairId: string, patch: UpdateSyncPairInput, serverUrl: string, username: string): SyncPair[] | undefined {
   const current = pairs.find((pair) => pair.id === pairId)
   if (!current || current.serverUrl !== serverUrl || current.username !== username) return undefined
-  return pairs.map((pair) => pair.id === pairId ? { ...pair, ...patch } : pair)
+  return pairs.map((pair) => pair.id === pairId ? normalizeSyncPair({ ...pair, ...patch }) : pair)
 }
 
 export function syncPairsForValidation(pairs: readonly SyncPair[], runningPairIds: ReadonlySet<string>): SyncPair[] {

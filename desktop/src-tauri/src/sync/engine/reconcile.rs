@@ -152,10 +152,7 @@ async fn reconcile_file(
 
             match pair.direction {
                 SyncDirection::DownloadOnly => {
-                    if previous_remote.is_some()
-                        && pair.delete_policy == SyncDeletePolicy::Propagate
-                        && !local_changed
-                    {
+                    if should_propagate_remote_file_deletion(pair, previous_remote.is_some(), local_changed) {
                         soft_delete_local(root, relative_path, &local.path).await?;
                         result.local_deleted += 1;
                     } else {
@@ -163,10 +160,7 @@ async fn reconcile_file(
                     }
                 }
                 SyncDirection::TwoWay => {
-                    if previous_remote.is_some()
-                        && pair.delete_policy == SyncDeletePolicy::Propagate
-                        && !local_changed
-                    {
+                    if should_propagate_remote_file_deletion(pair, previous_remote.is_some(), local_changed) {
                         soft_delete_local(root, relative_path, &local.path).await?;
                         result.local_deleted += 1;
                     } else {
@@ -192,10 +186,7 @@ async fn reconcile_file(
 
             match pair.direction {
                 SyncDirection::UploadOnly => {
-                    if previous_local.is_some()
-                        && pair.delete_policy == SyncDeletePolicy::Propagate
-                        && !remote_changed
-                    {
+                    if should_propagate_local_file_deletion(pair, previous_local.is_some(), remote_changed) {
                         trash_remote_file(api, &remote.id).await?;
                         result.remote_deleted += 1;
                     } else {
@@ -203,10 +194,7 @@ async fn reconcile_file(
                     }
                 }
                 SyncDirection::TwoWay => {
-                    if previous_local.is_some()
-                        && pair.delete_policy == SyncDeletePolicy::Propagate
-                        && !remote_changed
-                    {
+                    if should_propagate_local_file_deletion(pair, previous_local.is_some(), remote_changed) {
                         trash_remote_file(api, &remote.id).await?;
                         result.remote_deleted += 1;
                     } else {
@@ -225,6 +213,141 @@ async fn reconcile_file(
     }
 
     Ok(())
+}
+
+fn should_propagate_remote_file_deletion(pair: &SyncPairInput, existed_remote: bool, local_changed: bool) -> bool {
+    existed_remote && pair.propagates_deletions() && !local_changed
+}
+
+fn should_propagate_local_file_deletion(pair: &SyncPairInput, existed_local: bool, remote_changed: bool) -> bool {
+    existed_local && pair.propagates_deletions() && !remote_changed
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DirectoryDeletion {
+    Local,
+    Remote,
+}
+
+async fn reconcile_directory_deletions(
+    api: &ApiState,
+    root: &Path,
+    pair: &SyncPairInput,
+    local: &mut LocalTree,
+    remote: &mut RemoteTree,
+    baseline: &SyncBaseline,
+    result: &mut SyncRunResult,
+) -> Result<(), ApiCommandError> {
+    if !pair.propagates_deletions() {
+        return Ok(());
+    }
+
+    let mut paths = BTreeSet::new();
+    paths.extend(local.directories.iter().filter(|path| !path.is_empty()).cloned());
+    paths.extend(remote.directories.keys().filter(|path| !path.is_empty()).cloned());
+    let mut paths = paths.into_iter().collect::<Vec<_>>();
+    paths.sort_by_key(|path| path_depth(path));
+    let mut handled = Vec::<String>::new();
+
+    for relative in paths {
+        if handled.iter().any(|parent| path_in_subtree(&relative, parent)) {
+            continue;
+        }
+        let Some(deletion) = directory_deletion(pair, &relative, local, remote, baseline) else {
+            continue;
+        };
+
+        match deletion {
+            DirectoryDeletion::Local => {
+                let source = root.join(relative_to_path(&relative));
+                soft_delete_local(root, &relative, &source).await?;
+                remove_local_subtree(local, &relative);
+                result.local_deleted += 1;
+            }
+            DirectoryDeletion::Remote => {
+                let folder_id = remote
+                    .directories
+                    .get(&relative)
+                    .ok_or_else(|| ApiCommandError::internal("Remote sync folder disappeared during reconciliation."))?
+                    .clone();
+                trash_remote_folder(api, &folder_id).await?;
+                remove_remote_subtree(remote, &relative);
+                result.remote_deleted += 1;
+            }
+        }
+        handled.push(relative);
+    }
+
+    Ok(())
+}
+
+fn directory_deletion(
+    pair: &SyncPairInput,
+    relative: &str,
+    local: &LocalTree,
+    remote: &RemoteTree,
+    baseline: &SyncBaseline,
+) -> Option<DirectoryDeletion> {
+    if !pair.propagates_deletions() {
+        return None;
+    }
+    let previous = baseline.directories.get(relative)?;
+    if !previous.local || !previous.remote {
+        return None;
+    }
+
+    match (
+        local.directories.contains(relative),
+        remote.directories.contains_key(relative),
+    ) {
+        (false, true)
+            if pair.direction.uploads() && !remote_subtree_has_live_changes(relative, remote, baseline) =>
+        {
+            Some(DirectoryDeletion::Remote)
+        }
+        (true, false)
+            if pair.direction.downloads() && !local_subtree_has_live_changes(relative, local, baseline) =>
+        {
+            Some(DirectoryDeletion::Local)
+        }
+        _ => None,
+    }
+}
+
+fn local_subtree_has_live_changes(relative: &str, local: &LocalTree, baseline: &SyncBaseline) -> bool {
+    local.files.iter().any(|(path, file)| {
+        path_in_subtree(path, relative)
+            && baseline.files.get(path).and_then(|entry| entry.local.as_ref()) != Some(&file.fingerprint)
+    }) || local.directories.iter().any(|path| {
+        path != relative
+            && path_in_subtree(path, relative)
+            && !baseline.directories.get(path).is_some_and(|entry| entry.local)
+    })
+}
+
+fn remote_subtree_has_live_changes(relative: &str, remote: &RemoteTree, baseline: &SyncBaseline) -> bool {
+    remote.files.iter().any(|(path, file)| {
+        path_in_subtree(path, relative)
+            && baseline.files.get(path).and_then(|entry| entry.remote.as_ref()) != Some(&file.fingerprint)
+    }) || remote.directories.keys().any(|path| {
+        path != relative
+            && path_in_subtree(path, relative)
+            && !baseline.directories.get(path).is_some_and(|entry| entry.remote)
+    })
+}
+
+fn remove_local_subtree(local: &mut LocalTree, relative: &str) {
+    local.files.retain(|path, _| !path_in_subtree(path, relative));
+    local.directories.retain(|path| !path_in_subtree(path, relative));
+}
+
+fn remove_remote_subtree(remote: &mut RemoteTree, relative: &str) {
+    remote.files.retain(|path, _| !path_in_subtree(path, relative));
+    remote.directories.retain(|path, _| !path_in_subtree(path, relative));
+}
+
+fn path_in_subtree(path: &str, parent: &str) -> bool {
+    path == parent || path.strip_prefix(parent).is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 async fn keep_both_conflict(
@@ -359,6 +482,12 @@ async fn trash_remote_file(api: &ApiState, file_id: &str) -> Result<(), ApiComma
     Ok(())
 }
 
+async fn trash_remote_folder(api: &ApiState, folder_id: &str) -> Result<(), ApiCommandError> {
+    let endpoint = format!("/api/v1/folders/{folder_id}");
+    send_json(api, Method::DELETE, &endpoint, Vec::new(), None).await?;
+    Ok(())
+}
+
 async fn soft_delete_local(
     root: &Path,
     relative_path: &str,
@@ -376,7 +505,7 @@ async fn soft_delete_local(
     }
 
     fs::rename(source, destination).await.map_err(|error| {
-        ApiCommandError::internal(format!("Could not move local file to sync trash: {error}"))
+        ApiCommandError::internal(format!("Could not move local sync path to trash: {error}"))
     })
 }
 
@@ -488,6 +617,7 @@ mod rename_tests {
         };
         let baseline = SyncBaseline {
             version: BASELINE_VERSION,
+            directories: BTreeMap::new(),
             files: BTreeMap::from([(
                 "a.txt".to_string(),
                 BaselineFile {
@@ -536,6 +666,7 @@ mod rename_tests {
         };
         let baseline = SyncBaseline {
             version: BASELINE_VERSION,
+            directories: BTreeMap::new(),
             files: BTreeMap::from([(
                 "a.txt".to_string(),
                 BaselineFile {
@@ -553,5 +684,109 @@ mod rename_tests {
         );
 
         assert!(candidates.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod directory_deletion_tests {
+    use super::*;
+
+    fn pair(direction: SyncDirection, delete_policy: SyncDeletePolicy) -> SyncPairInput {
+        SyncPairInput {
+            id: "pair".to_string(),
+            local_path: "C:/sync".to_string(),
+            remote_folder_id: "remote".to_string(),
+            direction,
+            delete_policy,
+            enabled: true,
+            interval_seconds: 30,
+            ignore_patterns: Vec::new(),
+        }
+    }
+
+    fn baseline() -> SyncBaseline {
+        SyncBaseline {
+            version: BASELINE_VERSION,
+            directories: BTreeMap::from([(
+                "folder".to_string(),
+                BaselineDirectory { local: true, remote: true },
+            )]),
+            files: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn two_way_propagates_local_folder_deletion_to_remote() {
+        let local = LocalTree { directories: BTreeSet::from([String::new()]), ..LocalTree::default() };
+        let remote = RemoteTree { directories: BTreeMap::from([(String::new(), "root".to_string()), ("folder".to_string(), "folder-id".to_string())]), ..RemoteTree::default() };
+        assert_eq!(directory_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Propagate), "folder", &local, &remote, &baseline()), Some(DirectoryDeletion::Remote));
+    }
+
+    #[test]
+    fn two_way_propagates_remote_folder_deletion_to_local() {
+        let local = LocalTree { directories: BTreeSet::from([String::new(), "folder".to_string()]), ..LocalTree::default() };
+        let remote = RemoteTree { directories: BTreeMap::from([(String::new(), "root".to_string())]), ..RemoteTree::default() };
+        assert_eq!(directory_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Propagate), "folder", &local, &remote, &baseline()), Some(DirectoryDeletion::Local));
+    }
+
+    #[test]
+    fn preserve_policy_does_not_propagate_folder_deletion() {
+        let local = LocalTree { directories: BTreeSet::from([String::new()]), ..LocalTree::default() };
+        let remote = RemoteTree { directories: BTreeMap::from([(String::new(), "root".to_string()), ("folder".to_string(), "folder-id".to_string())]), ..RemoteTree::default() };
+        assert_eq!(directory_deletion(&pair(SyncDirection::UploadOnly, SyncDeletePolicy::Preserve), "folder", &local, &remote, &baseline()), None);
+    }
+
+    #[test]
+    fn two_way_legacy_preserve_still_propagates_folder_deletion() {
+        let local = LocalTree { directories: BTreeSet::from([String::new()]), ..LocalTree::default() };
+        let remote = RemoteTree { directories: BTreeMap::from([(String::new(), "root".to_string()), ("folder".to_string(), "folder-id".to_string())]), ..RemoteTree::default() };
+        assert_eq!(directory_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Preserve), "folder", &local, &remote, &baseline()), Some(DirectoryDeletion::Remote));
+    }
+
+    #[test]
+    fn surviving_side_changes_block_folder_deletion() {
+        let local = LocalTree { directories: BTreeSet::from([String::new()]), ..LocalTree::default() };
+        let remote = RemoteTree {
+            files: BTreeMap::from([(
+                "folder/new.txt".to_string(),
+                RemoteFile {
+                    id: "new".to_string(),
+                    parent_id: "folder-id".to_string(),
+                    name: "new.txt".to_string(),
+                    fingerprint: RemoteFingerprint { id: "new".to_string(), size: 1, updated_at: "now".to_string() },
+                },
+            )]),
+            directories: BTreeMap::from([(String::new(), "root".to_string()), ("folder".to_string(), "folder-id".to_string())]),
+            skipped: 0,
+        };
+        assert_eq!(directory_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Propagate), "folder", &local, &remote, &baseline()), None);
+    }
+}
+
+#[cfg(test)]
+mod file_deletion_tests {
+    use super::*;
+
+    fn pair(direction: SyncDirection, delete_policy: SyncDeletePolicy) -> SyncPairInput {
+        SyncPairInput {
+            id: "pair".to_string(),
+            local_path: "C:/sync".to_string(),
+            remote_folder_id: "remote".to_string(),
+            direction,
+            delete_policy,
+            enabled: true,
+            interval_seconds: 30,
+            ignore_patterns: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn legacy_two_way_preserve_propagates_remote_file_deletion() {
+        assert!(should_propagate_remote_file_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Preserve), true, false));
+    }
+
+    #[test]
+    fn changed_local_file_is_not_deleted_after_remote_deletion() {
+        assert!(!should_propagate_remote_file_deletion(&pair(SyncDirection::TwoWay, SyncDeletePolicy::Preserve), true, true));
     }
 }

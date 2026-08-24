@@ -22,7 +22,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
   const readOnlyRemote = remoteFolder?.accessLevel === "view"
   const [localPath, setLocalPath] = useState(pair?.localPath ?? "")
   const [direction, setDirection] = useState<SyncDirection>(pair?.direction ?? (readOnlyRemote ? "download-only" : "two-way"))
-  const [deletePolicy, setDeletePolicy] = useState<SyncDeletePolicy>(pair?.deletePolicy ?? "preserve")
+  const [deletePolicy, setDeletePolicy] = useState<SyncDeletePolicy>(pair?.deletePolicy ?? (readOnlyRemote ? "preserve" : "propagate"))
   const [intervalSeconds, setIntervalSeconds] = useState(pair?.intervalSeconds ?? 30)
   const [ignoreText, setIgnoreText] = useState((pair?.ignorePatterns ?? defaultSyncIgnorePatterns).join("\n"))
   const [pending, setPending] = useState(false)
@@ -33,7 +33,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
     if (!open) return
     setLocalPath(pair?.localPath ?? "")
     setDirection(pair?.direction ?? (readOnlyRemote ? "download-only" : "two-way"))
-    setDeletePolicy(pair?.deletePolicy ?? "preserve")
+    setDeletePolicy(pair?.deletePolicy ?? (readOnlyRemote ? "preserve" : "propagate"))
     setIntervalSeconds(pair?.intervalSeconds ?? 30)
     setIgnoreText((pair?.ignorePatterns ?? defaultSyncIgnorePatterns).join("\n"))
     setError(undefined)
@@ -102,7 +102,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium">
               Direction
-              <Select value={direction} disabled={pending} onValueChange={(value) => setDirection(value as SyncDirection)}>
+              <Select value={direction} disabled={pending} onValueChange={(value) => { const next = value as SyncDirection; setDirection(next); if (next === "two-way") setDeletePolicy("propagate") }}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="two-way" disabled={readOnlyRemote}>Two-way</SelectItem>
@@ -114,7 +114,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
 
             <label className="grid gap-2 text-sm font-medium">
               Deletions
-              <Select value={deletePolicy} disabled={pending} onValueChange={(value) => setDeletePolicy(value as SyncDeletePolicy)}>
+              <Select value={direction === "two-way" ? "propagate" : deletePolicy} disabled={pending || direction === "two-way"} onValueChange={(value) => setDeletePolicy(value as SyncDeletePolicy)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="preserve">Preserve</SelectItem>
@@ -139,7 +139,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
           </label>
 
           {readOnlyRemote ? <Alert><TriangleAlertIcon /><AlertTitle>Read-only remote folder</AlertTitle><AlertDescription>This folder can only use download-only sync.</AlertDescription></Alert> : null}
-          {deletePolicy === "propagate" ? <Alert><TriangleAlertIcon /><AlertTitle>Deletion propagation enabled</AlertTitle><AlertDescription>Local deletions send remote files to DisCloud Trash. Remote deletions move local files into <code>.discloud-trash</code>.</AlertDescription></Alert> : null}
+          {direction === "two-way" || deletePolicy === "propagate" ? <Alert><TriangleAlertIcon /><AlertTitle>Deletion propagation enabled</AlertTitle><AlertDescription>Two-way sync mirrors deletions. Local deletions send remote files and folders to DisCloud Trash; remote deletions move local files and folders into <code>.discloud-trash</code>.</AlertDescription></Alert> : <Alert><TriangleAlertIcon /><AlertTitle>Deleted items are preserved</AlertTitle><AlertDescription>Deleting an item on one side can recreate it from the other side on the next sync.</AlertDescription></Alert>}
           {error ? <Alert variant="destructive"><TriangleAlertIcon /><AlertTitle>Could not save sync pair</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         </div>
 

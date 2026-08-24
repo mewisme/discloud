@@ -18,7 +18,7 @@ use tokio::{
 
 use crate::api::{response_error, ApiCommandError, ApiState};
 
-const BASELINE_VERSION: u32 = 1;
+const BASELINE_VERSION: u32 = 2;
 const REMOTE_PAGE_SIZE: usize = 100;
 const MAX_UPLOAD_ATTEMPTS: usize = 3;
 const DEFAULT_CHUNK_SIZE: usize = 8 * 1024 * 1024;
@@ -122,7 +122,16 @@ struct RemoteFingerprint {
 #[serde(rename_all = "camelCase")]
 struct SyncBaseline {
     version: u32,
+    #[serde(default)]
+    directories: BTreeMap<String, BaselineDirectory>,
     files: BTreeMap<String, BaselineFile>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BaselineDirectory {
+    local: bool,
+    remote: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -224,6 +233,12 @@ impl SyncDirection {
 
     fn downloads(self) -> bool {
         self != Self::UploadOnly
+    }
+}
+
+impl SyncPairInput {
+    fn propagates_deletions(&self) -> bool {
+        self.direction == SyncDirection::TwoWay || self.delete_policy == SyncDeletePolicy::Propagate
     }
 }
 
@@ -366,6 +381,17 @@ async fn run_pair(
     };
 
     validate_structural_conflicts(&local, &remote)?;
+
+    reconcile_directory_deletions(
+        api,
+        &root,
+        pair,
+        &mut local,
+        &mut remote,
+        &baseline,
+        &mut result,
+    )
+    .await?;
 
     if pair.direction.downloads() {
         ensure_local_directories(&root, &remote, &mut local, &mut result).await?;

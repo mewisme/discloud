@@ -354,6 +354,20 @@ fn parse_upload_session(value: &Value) -> Result<UploadSession, ApiCommandError>
 }
 
 fn build_baseline(local: &LocalTree, remote: &RemoteTree) -> SyncBaseline {
+    let mut directories = BTreeMap::new();
+    let mut directory_paths = BTreeSet::new();
+    directory_paths.extend(local.directories.iter().filter(|path| !path.is_empty()).cloned());
+    directory_paths.extend(remote.directories.keys().filter(|path| !path.is_empty()).cloned());
+    for path in directory_paths {
+        directories.insert(
+            path.clone(),
+            BaselineDirectory {
+                local: local.directories.contains(&path),
+                remote: remote.directories.contains_key(&path),
+            },
+        );
+    }
+
     let mut files = BTreeMap::new();
     let paths = union_file_paths(local, remote);
 
@@ -369,6 +383,7 @@ fn build_baseline(local: &LocalTree, remote: &RemoteTree) -> SyncBaseline {
 
     SyncBaseline {
         version: BASELINE_VERSION,
+        directories,
         files,
     }
 }

@@ -7,10 +7,7 @@ async fn load_baseline(app: &AppHandle, pair_id: &str) -> Result<SyncBaseline, A
         {
             Ok(bytes) => bytes,
             Err(backup_error) if backup_error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(SyncBaseline {
-                    version: BASELINE_VERSION,
-                    files: BTreeMap::new(),
-                })
+                return Ok(empty_baseline())
             }
             Err(backup_error) => {
                 return Err(ApiCommandError::internal(format!(
@@ -24,18 +21,44 @@ async fn load_baseline(app: &AppHandle, pair_id: &str) -> Result<SyncBaseline, A
             )))
         }
     };
-    let baseline = serde_json::from_slice::<SyncBaseline>(&bytes).map_err(|error| {
+    let mut baseline = serde_json::from_slice::<SyncBaseline>(&bytes).map_err(|error| {
         ApiCommandError::internal(format!("Could not decode sync baseline: {error}"))
     })?;
 
+    if baseline.version == 1 {
+        baseline.directories = derive_baseline_directories(&baseline.files);
+        baseline.version = BASELINE_VERSION;
+        return Ok(baseline);
+    }
     if baseline.version != BASELINE_VERSION {
-        return Ok(SyncBaseline {
-            version: BASELINE_VERSION,
-            files: BTreeMap::new(),
-        });
+        return Ok(empty_baseline());
     }
 
     Ok(baseline)
+}
+
+fn empty_baseline() -> SyncBaseline {
+    SyncBaseline {
+        version: BASELINE_VERSION,
+        directories: BTreeMap::new(),
+        files: BTreeMap::new(),
+    }
+}
+
+fn derive_baseline_directories(
+    files: &BTreeMap<String, BaselineFile>,
+) -> BTreeMap<String, BaselineDirectory> {
+    let mut directories = BTreeMap::new();
+    for (path, file) in files {
+        let mut parent = relative_parent(path).to_string();
+        while !parent.is_empty() {
+            let entry = directories.entry(parent.clone()).or_insert_with(BaselineDirectory::default);
+            entry.local |= file.local.is_some();
+            entry.remote |= file.remote.is_some();
+            parent = relative_parent(&parent).to_string();
+        }
+    }
+    directories
 }
 
 async fn save_baseline(
@@ -91,6 +114,36 @@ fn baseline_path(app: &AppHandle, pair_id: &str) -> Result<PathBuf, ApiCommandEr
         ApiCommandError::internal(format!("Could not resolve app data directory: {error}"))
     })?;
     Ok(directory.join("sync").join(format!("{pair_id}.json")))
+}
+
+#[cfg(test)]
+mod baseline_tests {
+    use super::*;
+
+    #[test]
+    fn derives_directory_history_from_v1_file_entries() {
+        let files = BTreeMap::from([
+            (
+                "photos/2026/a.jpg".to_string(),
+                BaselineFile {
+                    local: Some(LocalFingerprint { size: 1, modified_ms: 1 }),
+                    remote: Some(RemoteFingerprint { id: "a".to_string(), size: 1, updated_at: "now".to_string() }),
+                },
+            ),
+            (
+                "remote-only/b.jpg".to_string(),
+                BaselineFile {
+                    local: None,
+                    remote: Some(RemoteFingerprint { id: "b".to_string(), size: 1, updated_at: "now".to_string() }),
+                },
+            ),
+        ]);
+
+        let directories = derive_baseline_directories(&files);
+        assert_eq!(directories.get("photos").map(|entry| (entry.local, entry.remote)), Some((true, true)));
+        assert_eq!(directories.get("photos/2026").map(|entry| (entry.local, entry.remote)), Some((true, true)));
+        assert_eq!(directories.get("remote-only").map(|entry| (entry.local, entry.remote)), Some((false, true)));
+    }
 }
 
 async fn canonical_local_root(value: &str) -> Result<PathBuf, ApiCommandError> {

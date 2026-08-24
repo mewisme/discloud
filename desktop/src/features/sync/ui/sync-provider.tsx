@@ -80,9 +80,9 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
 
   const persist = useCallback(async (next: SyncPair[]) => {
     try {
-      await saveSyncPairs(next)
-      allPairsRef.current = next
-      setAllPairs(next)
+      const saved = await saveSyncPairs(next)
+      allPairsRef.current = saved
+      setAllPairs(saved)
       setError(undefined)
     } catch (cause) {
       const message = syncErrorMessage(cause)
@@ -94,7 +94,7 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
   const addPair = useCallback(async (input: CreateSyncPairInput) => {
     if (!scopeServerUrl || !scopeUsername) throw new Error("Sign in before creating a sync pair.")
 
-    const pair: SyncPair = { ...input, id: crypto.randomUUID(), serverUrl: scopeServerUrl, username: scopeUsername, createdAt: Date.now() }
+    const pair: SyncPair = { ...input, deletePolicy: input.direction === "two-way" ? "propagate" : input.deletePolicy, id: crypto.randomUUID(), serverUrl: scopeServerUrl, username: scopeUsername, createdAt: Date.now() }
     const next = [...allPairsRef.current, pair]
     await validateNativeSyncPairs(syncPairsForValidation(scopedSyncPairs(next, scopeServerUrl, scopeUsername), runningRef.current))
     await persist(next)

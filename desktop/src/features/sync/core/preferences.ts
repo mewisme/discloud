@@ -1,5 +1,6 @@
 import { Store } from "@tauri-apps/plugin-store"
 
+import { normalizeSyncPair } from "./pairs"
 import type { SyncPair } from "./types"
 
 const storeDefaults = { pairs: [] as SyncPair[] }
@@ -8,13 +9,17 @@ let storePromise: Promise<Store> | undefined
 export async function loadSyncPairs() {
   const store = await syncStore()
   const value = await store.get<unknown>("pairs")
-  return Array.isArray(value) ? value.filter(isSyncPair) : []
+  const pairs = Array.isArray(value) ? value.filter(isSyncPair) : []
+  const normalized = pairs.map(normalizeSyncPair)
+  if (normalized.some((pair, index) => pair !== pairs[index])) await store.set("pairs", normalized)
+  return normalized
 }
 
 export async function saveSyncPairs(pairs: readonly SyncPair[]) {
   const store = await syncStore()
-  await store.set("pairs", [...pairs])
-  return [...pairs]
+  const normalized = pairs.map(normalizeSyncPair)
+  await store.set("pairs", normalized)
+  return normalized
 }
 
 function syncStore() {
