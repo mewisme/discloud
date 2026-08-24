@@ -2733,6 +2733,258 @@
       "required": [
         "versions"
       ]
+    },
+    "StorageAnalyzerSummary": {
+      "type": "object",
+      "properties": {
+        "logicalBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "referencedChunkBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "fileCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "trashBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "trashFileCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "versionBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "logicalBytes",
+        "referencedChunkBytes",
+        "fileCount",
+        "trashBytes",
+        "trashFileCount",
+        "versionBytes"
+      ]
+    },
+    "StorageCategoryUsage": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "text",
+            "archive",
+            "application",
+            "binary",
+            "other"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "fileCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "category",
+        "bytes",
+        "fileCount"
+      ]
+    },
+    "StorageAnalyzerFile": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "text",
+            "archive",
+            "application",
+            "binary",
+            "other"
+          ]
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "contentUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "sizeBytes",
+        "category",
+        "mimeType",
+        "contentUpdatedAt"
+      ]
+    },
+    "StorageOldFiles": {
+      "type": "object",
+      "properties": {
+        "thresholdDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "totalBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "totalFiles": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/StorageAnalyzerFile"
+          }
+        }
+      },
+      "required": [
+        "thresholdDays",
+        "totalBytes",
+        "totalFiles",
+        "items"
+      ]
+    },
+    "StorageDuplicateGroup": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "fileCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 2
+        },
+        "duplicateLogicalBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "sampleFileId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sampleName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "sizeBytes",
+        "fileCount",
+        "duplicateLogicalBytes",
+        "sampleFileId",
+        "sampleName"
+      ]
+    },
+    "StorageDuplicates": {
+      "type": "object",
+      "properties": {
+        "groupCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "totalDuplicateLogicalBytes": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/StorageDuplicateGroup"
+          }
+        }
+      },
+      "required": [
+        "groupCount",
+        "totalDuplicateLogicalBytes",
+        "items"
+      ]
+    },
+    "StorageAnalyzer": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "$ref": "#/schemas/StorageAnalyzerSummary"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/StorageCategoryUsage"
+          }
+        },
+        "largest": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/StorageAnalyzerFile"
+          }
+        },
+        "oldFiles": {
+          "$ref": "#/schemas/StorageOldFiles"
+        },
+        "duplicates": {
+          "$ref": "#/schemas/StorageDuplicates"
+        }
+      },
+      "required": [
+        "summary",
+        "categories",
+        "largest",
+        "oldFiles",
+        "duplicates"
+      ]
     }
   },
   "requestBodies": {
@@ -4515,6 +4767,16 @@
             "required": [
               "results"
             ]
+          }
+        }
+      }
+    },
+    "StorageAnalyzer": {
+      "description": "Successful response.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/schemas/StorageAnalyzer"
           }
         }
       }

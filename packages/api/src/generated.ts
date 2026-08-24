@@ -1495,6 +1495,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/storage/analyzer": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Storage analysis for a workspace */
+        readonly get: operations["getStorageAnalyzer"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/trash": {
         readonly parameters: {
             readonly query?: never;
@@ -2197,6 +2214,74 @@ export type components = {
              */
             readonly variant: "sidebar" | "floating";
         };
+        readonly StorageAnalyzer: {
+            readonly categories: readonly components["schemas"]["StorageCategoryUsage"][];
+            readonly duplicates: components["schemas"]["StorageDuplicates"];
+            readonly largest: readonly components["schemas"]["StorageAnalyzerFile"][];
+            readonly oldFiles: components["schemas"]["StorageOldFiles"];
+            readonly summary: components["schemas"]["StorageAnalyzerSummary"];
+        };
+        readonly StorageAnalyzerFile: {
+            /** @enum {string} */
+            readonly category: "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other";
+            /** Format: date-time */
+            readonly contentUpdatedAt: string;
+            /** Format: uuid */
+            readonly id: string;
+            readonly mimeType: string;
+            readonly name: string;
+            /** Format: int64 */
+            readonly sizeBytes: number;
+        };
+        readonly StorageAnalyzerSummary: {
+            /** Format: int64 */
+            readonly fileCount: number;
+            /** Format: int64 */
+            readonly logicalBytes: number;
+            /** Format: int64 */
+            readonly referencedChunkBytes: number;
+            /** Format: int64 */
+            readonly trashBytes: number;
+            /** Format: int64 */
+            readonly trashFileCount: number;
+            /** Format: int64 */
+            readonly versionBytes: number;
+        };
+        readonly StorageCategoryUsage: {
+            /** Format: int64 */
+            readonly bytes: number;
+            /** @enum {string} */
+            readonly category: "image" | "video" | "audio" | "document" | "text" | "archive" | "application" | "binary" | "other";
+            /** Format: int64 */
+            readonly fileCount: number;
+        };
+        readonly StorageDuplicateGroup: {
+            /** Format: int64 */
+            readonly duplicateLogicalBytes: number;
+            /** Format: int64 */
+            readonly fileCount: number;
+            /** Format: uuid */
+            readonly sampleFileId: string;
+            readonly sampleName: string;
+            readonly sha256: string;
+            /** Format: int64 */
+            readonly sizeBytes: number;
+        };
+        readonly StorageDuplicates: {
+            /** Format: int64 */
+            readonly groupCount: number;
+            readonly items: readonly components["schemas"]["StorageDuplicateGroup"][];
+            /** Format: int64 */
+            readonly totalDuplicateLogicalBytes: number;
+        };
+        readonly StorageOldFiles: {
+            readonly items: readonly components["schemas"]["StorageAnalyzerFile"][];
+            readonly thresholdDays: number;
+            /** Format: int64 */
+            readonly totalBytes: number;
+            /** Format: int64 */
+            readonly totalFiles: number;
+        };
         readonly StorageOverview: {
             /** Format: int64 */
             readonly activeFileCount: number;
@@ -2806,6 +2891,15 @@ export type components = {
             };
             content: {
                 readonly "application/json": components["schemas"]["Share"];
+            };
+        };
+        /** @description Successful response. */
+        readonly StorageAnalyzer: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["StorageAnalyzer"];
             };
         };
         /** @description Successful response. */
@@ -5047,6 +5141,21 @@ export interface operations {
                     readonly "application/json": components["schemas"]["Share"];
                 };
             };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly getStorageAnalyzer: {
+        readonly parameters: {
+            readonly query?: {
+                readonly ownerId?: components["parameters"]["ownerId"];
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["StorageAnalyzer"];
             readonly default: components["responses"]["Problem"];
         };
     };

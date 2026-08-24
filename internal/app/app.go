@@ -32,6 +32,7 @@ import (
 	"github.com/mewisme/discloud/internal/settings"
 	"github.com/mewisme/discloud/internal/setup"
 	"github.com/mewisme/discloud/internal/shares"
+	"github.com/mewisme/discloud/internal/storageanalyzer"
 	"github.com/mewisme/discloud/internal/thumbnails"
 	"github.com/mewisme/discloud/internal/uploads"
 	"github.com/mewisme/discloud/migrations"
@@ -154,6 +155,7 @@ func Run() error {
 	collectionService := collections.New(pool)
 	shareService := shares.New(pool, collectionService)
 	searchService := search.New(pool)
+	storageAnalyzerService := storageanalyzer.New(pool)
 	settingsService := settings.New(pool)
 	objectService := objects.New(pool, blobStore, objects.DefaultMaxSize)
 	avatarService := avatars.New(pool, objectService)
@@ -223,6 +225,7 @@ func Run() error {
 			Collections:  collectionService,
 			Shares:       shareService,
 			Search:       searchService,
+			Storage:      storageAnalyzerService,
 			Settings:     settingsService,
 		},
 		cfg.HTTP,

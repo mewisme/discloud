@@ -138,3 +138,5 @@ export type PublicNode = PublicItems["items"][number]
 export type SearchQuery = OperationQuery<"search">
 export type SearchPage = OperationJSON<"search", 200>
 export type SearchResult = SearchPage["results"][number]
+
+export type StorageAnalyzerSnapshot = OperationJSON<"getStorageAnalyzer", 200>

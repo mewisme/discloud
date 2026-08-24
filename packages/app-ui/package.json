@@ -17,6 +17,7 @@
     "./settings/*": "./src/settings/ui/*.tsx",
     "./shell/navigation": "./src/shell/core/navigation.ts",
     "./shell/*": "./src/shell/ui/*.tsx",
+    "./storage/*": "./src/storage/ui/*.tsx",
     "./trash/*": "./src/trash/ui/*.tsx"
   },
   "scripts": {

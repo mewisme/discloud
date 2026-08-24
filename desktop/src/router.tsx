@@ -36,6 +36,7 @@ const DesktopNativeSettingsPage = lazy(() => import("./features/settings/ui/desk
 const DesktopProfileSettingsPage = lazy(() => import("./features/settings/ui/profile-settings-page").then((module) => ({ default: module.DesktopProfileSettingsPage })))
 const DesktopSecuritySettingsPage = lazy(() => import("./features/settings/ui/security-settings-page").then((module) => ({ default: module.DesktopSecuritySettingsPage })))
 const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
+const DesktopStoragePage = lazy(() => import("./features/storage/storage-page").then((module) => ({ default: module.DesktopStoragePage })))
 const DesktopSyncPage = lazy(() => import("./features/sync/ui/sync-page").then((module) => ({ default: module.DesktopSyncPage })))
 const DesktopTrashPage = lazy(() => import("./features/trash/trash-page").then((module) => ({ default: module.DesktopTrashPage })))
 const DesktopUploadsPage = lazy(() => import("./features/uploads/ui/uploads-page").then((module) => ({ default: module.DesktopUploadsPage })))
@@ -59,6 +60,7 @@ export const router = createHashRouter([
       { path: "collections/:collectionId", Component: CollectionRoute },
       { path: "collections/:collectionId/files/:fileId", Component: CollectionFileRoute },
       { path: "shared", Component: SharedRoute },
+      { path: "storage", Component: StorageRoute },
       { path: "trash", Component: TrashRoute },
       {
         Component: ActorRouteGuard,
@@ -204,6 +206,10 @@ function CollectionFileRoute() {
 
 function SharedRoute() {
   return <RouteSuspense label="Loading shared items"><DesktopSharedPage /></RouteSuspense>
+}
+
+function StorageRoute() {
+  return <RouteSuspense label="Loading storage analyzer"><DesktopStoragePage /></RouteSuspense>
 }
 
 function TrashRoute() {

@@ -364,6 +364,12 @@
     "getSetupStatus": [
       500
     ],
+    "getStorageAnalyzer": [
+      400,
+      401,
+      403,
+      500
+    ],
     "getStorageOverview": [
       401,
       403,

@@ -73,6 +73,9 @@
       "name": "Public Shares"
     },
     {
+      "name": "Storage"
+    },
+    {
       "name": "Search"
     },
     {
@@ -3136,6 +3139,28 @@
         "responses": {
           "204": {
             "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/storage/analyzer": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "operationId": "getStorageAnalyzer",
+        "summary": "Storage analysis for a workspace",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/ownerId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/StorageAnalyzer"
           },
           "default": {
             "$ref": "./openapi/components.json#/responses/Problem"
