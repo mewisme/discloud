@@ -82,10 +82,26 @@ export function UploadDiagnostics({
     void load(query)
   }
 
+  function removeFilter(filter: "status" | "owner" | "actor") {
+    const query = { ...appliedQuery }
+    if (filter === "status") { delete query.status; setStatus("all") }
+    if (filter === "owner") { delete query.ownerUserId; setOwnerUserId("") }
+    if (filter === "actor") { delete query.actorUserId; setActorUserId("") }
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  const filters = [
+    ...(appliedQuery.status ? [{ key: "status", label: `Status: ${appliedQuery.status}`, onRemove: () => removeFilter("status") }] : []),
+    ...(appliedQuery.ownerUserId ? [{ key: "owner", label: `Owner: ${appliedQuery.ownerUserId}`, onRemove: () => removeFilter("owner") }] : []),
+    ...(appliedQuery.actorUserId ? [{ key: "actor", label: `Actor: ${appliedQuery.actorUserId}`, onRemove: () => removeFilter("actor") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
       <DiagnosticsFilterBar
         className="sm:grid-cols-3"
+        filters={filters}
         loading={loading}
         onApply={applyFilters}
         onReset={resetFilters}

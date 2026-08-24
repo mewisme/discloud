@@ -70,10 +70,24 @@ export function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
     void load(query)
   }
 
+  function removeFilter(filter: "status" | "type") {
+    const query = { ...appliedQuery }
+    if (filter === "status") { delete query.status; setStatus("all") }
+    if (filter === "type") { delete query.type; setType("") }
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  const filters = [
+    ...(appliedQuery.status ? [{ key: "status", label: `Status: ${appliedQuery.status}`, onRemove: () => removeFilter("status") }] : []),
+    ...(appliedQuery.type ? [{ key: "type", label: `Type: ${appliedQuery.type}`, onRemove: () => removeFilter("type") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
       <DiagnosticsFilterBar
         className="sm:grid-cols-2"
+        filters={filters}
         loading={loading}
         onApply={applyFilters}
         onReset={resetFilters}

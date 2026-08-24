@@ -83,10 +83,30 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
     void load(query)
   }
 
+  function removeFilter(filter: "action" | "actor" | "resourceType" | "resource" | "date") {
+    const query = { ...appliedQuery }
+    if (filter === "action") { delete query.action; setAction("") }
+    if (filter === "actor") { delete query.actorUserId; setActorUserId("") }
+    if (filter === "resourceType") { delete query.resourceType; setResourceType("") }
+    if (filter === "resource") { delete query.resourceId; setResourceId("") }
+    if (filter === "date") { delete query.from; delete query.to; setDateRange(undefined) }
+    setAppliedQuery(query)
+    void load(query)
+  }
+
+  const filters = [
+    ...(appliedQuery.action ? [{ key: "action", label: `Action: ${appliedQuery.action}`, onRemove: () => removeFilter("action") }] : []),
+    ...(appliedQuery.actorUserId ? [{ key: "actor", label: `Actor: ${appliedQuery.actorUserId}`, onRemove: () => removeFilter("actor") }] : []),
+    ...(appliedQuery.resourceType ? [{ key: "resourceType", label: `Resource type: ${appliedQuery.resourceType}`, onRemove: () => removeFilter("resourceType") }] : []),
+    ...(appliedQuery.resourceId ? [{ key: "resource", label: `Resource: ${appliedQuery.resourceId}`, onRemove: () => removeFilter("resource") }] : []),
+    ...(appliedQuery.from ? [{ key: "date", label: "Date range", onRemove: () => removeFilter("date") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
       <DiagnosticsFilterBar
         className="sm:grid-cols-2 xl:grid-cols-5"
+        filters={filters}
         loading={loading}
         onApply={applyFilters}
         onReset={resetFilters}

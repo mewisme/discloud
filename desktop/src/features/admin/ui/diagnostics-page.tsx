@@ -1,4 +1,5 @@
 import type { AuditEvent, AuditPage, AuditQuery, JobDiagnostic, JobPage, JobsQuery, UploadDiagnostic, UploadDiagnosticPage, UploadDiagnosticsQuery } from "@discloud/api/models"
+import { FilterToolbar, type FilterToolbarFilter } from "@discloud/app-ui/shared/filter-toolbar"
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
@@ -107,9 +108,25 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
     void run({ limit: pageSize })
   }
 
+  function removeFilter(filter: "action" | "actor" | "resourceType" | "resource") {
+    const next = { ...query }
+    if (filter === "action") { delete next.action; setAction("") }
+    if (filter === "actor") { delete next.actorUserId; setActorUserId("") }
+    if (filter === "resourceType") { delete next.resourceType; setResourceType("") }
+    if (filter === "resource") { delete next.resourceId; setResourceId("") }
+    void run(next)
+  }
+
+  const filters = [
+    ...(query.action ? [{ key: "action", label: `Action: ${query.action}`, onRemove: () => removeFilter("action") }] : []),
+    ...(query.actorUserId ? [{ key: "actor", label: `Actor: ${query.actorUserId}`, onRemove: () => removeFilter("actor") }] : []),
+    ...(query.resourceType ? [{ key: "resourceType", label: `Resource type: ${query.resourceType}`, onRemove: () => removeFilter("resourceType") }] : []),
+    ...(query.resourceId ? [{ key: "resource", label: `Resource: ${query.resourceId}`, onRemove: () => removeFilter("resource") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
-      <FilterGrid actions={<FilterActions loading={loading} onApply={apply} onReset={reset} />}>
+      <FilterGrid filters={filters} loading={loading} onApply={apply} onReset={reset}>
         <FilterInput label="Action" value={action} placeholder="user.update" onChange={setAction} />
         <FilterInput label="Actor" value={actorUserId} placeholder="User UUID" onChange={setActorUserId} />
         <FilterInput label="Resource type" value={resourceType} placeholder="user" onChange={setResourceType} />
@@ -159,9 +176,23 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
     void run({ limit: pageSize, ...(status !== "all" ? { status } : {}), ...(type.trim() ? { type: type.trim() } : {}) })
   }
 
+  function reset() { setStatus("all"); setType(""); void run({ limit: pageSize }) }
+
+  function removeFilter(filter: "status" | "type") {
+    const next = { ...query }
+    if (filter === "status") { delete next.status; setStatus("all") }
+    if (filter === "type") { delete next.type; setType("") }
+    void run(next)
+  }
+
+  const filters = [
+    ...(query.status ? [{ key: "status", label: `Status: ${query.status}`, onRemove: () => removeFilter("status") }] : []),
+    ...(query.type ? [{ key: "type", label: `Type: ${query.type}`, onRemove: () => removeFilter("type") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
-      <FilterGrid actions={<FilterActions loading={loading} onApply={apply} onReset={() => { setStatus("all"); setType(""); void run({ limit: pageSize }) }} />}>
+      <FilterGrid filters={filters} loading={loading} onApply={apply} onReset={reset}>
         <div className="grid gap-1"><label className="text-xs font-medium">Status</label><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="queued">Queued</SelectItem><SelectItem value="running">Running</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="failed">Failed</SelectItem><SelectItem value="dead">Dead</SelectItem></SelectContent></Select></div>
         <FilterInput label="Job type" value={type} placeholder="metadata.extract" onChange={setType} />
       </FilterGrid>
@@ -204,9 +235,25 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
     void run({ limit: pageSize, ...(status !== "all" ? { status } : {}), ...(ownerUserId.trim() ? { ownerUserId: ownerUserId.trim() } : {}), ...(actorUserId.trim() ? { actorUserId: actorUserId.trim() } : {}) })
   }
 
+  function reset() { setStatus("all"); setOwnerUserId(""); setActorUserId(""); void run({ limit: pageSize }) }
+
+  function removeFilter(filter: "status" | "owner" | "actor") {
+    const next = { ...query }
+    if (filter === "status") { delete next.status; setStatus("all") }
+    if (filter === "owner") { delete next.ownerUserId; setOwnerUserId("") }
+    if (filter === "actor") { delete next.actorUserId; setActorUserId("") }
+    void run(next)
+  }
+
+  const filters = [
+    ...(query.status ? [{ key: "status", label: `Status: ${query.status}`, onRemove: () => removeFilter("status") }] : []),
+    ...(query.ownerUserId ? [{ key: "owner", label: `Owner: ${query.ownerUserId}`, onRemove: () => removeFilter("owner") }] : []),
+    ...(query.actorUserId ? [{ key: "actor", label: `Actor: ${query.actorUserId}`, onRemove: () => removeFilter("actor") }] : []),
+  ]
+
   return (
     <div className="space-y-3">
-      <FilterGrid actions={<FilterActions loading={loading} onApply={apply} onReset={() => { setStatus("all"); setOwnerUserId(""); setActorUserId(""); void run({ limit: pageSize }) }} />}>
+      <FilterGrid filters={filters} loading={loading} onApply={apply} onReset={reset}>
         <div className="grid gap-1"><label className="text-xs font-medium">Status</label><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="completing">Completing</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem><SelectItem value="expired">Expired</SelectItem><SelectItem value="failed">Failed</SelectItem></SelectContent></Select></div>
         <FilterInput label="Owner" value={ownerUserId} placeholder="User UUID" onChange={setOwnerUserId} />
         <FilterInput label="Actor" value={actorUserId} placeholder="User UUID" onChange={setActorUserId} />
@@ -220,8 +267,8 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
   )
 }
 
-function FilterGrid({ children, actions }: { children: ReactNode; actions: ReactNode }) {
-  return <div className="rounded-xl border bg-card p-3"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{children}</div><div className="mt-3 flex justify-end gap-2">{actions}</div></div>
+function FilterGrid({ children, filters, loading, onApply, onReset }: { children: ReactNode; filters: readonly FilterToolbarFilter[]; loading: boolean; onApply: () => void; onReset: () => void }) {
+  return <FilterToolbar filters={filters} onClear={onReset} contentClassName="md:grid-cols-2 xl:grid-cols-4" footer={(close) => <FilterActions loading={loading} onReset={onReset} onApply={() => { onApply(); close() }} />}>{children}</FilterToolbar>
 }
 
 function FilterInput({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
