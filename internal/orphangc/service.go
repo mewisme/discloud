@@ -165,6 +165,9 @@ func (s *Service) listCandidates(ctx context.Context) ([]candidate, error) {
 				WHERE fc.chunk_id = c.id
 		  )
 		  AND NOT EXISTS (
+				SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id = c.id
+		  )
+		  AND NOT EXISTS (
 				SELECT 1
 				FROM upload_parts up
 				JOIN upload_sessions us ON us.id = up.upload_id
@@ -212,6 +215,9 @@ func (s *Service) loadCandidate(ctx context.Context, id string) (candidate, erro
 				WHERE fc.chunk_id = c.id
 		  )
 		  AND NOT EXISTS (
+				SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id = c.id
+		  )
+		  AND NOT EXISTS (
 				SELECT 1
 				FROM upload_parts up
 				JOIN upload_sessions us ON us.id = up.upload_id
@@ -246,6 +252,9 @@ func (s *Service) removeCandidate(ctx context.Context, id string) (int64, bool, 
 					SELECT 1
 					FROM file_chunks fc
 					WHERE fc.chunk_id = c.id
+			  )
+			  AND NOT EXISTS (
+					SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id = c.id
 			  )
 			  AND NOT EXISTS (
 					SELECT 1

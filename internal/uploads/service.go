@@ -63,6 +63,7 @@ type Session struct {
 	CompletedAt     *time.Time
 	ClosedAt        *time.Time
 	CommittedFileID string
+	TargetFileID    string
 }
 
 type CreateInput struct {
@@ -71,6 +72,7 @@ type CreateInput struct {
 	SizeBytes      int64
 	MIMETypeHint   string
 	FileSHA256     []byte
+	TargetFileID   string
 }
 
 type Service struct {
@@ -106,7 +108,8 @@ const sessionColumns = `
 	expires_at,
 	completed_at,
 	closed_at,
-	COALESCE(committed_file_id::text, '')
+	COALESCE(committed_file_id::text, ''),
+	COALESCE(target_file_id::text, '')
 `
 
 func New(
@@ -227,23 +230,38 @@ func (s *Service) Create(
 			return err
 		}
 
-		var existingKind string
+		reserveBytes := input.SizeBytes
+		var existingID, existingKind string
 		conflictErr := tx.QueryRow(ctx, `
-			SELECT kind
+			SELECT id::text, kind
 			FROM nodes
-			WHERE parent_id::text = $1
-			  AND name_key = $2
-			  AND deleted_at IS NULL
+			WHERE parent_id::text = $1 AND name_key = $2 AND deleted_at IS NULL
 			LIMIT 1
-		`, input.ParentFolderID, nameKey).Scan(&existingKind)
+		`, input.ParentFolderID, nameKey).Scan(&existingID, &existingKind)
 		if conflictErr == nil {
-			if existingKind == "file" {
-				return ErrFileAlreadyExists
+			if existingKind != "file" || input.TargetFileID == "" || existingID != input.TargetFileID {
+				if existingKind == "file" {
+					return ErrFileAlreadyExists
+				}
+				return ErrNameConflict
 			}
-			return ErrNameConflict
-		}
-		if !errors.Is(conflictErr, pgx.ErrNoRows) {
+			level, err := s.acl.ResolveTx(ctx, tx, existingID, actor.UserID, actor.Admin)
+			if err != nil || !level.Allows(acl.Edit) {
+				return ErrForbidden
+			}
+			var currentSize int64
+			if err := tx.QueryRow(ctx, `SELECT size_bytes FROM files WHERE node_id=$1::uuid`, existingID).Scan(&currentSize); err != nil {
+				return ErrNotFound
+			}
+			if input.SizeBytes > currentSize {
+				reserveBytes = input.SizeBytes - currentSize
+			} else {
+				reserveBytes = 0
+			}
+		} else if !errors.Is(conflictErr, pgx.ErrNoRows) {
 			return fmt.Errorf("check upload name conflict: %w", conflictErr)
+		} else if input.TargetFileID != "" {
+			return ErrNotFound
 		}
 
 		var (
@@ -272,7 +290,7 @@ func (s *Service) Create(
 			return fmt.Errorf("lock upload owner quota: %w", err)
 		}
 
-		if !quotaAllows(quota, used, reserved, input.SizeBytes) {
+		if !quotaAllows(quota, used, reserved, reserveBytes) {
 			return ErrQuotaExceeded
 		}
 
@@ -282,7 +300,7 @@ func (s *Service) Create(
 			        storage_reserved_bytes + $2,
 			    updated_at = now()
 			WHERE id::text = $1
-		`, ownerID, input.SizeBytes); err != nil {
+		`, ownerID, reserveBytes); err != nil {
 			return fmt.Errorf("reserve upload quota: %w", err)
 		}
 
@@ -299,7 +317,8 @@ func (s *Service) Create(
 				mime_type_hint,
 				file_sha256,
 				reserved_bytes,
-				expires_at
+				expires_at,
+				target_file_id
 			)
 			VALUES (
 				$1::uuid,
@@ -312,8 +331,9 @@ func (s *Service) Create(
 				$8,
 				NULLIF($9, ''),
 				NULLIF($10, '\x'::bytea),
-				$6,
-				$11
+				$12,
+				$11,
+				NULLIF($13, '')::uuid
 			)
 			RETURNING `+sessionColumns,
 			actor.UserID,
@@ -327,6 +347,8 @@ func (s *Service) Create(
 			mimeTypeHint,
 			fileSHA256,
 			expiresAt,
+			reserveBytes,
+			strings.TrimSpace(input.TargetFileID),
 		), &session)
 		if err != nil {
 			return fmt.Errorf("create upload session: %w", err)
@@ -728,5 +750,6 @@ func scanSession(row scanner, dst ...*Session) error {
 		&session.CompletedAt,
 		&session.ClosedAt,
 		&session.CommittedFileID,
+		&session.TargetFileID,
 	)
 }

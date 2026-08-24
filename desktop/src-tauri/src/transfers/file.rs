@@ -62,6 +62,7 @@ pub(crate) async fn download_file(
     state: &ApiState,
     file_id: String,
     collection_id: Option<String>,
+    version_id: Option<String>,
     destination: String,
 ) -> Result<DownloadResult, ApiCommandError> {
     if destination.trim().is_empty() {
@@ -78,7 +79,17 @@ pub(crate) async fn download_file(
         ));
     }
 
-    let path = file_api_path(&file_id, "download")?;
+    let path = match version_id.as_deref() {
+        Some(version_id) => {
+            if collection_id.is_some() {
+                return Err(ApiCommandError::invalid_request(
+                    "Version downloads do not accept collection context.",
+                ));
+            }
+            version_file_api_path(&file_id, version_id)?
+        }
+        None => file_api_path(&file_id, "download")?,
+    };
     let query = collection_query(collection_id.as_deref())?;
     let mut response = state
         .raw_request(Method::GET, &path, query, Vec::new())
@@ -346,6 +357,17 @@ fn file_api_path(file_id: &str, action: &str) -> Result<String, ApiCommandError>
     }
 
     Ok(format!("/api/v1/files/{file_id}/{action}"))
+}
+
+fn version_file_api_path(file_id: &str, version_id: &str) -> Result<String, ApiCommandError> {
+    if !valid_resource_id(file_id) || !valid_resource_id(version_id) {
+        return Err(ApiCommandError::invalid_request(
+            "Invalid file or version ID.",
+        ));
+    }
+    Ok(format!(
+        "/api/v1/files/{file_id}/versions/{version_id}/download"
+    ))
 }
 
 fn valid_resource_id(value: &str) -> bool {

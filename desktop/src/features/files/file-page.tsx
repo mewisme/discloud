@@ -10,6 +10,7 @@ import { useParams } from "react-router"
 import { errorMessage } from "#lib/instance"
 
 import { type DesktopFileDetailData, loadDesktopFileDetail } from "./api"
+import { DesktopFileVersionHistory } from "./file-version-history"
 import { downloadNativeFile, nativeFileContentURL } from "./native"
 
 type FileState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: DesktopFileDetailData }
@@ -87,6 +88,7 @@ export function DesktopFilePage() {
       downloading={downloading}
       downloadError={downloadError}
       onDownload={download}
+      versionHistory={<DesktopFileVersionHistory fileId={data.file.id} fileName={data.file.name} onRestored={() => setReloadVersion((value) => value + 1)} />}
       preview={
         <FilePreview
           file={data.file}

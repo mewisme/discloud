@@ -19,6 +19,7 @@ export function FileDetailView({
   downloading = false,
   downloadError,
   onDownload,
+  versionHistory,
 }: {
   file: File
   breadcrumbs: readonly FileBreadcrumbItem[]
@@ -28,6 +29,7 @@ export function FileDetailView({
   downloading?: boolean
   downloadError?: string
   onDownload?: () => void | Promise<void>
+  versionHistory?: ReactNode
 }) {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
@@ -120,6 +122,8 @@ export function FileDetailView({
           ) : null}
         </aside>
       </div>
+
+      {versionHistory}
     </div>
   )
 }

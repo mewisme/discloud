@@ -1,4 +1,5 @@
 import type { OperationBody, OperationHeader, OperationJSON, OperationPath, OperationQuery } from "./contracts"
+import type { components } from "./generated"
 
 export type SetupStatus = OperationJSON<"getSetupStatus", 200>
 export type SetupInput = OperationBody<"completeSetup">
@@ -93,6 +94,8 @@ export type File = OperationJSON<"getFile", 200>
 export type FileCategory = File["category"]
 export type MetadataStatus = File["metadataStatus"]
 export type FileContentQuery = OperationQuery<"streamFile">
+export type FileVersion = components["schemas"]["FileVersion"]
+export type FileVersionList = components["schemas"]["FileVersionList"]
 
 export type CreateUploadInput = OperationBody<"createUpload">
 export type UploadSession = OperationJSON<"createUpload", 201>

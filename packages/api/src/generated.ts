@@ -718,6 +718,57 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/files/{fileId}/versions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List immutable file versions */
+        readonly get: operations["listFileVersions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/files/{fileId}/versions/{versionId}/download": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Download a specific file version */
+        readonly get: operations["downloadFileVersion"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/files/{fileId}/versions/{versionId}/restore": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Restore an old version as a new revision */
+        readonly post: operations["restoreFileVersion"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/folders": {
         readonly parameters: {
             readonly query?: never;
@@ -1827,6 +1878,46 @@ export type components = {
             /** @default 3 */
             readonly preloadNext: number;
         };
+        readonly FileVersion: {
+            /** Format: int64 */
+            readonly bitrateBps?: number;
+            readonly category: string;
+            /** Format: int64 */
+            readonly chunkSize: number;
+            readonly codec?: string;
+            /** Format: date-time */
+            readonly createdAt: string;
+            /** Format: uuid */
+            readonly createdBy: string;
+            /** Format: int64 */
+            readonly durationMs?: number;
+            readonly extension?: string;
+            /** Format: uuid */
+            readonly fileId: string;
+            readonly height?: number;
+            /** Format: uuid */
+            readonly id: string;
+            readonly isCurrent: boolean;
+            readonly metadata: {
+                readonly [key: string]: unknown;
+            };
+            readonly metadataError?: string;
+            /** @enum {string} */
+            readonly metadataStatus: "pending" | "ready" | "failed" | "skipped";
+            readonly mimeType: string;
+            readonly name: string;
+            /** Format: uuid */
+            readonly restoredFromVersionId?: string;
+            /** Format: int64 */
+            readonly revision: number;
+            readonly sha256?: string;
+            /** Format: int64 */
+            readonly size: number;
+            readonly width?: number;
+        };
+        readonly FileVersionList: {
+            readonly versions: readonly components["schemas"]["FileVersion"][];
+        };
         readonly FolderChild: components["schemas"]["Node"] & {
             /** @enum {string} */
             readonly accessLevel: "view" | "edit" | "full";
@@ -2820,6 +2911,7 @@ export type components = {
         readonly uploadId: string;
         readonly uploadStatus: "open" | "completing" | "completed" | "cancelled" | "expired" | "failed";
         readonly userId: string;
+        readonly versionId: string;
     };
     requestBodies: {
         readonly AccessLevel: {
@@ -2952,6 +3044,11 @@ export type components = {
                     readonly parentFolderId: string;
                     /** Format: int64 */
                     readonly size: number;
+                    /**
+                     * Format: uuid
+                     * @description Existing same-name file to replace with a new immutable revision.
+                     */
+                    readonly targetFileId?: string;
                 };
             };
         };
@@ -3978,6 +4075,73 @@ export interface operations {
         readonly requestBody: components["requestBodies"]["ThumbnailUpload"];
         readonly responses: {
             readonly 200: components["responses"]["ThumbnailInfo"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly listFileVersions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description File versions */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["FileVersionList"];
+                };
+            };
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly downloadFileVersion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: {
+                /** @description Single HTTP byte range, for example bytes=0-1023. */
+                readonly Range?: components["parameters"]["Range"];
+            };
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+                readonly versionId: components["parameters"]["versionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: components["responses"]["Binary"];
+            readonly 206: components["responses"]["Binary"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly restoreFileVersion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly fileId: components["parameters"]["fileId"];
+                readonly versionId: components["parameters"]["versionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Restored version */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["FileVersion"];
+                };
+            };
             readonly default: components["responses"]["Problem"];
         };
     };

@@ -25,6 +25,7 @@ type createUploadRequest struct {
 	Size           int64   `json:"size"`
 	MIMETypeHint   string  `json:"mimeTypeHint"`
 	FileSHA256     *string `json:"fileSha256"`
+	TargetFileID   string  `json:"targetFileId"`
 }
 
 type uploadSessionResponse struct {
@@ -87,6 +88,7 @@ func registerUploadRoutes(mux *http.ServeMux, service *uploads.Service, uploader
 			SizeBytes:      input.Size,
 			MIMETypeHint:   input.MIMETypeHint,
 			FileSHA256:     fileSHA,
+			TargetFileID:   strings.TrimSpace(input.TargetFileID),
 		})
 		if writeUploadError(w, r, err) {
 			return

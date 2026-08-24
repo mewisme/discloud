@@ -1,139 +1,794 @@
 {
-  "version":1,
-  "problemMediaType":"application/problem+json",
-  "description":"Documented HTTP problem statuses by OpenAPI operationId. The OpenAPI default response remains the canonical Problem schema.",
-  "statuses":{
-    "400":"The request body, query, header, cursor, range, or other input is invalid.",
-    "401":"Authentication is required or supplied authentication credentials are invalid.",
-    "403":"The request is blocked by CSRF protection or the caller lacks required administrative or resource permission.",
-    "404":"The requested resource is unavailable, inaccessible, or not found.",
-    "409":"The request conflicts with current resource state, quota, naming, or lifecycle state.",
-    "410":"The upload session has expired.",
-    "413":"The request or generated resource exceeds the allowed size or processing limit.",
-    "415":"The supplied media type or media content is unsupported.",
-    "416":"The requested byte range cannot be satisfied.",
-    "422":"Supplied content does not match its declared SHA-256 digest.",
-    "429":"Too many requests were made within the allowed authentication rate.",
-    "500":"An internal backend, authentication, persistence, or invariant failure occurred.",
-    "502":"Discord storage returned an unusable upstream response.",
-    "503":"The service, upload or public-download capacity, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
+  "version": 1,
+  "problemMediaType": "application/problem+json",
+  "description": "Documented HTTP problem statuses by OpenAPI operationId. The OpenAPI default response remains the canonical Problem schema.",
+  "statuses": {
+    "400": "The request body, query, header, cursor, range, or other input is invalid.",
+    "401": "Authentication is required or supplied authentication credentials are invalid.",
+    "403": "The request is blocked by CSRF protection or the caller lacks required administrative or resource permission.",
+    "404": "The requested resource is unavailable, inaccessible, or not found.",
+    "409": "The request conflicts with current resource state, quota, naming, or lifecycle state.",
+    "410": "The upload session has expired.",
+    "413": "The request or generated resource exceeds the allowed size or processing limit.",
+    "415": "The supplied media type or media content is unsupported.",
+    "416": "The requested byte range cannot be satisfied.",
+    "422": "Supplied content does not match its declared SHA-256 digest.",
+    "429": "Too many requests were made within the allowed authentication rate.",
+    "500": "An internal backend, authentication, persistence, or invariant failure occurred.",
+    "502": "Discord storage returned an unusable upstream response.",
+    "503": "The service, upload or public-download capacity, metrics collector, readiness dependency, or Discord storage is temporarily unavailable."
   },
-  "operations":{
-    "health":[],
-    "readiness":[503],
-    "getAdminMetrics":[401,403,500],
-    "getAdminBotRuntime":[401,403,500],
-    "streamAdminBotRuntime":[400,401,403,500],
-    "probeAdminBot":[401,403,404,409,500,502,503],
-    "probeConfiguredAdminBot":[401,403,404,409,500,502,503],
-    "drainAdminBot":[401,403,404,500],
-    "disableAdminBot":[401,403,404,500],
-    "enableAdminBot":[401,403,404,500],
-    "getSetupStatus":[500],
-    "completeSetup":[400,403,409,500],
-    "login":[400,401,403,500],
-    "verifyLoginMFA":[400,401,403,500],
-    "logout":[403,500],
-    "getAuthenticatedUser":[401,500],
-    "getMe":[401,500],
-    "getMyAvatar":[401,404,500,502,503],
-    "updateMyAvatar":[401,403,404,413,415,500,502,503],
-    "deleteMyAvatar":[401,403,404,500,503],
-    "getMyConfig":[401,500],
-    "updateMyCommonConfig":[400,401,403,500],
-    "getMyUsage":[401,500],
-    "getMyRoot":[401,404,500],
-    "updateMe":[400,401,403,500],
-    "changePassword":[400,401,403,409,500],
-    "listSessions":[401,500],
-    "revokeSession":[401,403,404,500],
-    "revokeOtherSessions":[401,403,500],
-    "beginMFAEnrollment":[401,403,409,500],
-    "confirmMFAEnrollment":[400,401,403,409,500],
-    "regenerateRecoveryCodes":[400,401,403,409,500],
-    "getMFAStatus":[401,500],
-    "disableMFA":[400,401,403,409,500],
-    "lookupUser":[400,401,404,500],
-    "getWorkspace":[401,403,404,500],
-    "listUsers":[400,401,403,500],
-    "createUser":[400,401,403,409,500],
-    "getUser":[401,403,404,500],
-    "getAdminUserAvatar":[401,403,404,500,502,503],
-    "updateUser":[400,401,403,404,500],
-    "setUserQuota":[400,401,403,404,500],
-    "resetUserPassword":[400,401,403,404,500],
-    "disableUser":[401,403,404,500],
-    "enableUser":[401,403,404,500],
-    "getUserUsage":[401,403,404,500],
-    "getUserRoot":[401,403,404,500],
-    "resetUserMFA":[401,403,404,500],
-    "listAppConfig":[401,403,500],
-    "getAppConfig":[400,401,403,404,500],
-    "setAppConfig":[400,401,403,500],
-    "deleteAppConfig":[400,401,403,404,500],
-    "listAuditEvents":[400,401,403,500],
-    "listJobs":[400,401,403,500],
-    "listUploadDiagnostics":[400,401,403,500],
-    "getStorageOverview":[401,403,500],
-    "reconcileQuota":[400,401,403,404,500],
-    "createFolder":[400,401,403,404,409,500],
-    "createFolderBatch":[400,401,403,404,409,500],
-    "getFolder":[401,403,404,500],
-    "updateFolder":[400,401,403,404,409,500],
-    "trashFolder":[400,401,403,404,409,500],
-    "listFolderChildren":[400,401,403,404,409,500],
-    "getFolderBreadcrumbs":[401,403,404,500],
-    "downloadFolder":[401,403,404,500],
-    "getDesktopFolderDownloadManifest":[401,403,404,500],
-    "restoreFolder":[400,401,403,404,409,500],
-    "purgeFolder":[401,403,404,409,500],
-    "listFolderPermissions":[401,403,404,500],
-    "setFolderPermission":[400,401,403,404,500],
-    "deleteFolderPermission":[400,401,403,404,500],
-    "favoriteNode":[401,403,404,500],
-    "unfavoriteNode":[401,403,404,500],
-    "updateNode":[400,401,403,404,409,500],
-    "getFile":[401,404,500],
-    "getFileThumbnail":[401,404,500,502,503],
-    "uploadFileThumbnail":[401,403,404,409,413,415,500,502,503],
-    "trashFile":[400,401,403,404,409,500],
-    "streamFile":[400,401,404,416,500,502,503],
-    "downloadFile":[400,401,404,416,500,502,503],
-    "getDesktopFileDownloadManifest":[401,404,500],
-    "getDesktopFileDownloadChunks":[400,401,404,500,502,503],
-    "restoreFile":[400,401,403,404,409,500],
-    "purgeFile":[401,403,404,409,500],
-    "createUpload":[400,401,403,404,409,500],
-    "getUpload":[401,403,404,410,500],
-    "cancelUpload":[401,403,404,409,410,500],
-    "putUploadPart":[400,401,403,404,409,410,413,422,500,502,503],
-    "completeUpload":[400,401,403,404,409,410,422,500,502,503],
-    "listTrash":[400,401,403,404,500],
-    "listCollections":[400,401,403,500],
-    "createCollection":[400,401,403,404,409,500],
-    "getCollection":[401,403,404,500],
-    "updateCollection":[400,401,403,404,409,500],
-    "trashCollection":[401,403,404,500],
-    "restoreCollection":[400,401,403,404,409,500],
-    "listCollectionItems":[401,403,404,500],
-    "addCollectionItem":[400,401,403,404,500],
-    "removeCollectionItem":[401,403,404,500],
-    "listCollectionAccess":[401,403,404,500],
-    "setCollectionAccess":[400,401,403,404,500],
-    "deleteCollectionAccess":[401,403,404,500],
-    "listSharedItems":[401,500],
-    "createShare":[400,401,403,404,500],
-    "getActiveShare":[400,401,403,404,500],
-    "revokeShare":[401,403,404,500],
-    "resolvePublicShareShort":[404,500],
-    "resolvePublicShare":[404,500],
-    "streamPublicSharedFile":[400,404,416,500,502,503],
-    "downloadPublicSharedFile":[400,404,416,500,502,503],
-    "streamPublicFile":[400,404,416,500,502,503],
-    "downloadPublicFile":[400,404,416,500,502,503],
-    "getPublicFolder":[404,500],
-    "downloadPublicFolder":[404,413,500,503],
-    "listPublicCollectionItems":[404,500],
-    "search":[400,401,403,500]
+  "operations": {
+    "addCollectionItem": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "beginMFAEnrollment": [
+      401,
+      403,
+      409,
+      500
+    ],
+    "cancelUpload": [
+      401,
+      403,
+      404,
+      409,
+      410,
+      500
+    ],
+    "changePassword": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
+    "completeSetup": [
+      400,
+      403,
+      409,
+      500
+    ],
+    "completeUpload": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      410,
+      422,
+      500,
+      502,
+      503
+    ],
+    "confirmMFAEnrollment": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
+    "createCollection": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "createFolder": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "createFolderBatch": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "createShare": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "createUpload": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "createUser": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
+    "deleteAppConfig": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "deleteCollectionAccess": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "deleteFolderPermission": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "deleteMyAvatar": [
+      401,
+      403,
+      404,
+      500,
+      503
+    ],
+    "disableAdminBot": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "disableMFA": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
+    "disableUser": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "downloadFile": [
+      400,
+      401,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "downloadFileVersion": [
+      401,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "downloadFolder": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "downloadPublicFile": [
+      400,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "downloadPublicFolder": [
+      404,
+      413,
+      500,
+      503
+    ],
+    "downloadPublicSharedFile": [
+      400,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "drainAdminBot": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "enableAdminBot": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "enableUser": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "favoriteNode": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getActiveShare": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "getAdminBotRuntime": [
+      401,
+      403,
+      500
+    ],
+    "getAdminMetrics": [
+      401,
+      403,
+      500
+    ],
+    "getAdminUserAvatar": [
+      401,
+      403,
+      404,
+      500,
+      502,
+      503
+    ],
+    "getAppConfig": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "getAuthenticatedUser": [
+      401,
+      500
+    ],
+    "getCollection": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getDesktopFileDownloadChunks": [
+      400,
+      401,
+      404,
+      500,
+      502,
+      503
+    ],
+    "getDesktopFileDownloadManifest": [
+      401,
+      404,
+      500
+    ],
+    "getDesktopFolderDownloadManifest": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getFile": [
+      401,
+      404,
+      500
+    ],
+    "getFileThumbnail": [
+      401,
+      404,
+      500,
+      502,
+      503
+    ],
+    "getFolder": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getFolderBreadcrumbs": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getMFAStatus": [
+      401,
+      500
+    ],
+    "getMe": [
+      401,
+      500
+    ],
+    "getMyAvatar": [
+      401,
+      404,
+      500,
+      502,
+      503
+    ],
+    "getMyConfig": [
+      401,
+      500
+    ],
+    "getMyRoot": [
+      401,
+      404,
+      500
+    ],
+    "getMyUsage": [
+      401,
+      500
+    ],
+    "getPublicFolder": [
+      404,
+      500
+    ],
+    "getSetupStatus": [
+      500
+    ],
+    "getStorageOverview": [
+      401,
+      403,
+      500
+    ],
+    "getUpload": [
+      401,
+      403,
+      404,
+      410,
+      500
+    ],
+    "getUser": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getUserRoot": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getUserUsage": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "getWorkspace": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "health": [],
+    "listAppConfig": [
+      401,
+      403,
+      500
+    ],
+    "listAuditEvents": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "listCollectionAccess": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "listCollectionItems": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "listCollections": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "listFileVersions": [
+      401,
+      404,
+      500
+    ],
+    "listFolderChildren": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "listFolderPermissions": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "listJobs": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "listPublicCollectionItems": [
+      404,
+      500
+    ],
+    "listSessions": [
+      401,
+      500
+    ],
+    "listSharedItems": [
+      401,
+      500
+    ],
+    "listTrash": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "listUploadDiagnostics": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "listUsers": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "login": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "logout": [
+      403,
+      500
+    ],
+    "lookupUser": [
+      400,
+      401,
+      404,
+      500
+    ],
+    "probeAdminBot": [
+      401,
+      403,
+      404,
+      409,
+      500,
+      502,
+      503
+    ],
+    "probeConfiguredAdminBot": [
+      401,
+      403,
+      404,
+      409,
+      500,
+      502,
+      503
+    ],
+    "purgeFile": [
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "purgeFolder": [
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "putUploadPart": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      410,
+      413,
+      422,
+      500,
+      502,
+      503
+    ],
+    "readiness": [
+      503
+    ],
+    "reconcileQuota": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "regenerateRecoveryCodes": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
+    "removeCollectionItem": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "resetUserMFA": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "resetUserPassword": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "resolvePublicShare": [
+      404,
+      500
+    ],
+    "resolvePublicShareShort": [
+      404,
+      500
+    ],
+    "restoreCollection": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "restoreFile": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "restoreFileVersion": [
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "restoreFolder": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "revokeOtherSessions": [
+      401,
+      403,
+      500
+    ],
+    "revokeSession": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "revokeShare": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "search": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "setAppConfig": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "setCollectionAccess": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "setFolderPermission": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "setUserQuota": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "streamAdminBotRuntime": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "streamFile": [
+      400,
+      401,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "streamPublicFile": [
+      400,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "streamPublicSharedFile": [
+      400,
+      404,
+      416,
+      500,
+      502,
+      503
+    ],
+    "trashCollection": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "trashFile": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "trashFolder": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "unfavoriteNode": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "updateCollection": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "updateFolder": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "updateMe": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "updateMyAvatar": [
+      401,
+      403,
+      404,
+      413,
+      415,
+      500,
+      502,
+      503
+    ],
+    "updateMyCommonConfig": [
+      400,
+      401,
+      403,
+      500
+    ],
+    "updateNode": [
+      400,
+      401,
+      403,
+      404,
+      409,
+      500
+    ],
+    "updateUser": [
+      400,
+      401,
+      403,
+      404,
+      500
+    ],
+    "uploadFileThumbnail": [
+      401,
+      403,
+      404,
+      409,
+      413,
+      415,
+      500,
+      502,
+      503
+    ],
+    "verifyLoginMFA": [
+      400,
+      401,
+      403,
+      500
+    ]
   }
 }

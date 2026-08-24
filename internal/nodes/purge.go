@@ -124,41 +124,25 @@ WHERE folder_id IN (SELECT id FROM subtree WHERE kind = 'folder')
 		}
 
 		tag, err := tx.Exec(ctx, purgeSubtreeCTE+`,
-target_files AS (
-	SELECT id
-	FROM subtree
-	WHERE kind = 'file'
+target_files AS (SELECT id FROM subtree WHERE kind='file'),
+target_chunks AS MATERIALIZED (
+    SELECT fc.chunk_id FROM file_chunks fc WHERE fc.file_id IN (SELECT id FROM target_files)
+    UNION
+    SELECT fvc.chunk_id FROM file_version_chunks fvc JOIN file_versions fv ON fv.id=fvc.version_id WHERE fv.file_id IN (SELECT id FROM target_files)
 ),
-deleted_file_chunks AS (
-	DELETE FROM file_chunks fc
-	WHERE fc.file_id IN (SELECT id FROM target_files)
-	RETURNING fc.chunk_id
-)
+deleted_current AS (DELETE FROM file_chunks WHERE file_id IN (SELECT id FROM target_files) RETURNING file_id),
+deleted_files AS (DELETE FROM files WHERE node_id IN (SELECT id FROM target_files) RETURNING node_id)
 DELETE FROM chunks c
-WHERE c.id IN (SELECT chunk_id FROM deleted_file_chunks)
-  AND NOT EXISTS (
-		SELECT 1
-		FROM file_chunks other
-		WHERE other.chunk_id = c.id
-		  AND other.file_id NOT IN (SELECT id FROM target_files)
-  )
-  AND NOT EXISTS (
-		SELECT 1
-		FROM upload_parts up
-		WHERE up.chunk_id = c.id
-  )
+WHERE c.id IN (SELECT chunk_id FROM target_chunks)
+  AND NOT EXISTS (SELECT 1 FROM file_chunks fc WHERE fc.chunk_id=c.id)
+  AND NOT EXISTS (SELECT 1 FROM file_version_chunks fvc WHERE fvc.chunk_id=c.id)
+  AND NOT EXISTS (SELECT 1 FROM upload_parts up WHERE up.chunk_id=c.id)
 `, current.ID)
 		if err != nil {
-			return fmt.Errorf("delete unreferenced purge chunks: %w", err)
+			return fmt.Errorf("delete purge file storage: %w", err)
 		}
 		deletedChunkRows := tag.RowsAffected()
 
-		if err := purgeExec(ctx, tx, current.ID, "delete purge files", purgeSubtreeCTE+`
-DELETE FROM files
-WHERE node_id IN (SELECT id FROM subtree WHERE kind = 'file')
-`); err != nil {
-			return err
-		}
 		if err := purgeExec(ctx, tx, current.ID, "delete purge nodes", purgeSubtreeCTE+`
 DELETE FROM nodes
 WHERE id IN (SELECT id FROM subtree)

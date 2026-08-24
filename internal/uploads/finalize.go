@@ -33,6 +33,7 @@ type CompletedFile struct {
 	SHA256         []byte
 	MIMEType       string
 	CreatedAt      time.Time
+	VersionID      string
 }
 
 type Finalizer struct {
@@ -146,48 +147,95 @@ func (f *Finalizer) Finalize(ctx context.Context, actor Actor, sessionID string)
 			}
 			return fmt.Errorf("lock upload owner quota: %w", err)
 		}
-		if reserved < session.ReservedBytes || used > math.MaxInt64-session.SizeBytes {
+		if reserved < session.ReservedBytes {
 			return ErrQuotaInvariant
 		}
 
-		var createdAt time.Time
-		err = tx.QueryRow(ctx, `
-			INSERT INTO nodes (kind, owner_user_id, parent_id, name, name_key, created_by)
-			VALUES ('file', $1::uuid, $2::uuid, $3, $4, $5::uuid)
-			RETURNING id::text, created_at
-		`, session.OwnerUserID, session.ParentFolderID, session.Name, session.NameKey, actor.UserID).Scan(&file.ID, &createdAt)
-		if err != nil {
-			if isFinalizeNameConflict(err) {
-				return ErrNameConflict
+		usedDelta := session.SizeBytes
+		auditAction := "file.create"
+		var versionID string
+		if session.TargetFileID == "" {
+			var createdAt time.Time
+			err = tx.QueryRow(ctx, `INSERT INTO nodes (kind, owner_user_id, parent_id, name, name_key, created_by) VALUES ('file', $1::uuid, $2::uuid, $3, $4, $5::uuid) RETURNING id::text, created_at`, session.OwnerUserID, session.ParentFolderID, session.Name, session.NameKey, actor.UserID).Scan(&file.ID, &createdAt)
+			if err != nil {
+				if isFinalizeNameConflict(err) {
+					return ErrNameConflict
+				}
+				return fmt.Errorf("create file node: %w", err)
 			}
-			return fmt.Errorf("create file node: %w", err)
+			file.OwnerUserID = session.OwnerUserID
+			file.ParentFolderID = session.ParentFolderID
+			file.Name = session.Name
+			file.SizeBytes = session.SizeBytes
+			file.ChunkSizeBytes = session.ChunkSizeBytes
+			file.SHA256 = append([]byte(nil), verifiedSHA256...)
+			file.MIMEType = "application/octet-stream"
+			file.CreatedAt = createdAt
+			if _, err := tx.Exec(ctx, `INSERT INTO files (node_id,size_bytes,chunk_size_bytes,sha256,mime_type) VALUES ($1::uuid,$2,$3,NULLIF($4,'\x'::bytea),$5)`, file.ID, file.SizeBytes, file.ChunkSizeBytes, verifiedSHA256, file.MIMEType); err != nil {
+				return fmt.Errorf("create file metadata: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO file_chunks (file_id,part_index,chunk_id,part_size_bytes) SELECT $1::uuid,part_index,chunk_id,part_size_bytes FROM upload_parts WHERE upload_id=$2::uuid ORDER BY part_index`, file.ID, session.ID); err != nil {
+				return fmt.Errorf("create file chunks: %w", err)
+			}
+			err = tx.QueryRow(ctx, `INSERT INTO file_versions (file_id,revision,name,size_bytes,chunk_size_bytes,sha256,mime_type,created_by) VALUES ($1::uuid,1,$2,$3,$4,NULLIF($5,'\x'::bytea),$6,$7::uuid) RETURNING id::text`, file.ID, file.Name, file.SizeBytes, file.ChunkSizeBytes, verifiedSHA256, file.MIMEType, actor.UserID).Scan(&versionID)
+			if err != nil {
+				return fmt.Errorf("create initial file version: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO file_version_chunks (version_id,part_index,chunk_id,part_size_bytes) SELECT $1::uuid,part_index,chunk_id,part_size_bytes FROM upload_parts WHERE upload_id=$2::uuid ORDER BY part_index`, versionID, session.ID); err != nil {
+				return fmt.Errorf("create initial version chunks: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `UPDATE files SET current_version_id=$2::uuid WHERE node_id=$1::uuid`, file.ID, versionID); err != nil {
+				return err
+			}
+		} else {
+			auditAction = "file.version.create"
+			file.ID = session.TargetFileID
+			var previousSize int64
+			if err := tx.QueryRow(ctx, `SELECT n.owner_user_id::text,n.parent_id::text,n.name,f.size_bytes,n.created_at FROM nodes n JOIN files f ON f.node_id=n.id WHERE n.id=$1::uuid AND n.deleted_at IS NULL FOR UPDATE OF f`, file.ID).Scan(&file.OwnerUserID, &file.ParentFolderID, &file.Name, &previousSize, &file.CreatedAt); err != nil {
+				return ErrNotFound
+			}
+			if file.OwnerUserID != session.OwnerUserID || file.ParentFolderID != session.ParentFolderID || file.Name != session.Name {
+				return ErrQuotaInvariant
+			}
+			usedDelta = session.SizeBytes - previousSize
+			if usedDelta > 0 && used > math.MaxInt64-usedDelta {
+				return ErrQuotaInvariant
+			}
+			if usedDelta < 0 && used < -usedDelta {
+				return ErrQuotaInvariant
+			}
+			var revision int64
+			if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(revision),0)+1 FROM file_versions WHERE file_id=$1::uuid`, file.ID).Scan(&revision); err != nil {
+				return err
+			}
+			file.SizeBytes = session.SizeBytes
+			file.ChunkSizeBytes = session.ChunkSizeBytes
+			file.SHA256 = append([]byte(nil), verifiedSHA256...)
+			file.MIMEType = "application/octet-stream"
+			err = tx.QueryRow(ctx, `INSERT INTO file_versions (file_id,revision,name,size_bytes,chunk_size_bytes,sha256,mime_type,created_by) VALUES ($1::uuid,$2,$3,$4,$5,NULLIF($6,'\x'::bytea),$7,$8::uuid) RETURNING id::text`, file.ID, revision, file.Name, file.SizeBytes, file.ChunkSizeBytes, verifiedSHA256, file.MIMEType, actor.UserID).Scan(&versionID)
+			if err != nil {
+				return fmt.Errorf("create file version: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO file_version_chunks (version_id,part_index,chunk_id,part_size_bytes) SELECT $1::uuid,part_index,chunk_id,part_size_bytes FROM upload_parts WHERE upload_id=$2::uuid ORDER BY part_index`, versionID, session.ID); err != nil {
+				return fmt.Errorf("create version chunks: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `DELETE FROM file_chunks WHERE file_id=$1::uuid`, file.ID); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO file_chunks (file_id,part_index,chunk_id,part_size_bytes) SELECT $1::uuid,part_index,chunk_id,part_size_bytes FROM upload_parts WHERE upload_id=$2::uuid ORDER BY part_index`, file.ID, session.ID); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE files SET current_version_id=$2::uuid,size_bytes=$3,chunk_size_bytes=$4,sha256=NULLIF($5,'\x'::bytea),mime_type=$6,extension=NULL,category='binary',width=NULL,height=NULL,duration_ms=NULL,bitrate_bps=NULL,codec=NULL,metadata='{}'::jsonb,metadata_status='pending',metadata_error=NULL,updated_at=now() WHERE node_id=$1::uuid`, file.ID, versionID, file.SizeBytes, file.ChunkSizeBytes, verifiedSHA256, file.MIMEType); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1::uuid`, file.ID); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `DELETE FROM file_thumbnails WHERE file_id=$1::uuid`, file.ID); err != nil {
+				return err
+			}
 		}
-
-		file.OwnerUserID = session.OwnerUserID
-		file.ParentFolderID = session.ParentFolderID
-		file.Name = session.Name
-		file.SizeBytes = session.SizeBytes
-		file.ChunkSizeBytes = session.ChunkSizeBytes
-		file.SHA256 = append([]byte(nil), verifiedSHA256...)
-		file.MIMEType = "application/octet-stream"
-		file.CreatedAt = createdAt
-
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO files (node_id, size_bytes, chunk_size_bytes, sha256, mime_type)
-			VALUES ($1::uuid, $2, $3, NULLIF($4, '\x'::bytea), $5)
-		`, file.ID, file.SizeBytes, file.ChunkSizeBytes, verifiedSHA256, file.MIMEType); err != nil {
-			return fmt.Errorf("create file metadata: %w", err)
-		}
-
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO file_chunks (file_id, part_index, chunk_id, part_size_bytes)
-			SELECT $1::uuid, part_index, chunk_id, part_size_bytes
-			FROM upload_parts
-			WHERE upload_id = $2::uuid
-			ORDER BY part_index
-		`, file.ID, session.ID); err != nil {
-			return fmt.Errorf("create file chunks: %w", err)
-		}
+		file.VersionID = versionID
 
 		if _, err := tx.Exec(ctx, `
 			UPDATE chunks
@@ -207,7 +255,7 @@ func (f *Finalizer) Finalize(ctx context.Context, actor Actor, sessionID string)
 			    storage_used_bytes = storage_used_bytes + $3,
 			    updated_at = now()
 			WHERE id::text = $1
-		`, session.OwnerUserID, session.ReservedBytes, session.SizeBytes); err != nil {
+		`, session.OwnerUserID, session.ReservedBytes, usedDelta); err != nil {
 			return fmt.Errorf("commit upload quota: %w", err)
 		}
 
@@ -229,21 +277,23 @@ func (f *Finalizer) Finalize(ctx context.Context, actor Actor, sessionID string)
 				'file.metadata',
 				jsonb_build_object(
 					'fileId', $1::text,
-					'mimeTypeHint', NULLIF($2, '')
+					'mimeTypeHint', NULLIF($2, ''),
+					'versionId', $3::text
 				)
 			)
-		`, file.ID, strings.TrimSpace(session.MIMETypeHint)); err != nil {
+		`, file.ID, strings.TrimSpace(session.MIMETypeHint), file.VersionID); err != nil {
 			return fmt.Errorf("enqueue file metadata job: %w", err)
 		}
 
 		return audit.Append(ctx, tx, audit.Event{
 			ActorUserID:  actor.UserID,
-			Action:       "file.create",
+			Action:       auditAction,
 			ResourceType: "node",
 			ResourceID:   file.ID,
 			Metadata: map[string]any{
 				"sizeBytes": session.SizeBytes,
 				"uploadId":  session.ID,
+				"versionId": file.VersionID,
 			},
 		})
 	})

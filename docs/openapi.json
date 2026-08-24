@@ -1,109 +1,3086 @@
 {
-  "openapi":"3.1.2",
-  "info":{"title":"DisCloud API","version":"v1","description":"Versioned HTTP API for the DisCloud backend."},
-  "servers":[{"url":"/"}],
-  "security":[{"sessionCookie":[]}],
-  "x-discloud-error-matrix":"./openapi/errors.json",
-  "x-discloud-examples":"./openapi/examples.json",
-  "tags":[{"name":"System"},{"name":"Setup"},{"name":"Auth"},{"name":"Account"},{"name":"MFA"},{"name":"Admin Users"},{"name":"Operations"},{"name":"Bot Runtime"},{"name":"Folders"},{"name":"Folder ACL"},{"name":"Favorites"},{"name":"Files"},{"name":"Uploads"},{"name":"Trash"},{"name":"Collections"},{"name":"Collection ACL"},{"name":"Shares"},{"name":"Public Shares"},{"name":"Search"},{"name":"Shared"},{"name":"Settings"},{"name":"Admin Config"}],
-  "paths":{
-    "/healthz":{"get":{"tags":["System"],"operationId":"health","summary":"Liveness probe","security":[],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/readyz":{"get":{"tags":["System"],"operationId":"readiness","summary":"Readiness probe","security":[],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/metrics":{"get":{"tags":["Operations"],"operationId":"getAdminMetrics","summary":"Prometheus-compatible metrics","responses":{"200":{"$ref":"./openapi/components.json#/responses/Metrics"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots":{"get":{"tags":["Bot Runtime"],"operationId":"getAdminBotRuntime","summary":"Current Discord bot runtime state","responses":{"200":{"$ref":"./openapi/components.json#/responses/BotRuntimeSnapshot"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/events":{"get":{"tags":["Bot Runtime"],"operationId":"streamAdminBotRuntime","summary":"Realtime Discord bot runtime events","parameters":[{"$ref":"./openapi/components.json#/parameters/LastEventID"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/BotRuntimeEvents"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/{botId}/probe":{"post":{"tags":["Bot Runtime"],"operationId":"probeAdminBot","summary":"Probe and refresh a Discord bot runtime identity","parameters":[{"$ref":"./openapi/components.json#/parameters/botId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/config/{configIndex}/probe":{"post":{"tags":["Bot Runtime"],"operationId":"probeConfiguredAdminBot","summary":"Probe and recover a configured Discord bot","parameters":[{"$ref":"./openapi/components.json#/parameters/configIndex"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/{botId}/drain":{"post":{"tags":["Bot Runtime"],"operationId":"drainAdminBot","summary":"Drain a Discord bot and disable it after current work","parameters":[{"$ref":"./openapi/components.json#/parameters/botId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/{botId}/disable":{"post":{"tags":["Bot Runtime"],"operationId":"disableAdminBot","summary":"Temporarily disable a Discord bot","parameters":[{"$ref":"./openapi/components.json#/parameters/botId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/bots/{botId}/enable":{"post":{"tags":["Bot Runtime"],"operationId":"enableAdminBot","summary":"Enable a temporarily disabled Discord bot","parameters":[{"$ref":"./openapi/components.json#/parameters/botId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/setup/status":{"get":{"tags":["Setup"],"operationId":"getSetupStatus","security":[],"responses":{"200":{"$ref":"./openapi/components.json#/responses/SetupStatus"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/setup":{"post":{"tags":["Setup"],"operationId":"completeSetup","security":[],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/Setup"},"responses":{"201":{"$ref":"./openapi/components.json#/responses/SetupComplete"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/auth/login":{"post":{"tags":["Auth"],"operationId":"login","security":[],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/Login"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/LoginResult"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/auth/mfa/verify":{"post":{"tags":["Auth"],"operationId":"verifyLoginMFA","security":[],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/MFAVerify"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/User"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/auth/logout":{"post":{"tags":["Auth"],"operationId":"logout","security":[],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/auth/me":{"get":{"tags":["Auth"],"operationId":"getAuthenticatedUser","responses":{"200":{"$ref":"./openapi/components.json#/responses/User"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me":{"get":{"tags":["Account"],"operationId":"getMe","responses":{"200":{"$ref":"./openapi/components.json#/responses/User"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"patch":{"tags":["Account"],"operationId":"updateMe","requestBody":{"$ref":"./openapi/components.json#/requestBodies/UpdateMe"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/User"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/avatar":{"get":{"tags":["Account"],"operationId":"getMyAvatar","responses":{"307":{"$ref":"./openapi/components.json#/responses/ObjectRedirect"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"put":{"tags":["Account"],"operationId":"updateMyAvatar","requestBody":{"$ref":"./openapi/components.json#/requestBodies/AvatarUpload"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/AvatarInfo"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Account"],"operationId":"deleteMyAvatar","responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/config":{"get":{"tags":["Settings"],"operationId":"getMyConfig","responses":{"200":{"$ref":"./openapi/components.json#/responses/UserConfig"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/config/common":{"put":{"tags":["Settings"],"operationId":"updateMyCommonConfig","requestBody":{"$ref":"./openapi/components.json#/requestBodies/UpdateCommonConfig"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/UserConfig"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/usage":{"get":{"tags":["Account"],"operationId":"getMyUsage","responses":{"200":{"$ref":"./openapi/components.json#/responses/AdminUsage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/root":{"get":{"tags":["Folders"],"operationId":"getMyRoot","responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/password":{"put":{"tags":["Account"],"operationId":"changePassword","requestBody":{"$ref":"./openapi/components.json#/requestBodies/ChangePassword"},"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/sessions":{"get":{"tags":["Account"],"operationId":"listSessions","responses":{"200":{"$ref":"./openapi/components.json#/responses/Sessions"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/sessions/{sessionId}":{"delete":{"tags":["Account"],"operationId":"revokeSession","parameters":[{"$ref":"./openapi/components.json#/parameters/sessionId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/sessions/revoke-others":{"post":{"tags":["Account"],"operationId":"revokeOtherSessions","responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/mfa":{"get":{"tags":["MFA"],"operationId":"getMFAStatus","responses":{"200":{"$ref":"./openapi/components.json#/responses/MFAStatus"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/mfa/totp/enroll":{"post":{"tags":["MFA"],"operationId":"beginMFAEnrollment","responses":{"201":{"$ref":"./openapi/components.json#/responses/MFAEnrollment"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/mfa/totp/confirm":{"post":{"tags":["MFA"],"operationId":"confirmMFAEnrollment","requestBody":{"$ref":"./openapi/components.json#/requestBodies/MFACode"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/RecoveryCodes"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/mfa/recovery-codes/regenerate":{"post":{"tags":["MFA"],"operationId":"regenerateRecoveryCodes","requestBody":{"$ref":"./openapi/components.json#/requestBodies/MFACode"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/RecoveryCodes"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/me/mfa/totp":{"delete":{"tags":["MFA"],"operationId":"disableMFA","requestBody":{"$ref":"./openapi/components.json#/requestBodies/MFACode"},"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users":{"get":{"tags":["Admin Users"],"operationId":"listUsers","parameters":[{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/offset"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AdminUserList"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"post":{"tags":["Admin Users"],"operationId":"createUser","requestBody":{"$ref":"./openapi/components.json#/requestBodies/AdminCreateUser"},"responses":{"201":{"$ref":"./openapi/components.json#/responses/AdminUser"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/avatar":{"get":{"tags":["Admin Users"],"operationId":"getAdminUserAvatar","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"307":{"$ref":"./openapi/components.json#/responses/ObjectRedirect"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}":{"get":{"tags":["Admin Users"],"operationId":"getUser","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AdminUser"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"patch":{"tags":["Admin Users"],"operationId":"updateUser","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AdminUpdateUser"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/AdminUser"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/quota":{"put":{"tags":["Admin Users"],"operationId":"setUserQuota","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AdminQuota"},"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/reset-password":{"post":{"tags":["Admin Users"],"operationId":"resetUserPassword","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AdminResetPassword"},"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/disable":{"post":{"tags":["Admin Users"],"operationId":"disableUser","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/enable":{"post":{"tags":["Admin Users"],"operationId":"enableUser","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/usage":{"get":{"tags":["Admin Users"],"operationId":"getUserUsage","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AdminUsage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/root":{"get":{"tags":["Admin Users"],"operationId":"getUserRoot","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/RootFolder"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/users/{userId}/mfa":{"delete":{"tags":["Admin Users"],"operationId":"resetUserMFA","parameters":[{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/config":{"get":{"tags":["Admin Config"],"operationId":"listAppConfig","parameters":[{"$ref":"./openapi/components.json#/parameters/configPrefix"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AppConfigList"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/config/{key}":{"get":{"tags":["Admin Config"],"operationId":"getAppConfig","parameters":[{"$ref":"./openapi/components.json#/parameters/configKey"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AppConfigEntry"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"put":{"tags":["Admin Config"],"operationId":"setAppConfig","parameters":[{"$ref":"./openapi/components.json#/parameters/configKey"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/SetAppConfig"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/AppConfigEntry"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Admin Config"],"operationId":"deleteAppConfig","parameters":[{"$ref":"./openapi/components.json#/parameters/configKey"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/audit":{"get":{"tags":["Operations"],"operationId":"listAuditEvents","parameters":[{"$ref":"./openapi/components.json#/parameters/actorUserId"},{"$ref":"./openapi/components.json#/parameters/action"},{"$ref":"./openapi/components.json#/parameters/resourceType"},{"$ref":"./openapi/components.json#/parameters/resourceId"},{"$ref":"./openapi/components.json#/parameters/from"},{"$ref":"./openapi/components.json#/parameters/to"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/AuditPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/jobs":{"get":{"tags":["Operations"],"operationId":"listJobs","parameters":[{"$ref":"./openapi/components.json#/parameters/jobStatus"},{"$ref":"./openapi/components.json#/parameters/jobType"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/JobPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/uploads":{"get":{"tags":["Operations"],"operationId":"listUploadDiagnostics","parameters":[{"$ref":"./openapi/components.json#/parameters/uploadStatus"},{"$ref":"./openapi/components.json#/parameters/ownerUserId"},{"$ref":"./openapi/components.json#/parameters/actorUserId"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/UploadDiagnosticPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/storage":{"get":{"tags":["Operations"],"operationId":"getStorageOverview","responses":{"200":{"$ref":"./openapi/components.json#/responses/StorageOverview"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/admin/storage/reconcile":{"post":{"tags":["Operations"],"operationId":"reconcileQuota","requestBody":{"$ref":"./openapi/components.json#/requestBodies/ReconcileQuota"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/QuotaReconciliationPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders":{"post":{"tags":["Folders"],"operationId":"createFolder","requestBody":{"$ref":"./openapi/components.json#/requestBodies/CreateFolder"},"responses":{"201":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/batch":{"post":{"tags":["Folders"],"operationId":"createFolderBatch","requestBody":{"$ref":"./openapi/components.json#/requestBodies/BatchFolders"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/BatchFolderResult"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}":{"get":{"tags":["Folders"],"operationId":"getFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"patch":{"tags":["Folders"],"operationId":"updateFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/UpdateFolder"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Trash"],"operationId":"trashFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/children":{"get":{"tags":["Folders"],"operationId":"listFolderChildren","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/folderSort"},{"$ref":"./openapi/components.json#/parameters/folderOrder"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/NodePage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/breadcrumbs":{"get":{"tags":["Folders"],"operationId":"getFolderBreadcrumbs","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Breadcrumbs"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/download":{"get":{"tags":["Folders"],"operationId":"downloadFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Zip"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/desktop-download/manifest":{"get":{"tags":["Folders"],"operationId":"getDesktopFolderDownloadManifest","summary":"Desktop direct-download folder tree manifest","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"description":"Folder tree for native Desktop download.","content":{"application/json":{"schema":{"type":"object","properties":{"entries":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"kind":{"type":"string","enum":["file","folder"]},"fileId":{"type":"string","format":"uuid"},"size":{"type":"integer","format":"int64","minimum":0}},"required":["path","kind"]}}},"required":["entries"]}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/restore":{"post":{"tags":["Trash"],"operationId":"restoreFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/RestoreNode"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/permanent":{"delete":{"tags":["Trash"],"operationId":"purgeFolder","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/permissions":{"get":{"tags":["Folder ACL"],"operationId":"listFolderPermissions","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/FolderPermissions"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/folders/{folderId}/permissions/{userId}":{"put":{"tags":["Folder ACL"],"operationId":"setFolderPermission","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"},{"$ref":"./openapi/components.json#/parameters/userId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AccessLevel"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/FolderPermission"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Folder ACL"],"operationId":"deleteFolderPermission","parameters":[{"$ref":"./openapi/components.json#/parameters/folderId"},{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/nodes/{nodeId}":{"patch":{"tags":["Folders"],"operationId":"updateNode","parameters":[{"$ref":"./openapi/components.json#/parameters/nodeId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/UpdateNode"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/nodes/{nodeId}/favorite":{"put":{"tags":["Favorites"],"operationId":"favoriteNode","parameters":[{"$ref":"./openapi/components.json#/parameters/nodeId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Favorites"],"operationId":"unfavoriteNode","parameters":[{"$ref":"./openapi/components.json#/parameters/nodeId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}":{"get":{"tags":["Files"],"operationId":"getFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/File"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Trash"],"operationId":"trashFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/thumbnail":{"get":{"tags":["Files"],"operationId":"getFileThumbnail","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"}],"responses":{"307":{"$ref":"./openapi/components.json#/responses/ObjectRedirect"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"put":{"tags":["Files"],"operationId":"uploadFileThumbnail","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/ThumbnailUpload"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/ThumbnailInfo"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/content":{"get":{"tags":["Files"],"operationId":"streamFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/download":{"get":{"tags":["Files"],"operationId":"downloadFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/desktop-download/manifest":{"get":{"tags":["Files"],"operationId":"getDesktopFileDownloadManifest","summary":"Desktop direct-download file manifest","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"}],"responses":{"200":{"description":"Desktop direct-download file manifest.","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"name":{"type":"string"},"size":{"type":"integer","format":"int64","minimum":0},"chunkSize":{"type":"integer","format":"int64","minimum":1},"chunkCount":{"type":"integer","minimum":0},"chunkWindowSize":{"type":"integer","minimum":1,"maximum":16},"sha256":{"type":"string"}},"required":["id","name","size","chunkSize","chunkCount","chunkWindowSize","sha256"]}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/desktop-download/chunks":{"get":{"tags":["Files"],"operationId":"getDesktopFileDownloadChunks","summary":"Resolve a window of temporary Discord CDN chunk URLs for Desktop","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"},{"name":"start","in":"query","schema":{"type":"integer","minimum":0,"default":0}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":16,"default":16}},{"name":"refresh","in":"query","schema":{"type":"boolean","default":false}}],"responses":{"200":{"description":"Temporary CDN URL window.","content":{"application/json":{"schema":{"type":"object","properties":{"chunks":{"type":"array","items":{"type":"object","properties":{"index":{"type":"integer","minimum":0},"offset":{"type":"integer","format":"int64","minimum":0},"size":{"type":"integer","format":"int64","minimum":0},"sha256":{"type":"string","pattern":"^[0-9a-fA-F]{64}$"},"url":{"type":"string","format":"uri"},"expiresAt":{"type":"string","format":"date-time"}},"required":["index","offset","size","sha256","url","expiresAt"]}},"nextStart":{"type":"integer","minimum":0}},"required":["chunks"]}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/restore":{"post":{"tags":["Trash"],"operationId":"restoreFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/RestoreNode"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Node"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/files/{fileId}/permanent":{"delete":{"tags":["Trash"],"operationId":"purgeFile","parameters":[{"$ref":"./openapi/components.json#/parameters/fileId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/uploads":{"post":{"tags":["Uploads"],"operationId":"createUpload","requestBody":{"$ref":"./openapi/components.json#/requestBodies/CreateUpload"},"responses":{"201":{"$ref":"./openapi/components.json#/responses/UploadSession"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/uploads/{uploadId}":{"get":{"tags":["Uploads"],"operationId":"getUpload","parameters":[{"$ref":"./openapi/components.json#/parameters/uploadId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/UploadSession"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Uploads"],"operationId":"cancelUpload","parameters":[{"$ref":"./openapi/components.json#/parameters/uploadId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/uploads/{uploadId}/parts/{partIndex}":{"put":{"tags":["Uploads"],"operationId":"putUploadPart","parameters":[{"$ref":"./openapi/components.json#/parameters/uploadId"},{"$ref":"./openapi/components.json#/parameters/partIndex"},{"$ref":"./openapi/components.json#/parameters/ChunkSHA256"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/UploadPart"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/UploadPart"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/uploads/{uploadId}/complete":{"post":{"tags":["Uploads"],"operationId":"completeUpload","parameters":[{"$ref":"./openapi/components.json#/parameters/uploadId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/CompletedFile"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/trash":{"get":{"tags":["Trash"],"operationId":"listTrash","parameters":[{"$ref":"./openapi/components.json#/parameters/ownerId"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/TrashPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections":{"get":{"tags":["Collections"],"operationId":"listCollections","parameters":[{"$ref":"./openapi/components.json#/parameters/ownerId"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/CollectionPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"post":{"tags":["Collections"],"operationId":"createCollection","requestBody":{"$ref":"./openapi/components.json#/requestBodies/CreateCollection"},"responses":{"201":{"$ref":"./openapi/components.json#/responses/Collection"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}":{"get":{"tags":["Collections"],"operationId":"getCollection","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Collection"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"patch":{"tags":["Collections"],"operationId":"updateCollection","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/UpdateCollection"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Collection"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Collections"],"operationId":"trashCollection","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}/restore":{"post":{"tags":["Collections"],"operationId":"restoreCollection","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/RestoreCollection"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Collection"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}/items":{"get":{"tags":["Collections"],"operationId":"listCollectionItems","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/CollectionItems"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"post":{"tags":["Collections"],"operationId":"addCollectionItem","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AddCollectionItem"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/CreatedFlag"},"201":{"$ref":"./openapi/components.json#/responses/CreatedFlag"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}/items/{fileId}":{"delete":{"tags":["Collections"],"operationId":"removeCollectionItem","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"},{"$ref":"./openapi/components.json#/parameters/fileId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}/access":{"get":{"tags":["Collection ACL"],"operationId":"listCollectionAccess","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/CollectionAccessList"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/collections/{collectionId}/access/{userId}":{"put":{"tags":["Collection ACL"],"operationId":"setCollectionAccess","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"},{"$ref":"./openapi/components.json#/parameters/userId"}],"requestBody":{"$ref":"./openapi/components.json#/requestBodies/AccessLevel"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/CollectionAccess"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}},"delete":{"tags":["Collection ACL"],"operationId":"deleteCollectionAccess","parameters":[{"$ref":"./openapi/components.json#/parameters/collectionId"},{"$ref":"./openapi/components.json#/parameters/userId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/shares":{"post":{"tags":["Shares"],"operationId":"createShare","requestBody":{"$ref":"./openapi/components.json#/requestBodies/CreateShare"},"responses":{"200":{"$ref":"./openapi/components.json#/responses/Share"},"201":{"$ref":"./openapi/components.json#/responses/Share"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/shares/{shareId}":{"delete":{"tags":["Shares"],"operationId":"revokeShare","parameters":[{"$ref":"./openapi/components.json#/parameters/shareId"}],"responses":{"204":{"$ref":"./openapi/components.json#/responses/NoContent"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/s/{publicId}":{"get":{"tags":["Public Shares"],"operationId":"resolvePublicShareShort","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/PublicShare"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}":{"get":{"tags":["Public Shares"],"operationId":"resolvePublicShare","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/PublicShare"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/content":{"get":{"tags":["Public Shares"],"operationId":"streamPublicSharedFile","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/download":{"get":{"tags":["Public Shares"],"operationId":"downloadPublicSharedFile","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/files/{fileId}/content":{"get":{"tags":["Public Shares"],"operationId":"streamPublicFile","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/files/{fileId}/download":{"get":{"tags":["Public Shares"],"operationId":"downloadPublicFile","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/fileId"},{"$ref":"./openapi/components.json#/parameters/Range"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Binary"},"206":{"$ref":"./openapi/components.json#/responses/Binary"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/folders/{folderId}":{"get":{"tags":["Public Shares"],"operationId":"getPublicFolder","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/PublicFolder"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/folders/{folderId}/download":{"get":{"tags":["Public Shares"],"operationId":"downloadPublicFolder","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"},{"$ref":"./openapi/components.json#/parameters/folderId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/Zip"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/public/shares/{publicId}/items":{"get":{"tags":["Public Shares"],"operationId":"listPublicCollectionItems","security":[],"parameters":[{"$ref":"./openapi/components.json#/parameters/publicId"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/PublicItems"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/search":{"get":{"tags":["Search"],"operationId":"search","parameters":[{"$ref":"./openapi/components.json#/parameters/q"},{"$ref":"./openapi/components.json#/parameters/kind"},{"$ref":"./openapi/components.json#/parameters/mimeType"},{"$ref":"./openapi/components.json#/parameters/category"},{"$ref":"./openapi/components.json#/parameters/ownerId"},{"$ref":"./openapi/components.json#/parameters/folderIdQuery"},{"$ref":"./openapi/components.json#/parameters/collectionIdQuery"},{"$ref":"./openapi/components.json#/parameters/favorite"},{"$ref":"./openapi/components.json#/parameters/shared"},{"$ref":"./openapi/components.json#/parameters/minSize"},{"$ref":"./openapi/components.json#/parameters/maxSize"},{"$ref":"./openapi/components.json#/parameters/createdFrom"},{"$ref":"./openapi/components.json#/parameters/createdTo"},{"$ref":"./openapi/components.json#/parameters/updatedFrom"},{"$ref":"./openapi/components.json#/parameters/updatedTo"},{"$ref":"./openapi/components.json#/parameters/state"},{"$ref":"./openapi/components.json#/parameters/sort"},{"$ref":"./openapi/components.json#/parameters/order"},{"$ref":"./openapi/components.json#/parameters/limit"},{"$ref":"./openapi/components.json#/parameters/cursor"}],"responses":{"200":{"$ref":"./openapi/components.json#/responses/SearchPage"},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/users/lookup":{"get":{"tags":["Account"],"operationId":"lookupUser","summary":"Look up an active user by exact username","parameters":[{"name":"username","in":"query","required":true,"schema":{"type":"string","minLength":1}}],"responses":{"200":{"description":"Exact active user match.","content":{"application/json":{"schema":{"$ref":"./openapi/components.json#/schemas/UserLookup"}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/workspaces/{username}":{"get":{"tags":["Account"],"operationId":"getWorkspace","summary":"Get a workspace by immutable username","parameters":[{"name":"username","in":"path","required":true,"schema":{"type":"string","minLength":1}}],"responses":{"200":{"description":"Workspace owner, root folder, and storage usage.","content":{"application/json":{"schema":{"type":"object","properties":{"owner":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"username":{"type":"string"},"name":{"type":"string","minLength":1,"maxLength":100},"role":{"type":"string","enum":["admin","user"]},"status":{"type":"string"}},"required":["id","username","name","role","status"]},"root":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"name":{"type":"string"}},"required":["id","name"]},"usage":{"type":"object","properties":{"quotaBytes":{"type":["integer","null"],"format":"int64","minimum":0},"usedBytes":{"type":"integer","format":"int64","minimum":0},"reservedBytes":{"type":"integer","format":"int64","minimum":0},"availableBytes":{"type":["integer","null"],"format":"int64"},"overQuota":{"type":"boolean"}},"required":["quotaBytes","usedBytes","reservedBytes","availableBytes","overQuota"]}},"required":["owner","root","usage"]}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/shared":{"get":{"tags":["Shared"],"operationId":"listSharedItems","summary":"List resources shared directly with the current user","responses":{"200":{"description":"Direct folder and collection shares received by the current user.","content":{"application/json":{"schema":{"$ref":"./openapi/components.json#/schemas/SharedItems"}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}},
-    "/api/v1/shares/active":{"get":{"tags":["Shares"],"operationId":"getActiveShare","summary":"Get the active public share for a resource","parameters":[{"name":"resourceType","in":"query","required":true,"schema":{"type":"string","enum":["file","folder","collection"]}},{"name":"resourceId","in":"query","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Active public share.","content":{"application/json":{"schema":{"$ref":"./openapi/components.json#/schemas/Share"}}}},"default":{"$ref":"./openapi/components.json#/responses/Problem"}}}}
+  "openapi": "3.1.2",
+  "info": {
+    "title": "DisCloud API",
+    "version": "v1",
+    "description": "Versioned HTTP API for the DisCloud backend."
   },
-  "components":{"securitySchemes":{"sessionCookie":{"type":"apiKey","in":"cookie","name":"discloud_session","description":"Session cookie. The deployment may configure a different cookie name."}}}
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
+  "x-discloud-error-matrix": "./openapi/errors.json",
+  "x-discloud-examples": "./openapi/examples.json",
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Setup"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "MFA"
+    },
+    {
+      "name": "Admin Users"
+    },
+    {
+      "name": "Operations"
+    },
+    {
+      "name": "Bot Runtime"
+    },
+    {
+      "name": "Folders"
+    },
+    {
+      "name": "Folder ACL"
+    },
+    {
+      "name": "Favorites"
+    },
+    {
+      "name": "Files"
+    },
+    {
+      "name": "Uploads"
+    },
+    {
+      "name": "Trash"
+    },
+    {
+      "name": "Collections"
+    },
+    {
+      "name": "Collection ACL"
+    },
+    {
+      "name": "Shares"
+    },
+    {
+      "name": "Public Shares"
+    },
+    {
+      "name": "Search"
+    },
+    {
+      "name": "Shared"
+    },
+    {
+      "name": "Settings"
+    },
+    {
+      "name": "Admin Config"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "health",
+        "summary": "Liveness probe",
+        "security": [],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "readiness",
+        "summary": "Readiness probe",
+        "security": [],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metrics": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "getAdminMetrics",
+        "summary": "Prometheus-compatible metrics",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Metrics"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots": {
+      "get": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "getAdminBotRuntime",
+        "summary": "Current Discord bot runtime state",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/BotRuntimeSnapshot"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/events": {
+      "get": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "streamAdminBotRuntime",
+        "summary": "Realtime Discord bot runtime events",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/LastEventID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/BotRuntimeEvents"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/{botId}/probe": {
+      "post": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "probeAdminBot",
+        "summary": "Probe and refresh a Discord bot runtime identity",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/botId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/config/{configIndex}/probe": {
+      "post": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "probeConfiguredAdminBot",
+        "summary": "Probe and recover a configured Discord bot",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/configIndex"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/{botId}/drain": {
+      "post": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "drainAdminBot",
+        "summary": "Drain a Discord bot and disable it after current work",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/botId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/{botId}/disable": {
+      "post": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "disableAdminBot",
+        "summary": "Temporarily disable a Discord bot",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/botId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/bots/{botId}/enable": {
+      "post": {
+        "tags": [
+          "Bot Runtime"
+        ],
+        "operationId": "enableAdminBot",
+        "summary": "Enable a temporarily disabled Discord bot",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/botId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "tags": [
+          "Setup"
+        ],
+        "operationId": "getSetupStatus",
+        "security": [],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/SetupStatus"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/setup": {
+      "post": {
+        "tags": [
+          "Setup"
+        ],
+        "operationId": "completeSetup",
+        "security": [],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/Setup"
+        },
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/SetupComplete"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "login",
+        "security": [],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/Login"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/LoginResult"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/verify": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "verifyLoginMFA",
+        "security": [],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/MFAVerify"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/User"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "logout",
+        "security": [],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "getAuthenticatedUser",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/User"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/User"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "updateMe",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateMe"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/User"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/avatar": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getMyAvatar",
+        "responses": {
+          "307": {
+            "$ref": "./openapi/components.json#/responses/ObjectRedirect"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "updateMyAvatar",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AvatarUpload"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AvatarInfo"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "deleteMyAvatar",
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/config": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "getMyConfig",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/UserConfig"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/config/common": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "updateMyCommonConfig",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateCommonConfig"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/UserConfig"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/usage": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getMyUsage",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AdminUsage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/root": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "getMyRoot",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/password": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "changePassword",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/ChangePassword"
+        },
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "listSessions",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Sessions"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions/{sessionId}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "revokeSession",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/sessionId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions/revoke-others": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "revokeOtherSessions",
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/mfa": {
+      "get": {
+        "tags": [
+          "MFA"
+        ],
+        "operationId": "getMFAStatus",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/MFAStatus"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/mfa/totp/enroll": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "operationId": "beginMFAEnrollment",
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/MFAEnrollment"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/mfa/totp/confirm": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "operationId": "confirmMFAEnrollment",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/MFACode"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/RecoveryCodes"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/mfa/recovery-codes/regenerate": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "operationId": "regenerateRecoveryCodes",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/MFACode"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/RecoveryCodes"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/me/mfa/totp": {
+      "delete": {
+        "tags": [
+          "MFA"
+        ],
+        "operationId": "disableMFA",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/MFACode"
+        },
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AdminUserList"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "createUser",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AdminCreateUser"
+        },
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/AdminUser"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/avatar": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "getAdminUserAvatar",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "307": {
+            "$ref": "./openapi/components.json#/responses/ObjectRedirect"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "getUser",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AdminUser"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "updateUser",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AdminUpdateUser"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AdminUser"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/quota": {
+      "put": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "setUserQuota",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AdminQuota"
+        },
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/reset-password": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "resetUserPassword",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AdminResetPassword"
+        },
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/disable": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "disableUser",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/enable": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "enableUser",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/usage": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "getUserUsage",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AdminUsage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/root": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "getUserRoot",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/RootFolder"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}/mfa": {
+      "delete": {
+        "tags": [
+          "Admin Users"
+        ],
+        "operationId": "resetUserMFA",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/config": {
+      "get": {
+        "tags": [
+          "Admin Config"
+        ],
+        "operationId": "listAppConfig",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/configPrefix"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AppConfigList"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/config/{key}": {
+      "get": {
+        "tags": [
+          "Admin Config"
+        ],
+        "operationId": "getAppConfig",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/configKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AppConfigEntry"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Admin Config"
+        ],
+        "operationId": "setAppConfig",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/configKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/SetAppConfig"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AppConfigEntry"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin Config"
+        ],
+        "operationId": "deleteAppConfig",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/configKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "listAuditEvents",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/actorUserId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/action"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/resourceType"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/resourceId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/from"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/to"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/AuditPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "listJobs",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/jobStatus"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/jobType"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/JobPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/uploads": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "listUploadDiagnostics",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/uploadStatus"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/ownerUserId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/actorUserId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/UploadDiagnosticPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/storage": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "getStorageOverview",
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/StorageOverview"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/storage/reconcile": {
+      "post": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "reconcileQuota",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/ReconcileQuota"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/QuotaReconciliationPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders": {
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "createFolder",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/CreateFolder"
+        },
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/batch": {
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "createFolderBatch",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/BatchFolders"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/BatchFolderResult"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "getFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "updateFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateFolder"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "trashFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/children": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "listFolderChildren",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/folderSort"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/folderOrder"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/NodePage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/breadcrumbs": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "getFolderBreadcrumbs",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Breadcrumbs"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/download": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "downloadFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Zip"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/desktop-download/manifest": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "getDesktopFolderDownloadManifest",
+        "summary": "Desktop direct-download folder tree manifest",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder tree for native Desktop download.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "file",
+                              "folder"
+                            ]
+                          },
+                          "fileId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "kind"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/restore": {
+      "post": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "restoreFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/RestoreNode"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/permanent": {
+      "delete": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "purgeFolder",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/permissions": {
+      "get": {
+        "tags": [
+          "Folder ACL"
+        ],
+        "operationId": "listFolderPermissions",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/FolderPermissions"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/folders/{folderId}/permissions/{userId}": {
+      "put": {
+        "tags": [
+          "Folder ACL"
+        ],
+        "operationId": "setFolderPermission",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AccessLevel"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/FolderPermission"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Folder ACL"
+        ],
+        "operationId": "deleteFolderPermission",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}": {
+      "patch": {
+        "tags": [
+          "Folders"
+        ],
+        "operationId": "updateNode",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/nodeId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateNode"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/favorite": {
+      "put": {
+        "tags": [
+          "Favorites"
+        ],
+        "operationId": "favoriteNode",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/nodeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Favorites"
+        ],
+        "operationId": "unfavoriteNode",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/nodeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "getFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/File"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "trashFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/thumbnail": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "getFileThumbnail",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          }
+        ],
+        "responses": {
+          "307": {
+            "$ref": "./openapi/components.json#/responses/ObjectRedirect"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "uploadFileThumbnail",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/ThumbnailUpload"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/ThumbnailInfo"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/content": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "streamFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/download": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "downloadFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/desktop-download/manifest": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "getDesktopFileDownloadManifest",
+        "summary": "Desktop direct-download file manifest",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Desktop direct-download file manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "chunkSize": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 1
+                    },
+                    "chunkCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "chunkWindowSize": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 16
+                    },
+                    "sha256": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "size",
+                    "chunkSize",
+                    "chunkCount",
+                    "chunkWindowSize",
+                    "sha256"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/desktop-download/chunks": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "getDesktopFileDownloadChunks",
+        "summary": "Resolve a window of temporary Discord CDN chunk URLs for Desktop",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16,
+              "default": 16
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Temporary CDN URL window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chunks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "offset": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "size": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-fA-F]{64}$"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "offset",
+                          "size",
+                          "sha256",
+                          "url",
+                          "expiresAt"
+                        ]
+                      }
+                    },
+                    "nextStart": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "chunks"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/restore": {
+      "post": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "restoreFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/RestoreNode"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Node"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/permanent": {
+      "delete": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "purgeFile",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads": {
+      "post": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "createUpload",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/CreateUpload"
+        },
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/UploadSession"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{uploadId}": {
+      "get": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "getUpload",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/uploadId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/UploadSession"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "cancelUpload",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/uploadId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{uploadId}/parts/{partIndex}": {
+      "put": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "putUploadPart",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/uploadId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/partIndex"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/ChunkSHA256"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UploadPart"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/UploadPart"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{uploadId}/complete": {
+      "post": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "completeUpload",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/uploadId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CompletedFile"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/trash": {
+      "get": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "listTrash",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/ownerId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/TrashPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections": {
+      "get": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "listCollections",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/ownerId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CollectionPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "createCollection",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/CreateCollection"
+        },
+        "responses": {
+          "201": {
+            "$ref": "./openapi/components.json#/responses/Collection"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}": {
+      "get": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "getCollection",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Collection"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "updateCollection",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateCollection"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Collection"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "trashCollection",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/restore": {
+      "post": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "restoreCollection",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/RestoreCollection"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Collection"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/items": {
+      "get": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "listCollectionItems",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CollectionItems"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "addCollectionItem",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AddCollectionItem"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CreatedFlag"
+          },
+          "201": {
+            "$ref": "./openapi/components.json#/responses/CreatedFlag"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/items/{fileId}": {
+      "delete": {
+        "tags": [
+          "Collections"
+        ],
+        "operationId": "removeCollectionItem",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/access": {
+      "get": {
+        "tags": [
+          "Collection ACL"
+        ],
+        "operationId": "listCollectionAccess",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CollectionAccessList"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/access/{userId}": {
+      "put": {
+        "tags": [
+          "Collection ACL"
+        ],
+        "operationId": "setCollectionAccess",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/AccessLevel"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/CollectionAccess"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Collection ACL"
+        ],
+        "operationId": "deleteCollectionAccess",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/userId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/shares": {
+      "post": {
+        "tags": [
+          "Shares"
+        ],
+        "operationId": "createShare",
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/CreateShare"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Share"
+          },
+          "201": {
+            "$ref": "./openapi/components.json#/responses/Share"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/shares/{shareId}": {
+      "delete": {
+        "tags": [
+          "Shares"
+        ],
+        "operationId": "revokeShare",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/shareId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/s/{publicId}": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "resolvePublicShareShort",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/PublicShare"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "resolvePublicShare",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/PublicShare"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/content": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "streamPublicSharedFile",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/download": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "downloadPublicSharedFile",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/files/{fileId}/content": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "streamPublicFile",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/files/{fileId}/download": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "downloadPublicFile",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/folders/{folderId}": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "getPublicFolder",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/PublicFolder"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/folders/{folderId}/download": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "downloadPublicFolder",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/folderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Zip"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/items": {
+      "get": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "listPublicCollectionItems",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/PublicItems"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "operationId": "search",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/q"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/kind"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/mimeType"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/category"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/ownerId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/folderIdQuery"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/collectionIdQuery"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/favorite"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/shared"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/minSize"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/maxSize"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/createdFrom"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/createdTo"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/updatedFrom"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/updatedTo"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/state"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/sort"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/order"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/limit"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/SearchPage"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/users/lookup": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "lookupUser",
+        "summary": "Look up an active user by exact username",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact active user match.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi/components.json#/schemas/UserLookup"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{username}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getWorkspace",
+        "summary": "Get a workspace by immutable username",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace owner, root folder, and storage usage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "owner": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "admin",
+                            "user"
+                          ]
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "role",
+                        "status"
+                      ]
+                    },
+                    "root": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "quotaBytes": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "usedBytes": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "reservedBytes": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "availableBytes": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "format": "int64"
+                        },
+                        "overQuota": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "quotaBytes",
+                        "usedBytes",
+                        "reservedBytes",
+                        "availableBytes",
+                        "overQuota"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "owner",
+                    "root",
+                    "usage"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/shared": {
+      "get": {
+        "tags": [
+          "Shared"
+        ],
+        "operationId": "listSharedItems",
+        "summary": "List resources shared directly with the current user",
+        "responses": {
+          "200": {
+            "description": "Direct folder and collection shares received by the current user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi/components.json#/schemas/SharedItems"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/shares/active": {
+      "get": {
+        "tags": [
+          "Shares"
+        ],
+        "operationId": "getActiveShare",
+        "summary": "Get the active public share for a resource",
+        "parameters": [
+          {
+            "name": "resourceType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "file",
+                "folder",
+                "collection"
+              ]
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active public share.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi/components.json#/schemas/Share"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/versions": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "listFileVersions",
+        "summary": "List immutable file versions",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi/components.json#/schemas/FileVersionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/versions/{versionId}/download": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "downloadFileVersion",
+        "summary": "Download a specific file version",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/versionId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/Range"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "206": {
+            "$ref": "./openapi/components.json#/responses/Binary"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/versions/{versionId}/restore": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "operationId": "restoreFileVersion",
+        "summary": "Restore an old version as a new revision",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/fileId"
+          },
+          {
+            "$ref": "./openapi/components.json#/parameters/versionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi/components.json#/schemas/FileVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "discloud_session",
+        "description": "Session cookie. The deployment may configure a different cookie name."
+      }
+    }
+  }
 }

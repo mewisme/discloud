@@ -28,6 +28,14 @@ export async function downloadNativeFolder(folder: NativeFile) {
   }
 }
 
+export async function downloadNativeFileVersion(file: NativeFile, versionId: string) {
+  try {
+    const destination = await save({ title: `Save revision of ${file.name}`, defaultPath: safeDownloadName(file.name) })
+    if (!destination) return undefined
+    return await invoke("download_file", { fileId: file.id, collectionId: null, versionId, destination })
+  } catch (error) { throw nativeError(error) }
+}
+
 export async function downloadNativeFile(file: NativeFile, collectionId?: string) {
   try {
     const destination = await save({ title: `Save ${file.name}`, defaultPath: safeDownloadName(file.name) })
