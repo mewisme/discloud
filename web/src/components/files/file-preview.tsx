@@ -26,7 +26,7 @@ type PreviewFile = {
 
 export type FilePreviewSource = {
   contentPath: string
-  downloadPath: string
+  downloadPath?: string
   query?: Query
 }
 
@@ -369,12 +369,14 @@ function UnsupportedPreview({
           </p>
         </div>
 
-        <Button asChild>
-          <a href={apiDirectURL(source.downloadPath, source.query)}>
-            <DownloadIcon />
-            Download file
-          </a>
-        </Button>
+        {source.downloadPath && (
+          <Button asChild>
+            <a href={apiDirectURL(source.downloadPath, source.query)}>
+              <DownloadIcon />
+              Download file
+            </a>
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -2427,6 +2427,29 @@
             "$ref": "./openapi/components.json#/responses/Problem"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Shares"
+        ],
+        "operationId": "updateShare",
+        "summary": "Update public share access controls",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/shareId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UpdateShare"
+        },
+        "responses": {
+          "200": {
+            "$ref": "./openapi/components.json#/responses/Share"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
       }
     },
     "/s/{publicId}": {
@@ -3065,6 +3088,54 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/shares/{shareId}/sessions": {
+      "delete": {
+        "tags": [
+          "Shares"
+        ],
+        "operationId": "revokeShareSessions",
+        "summary": "Revoke all password sessions for a public share",
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/shareId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/{publicId}/unlock": {
+      "post": {
+        "tags": [
+          "Public Shares"
+        ],
+        "operationId": "unlockPublicShare",
+        "summary": "Unlock a password-protected public share",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "./openapi/components.json#/parameters/publicId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "./openapi/components.json#/requestBodies/UnlockPublicShare"
+        },
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
           },
           "default": {
             "$ref": "./openapi/components.json#/responses/Problem"

@@ -8,13 +8,14 @@ export function PublicShareView({ share }: { share: PublicShare }) {
   return (
     <PublicShareShell>
       {share.resourceType === "file" && share.file ? (
-        <PublicFileView publicId={share.publicId} file={share.file} />
+        <PublicFileView publicId={share.publicId} file={share.file} allowDownload={share.allowDownload} />
       ) : share.resourceType === "folder" && share.folder ? (
-        <PublicFolderView publicId={share.publicId} root={share.folder} />
+        <PublicFolderView publicId={share.publicId} root={share.folder} allowDownload={share.allowDownload} />
       ) : share.resourceType === "collection" && share.collection ? (
         <PublicCollectionView
           publicId={share.publicId}
           collection={share.collection}
+          allowDownload={share.allowDownload}
         />
       ) : (
         <UnavailablePublicShare />

@@ -1,5 +1,6 @@
-import type { ActiveShareQuery, CreateShareInput, Share, ShareResourceType } from "@discloud/api/models"
+import type { ActiveShareQuery, CreateShareInput, Share, ShareResourceType, UpdateShareInput } from "@discloud/api/models"
 import { APIError } from "@discloud/api/types"
+import { PublicShareSettings } from "@discloud/app-ui/shares/public-share-settings"
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@discloud/ui/components/alert-dialog"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
@@ -103,6 +104,32 @@ export function DesktopPublicShareDialog({
     }
   }
 
+  async function saveSettings(input: UpdateShareInput) {
+    if (!share || pending) return
+    setPending(true)
+    setError(undefined)
+    try {
+      setShare(await apiJSON<Share>(`/api/v1/shares/${encodeURIComponent(share.id)}`, { method: "PATCH", body: input }))
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function revokeSessions() {
+    if (!share || pending) return
+    setPending(true)
+    setError(undefined)
+    try {
+      await apiJSON<void>(`/api/v1/shares/${encodeURIComponent(share.id)}/sessions`, { method: "DELETE" })
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
   async function copy() {
     if (!publicURL) return
 
@@ -186,6 +213,8 @@ export function DesktopPublicShareDialog({
 
                 {copied ? <p className="mt-2 text-xs text-muted-foreground">Copied.</p> : null}
               </div>
+
+              <PublicShareSettings share={share} pending={pending} onSave={saveSettings} onRevokeSessions={revokeSessions} />
 
               {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 

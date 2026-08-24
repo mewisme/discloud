@@ -17,9 +17,11 @@ import { publicFolderDownloadPath, publicFolderPath } from "@/lib/shares/public"
 export function PublicFolderView({
   publicId,
   root,
+  allowDownload,
 }: {
   publicId: string
   root: PublicFolder
+  allowDownload: boolean
 }) {
   const [path, setPath] = useState<PublicFolder[]>([root])
   const [preview, setPreview] = useState<PublicNode>()
@@ -64,19 +66,20 @@ export function PublicFolderView({
         icon={<FolderIcon className="size-5" />}
         title={current.name || "Shared folder"}
         description={`${current.children.length} item${current.children.length === 1 ? "" : "s"}`}
-        action={
+        action={allowDownload ? (
           <Button variant="outline" asChild>
             <a href={apiURL(publicFolderDownloadPath(publicId, current.id))}>
               <DownloadIcon />
               Download folder
             </a>
           </Button>
-        }
+        ) : undefined}
       />
 
       <PublicEntriesTable
         publicId={publicId}
         entries={current.children}
+        allowDownload={allowDownload}
         loading={loading}
         parent={
           path.length > 1
@@ -90,6 +93,7 @@ export function PublicFolderView({
       <PublicPreviewDialog
         publicId={publicId}
         file={preview}
+        allowDownload={allowDownload}
         onOpenChange={(open) => {
           if (!open) setPreview(undefined)
         }}

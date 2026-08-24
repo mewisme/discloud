@@ -85,14 +85,14 @@ export function PublicInfo({
   )
 }
 
-export function UnavailablePublicShare() {
+export function UnavailablePublicShare({ message = "This public resource could not be displayed." }: { message?: string }) {
   return (
     <div className="grid min-h-[60dvh] place-items-center text-center">
       <div>
         <Globe2Icon className="mx-auto mb-3 size-10 text-muted-foreground" />
         <h1 className="text-xl font-semibold">Share unavailable</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          This public resource could not be displayed.
+          {message}
         </p>
       </div>
     </div>

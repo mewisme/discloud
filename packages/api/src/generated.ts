@@ -1346,6 +1346,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/public/shares/{publicId}/unlock": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Unlock a password-protected public share */
+        readonly post: operations["unlockPublicShare"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/search": {
         readonly parameters: {
             readonly query?: never;
@@ -1438,6 +1455,24 @@ export type paths = {
         readonly put?: never;
         readonly post?: never;
         readonly delete: operations["revokeShare"];
+        readonly options?: never;
+        readonly head?: never;
+        /** Update public share access controls */
+        readonly patch: operations["updateShare"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/shares/{shareId}/sessions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /** Revoke all password sessions for a public share */
+        readonly delete: operations["revokeShareSessions"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -2038,9 +2073,12 @@ export type components = {
             readonly updatedAt: string;
         };
         readonly PublicShare: {
+            readonly allowDownload: boolean;
             readonly collection?: components["schemas"]["PublicCollection"];
+            readonly expiresAt: string | null;
             readonly file?: components["schemas"]["PublicFile"];
             readonly folder?: components["schemas"]["PublicFolder"];
+            readonly passwordProtected: boolean;
             readonly publicId: string;
             /** Format: uuid */
             readonly resourceId: string;
@@ -2098,18 +2136,27 @@ export type components = {
             readonly id: string;
         };
         readonly Share: {
+            readonly allowDownload: boolean;
             readonly created?: boolean;
             /** Format: date-time */
             readonly createdAt: string;
             /** Format: uuid */
             readonly createdBy: string;
+            /** Format: int64 */
+            readonly downloadCount: number;
+            readonly expiresAt: string | null;
             /** Format: uuid */
             readonly id: string;
+            readonly maxDownloads: number | null;
+            readonly maxViews: number | null;
+            readonly passwordProtected: boolean;
             readonly publicId: string;
             /** Format: uuid */
             readonly resourceId: string;
             /** @enum {string} */
             readonly resourceType: "file" | "folder" | "collection";
+            /** Format: int64 */
+            readonly viewCount: number;
         };
         readonly SharedItem: {
             /** @enum {string} */
@@ -3027,6 +3074,12 @@ export type components = {
         readonly CreateShare: {
             readonly content: {
                 readonly "application/json": {
+                    /** @default true */
+                    readonly allowDownload?: boolean;
+                    readonly expiresAt?: string | null;
+                    readonly maxDownloads?: number | null;
+                    readonly maxViews?: number | null;
+                    readonly password?: string;
                     /** Format: uuid */
                     readonly resourceId: string;
                     /** @enum {string} */
@@ -3126,6 +3179,13 @@ export type components = {
                 readonly "image/webp": string;
             };
         };
+        readonly UnlockPublicShare: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly password: string;
+                };
+            };
+        };
         readonly UpdateCollection: {
             readonly content: {
                 readonly "application/json": {
@@ -3170,6 +3230,19 @@ export type components = {
                 } | {
                     /** Format: uuid */
                     readonly parentId: string;
+                };
+            };
+        };
+        readonly UpdateShare: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly allowDownload: boolean;
+                    /** @default false */
+                    readonly clearPassword?: boolean;
+                    readonly expiresAt: string | null;
+                    readonly maxDownloads: number | null;
+                    readonly maxViews: number | null;
+                    readonly password?: string;
                 };
             };
         };
@@ -4797,6 +4870,21 @@ export interface operations {
             readonly default: components["responses"]["Problem"];
         };
     };
+    readonly unlockPublicShare: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly publicId: components["parameters"]["publicId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["UnlockPublicShare"];
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
     readonly search: {
         readonly parameters: {
             readonly query?: {
@@ -4894,6 +4982,36 @@ export interface operations {
         };
     };
     readonly revokeShare: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly shareId: components["parameters"]["shareId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly updateShare: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly shareId: components["parameters"]["shareId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: components["requestBodies"]["UpdateShare"];
+        readonly responses: {
+            readonly 200: components["responses"]["Share"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly revokeShareSessions: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;

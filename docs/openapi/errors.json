@@ -8,7 +8,7 @@
     "403": "The request is blocked by CSRF protection or the caller lacks required administrative or resource permission.",
     "404": "The requested resource is unavailable, inaccessible, or not found.",
     "409": "The request conflicts with current resource state, quota, naming, or lifecycle state.",
-    "410": "The upload session has expired.",
+    "410": "The upload session or public share has expired, or a public share usage limit has been reached.",
     "413": "The request or generated resource exceeds the allowed size or processing limit.",
     "415": "The supplied media type or media content is unsupported.",
     "416": "The requested byte range cannot be satisfied.",
@@ -189,21 +189,30 @@
     ],
     "downloadPublicFile": [
       400,
+      401,
+      403,
       404,
+      410,
       416,
       500,
       502,
       503
     ],
     "downloadPublicFolder": [
+      401,
+      403,
       404,
+      410,
       413,
       500,
       503
     ],
     "downloadPublicSharedFile": [
       400,
+      401,
+      403,
       404,
+      410,
       416,
       500,
       502,
@@ -318,11 +327,11 @@
       404,
       500
     ],
-    "getMFAStatus": [
+    "getMe": [
       401,
       500
     ],
-    "getMe": [
+    "getMFAStatus": [
       401,
       500
     ],
@@ -347,7 +356,9 @@
       500
     ],
     "getPublicFolder": [
+      401,
       404,
+      410,
       500
     ],
     "getSetupStatus": [
@@ -445,7 +456,9 @@
       500
     ],
     "listPublicCollectionItems": [
+      401,
       404,
+      410,
       500
     ],
     "listSessions": [
@@ -573,11 +586,15 @@
       500
     ],
     "resolvePublicShare": [
+      401,
       404,
+      410,
       500
     ],
     "resolvePublicShareShort": [
+      401,
       404,
+      410,
       500
     ],
     "restoreCollection": [
@@ -623,6 +640,12 @@
       500
     ],
     "revokeShare": [
+      401,
+      403,
+      404,
+      500
+    ],
+    "revokeShareSessions": [
       401,
       403,
       404,
@@ -678,7 +701,9 @@
     ],
     "streamPublicFile": [
       400,
+      401,
       404,
+      410,
       416,
       500,
       502,
@@ -686,7 +711,9 @@
     ],
     "streamPublicSharedFile": [
       400,
+      401,
       404,
+      410,
       416,
       500,
       502,
@@ -718,6 +745,14 @@
       401,
       403,
       404,
+      500
+    ],
+    "unlockPublicShare": [
+      400,
+      401,
+      403,
+      404,
+      410,
       500
     ],
     "updateCollection": [
@@ -764,6 +799,13 @@
       403,
       404,
       409,
+      500
+    ],
+    "updateShare": [
+      400,
+      401,
+      403,
+      404,
       500
     ],
     "updateUser": [

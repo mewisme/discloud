@@ -1465,6 +1465,57 @@
         },
         "created": {
           "type": "boolean"
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passwordProtected": {
+          "type": "boolean"
+        },
+        "allowDownload": {
+          "type": "boolean"
+        },
+        "maxViews": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "viewCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "maxDownloads": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "downloadCount": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
         }
       },
       "required": [
@@ -1473,7 +1524,14 @@
         "resourceType",
         "resourceId",
         "createdBy",
-        "createdAt"
+        "createdAt",
+        "expiresAt",
+        "passwordProtected",
+        "allowDownload",
+        "maxViews",
+        "viewCount",
+        "maxDownloads",
+        "downloadCount"
       ]
     },
     "PublicNode": {
@@ -1641,12 +1699,32 @@
         },
         "collection": {
           "$ref": "#/schemas/PublicCollection"
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passwordProtected": {
+          "type": "boolean"
+        },
+        "allowDownload": {
+          "type": "boolean"
         }
       },
       "required": [
         "publicId",
         "resourceType",
-        "resourceId"
+        "resourceId",
+        "expiresAt",
+        "passwordProtected",
+        "allowDownload"
       ]
     },
     "SearchResult": {
@@ -3342,6 +3420,49 @@
               "resourceId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "password": {
+                "type": "string",
+                "minLength": 12
+              },
+              "allowDownload": {
+                "type": "boolean",
+                "default": true
+              },
+              "maxViews": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxDownloads": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -3383,6 +3504,91 @@
                 ],
                 "additionalProperties": false
               }
+            ]
+          }
+        }
+      }
+    },
+    "UpdateShare": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "password": {
+                "type": "string",
+                "minLength": 12
+              },
+              "clearPassword": {
+                "type": "boolean",
+                "default": false
+              },
+              "allowDownload": {
+                "type": "boolean"
+              },
+              "maxViews": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxDownloads": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "expiresAt",
+              "allowDownload",
+              "maxViews",
+              "maxDownloads"
+            ]
+          }
+        }
+      }
+    },
+    "UnlockPublicShare": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "password": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "password"
             ]
           }
         }

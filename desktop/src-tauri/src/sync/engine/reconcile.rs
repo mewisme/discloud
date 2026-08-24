@@ -1,3 +1,95 @@
+#[derive(Clone, Debug)]
+struct LocalRenameCandidate {
+    old_path: String,
+    new_path: String,
+    remote: RemoteFile,
+}
+
+fn detect_local_rename_candidates(
+    local: &LocalTree,
+    remote: &RemoteTree,
+    baseline: &SyncBaseline,
+    pending_conflicts: &BTreeMap<String, SyncConflict>,
+) -> Vec<LocalRenameCandidate> {
+    let mut proposals = Vec::new();
+
+    for (old_path, previous) in &baseline.files {
+        let (Some(previous_local), Some(previous_remote)) = (&previous.local, &previous.remote) else {
+            continue;
+        };
+        if local.files.contains_key(old_path) || pending_conflicts.contains_key(old_path) {
+            continue;
+        }
+
+        let Some(current_remote) = remote.files.get(old_path) else {
+            continue;
+        };
+        if &current_remote.fingerprint != previous_remote {
+            continue;
+        }
+
+        let matches = local
+            .files
+            .iter()
+            .filter(|(new_path, current_local)| {
+                !remote.files.contains_key(*new_path)
+                    && !baseline.files.contains_key(*new_path)
+                    && !pending_conflicts.contains_key(*new_path)
+                    && relative_parent(old_path) == relative_parent(new_path)
+                    && &current_local.fingerprint == previous_local
+            })
+            .map(|(new_path, _)| new_path.clone())
+            .collect::<Vec<_>>();
+
+        if matches.len() == 1 {
+            proposals.push(LocalRenameCandidate {
+                old_path: old_path.clone(),
+                new_path: matches[0].clone(),
+                remote: current_remote.clone(),
+            });
+        }
+    }
+
+    let mut new_path_counts = BTreeMap::<String, usize>::new();
+    for candidate in &proposals {
+        *new_path_counts.entry(candidate.new_path.clone()).or_default() += 1;
+    }
+    proposals.retain(|candidate| new_path_counts.get(&candidate.new_path) == Some(&1));
+    proposals
+}
+
+async fn reconcile_local_renames(
+    api: &ApiState,
+    local: &LocalTree,
+    remote: &mut RemoteTree,
+    baseline: &SyncBaseline,
+    pending_conflicts: &BTreeMap<String, SyncConflict>,
+) -> Result<BTreeSet<String>, ApiCommandError> {
+    let candidates = detect_local_rename_candidates(local, remote, baseline, pending_conflicts);
+    let mut handled = BTreeSet::new();
+
+    for candidate in candidates {
+        let Some(current_local) = local.files.get(&candidate.new_path) else {
+            continue;
+        };
+        if !same_file_content(api, &current_local.path, &candidate.remote.id).await? {
+            continue;
+        }
+
+        let name = relative_name(&candidate.new_path)?;
+        rename_remote_file(api, &candidate.remote.id, name).await?;
+
+        remote.files.remove(&candidate.old_path);
+        let mut renamed = candidate.remote;
+        renamed.name = name.to_string();
+        remote.files.insert(candidate.new_path.clone(), renamed);
+        handled.insert(candidate.old_path);
+        handled.insert(candidate.new_path);
+    }
+
+    Ok(handled)
+}
+
 async fn reconcile_file(
     api: &ApiState,
     root: &Path,
@@ -355,3 +447,111 @@ async fn ensure_remote_directories(
     Ok(())
 }
 
+
+#[cfg(test)]
+mod rename_tests {
+    use super::*;
+
+    fn local(path: &str, size: u64, modified_ms: u64) -> LocalFile {
+        LocalFile {
+            path: PathBuf::from(path),
+            fingerprint: LocalFingerprint { size, modified_ms },
+        }
+    }
+
+    fn remote(id: &str, name: &str, size: u64, updated_at: &str) -> RemoteFile {
+        RemoteFile {
+            id: id.to_string(),
+            parent_id: "parent".to_string(),
+            name: name.to_string(),
+            fingerprint: RemoteFingerprint {
+                id: id.to_string(),
+                size,
+                updated_at: updated_at.to_string(),
+            },
+        }
+    }
+
+    #[test]
+    fn detects_same_folder_local_rename_without_replacing_remote_identity() {
+        let current_local = local("b.txt", 12, 42);
+        let current_remote = remote("file-id", "a.txt", 12, "2026-08-24T00:00:00Z");
+        let local_tree = LocalTree {
+            files: BTreeMap::from([("b.txt".to_string(), current_local.clone())]),
+            directories: BTreeSet::from([String::new()]),
+            skipped: 0,
+        };
+        let remote_tree = RemoteTree {
+            files: BTreeMap::from([("a.txt".to_string(), current_remote.clone())]),
+            directories: BTreeMap::from([(String::new(), "parent".to_string())]),
+            skipped: 0,
+        };
+        let baseline = SyncBaseline {
+            version: BASELINE_VERSION,
+            files: BTreeMap::from([(
+                "a.txt".to_string(),
+                BaselineFile {
+                    local: Some(current_local.fingerprint.clone()),
+                    remote: Some(current_remote.fingerprint.clone()),
+                },
+            )]),
+        };
+
+        let candidates = detect_local_rename_candidates(
+            &local_tree,
+            &remote_tree,
+            &baseline,
+            &BTreeMap::new(),
+        );
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].old_path, "a.txt");
+        assert_eq!(candidates[0].new_path, "b.txt");
+        assert_eq!(candidates[0].remote.id, "file-id");
+    }
+
+    #[test]
+    fn rejects_ambiguous_or_cross_folder_local_rename_candidates() {
+        let previous_local = LocalFingerprint {
+            size: 12,
+            modified_ms: 42,
+        };
+        let current_remote = remote("file-id", "a.txt", 12, "2026-08-24T00:00:00Z");
+        let local_tree = LocalTree {
+            files: BTreeMap::from([
+                ("b.txt".to_string(), local("b.txt", 12, 42)),
+                ("c.txt".to_string(), local("c.txt", 12, 42)),
+                ("folder/d.txt".to_string(), local("folder/d.txt", 12, 42)),
+            ]),
+            directories: BTreeSet::from([String::new(), "folder".to_string()]),
+            skipped: 0,
+        };
+        let remote_tree = RemoteTree {
+            files: BTreeMap::from([("a.txt".to_string(), current_remote.clone())]),
+            directories: BTreeMap::from([
+                (String::new(), "parent".to_string()),
+                ("folder".to_string(), "folder-id".to_string()),
+            ]),
+            skipped: 0,
+        };
+        let baseline = SyncBaseline {
+            version: BASELINE_VERSION,
+            files: BTreeMap::from([(
+                "a.txt".to_string(),
+                BaselineFile {
+                    local: Some(previous_local),
+                    remote: Some(current_remote.fingerprint),
+                },
+            )]),
+        };
+
+        let candidates = detect_local_rename_candidates(
+            &local_tree,
+            &remote_tree,
+            &baseline,
+            &BTreeMap::new(),
+        );
+
+        assert!(candidates.is_empty());
+    }
+}

@@ -13,9 +13,11 @@ type PublicCollection = NonNullable<PublicShare["collection"]>
 export function PublicCollectionView({
   publicId,
   collection,
+  allowDownload,
 }: {
   publicId: string
   collection: PublicCollection
+  allowDownload: boolean
 }) {
   const [preview, setPreview] = useState<PublicNode>()
 
@@ -33,12 +35,14 @@ export function PublicCollectionView({
       <PublicEntriesTable
         publicId={publicId}
         entries={collection.items}
+        allowDownload={allowDownload}
         onOpenFile={setPreview}
       />
 
       <PublicPreviewDialog
         publicId={publicId}
         file={preview}
+        allowDownload={allowDownload}
         onOpenChange={(open) => {
           if (!open) setPreview(undefined)
         }}

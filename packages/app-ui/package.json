@@ -12,6 +12,7 @@
     "./files/file-browser": "./src/files/core/file-browser.ts",
     "./files/*": "./src/files/ui/*.tsx",
     "./search/*": "./src/search/ui/*.tsx",
+    "./shares/*": "./src/shares/ui/*.tsx",
     "./shared/*": "./src/shared/ui/*.tsx",
     "./settings/*": "./src/settings/ui/*.tsx",
     "./shell/navigation": "./src/shell/core/navigation.ts",

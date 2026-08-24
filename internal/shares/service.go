@@ -41,17 +41,30 @@ type Actor struct {
 }
 
 type Share struct {
-	ID           string
-	PublicID     string
-	ResourceType ResourceType
-	ResourceID   string
-	CreatedBy    string
-	CreatedAt    time.Time
+	ID                string
+	PublicID          string
+	ResourceType      ResourceType
+	ResourceID        string
+	CreatedBy         string
+	CreatedAt         time.Time
+	ExpiresAt         *time.Time
+	PasswordProtected bool
+	AllowDownload     bool
+	MaxViews          *int64
+	ViewCount         int64
+	MaxDownloads      *int64
+	DownloadCount     int64
+	passwordHash      string
 }
 
 type CreateInput struct {
-	ResourceType ResourceType
-	ResourceID   string
+	ResourceType  ResourceType
+	ResourceID    string
+	ExpiresAt     *time.Time
+	Password      string
+	AllowDownload *bool
+	MaxViews      *int64
+	MaxDownloads  *int64
 }
 
 type CreateResult struct {
@@ -97,9 +110,13 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (C
 	if input.ResourceID == "" {
 		return CreateResult{}, ErrNotFound
 	}
+	policy, err := prepareCreatePolicy(input)
+	if err != nil {
+		return CreateResult{}, err
+	}
 
 	var result CreateResult
-	err := postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+	err = postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := s.authorizeResourceTx(ctx, tx, actor, input.ResourceType, input.ResourceID); err != nil {
 			return err
 		}
@@ -110,7 +127,7 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (C
 				return err
 			}
 
-			shareID, err := insertShare(ctx, tx, actor.UserID, input, publicID)
+			shareID, err := insertShare(ctx, tx, actor.UserID, input, policy, publicID)
 			if err == nil {
 				result.Share, err = loadShareByID(ctx, tx, shareID, true)
 				if err != nil {
@@ -176,6 +193,9 @@ func (s *Service) Revoke(ctx context.Context, actor Actor, shareID string) error
 		if tag.RowsAffected() != 1 {
 			return ErrNotFound
 		}
+		if _, err := tx.Exec(ctx, `DELETE FROM public_share_sessions WHERE share_id = $1::uuid`, share.ID); err != nil {
+			return fmt.Errorf("revoke public share sessions: %w", err)
+		}
 
 		return audit.Append(ctx, tx, audit.Event{
 			ActorUserID:  actor.UserID,
@@ -208,7 +228,14 @@ func (s *Service) Resolve(ctx context.Context, publicID string) (Share, error) {
 			END,
 			COALESCE(ps.node_id::text, ps.collection_id::text),
 			ps.created_by::text,
-			ps.created_at
+			ps.created_at,
+			ps.expires_at,
+			COALESCE(ps.password_hash, ''),
+			ps.allow_download,
+			ps.max_views,
+			ps.view_count,
+			ps.max_downloads,
+			ps.download_count
 		FROM public_shares ps
 		LEFT JOIN nodes n ON n.id = ps.node_id
 		LEFT JOIN collections c ON c.id = ps.collection_id
@@ -248,6 +275,13 @@ func (s *Service) Resolve(ctx context.Context, publicID string) (Share, error) {
 		&share.ResourceID,
 		&share.CreatedBy,
 		&share.CreatedAt,
+		&share.ExpiresAt,
+		&share.passwordHash,
+		&share.AllowDownload,
+		&share.MaxViews,
+		&share.ViewCount,
+		&share.MaxDownloads,
+		&share.DownloadCount,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Share{}, ErrNotFound
@@ -260,6 +294,7 @@ func (s *Service) Resolve(ctx context.Context, publicID string) (Share, error) {
 	if err != nil {
 		return Share{}, fmt.Errorf("resolve public share type: %w", err)
 	}
+	finalizeSharePolicy(&share)
 	return share, nil
 }
 
@@ -318,30 +353,30 @@ func (s *Service) authorizeResourceTx(ctx context.Context, tx pgx.Tx, actor Acto
 	}
 }
 
-func insertShare(ctx context.Context, tx pgx.Tx, actorID string, input CreateInput, publicID string) (string, error) {
+func insertShare(ctx context.Context, tx pgx.Tx, actorID string, input CreateInput, policy preparedSharePolicy, publicID string) (string, error) {
 	var shareID string
 
 	switch input.ResourceType {
 	case ResourceFile, ResourceFolder:
 		err := tx.QueryRow(ctx, `
 			INSERT INTO public_shares (
-				public_id, resource_type, node_id, created_by
+				public_id, resource_type, node_id, created_by, expires_at, password_hash, allow_download, max_views, max_downloads
 			)
-			VALUES ($1, 'node', $2::uuid, $3::uuid)
+			VALUES ($1, 'node', $2::uuid, $3::uuid, $4, NULLIF($5, ''), $6, $7, $8)
 			ON CONFLICT DO NOTHING
 			RETURNING id::text
-		`, publicID, input.ResourceID, actorID).Scan(&shareID)
+		`, publicID, input.ResourceID, actorID, policy.expiresAt, policy.passwordHash, policy.allowDownload, policy.maxViews, policy.maxDownloads).Scan(&shareID)
 		return shareID, err
 
 	case ResourceCollection:
 		err := tx.QueryRow(ctx, `
 			INSERT INTO public_shares (
-				public_id, resource_type, collection_id, created_by
+				public_id, resource_type, collection_id, created_by, expires_at, password_hash, allow_download, max_views, max_downloads
 			)
-			VALUES ($1, 'collection', $2::uuid, $3::uuid)
+			VALUES ($1, 'collection', $2::uuid, $3::uuid, $4, NULLIF($5, ''), $6, $7, $8)
 			ON CONFLICT DO NOTHING
 			RETURNING id::text
-		`, publicID, input.ResourceID, actorID).Scan(&shareID)
+		`, publicID, input.ResourceID, actorID, policy.expiresAt, policy.passwordHash, policy.allowDownload, policy.maxViews, policy.maxDownloads).Scan(&shareID)
 		return shareID, err
 
 	default:
@@ -394,7 +429,14 @@ func loadShareByID(ctx context.Context, db queryRower, shareID string, activeOnl
 			END,
 			COALESCE(ps.node_id::text, ps.collection_id::text),
 			ps.created_by::text,
-			ps.created_at
+			ps.created_at,
+			ps.expires_at,
+			COALESCE(ps.password_hash, ''),
+			ps.allow_download,
+			ps.max_views,
+			ps.view_count,
+			ps.max_downloads,
+			ps.download_count
 		FROM public_shares ps
 		LEFT JOIN nodes n ON n.id = ps.node_id
 		WHERE ps.id = $1::uuid
@@ -412,6 +454,13 @@ func loadShareByID(ctx context.Context, db queryRower, shareID string, activeOnl
 		&share.ResourceID,
 		&share.CreatedBy,
 		&share.CreatedAt,
+		&share.ExpiresAt,
+		&share.passwordHash,
+		&share.AllowDownload,
+		&share.MaxViews,
+		&share.ViewCount,
+		&share.MaxDownloads,
+		&share.DownloadCount,
 	)
 	if errors.Is(err, pgx.ErrNoRows) || isInvalidUUID(err) {
 		return Share{}, ErrNotFound
@@ -424,6 +473,7 @@ func loadShareByID(ctx context.Context, db queryRower, shareID string, activeOnl
 	if err != nil {
 		return Share{}, fmt.Errorf("load public share type: %w", err)
 	}
+	finalizeSharePolicy(&share)
 	return share, nil
 }
 

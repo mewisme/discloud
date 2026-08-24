@@ -375,9 +375,17 @@ async fn run_pair(
         ensure_remote_directories(api, &local, &mut remote, &mut result).await?;
     }
 
+    let renamed_paths = if pair.direction.uploads() {
+        reconcile_local_renames(api, &local, &mut remote, &baseline, &pending_conflicts).await?
+    } else {
+        BTreeSet::new()
+    };
     let paths = union_file_paths(&local, &remote);
 
     for relative_path in paths {
+        if renamed_paths.contains(&relative_path) {
+            continue;
+        }
         if pending_conflicts.contains_key(&relative_path) {
             result.conflicts += 1;
             continue;

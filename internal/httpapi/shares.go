@@ -20,18 +20,43 @@ import (
 )
 
 type createShareRequest struct {
-	ResourceType string `json:"resourceType"`
-	ResourceID   string `json:"resourceId"`
+	ResourceType  string     `json:"resourceType"`
+	ResourceID    string     `json:"resourceId"`
+	ExpiresAt     *time.Time `json:"expiresAt"`
+	Password      string     `json:"password"`
+	AllowDownload *bool      `json:"allowDownload"`
+	MaxViews      *int64     `json:"maxViews"`
+	MaxDownloads  *int64     `json:"maxDownloads"`
+}
+
+type updateShareRequest struct {
+	ExpiresAt     *time.Time `json:"expiresAt"`
+	Password      *string    `json:"password"`
+	ClearPassword bool       `json:"clearPassword"`
+	AllowDownload *bool      `json:"allowDownload"`
+	MaxViews      *int64     `json:"maxViews"`
+	MaxDownloads  *int64     `json:"maxDownloads"`
+}
+
+type unlockShareRequest struct {
+	Password string `json:"password"`
 }
 
 type shareResponse struct {
-	ID           string    `json:"id"`
-	PublicID     string    `json:"publicId"`
-	ResourceType string    `json:"resourceType"`
-	ResourceID   string    `json:"resourceId"`
-	CreatedBy    string    `json:"createdBy"`
-	CreatedAt    time.Time `json:"createdAt"`
-	Created      bool      `json:"created,omitempty"`
+	ID                string     `json:"id"`
+	PublicID          string     `json:"publicId"`
+	ResourceType      string     `json:"resourceType"`
+	ResourceID        string     `json:"resourceId"`
+	CreatedBy         string     `json:"createdBy"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	ExpiresAt         *time.Time `json:"expiresAt"`
+	PasswordProtected bool       `json:"passwordProtected"`
+	AllowDownload     bool       `json:"allowDownload"`
+	MaxViews          *int64     `json:"maxViews"`
+	ViewCount         int64      `json:"viewCount"`
+	MaxDownloads      *int64     `json:"maxDownloads"`
+	DownloadCount     int64      `json:"downloadCount"`
+	Created           bool       `json:"created,omitempty"`
 }
 
 type publicFileResponse struct {
@@ -70,12 +95,15 @@ type publicCollectionResponse struct {
 }
 
 type publicShareResponse struct {
-	PublicID     string                    `json:"publicId"`
-	ResourceType string                    `json:"resourceType"`
-	ResourceID   string                    `json:"resourceId"`
-	File         *publicFileResponse       `json:"file,omitempty"`
-	Folder       *publicFolderResponse     `json:"folder,omitempty"`
-	Collection   *publicCollectionResponse `json:"collection,omitempty"`
+	PublicID          string                    `json:"publicId"`
+	ResourceType      string                    `json:"resourceType"`
+	ResourceID        string                    `json:"resourceId"`
+	ExpiresAt         *time.Time                `json:"expiresAt"`
+	PasswordProtected bool                      `json:"passwordProtected"`
+	AllowDownload     bool                      `json:"allowDownload"`
+	File              *publicFileResponse       `json:"file,omitempty"`
+	Folder            *publicFolderResponse     `json:"folder,omitempty"`
+	Collection        *publicCollectionResponse `json:"collection,omitempty"`
 }
 
 func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authService *auth.Service, cfg config.AuthConfig) {
@@ -97,8 +125,8 @@ func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authServic
 		}
 
 		result, err := service.Create(r.Context(), shareActor(r), shares.CreateInput{
-			ResourceType: resourceType,
-			ResourceID:   input.ResourceID,
+			ResourceType: resourceType, ResourceID: input.ResourceID, ExpiresAt: input.ExpiresAt,
+			Password: input.Password, AllowDownload: input.AllowDownload, MaxViews: input.MaxViews, MaxDownloads: input.MaxDownloads,
 		})
 		if writeShareError(w, r, err) {
 			return
@@ -114,6 +142,34 @@ func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authServic
 		_ = json.NewEncoder(w).Encode(response)
 	})
 
+	protected("PATCH /api/v1/shares/{shareId}", func(w http.ResponseWriter, r *http.Request) {
+		var input updateShareRequest
+		if err := decodeJSON(w, r, accountBodyLimit, &input); err != nil {
+			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+			return
+		}
+		if input.AllowDownload == nil {
+			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "allowDownload is required")
+			return
+		}
+		share, err := service.Update(r.Context(), shareActor(r), r.PathValue("shareId"), shares.UpdateInput{
+			ExpiresAt: input.ExpiresAt, Password: input.Password, ClearPassword: input.ClearPassword,
+			AllowDownload: *input.AllowDownload, MaxViews: input.MaxViews, MaxDownloads: input.MaxDownloads,
+		})
+		if writeShareError(w, r, err) {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(shareJSON(share))
+	})
+
+	protected("DELETE /api/v1/shares/{shareId}/sessions", func(w http.ResponseWriter, r *http.Request) {
+		if writeShareError(w, r, service.RevokeSessions(r.Context(), shareActor(r), r.PathValue("shareId"))) {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	protected("DELETE /api/v1/shares/{shareId}", func(w http.ResponseWriter, r *http.Request) {
 		if writeShareError(w, r, service.Revoke(r.Context(), shareActor(r), r.PathValue("shareId"))) {
 			return
@@ -124,6 +180,20 @@ func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authServic
 
 func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service, fileService *files.Service, folderService *folders.Service) {
 	resources := newPublicShareResources()
+
+	mux.HandleFunc("POST /api/v1/public/shares/{publicId}/unlock", func(w http.ResponseWriter, r *http.Request) {
+		var input unlockShareRequest
+		if err := decodeJSON(w, r, accountBodyLimit, &input); err != nil {
+			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+			return
+		}
+		result, err := shareService.Unlock(r.Context(), r.PathValue("publicId"), input.Password)
+		if writePublicShareError(w, r, err) {
+			return
+		}
+		setPublicShareSessionCookie(w, r, r.PathValue("publicId"), result)
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	resolve := func(w http.ResponseWriter, r *http.Request) {
 		writePublicShare(w, r, shareService, fileService, r.PathValue("publicId"))
@@ -147,7 +217,7 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 	})
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/folders/{folderId}", func(w http.ResponseWriter, r *http.Request) {
-		share, err := shareService.Resolve(r.Context(), r.PathValue("publicId"))
+		share, err := resolvePublicShareRequest(r.Context(), r, shareService)
 		if writePublicShareError(w, r, err) {
 			return
 		}
@@ -162,13 +232,16 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 	})
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/folders/{folderId}/download", func(w http.ResponseWriter, r *http.Request) {
-		share, err := shareService.Resolve(r.Context(), r.PathValue("publicId"))
+		share, err := resolvePublicShareRequest(r.Context(), r, shareService)
 		if writePublicShareError(w, r, err) {
 			return
 		}
 
 		folderID := r.PathValue("folderId")
 		if err := shareService.CanAccessFolder(r.Context(), share, folderID); writePublicShareError(w, r, err) {
+			return
+		}
+		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
 			return
 		}
 
@@ -207,7 +280,7 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 	})
 
 	mux.HandleFunc("GET /api/v1/public/shares/{publicId}/items", func(w http.ResponseWriter, r *http.Request) {
-		share, err := shareService.Resolve(r.Context(), r.PathValue("publicId"))
+		share, err := resolvePublicShareRequest(r.Context(), r, shareService)
 		if writePublicShareError(w, r, err) {
 			return
 		}
@@ -230,15 +303,14 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 }
 
 func writePublicShare(w http.ResponseWriter, r *http.Request, shareService *shares.Service, fileService *files.Service, publicID string) {
-	share, err := shareService.Resolve(r.Context(), publicID)
+	share, err := shareService.ConsumeView(r.Context(), publicID, publicShareSessionToken(r, publicID))
 	if writePublicShareError(w, r, err) {
 		return
 	}
 
 	response := publicShareResponse{
-		PublicID:     share.PublicID,
-		ResourceType: string(share.ResourceType),
-		ResourceID:   share.ResourceID,
+		PublicID: share.PublicID, ResourceType: string(share.ResourceType), ResourceID: share.ResourceID,
+		ExpiresAt: share.ExpiresAt, PasswordProtected: share.PasswordProtected, AllowDownload: share.AllowDownload,
 	}
 
 	switch share.ResourceType {
@@ -272,7 +344,7 @@ func writePublicShare(w http.ResponseWriter, r *http.Request, shareService *shar
 }
 
 func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *shares.Service, fileService *files.Service, resources *publicShareResources, fileID string, download bool) {
-	share, err := shareService.Resolve(r.Context(), r.PathValue("publicId"))
+	share, err := resolvePublicShareRequest(r.Context(), r, shareService)
 	if writePublicShareError(w, r, err) {
 		return
 	}
@@ -285,6 +357,12 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *share
 		fileID = share.ResourceID
 	} else if err := shareService.CanAccessFile(r.Context(), share, fileID); writePublicShareError(w, r, err) {
 		return
+	}
+
+	if download {
+		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
+			return
+		}
 	}
 
 	file, err := fileService.GetStored(r.Context(), fileID)
@@ -349,8 +427,10 @@ func shareActor(r *http.Request) shares.Actor {
 
 func shareJSON(share shares.Share) shareResponse {
 	return shareResponse{
-		ID: share.ID, PublicID: share.PublicID, ResourceType: string(share.ResourceType),
-		ResourceID: share.ResourceID, CreatedBy: share.CreatedBy, CreatedAt: share.CreatedAt,
+		ID: share.ID, PublicID: share.PublicID, ResourceType: string(share.ResourceType), ResourceID: share.ResourceID,
+		CreatedBy: share.CreatedBy, CreatedAt: share.CreatedAt, ExpiresAt: share.ExpiresAt,
+		PasswordProtected: share.PasswordProtected, AllowDownload: share.AllowDownload,
+		MaxViews: share.MaxViews, ViewCount: share.ViewCount, MaxDownloads: share.MaxDownloads, DownloadCount: share.DownloadCount,
 	}
 }
 
@@ -406,8 +486,8 @@ func writeShareError(w http.ResponseWriter, r *http.Request, err error) bool {
 		WriteProblem(w, r, http.StatusNotFound, "Not Found", "share resource not found")
 	case errors.Is(err, shares.ErrForbidden):
 		WriteProblem(w, r, http.StatusForbidden, "Forbidden", "full permission is required to manage public sharing")
-	case errors.Is(err, shares.ErrInvalidResourceType):
-		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid share resource type")
+	case errors.Is(err, shares.ErrInvalidResourceType), errors.Is(err, shares.ErrInvalidPolicy):
+		WriteProblem(w, r, http.StatusBadRequest, "Bad Request", err.Error())
 	default:
 		WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not manage public share")
 	}
@@ -418,9 +498,22 @@ func writePublicShareError(w http.ResponseWriter, r *http.Request, err error) bo
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, shares.ErrNotFound) {
+	switch {
+	case errors.Is(err, shares.ErrNotFound):
 		WriteProblem(w, r, http.StatusNotFound, "Not Found", "public resource not found")
-	} else {
+	case errors.Is(err, shares.ErrPasswordRequired):
+		WriteProblem(w, r, http.StatusUnauthorized, "Unauthorized", "public share password required")
+	case errors.Is(err, shares.ErrInvalidPassword):
+		WriteProblem(w, r, http.StatusUnauthorized, "Unauthorized", "invalid public share password")
+	case errors.Is(err, shares.ErrExpired):
+		WriteProblem(w, r, http.StatusGone, "Gone", "public share has expired")
+	case errors.Is(err, shares.ErrViewLimit):
+		WriteProblem(w, r, http.StatusGone, "Gone", "public share view limit reached")
+	case errors.Is(err, shares.ErrDownloadDisabled):
+		WriteProblem(w, r, http.StatusForbidden, "Forbidden", "downloads are disabled for this public share")
+	case errors.Is(err, shares.ErrDownloadLimit):
+		WriteProblem(w, r, http.StatusGone, "Gone", "public share download limit reached")
+	default:
 		WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not resolve public resource")
 	}
 	return true

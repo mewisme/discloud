@@ -73,7 +73,6 @@ function DialogContent({
               variant="ghost"
               className="absolute top-2 right-2"
               size="icon-sm"
-              tooltip="Close"
             >
               <XIcon
               />

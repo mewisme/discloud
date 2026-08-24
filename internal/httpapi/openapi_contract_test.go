@@ -130,8 +130,8 @@ func TestOpenAPIContractMatchesRouter(t *testing.T) {
 		assertOpenAPIPathParameters(t, route, operation, root, components)
 	}
 
-	if len(publicRoutes) != 16 {
-		t.Fatalf("public route guard has %d routes, want 16", len(publicRoutes))
+	if len(publicRoutes) != 17 {
+		t.Fatalf("public route guard has %d routes, want 17", len(publicRoutes))
 	}
 }
 
@@ -532,6 +532,7 @@ func openAPIPublicRoutes() map[openAPIRoute]struct{} {
 		{Method: "POST", Path: "/api/v1/auth/logout"},
 		{Method: "GET", Path: "/s/{publicId}"},
 		{Method: "GET", Path: "/api/v1/public/shares/{publicId}"},
+		{Method: "POST", Path: "/api/v1/public/shares/{publicId}/unlock"},
 		{Method: "GET", Path: "/api/v1/public/shares/{publicId}/content"},
 		{Method: "GET", Path: "/api/v1/public/shares/{publicId}/download"},
 		{Method: "GET", Path: "/api/v1/public/shares/{publicId}/files/{fileId}/content"},

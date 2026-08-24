@@ -13,17 +13,19 @@ import { publicFileContentPath, publicFileDownloadPath } from "@/lib/shares/publ
 export function PublicPreviewDialog({
   publicId,
   file,
+  allowDownload,
   onOpenChange,
 }: {
   publicId: string
   file?: PublicNode
+  allowDownload: boolean
   onOpenChange: (open: boolean) => void
 }) {
   if (!file) return null
 
   const source = {
     contentPath: publicFileContentPath(publicId, file.id),
-    downloadPath: publicFileDownloadPath(publicId, file.id),
+    ...(allowDownload ? { downloadPath: publicFileDownloadPath(publicId, file.id) } : {}),
   }
 
   return (
@@ -36,14 +38,16 @@ export function PublicPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" asChild>
-            <a href={apiURL(source.downloadPath)}>
-              <DownloadIcon />
-              Download
-            </a>
-          </Button>
-        </div>
+        {allowDownload && (
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" asChild>
+              <a href={apiURL(publicFileDownloadPath(publicId, file.id))}>
+                <DownloadIcon />
+                Download
+              </a>
+            </Button>
+          </div>
+        )}
 
         <FilePreview
           file={{

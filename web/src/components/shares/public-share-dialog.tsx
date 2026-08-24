@@ -1,5 +1,7 @@
 "use client"
 
+import type { UpdateShareInput } from "@discloud/api/models"
+import { PublicShareSettings } from "@discloud/app-ui/shares/public-share-settings"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@discloud/ui/components/alert-dialog"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
@@ -81,6 +83,34 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
       toast.success("Public link created")
     } catch (cause) {
       setError(apiErrorMessage(cause, "Could not create public link"))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function saveSettings(input: UpdateShareInput) {
+    if (!share) return
+    setPending(true)
+    setError(undefined)
+    try {
+      setShare(await apiJSON<Share>(`/api/v1/shares/${encodeURIComponent(share.id)}`, { method: "PATCH", body: input }))
+      toast.success("Public access settings saved")
+    } catch (cause) {
+      setError(apiErrorMessage(cause, "Could not save public access settings"))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function revokeSessions() {
+    if (!share) return
+    setPending(true)
+    setError(undefined)
+    try {
+      await apiJSON<void>(`/api/v1/shares/${encodeURIComponent(share.id)}/sessions`, { method: "DELETE" })
+      toast.success("Public share sessions revoked")
+    } catch (cause) {
+      setError(apiErrorMessage(cause, "Could not revoke public share sessions"))
     } finally {
       setPending(false)
     }
@@ -171,6 +201,8 @@ export function PublicShareDialog({ resourceType, resourceId, resourceName, open
                 </Button>
               </div>
             </div>
+
+            <PublicShareSettings share={share} pending={pending} onSave={saveSettings} onRevokeSessions={revokeSessions} />
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 

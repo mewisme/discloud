@@ -13,6 +13,7 @@ import { publicFileDownloadPath, publicFolderDownloadPath } from "@/lib/shares/p
 export function PublicEntriesTable({
   publicId,
   entries,
+  allowDownload,
   loading = false,
   parent,
   onOpenFolder,
@@ -20,6 +21,7 @@ export function PublicEntriesTable({
 }: {
   publicId: string
   entries: readonly PublicNode[]
+  allowDownload: boolean
   loading?: boolean
   parent?: () => void
   onOpenFolder?: (node: PublicNode) => void
@@ -126,18 +128,20 @@ export function PublicEntriesTable({
               </TableCell>
 
               <TableCell>
-                <Button size="icon-sm" variant="ghost" asChild>
-                  <a
-                    href={apiURL(
-                      node.kind === "folder"
-                        ? publicFolderDownloadPath(publicId, node.id)
-                        : publicFileDownloadPath(publicId, node.id),
-                    )}
-                    aria-label={`Download ${node.name}`}
-                  >
-                    <DownloadIcon />
-                  </a>
-                </Button>
+                {allowDownload && (
+                  <Button size="icon-sm" variant="ghost" asChild>
+                    <a
+                      href={apiURL(
+                        node.kind === "folder"
+                          ? publicFolderDownloadPath(publicId, node.id)
+                          : publicFileDownloadPath(publicId, node.id),
+                      )}
+                      aria-label={`Download ${node.name}`}
+                    >
+                      <DownloadIcon />
+                    </a>
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))}

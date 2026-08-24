@@ -13,13 +13,15 @@ type PublicFile = NonNullable<PublicShare["file"]>
 export function PublicFileView({
   publicId,
   file,
+  allowDownload,
 }: {
   publicId: string
   file: PublicFile
+  allowDownload: boolean
 }) {
   const source = {
     contentPath: publicFileContentPath(publicId),
-    downloadPath: publicFileDownloadPath(publicId),
+    ...(allowDownload ? { downloadPath: publicFileDownloadPath(publicId) } : {}),
   }
 
   return (
@@ -28,14 +30,14 @@ export function PublicFileView({
         icon={<FileIcon className="size-5" />}
         title={file.name}
         description="Shared file"
-        action={
+        action={allowDownload ? (
           <Button asChild>
-            <a href={apiURL(source.downloadPath)}>
+            <a href={apiURL(publicFileDownloadPath(publicId))}>
               <DownloadIcon />
               Download
             </a>
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-4">
