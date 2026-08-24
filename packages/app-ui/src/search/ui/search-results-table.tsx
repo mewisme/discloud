@@ -11,13 +11,13 @@ export type SearchResultLinkRenderer = (result: SearchResult, className: string,
 
 export function SearchResultsTable({ results, renderLink, renderModified, renderActions, showAccess = true }: { results: readonly SearchResult[]; renderLink: SearchResultLinkRenderer; renderModified?: (result: SearchResult) => ReactNode; renderActions?: (result: SearchResult) => ReactNode; showAccess?: boolean }) {
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <Table>
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-card">
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead className="hidden md:table-cell">Type</TableHead>
-            {showAccess ? <TableHead className="hidden sm:table-cell">Access</TableHead> : null}
+            <TableHead className="hidden w-32 md:table-cell">Type</TableHead>
+            {showAccess ? <TableHead className="hidden w-28 sm:table-cell">Access</TableHead> : null}
             <TableHead className="hidden w-28 lg:table-cell">Size</TableHead>
             <TableHead className="hidden w-36 xl:table-cell">Modified</TableHead>
             <TableHead className="w-24" />
@@ -26,14 +26,14 @@ export function SearchResultsTable({ results, renderLink, renderModified, render
         <TableBody>
           {results.map((result) => (
             <TableRow key={result.id}>
-              <TableCell>
-                <div className="flex min-w-0 items-center gap-2">
+              <TableCell className="min-w-0 overflow-hidden">
+                <div className="flex w-full min-w-0 items-center gap-2">
                   {result.kind === "folder" ? <FolderIcon className="size-4 shrink-0 text-muted-foreground" /> : <FileTypeIcon category={result.category} className="size-4 shrink-0 text-muted-foreground" />}
-                  {renderLink(result, "truncate font-medium hover:underline", result.name)}
+                  {renderLink(result, "block min-w-0 flex-1 truncate font-medium hover:underline", <span title={result.name}>{result.name}</span>)}
                   {result.isFavorite ? <StarIcon className="size-3.5 shrink-0 fill-current text-muted-foreground" aria-label="Favorite" /> : null}
                 </div>
               </TableCell>
-              <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{result.kind === "folder" ? "Folder" : result.category || "File"}</TableCell>
+              <TableCell className="hidden truncate capitalize text-muted-foreground md:table-cell" title={result.kind === "folder" ? "Folder" : result.category || "File"}>{result.kind === "folder" ? "Folder" : result.category || "File"}</TableCell>
               {showAccess ? (
                 <TableCell className="hidden sm:table-cell">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
