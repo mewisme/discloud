@@ -139,10 +139,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+  prepare-web-standalone:
+    name: Prepare web standalone
+    needs:
+      - release-info
+    uses: ./.github/workflows/prepare-web-standalone.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.release-info.outputs.version }}
+
   release-web-standalone:
     name: Release web standalone
     needs:
       - release-info
+      - release-backend
+      - prepare-web-standalone
     uses: ./.github/workflows/release-web-standalone.yml
     permissions:
       contents: write

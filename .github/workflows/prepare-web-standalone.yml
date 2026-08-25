@@ -1,0 +1,68 @@
+name: Prepare web standalone
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build web standalone payload
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted --filter @discloud/web...
+
+      - name: Build web standalone
+        run: pnpm web:build
+
+      - name: Materialize portable payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/discloud-web"
+          node scripts/materialize-next-standalone.cjs web/.next/standalone "$stage"
+          mkdir -p "$stage/web/.next" "$stage/web/public"
+          cp -a web/.next/static "$stage/web/.next/static"
+          cp scripts/managed-web-runtime.cjs "$stage/managed-web-runtime.cjs"
+          printf '%s\n' "${{ inputs.version }}" > "$stage/discloud-web-version.txt"
+          if [[ -d web/public ]]; then cp -a web/public/. "$stage/web/public/"; fi
+          test -f "$stage/managed-web-runtime.cjs"
+          test -f "$stage/discloud-web-version.txt"
+          test -f "$stage/web/server.js"
+          test -d "$stage/web/.next/server"
+          test -d "$stage/web/.next/static"
+          find "$stage/node_modules" -type d -path '*/@img/sharp-*' -prune -exec rm -rf {} +
+          find "$stage/node_modules/.pnpm" -mindepth 1 -maxdepth 1 -type d -name '@img+sharp-*' -exec rm -rf {} +
+          if find "$stage" -type f \( -name '*.node' -o -name '*.dll' -o -name '*.dylib' -o -name '*.exe' -o -name '*.so' -o -name '*.so.*' \) -print -quit | grep -q .; then
+            echo "Portable standalone payload unexpectedly contains platform-specific native files." >&2
+            find "$stage" -type f \( -name '*.node' -o -name '*.dll' -o -name '*.dylib' -o -name '*.exe' -o -name '*.so' -o -name '*.so.*' \) -print >&2
+            exit 1
+          fi
+
+      - name: Upload portable payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-standalone-payload
+          path: ${{ runner.temp }}/discloud-web
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1

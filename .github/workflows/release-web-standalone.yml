@@ -11,66 +11,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build web standalone payload
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v2
-        with:
-          package-json-file: package.json
-          cache-dependency-path: pnpm-lock.yaml
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --config.node-linker=hoisted --filter @discloud/web...
-
-      - name: Build web standalone
-        run: pnpm web:build
-
-      - name: Materialize portable payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          stage="$RUNNER_TEMP/discloud-web"
-          node scripts/materialize-next-standalone.cjs web/.next/standalone "$stage"
-          mkdir -p "$stage/web/.next" "$stage/web/public"
-          cp -a web/.next/static "$stage/web/.next/static"
-          cp scripts/managed-web-runtime.cjs "$stage/managed-web-runtime.cjs"
-          printf '%s\n' "${{ inputs.version }}" > "$stage/discloud-web-version.txt"
-          if [[ -d web/public ]]; then cp -a web/public/. "$stage/web/public/"; fi
-          test -f "$stage/managed-web-runtime.cjs"
-          test -f "$stage/discloud-web-version.txt"
-          test -f "$stage/web/server.js"
-          test -d "$stage/web/.next/server"
-          test -d "$stage/web/.next/static"
-          find "$stage/node_modules" -type d -path '*/@img/sharp-*' -prune -exec rm -rf {} +
-          find "$stage/node_modules/.pnpm" -mindepth 1 -maxdepth 1 -type d -name '@img+sharp-*' -exec rm -rf {} +
-          if find "$stage" -type f \( -name '*.node' -o -name '*.dll' -o -name '*.dylib' -o -name '*.exe' -o -name '*.so' -o -name '*.so.*' \) -print -quit | grep -q .; then
-            echo "Portable standalone payload unexpectedly contains platform-specific native files." >&2
-            find "$stage" -type f \( -name '*.node' -o -name '*.dll' -o -name '*.dylib' -o -name '*.exe' -o -name '*.so' -o -name '*.so.*' \) -print >&2
-            exit 1
-          fi
-
-      - name: Upload portable payload
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-standalone-payload
-          path: ${{ runner.temp }}/discloud-web
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
-
   release:
     name: Release web standalone (${{ matrix.name }})
-    needs:
-      - build
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -120,13 +62,15 @@ jobs:
 
           version="${{ inputs.version }}"
           archive="discloud-web_${version}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz"
-          stage="$RUNNER_TEMP/discloud-web"
+          stage="$(cd "$RUNNER_TEMP/discloud-web" && pwd -P)"
           node_name="node"
           if [[ "${{ matrix.os }}" == "windows" ]]; then node_name="node.exe"; fi
 
           sharp_packages="$RUNNER_TEMP/sharp-packages"
           mkdir -p "$sharp_packages"
-          mapfile -t sharp_specs < <(node - "$stage/node_modules/sharp/package.json" "${{ matrix.os }}" "${{ matrix.arch }}" <<'NODE'
+          sharp_packages="$(cd "$sharp_packages" && pwd -P)"
+          sharp_specs="$sharp_packages/specs.txt"
+          node - "$stage/node_modules/sharp/package.json" "${{ matrix.os }}" "${{ matrix.arch }}" > "$sharp_specs" <<'NODE'
           const fs = require("node:fs")
           const [packagePath, os, arch] = process.argv.slice(2)
           const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"))
@@ -137,12 +81,11 @@ jobs:
             if (version) console.log(`${name}@${version}`)
           }
           NODE
-          )
-          if (( ${#sharp_specs[@]} == 0 )); then
+          if [[ ! -s "$sharp_specs" ]]; then
             echo "No sharp native packages resolved for ${{ matrix.os }}/${{ matrix.arch }}." >&2
             exit 1
           fi
-          for spec in "${sharp_specs[@]}"; do
+          while IFS= read -r spec; do
             pack_json="$(npm pack "$spec" --json --pack-destination "$sharp_packages")"
             pack_meta="$(node -e 'const item=JSON.parse(process.argv[1])[0]; process.stdout.write(`${item.name}|${item.filename}`)' "$pack_json")"
             IFS='|' read -r package_name package_file <<< "$pack_meta"
@@ -150,7 +93,7 @@ jobs:
             rm -rf "$destination"
             mkdir -p "$destination"
             tar -xzf "$sharp_packages/$package_file" -C "$destination" --strip-components=1
-          done
+          done < "$sharp_specs"
 
           node -e 'require("node:fs").copyFileSync(process.execPath, process.argv[1])' "$stage/$node_name"
           if [[ "${{ matrix.os }}" != "windows" ]]; then chmod +x "$stage/$node_name"; fi
