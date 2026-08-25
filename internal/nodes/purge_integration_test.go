@@ -175,6 +175,78 @@ func TestPurgeRejectsActiveUpload(t *testing.T) {
 	assertPurgeCount(t, ctx, pool, `SELECT COUNT(*) FROM upload_sessions WHERE id = $1::uuid`, 0, uploadID)
 }
 
+func TestEmptyTrashIsAtomicAndPurgesAllRoots(t *testing.T) {
+	ctx, pool := openBatchTestPool(t)
+	userID, rootID := createTreeUser(t, ctx, pool, "empty-trash-owner", false)
+	service := New(pool)
+	actor := Actor{UserID: userID}
+
+	first, err := service.CreateFolder(ctx, actor, rootID, "First")
+	if err != nil {
+		t.Fatalf("create first folder: %v", err)
+	}
+	second, err := service.CreateFolder(ctx, actor, rootID, "Second")
+	if err != nil {
+		t.Fatalf("create second folder: %v", err)
+	}
+
+	var uploadID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO upload_sessions (
+			actor_user_id, owner_user_id, parent_folder_id,
+			name, name_key,
+			size_bytes, chunk_size_bytes, expected_parts,
+			reserved_bytes, status, expires_at
+		)
+		VALUES (
+			$1::uuid, $1::uuid, $2::uuid,
+			'pending.bin', 'pending.bin',
+			0, 10, 0,
+			0, 'open', now() + interval '1 hour'
+		)
+		RETURNING id::text
+	`, userID, second.ID).Scan(&uploadID); err != nil {
+		t.Fatalf("create active upload: %v", err)
+	}
+
+	if err := service.Trash(ctx, actor, first.ID); err != nil {
+		t.Fatalf("trash first folder: %v", err)
+	}
+	if err := service.Trash(ctx, actor, second.ID); err != nil {
+		t.Fatalf("trash second folder: %v", err)
+	}
+
+	if err := service.EmptyTrash(ctx, actor, userID); !errors.Is(err, ErrPurgeActiveUpload) {
+		t.Fatalf("empty trash with active upload = %v", err)
+	}
+	assertPurgeCount(t, ctx, pool, `SELECT COUNT(*) FROM nodes WHERE id IN ($1::uuid, $2::uuid)`, 2, first.ID, second.ID)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE upload_sessions
+		SET status = 'cancelled', closed_at = now(), updated_at = now()
+		WHERE id = $1::uuid
+	`, uploadID); err != nil {
+		t.Fatalf("cancel upload: %v", err)
+	}
+
+	if err := service.EmptyTrash(ctx, actor, userID); err != nil {
+		t.Fatalf("empty trash: %v", err)
+	}
+	assertPurgeCount(t, ctx, pool, `SELECT COUNT(*) FROM nodes WHERE id IN ($1::uuid, $2::uuid)`, 0, first.ID, second.ID)
+	assertPurgeCount(t, ctx, pool, `SELECT COUNT(*) FROM upload_sessions WHERE id = $1::uuid`, 0, uploadID)
+}
+
+func TestEmptyTrashRejectsOtherOwner(t *testing.T) {
+	ctx, pool := openBatchTestPool(t)
+	userID, _ := createTreeUser(t, ctx, pool, "empty-trash-user", false)
+	otherID, _ := createTreeUser(t, ctx, pool, "empty-trash-other", false)
+	service := New(pool)
+
+	if err := service.EmptyTrash(ctx, Actor{UserID: userID}, otherID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("empty other owner's trash = %v", err)
+	}
+}
+
 func assertPurgeCount(t *testing.T, ctx context.Context, pool interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, query string, want int64, args ...any) {

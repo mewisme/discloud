@@ -126,6 +126,13 @@ func registerTrashRoutes(mux *http.ServeMux, service *nodes.Service, authService
 			NextCursor: nextCursor,
 		})
 	})
+
+	protected("DELETE /api/v1/trash", func(w http.ResponseWriter, r *http.Request) {
+		if writeTrashError(w, r, service.EmptyTrash(r.Context(), nodeActor(r), r.URL.Query().Get("ownerId"))) {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func restoreNode(w http.ResponseWriter, r *http.Request, service *nodes.Service, kind, nodeID string) {

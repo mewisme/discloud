@@ -488,6 +488,13 @@
       404,
       500
     ],
+    "emptyTrash": [
+      400,
+      401,
+      403,
+      409,
+      500
+    ],
     "listUploadDiagnostics": [
       400,
       401,

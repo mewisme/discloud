@@ -2120,6 +2120,31 @@
             "$ref": "./openapi/components.json#/responses/Problem"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Trash"
+        ],
+        "operationId": "emptyTrash",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "./openapi/components.json#/responses/NoContent"
+          },
+          "default": {
+            "$ref": "./openapi/components.json#/responses/Problem"
+          }
+        }
       }
     },
     "/api/v1/collections": {

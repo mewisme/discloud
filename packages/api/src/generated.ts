@@ -1556,7 +1556,7 @@ export type paths = {
         readonly get: operations["listTrash"];
         readonly put?: never;
         readonly post?: never;
-        readonly delete?: never;
+        readonly delete: operations["emptyTrash"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -5320,6 +5320,21 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: components["responses"]["TrashPage"];
+            readonly default: components["responses"]["Problem"];
+        };
+    };
+    readonly emptyTrash: {
+        readonly parameters: {
+            readonly query: {
+                readonly ownerId: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 204: components["responses"]["NoContent"];
             readonly default: components["responses"]["Problem"];
         };
     };

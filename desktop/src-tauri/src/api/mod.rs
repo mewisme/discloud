@@ -61,6 +61,7 @@ const IPC_API_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/v1/nodes/:nodeId/favorite"),
     ("DELETE", "/api/v1/nodes/:nodeId/favorite"),
     ("GET", "/api/v1/trash"),
+    ("DELETE", "/api/v1/trash"),
     ("GET", "/api/v1/collections"),
     ("POST", "/api/v1/collections"),
     ("GET", "/api/v1/collections/:collectionId"),
@@ -889,6 +890,9 @@ mod tests {
     #[test]
     fn allows_only_explicit_desktop_ipc_routes() {
         assert!(ipc_request("GET", "/api/v1/files/file-id/versions")
+            .validate_ipc()
+            .is_ok());
+        assert!(ipc_request("DELETE", "/api/v1/trash")
             .validate_ipc()
             .is_ok());
         assert!(ipc_request("POST", "/api/v1/admin/bots/config/3/probe")
