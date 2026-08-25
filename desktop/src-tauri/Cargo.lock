@@ -980,6 +980,7 @@ name = "discloud-desktop"
 version = "0.0.1"
 dependencies = [
  "block2",
+ "flate2",
  "image",
  "infer",
  "keyring",
@@ -987,10 +988,12 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-foundation",
  "objc2-quick-look-thumbnailing",
+ "rand 0.9.5",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -4915,6 +4918,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

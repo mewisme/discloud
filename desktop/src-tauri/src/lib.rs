@@ -26,6 +26,7 @@ pub fn run() {
         .manage(api::ApiState::default())
         .manage(thumbnails::ThumbnailState::default())
         .manage(runtime::desktop::DesktopRuntimeState::default())
+        .manage(runtime::local::LocalRuntimeState::default())
         .manage(transfers::download::DownloadEngineState::default())
         .manage(sync::engine::SyncEngineState::default())
         .manage(sync::grants::SyncRootSelectionState::default())
@@ -89,6 +90,10 @@ pub fn run() {
             diagnostics::open_desktop_log_folder,
             commands::connect_server,
             commands::disconnect_server,
+            runtime::local::get_local_runtime_snapshot,
+            runtime::local::prepare_local_runtime,
+            runtime::local::start_local_postgresql,
+            runtime::local::stop_local_postgresql,
             commands::download_file,
             commands::download_folder,
             commands::get_download_snapshot,

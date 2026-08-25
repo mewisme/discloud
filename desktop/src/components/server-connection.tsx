@@ -22,7 +22,7 @@ import {
   errorMessage,
   type ServerConnection,
 } from "#lib/instance"
-import { saveServerUrl } from "#lib/settings"
+import { saveRemoteConnection } from "#lib/settings"
 
 type ServerConnectionScreenProps = {
   initialServerUrl?: string
@@ -49,7 +49,7 @@ export function ServerConnectionScreen({
     try {
       const connection = await connectServer(serverUrl)
 
-      await saveServerUrl(connection.serverUrl)
+      await saveRemoteConnection(connection.serverUrl)
       setServerUrl(connection.serverUrl)
       onConnected(connection)
     } catch (error) {

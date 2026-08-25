@@ -19,7 +19,7 @@ import {
   errorMessage,
   type ServerConnection,
 } from "#lib/instance"
-import { loadServerUrl } from "#lib/settings"
+import { loadConnectionSettings } from "#lib/settings"
 
 export type DesktopSessionState =
   | {
@@ -70,11 +70,12 @@ export function DesktopSessionProvider({
 
     async function bootstrap() {
       try {
-        storedServerUrl = await loadServerUrl()
+        const connectionSettings = await loadConnectionSettings()
+        storedServerUrl = connectionSettings.serverUrl
 
         if (cancelled) return
 
-        if (!storedServerUrl) {
+        if (connectionSettings.mode !== "remote" || !storedServerUrl) {
           setState({ status: "disconnected" })
           return
         }

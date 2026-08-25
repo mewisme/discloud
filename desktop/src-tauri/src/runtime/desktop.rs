@@ -61,7 +61,7 @@ pub(crate) fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             "sync" => {
                 let _ = app.emit("desktop-sync-requested", ());
             }
-            "quit" => app.exit(0),
+            "quit" => quit_app(app),
             _ => {}
         });
 
@@ -89,6 +89,9 @@ pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &Window
         if state.close_to_tray() {
             api.prevent_close();
             let _ = window.hide();
+        } else {
+            api.prevent_close();
+            quit_app(window.app_handle());
         }
     }
 }
@@ -117,4 +120,14 @@ fn toggle_main_window(app: &AppHandle) {
             let _ = window.set_focus();
         }
     }
+}
+
+fn quit_app<R: Runtime>(app: &AppHandle<R>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = super::local::shutdown(&app).await {
+            crate::diagnostics::error("runtime.local.shutdown", format!("{error:?}"));
+        }
+        app.exit(0);
+    });
 }
