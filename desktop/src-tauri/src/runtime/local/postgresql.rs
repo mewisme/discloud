@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    process::Output,
+    process::{Output, Stdio},
     time::Duration,
 };
 
@@ -8,7 +8,11 @@ use keyring::{Entry, Error as KeyringError};
 use rand::{distr::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
-use tokio::{fs, process::Command, time::sleep};
+use tokio::{
+    fs,
+    process::Command,
+    time::{sleep, timeout},
+};
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
@@ -19,6 +23,7 @@ const DATABASE_USER: &str = "discloud";
 const KEYRING_SERVICE: &str = "com.mewisme.discloud.local-runtime";
 const KEYRING_POSTGRESQL_USER: &str = "postgresql.discloud";
 const START_TIMEOUT_SECONDS: &str = "30";
+const PG_CTL_COMMAND_TIMEOUT: Duration = Duration::from_secs(35);
 
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,15 +153,25 @@ pub(super) async fn start<R: Runtime>(
         .arg(START_TIMEOUT_SECONDS)
         .arg("-o")
         .arg(options);
-    run_checked(command, "Could not start PostgreSQL").await?;
+    crate::diagnostics::info("runtime.local.postgresql", format!("starting port={port}"));
+    run_pg_ctl(command, "Could not start PostgreSQL", Some(&log_path)).await?;
+    crate::diagnostics::info(
+        "runtime.local.postgresql",
+        format!("pg_ctl start completed port={port}"),
+    );
     if let Err(error) = wait_ready(&runtime_dir, port).await {
         let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
         return Err(error);
     }
+    crate::diagnostics::info("runtime.local.postgresql", format!("ready port={port}"));
     if let Err(error) = ensure_application_database(&runtime_dir, port).await {
         let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
         return Err(error);
     }
+    crate::diagnostics::info(
+        "runtime.local.postgresql",
+        format!("application database ready port={port}"),
+    );
     write_runtime_record(
         &layout.postgresql_state_path,
         &PostgresqlRuntimeRecord {
@@ -612,8 +627,46 @@ async fn stop_cluster(pg_ctl: &Path, data_dir: &Path) -> Result<(), LocalRuntime
         .arg("-w")
         .arg("-t")
         .arg(START_TIMEOUT_SECONDS);
-    run_checked(command, "Could not stop PostgreSQL").await?;
+    run_pg_ctl(command, "Could not stop PostgreSQL", None).await?;
     Ok(())
+}
+
+async fn run_pg_ctl(
+    mut command: Command,
+    context: &str,
+    log_path: Option<&Path>,
+) -> Result<(), LocalRuntimeError> {
+    command
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let status = timeout(PG_CTL_COMMAND_TIMEOUT, command.status())
+        .await
+        .map_err(|_| {
+            LocalRuntimeError::process(format!(
+                "{context}: command timed out after {} seconds",
+                PG_CTL_COMMAND_TIMEOUT.as_secs()
+            ))
+        })?
+        .map_err(|error| LocalRuntimeError::process(format!("{context}: {error}")))?;
+    if status.success() {
+        return Ok(());
+    }
+    let detail = match log_path {
+        Some(path) => read_log_tail(path, 12)
+            .await
+            .unwrap_or_else(|| format!("process exited with {status}")),
+        None => format!("process exited with {status}"),
+    };
+    Err(LocalRuntimeError::process(format!("{context}: {detail}")))
+}
+
+async fn read_log_tail(path: &Path, max_lines: usize) -> Option<String> {
+    let content = fs::read_to_string(path).await.ok()?;
+    let mut lines = content.lines().rev().take(max_lines).collect::<Vec<_>>();
+    lines.reverse();
+    let detail = lines.join("\n");
+    (!detail.trim().is_empty()).then_some(detail)
 }
 
 async fn run_checked(mut command: Command, context: &str) -> Result<Output, LocalRuntimeError> {
