@@ -77,8 +77,9 @@ export function ServerConnectionScreen({
       const guildId = String(answers.get("guildId") ?? "").trim()
       const channelId = String(answers.get("channelId") ?? "").trim()
       const botTokens = String(answers.get("botTokens") ?? "").trim()
+      const selectedDataDirectory = String(answers.get("dataDirectory") ?? dataDirectory).trim()
       const webEnabled = answers.get("webEnabled") === "true"
-      const settings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory, webEnabled })
+      const settings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory: selectedDataDirectory, webEnabled })
       setLocalSettings(settings)
       await saveConnectionMode("local")
       onConnected(await connectLocalRuntime())
@@ -104,6 +105,7 @@ export function ServerConnectionScreen({
     { name: "guildId", required: true },
     { name: "channelId", required: true },
     { name: "botTokens", required: !localSettings.botTokensConfigured },
+    { name: "dataDirectory", required: true },
     { name: "webEnabled", required: true, choices: [{ value: "true" }, { value: "false" }] },
   ] as const : []
 
@@ -157,15 +159,6 @@ export function ServerConnectionScreen({
             <TabsContent value="local">
               {!localSettings ? <div className="flex min-h-32 items-center justify-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading local server settings</div> : (
                 <div className="space-y-4">
-                  <Field>
-                    <FieldLabel htmlFor="local-data-directory">Data directory</FieldLabel>
-                    <div className="flex gap-2">
-                      <Input id="local-data-directory" className="min-w-0" value={dataDirectory} readOnly />
-                      <Button type="button" variant="outline" disabled={connecting || localSettings.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
-                    </div>
-                    <FieldDescription>{localSettings.dataDirectoryLocked ? "Locked after PostgreSQL initialization." : "Advanced option. The default location is recommended."}</FieldDescription>
-                  </Field>
-
                   <Questionnaire items={localSetupItems} onSubmit={connectLocal}>
                     <QuestionnaireProgress />
                     <QuestionnaireItem name="guildId" required>
@@ -185,6 +178,15 @@ export function ServerConnectionScreen({
                       <QuestionnaireDescription>{localSettings.botTokensConfigured ? "Enter a replacement list, or skip to keep the current tokens." : "Separate multiple bot tokens with commas. Each token is stored as its own indexed OS keyring credential."}</QuestionnaireDescription>
                       <QuestionnaireChoices><QuestionnaireInput aria-label="Discord bot tokens" type="password" autoComplete="off" disabled={connecting} placeholder={localSettings.botTokensConfigured ? "New tokens, comma-separated" : "Token, or comma-separated tokens"} /></QuestionnaireChoices>
                       <QuestionnaireError>At least one bot token is required.</QuestionnaireError>
+                    </QuestionnaireItem>
+                    <QuestionnaireItem name="dataDirectory" required>
+                      <QuestionnaireTitle>Where should Local store its data?</QuestionnaireTitle>
+                      <QuestionnaireDescription>{localSettings.dataDirectoryLocked ? "The data directory is locked because PostgreSQL has already been initialized." : "This directory stores the managed runtime, PostgreSQL data, configuration, state, and logs."}</QuestionnaireDescription>
+                      <QuestionnaireChoices className="grid-cols-[minmax(0,1fr)_auto]">
+                        <QuestionnaireInput aria-label="Local data directory" value={dataDirectory} readOnly />
+                        <Button type="button" variant="outline" disabled={connecting || localSettings.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
+                      </QuestionnaireChoices>
+                      <QuestionnaireError>Choose a local data directory to continue.</QuestionnaireError>
                     </QuestionnaireItem>
                     <QuestionnaireItem name="webEnabled" required>
                       <QuestionnaireTitle>Enable the managed Web UI?</QuestionnaireTitle>
