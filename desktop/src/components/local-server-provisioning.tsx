@@ -1,5 +1,5 @@
 import { Button } from "@discloud/ui/components/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@discloud/ui/components/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Progress } from "@discloud/ui/components/progress"
 import { toast } from "@discloud/ui/components/sonner"
@@ -78,7 +78,6 @@ export function LocalServerProvisioning({ settings, snapshot, reachedStage, busy
     <Card>
       <CardHeader>
         <CardTitle>Setting up DisCloud Local</CardTitle>
-        <CardDescription>Desktop is provisioning the managed local runtime. You can keep this window open while components are prepared and started.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
