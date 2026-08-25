@@ -10,6 +10,19 @@
 !packages/
 !packages/**
 
+!scripts/
+scripts/*
+!scripts/sync-app-icons.cjs
+
+!desktop/
+desktop/*
+!desktop/src-tauri/
+desktop/src-tauri/*
+!desktop/src-tauri/icons/
+desktop/src-tauri/icons/*
+!desktop/src-tauri/icons/icon.png
+!desktop/src-tauri/icons/icon.ico
+
 web/node_modules
 web/.next
 web/coverage
