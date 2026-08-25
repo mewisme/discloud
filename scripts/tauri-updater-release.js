@@ -5,7 +5,7 @@ const args = parseArgs(process.argv.slice(3))
 
 switch (command) {
   case "validate":
-    validateManifest(args.manifest, args.tag)
+    await validateManifest(args.manifest, args.tag)
     break
   case "compare":
     compareManifests(args.candidate, args.current)
@@ -14,7 +14,7 @@ switch (command) {
     fail("Usage: tauri-updater-release.js validate --manifest <file> --tag <tag> | compare --candidate <file> --current <file>")
 }
 
-function validateManifest(file, tag) {
+async function validateManifest(file, tag) {
   if (!file || !tag) fail("validate requires --manifest and --tag")
 
   const manifest = readJSON(file)
@@ -38,7 +38,12 @@ function validateManifest(file, tag) {
     }
   }
 
-  const expectedSegment = `/releases/download/${encodeURIComponent(tag)}/`
+  const releaseAssets = await getReleaseAssets(tag)
+  const allowedUrls = new Set()
+  for (const asset of releaseAssets) {
+    if (typeof asset.url === "string") allowedUrls.add(asset.url)
+    if (typeof asset.browser_download_url === "string") allowedUrls.add(asset.browser_download_url)
+  }
 
   for (const [platform, release] of entries) {
     if (!release || typeof release !== "object") fail(`Invalid platform entry: ${platform}`)
@@ -52,13 +57,45 @@ function validateManifest(file, tag) {
       fail(`Invalid download URL for ${platform}: ${release.url}`)
     }
 
-    if (url.protocol !== "https:" || url.hostname !== "github.com") fail(`Updater URL for ${platform} must use https://github.com`)
-    if (!url.pathname.includes(expectedSegment)) {
-      fail(`Updater URL for ${platform} does not point to exact tag ${tag}: ${release.url}`)
-    }
+    if (url.protocol !== "https:") fail(`Updater URL for ${platform} must use HTTPS`)
+    if (!allowedUrls.has(release.url)) fail(`Updater URL for ${platform} does not belong to exact release ${tag}: ${release.url}`)
   }
 
   console.log(`Validated updater manifest v${manifest.version} with ${entries.length} platform entries for ${tag}.`)
+}
+
+async function getReleaseAssets(tag) {
+  const repository = process.env.GITHUB_REPOSITORY
+  if (!repository || !/^[^/]+\/[^/]+$/.test(repository)) fail("GITHUB_REPOSITORY must be set to owner/repo")
+
+  const apiBase = (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/$/, "")
+  const release = await requestJSON(`${apiBase}/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`)
+  if (!Number.isInteger(release.id)) fail(`Could not resolve release id for ${tag}`)
+
+  const assets = []
+  for (let page = 1; ; page += 1) {
+    const batch = await requestJSON(`${apiBase}/repos/${repository}/releases/${release.id}/assets?per_page=100&page=${page}`)
+    if (!Array.isArray(batch)) fail(`Invalid release assets response for ${tag}`)
+    assets.push(...batch)
+    if (batch.length < 100) break
+  }
+  if (assets.length === 0) fail(`Release ${tag} has no assets`)
+  return assets
+}
+
+async function requestJSON(url) {
+  const headers = { Accept: "application/vnd.github+json", "User-Agent": "DisCloud-release" }
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let response
+  try {
+    response = await fetch(url, { headers })
+  } catch (error) {
+    fail(`Could not request GitHub API: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (!response.ok) fail(`GitHub API request failed: ${response.status} ${response.statusText}`)
+  return response.json()
 }
 
 function compareManifests(candidateFile, currentFile) {

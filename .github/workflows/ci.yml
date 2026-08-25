@@ -111,8 +111,8 @@ jobs:
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
-            echo "| Status | \\`${{ job.status }}\\` |"
-            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
             echo "| Checks | gofmt, go vet, race tests, binary build, GoReleaser config, Docker images, Compose config |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -193,14 +193,17 @@ jobs:
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
-            echo "| Status | \\`${{ job.status }}\\` |"
-            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
             echo "| Checks | API contracts, package and app type checks, lint, tests, builds, Docker image |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   desktop-rust:
     name: Desktop Rust
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     defaults:
       run:
@@ -230,10 +233,15 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri -> target
+          shared-key: desktop-x86_64-unknown-linux-gnu
+          cache-on-failure: true
 
       - name: Check formatting
         run: cargo fmt --check
@@ -253,7 +261,7 @@ jobs:
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
-            echo "| Status | \\`${{ job.status }}\\` |"
-            echo "| Commit | [\\`${GITHUB_SHA:0:7}\\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
             echo "| Checks | cargo fmt, cargo check, cargo test |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -145,9 +145,21 @@ ghcr.io/mewisme/dcfe:v1.1.0-beta.1
 ghcr.io/mewisme/dcfe:beta
 ```
 
-`compose.yml` currently tracks the `beta` channel.
+`compose.yml` uses `DISCLOUD_DOCKER_TAG` for both images and currently defaults to the `rc` channel. Set it to `latest`, `alpha`, `beta`, `rc`, or an exact `v*` release tag.
 
-For reproducible deployments, pin both images to the same exact release tag.
+For reproducible deployments, set `DISCLOUD_DOCKER_TAG` to an exact release tag so both images stay on the same version.
+
+## Web standalone releases
+
+GitHub Releases also include Node.js standalone Web runtimes for Linux `amd64` and `arm64`:
+
+```text
+discloud-web_<version>_linux_amd64.tar.gz
+discloud-web_<version>_linux_arm64.tar.gz
+discloud-web-checksums.txt
+```
+
+They require Node.js 24 or newer. Extract the archive, configure the same runtime environment used by the container, then start `node web/server.js`.
 
 ## Desktop releases
 
@@ -162,7 +174,7 @@ Desktop users choose their update channel in **Settings > Desktop > Updates**:
 | Beta | Beta, RC and newer stable releases |
 | Alpha | Alpha, beta, RC and newer stable releases |
 
-Stable uses `releases/latest/download/latest.json`. The mutable `rc.json`, `beta.json` and `alpha.json` channel pointers are stored beside the backend assets on the latest stable release and are advanced only when a compatible newer release is published.
+Stable uses `releases/latest/download/latest.json`. The mutable `rc.json`, `beta.json` and `alpha.json` channel pointers are stored on the dedicated `updater-channels` prerelease and are advanced only when a compatible newer release is published.
 
 Desktop release signing requires these GitHub Actions secrets:
 
