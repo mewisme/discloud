@@ -244,9 +244,17 @@ impl SyncPairInput {
 
 async fn authorize_pair_local_root(
     window: &WebviewWindow,
+    api: &ApiState,
     pair: &mut SyncPairInput,
 ) -> Result<(), ApiCommandError> {
-    let root = super::grants::authorize_pair(window, &pair.id, &pair.local_path).await?;
+    let root = super::grants::authorize_pair(
+        window,
+        api,
+        &pair.id,
+        &pair.local_path,
+        &pair.remote_folder_id,
+    )
+    .await?;
     pair.local_path = root
         .to_str()
         .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))?
@@ -273,12 +281,13 @@ pub(crate) fn start_scheduler(app: AppHandle) {
 #[tauri::command]
 pub(crate) async fn configure_sync_pairs(
     window: WebviewWindow,
+    api_state: State<'_, ApiState>,
     state: State<'_, SyncEngineState>,
     mut pairs: Vec<SyncPairInput>,
 ) -> Result<(), ApiCommandError> {
     for pair in &mut pairs {
         validate_pair(pair)?;
-        authorize_pair_local_root(&window, pair).await?;
+        authorize_pair_local_root(&window, api_state.inner(), pair).await?;
     }
     state.configure(pairs)
 }
@@ -337,7 +346,7 @@ pub(crate) async fn run_sync_pair(
     mut pair: SyncPairInput,
 ) -> Result<SyncRunResult, ApiCommandError> {
     validate_pair(&pair)?;
-    authorize_pair_local_root(&window, &mut pair).await?;
+    authorize_pair_local_root(&window, api_state.inner(), &mut pair).await?;
 
     if !sync_state.begin(&pair.id)? {
         return Err(ApiCommandError::invalid_request(
@@ -382,7 +391,8 @@ async fn run_pair(
     api: &ApiState,
     pair: &SyncPairInput,
 ) -> Result<SyncRunResult, ApiCommandError> {
-    let root = canonical_local_root(&pair.local_path).await?;
+    let root =
+        super::grants::verify_pair_authorization(api, &pair.id, &pair.remote_folder_id).await?;
     let baseline = load_baseline(app, &pair.id).await?;
     let mut pending_conflicts = load_sync_conflicts(app, &pair.id)
         .await?

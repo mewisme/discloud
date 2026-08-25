@@ -1,13 +1,15 @@
 import { invoke } from "@tauri-apps/api/core"
-import { open } from "@tauri-apps/plugin-dialog"
 
 import { nativeError } from "#lib/api/transport"
 
 import type { SyncConflict, SyncConflictResolution, SyncPair, SyncRunResult } from "./types"
 
-export async function pickSyncFolder() {
-  const path = await open({ directory: true, multiple: false, recursive: true, title: "Choose a local folder to sync" })
-  return typeof path === "string" ? path : undefined
+export async function pickSyncFolder(remoteFolderId: string) {
+  try {
+    return await invoke<string | null>("pick_sync_folder", { remoteFolderId }) ?? undefined
+  } catch (error) {
+    throw nativeError(error)
+  }
 }
 
 export async function runNativeSyncPair(pair: SyncPair) {

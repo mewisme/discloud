@@ -50,6 +50,7 @@ pub(crate) async fn api_request(
     upload_engine_state: State<'_, UploadEngineState>,
     request: ApiRequest,
 ) -> Result<ApiResponse, ApiCommandError> {
+    request.validate_ipc()?;
     let logout = request.is_logout();
     let session_check = request.is_session_check();
 

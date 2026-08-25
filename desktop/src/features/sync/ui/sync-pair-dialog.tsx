@@ -43,7 +43,9 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
 
   async function chooseFolder() {
     try {
-      const selected = await pickSyncFolder()
+      const remoteFolderId = remoteFolder?.id ?? pair?.remoteFolderId
+      if (!remoteFolderId) return setError("Remote folder is missing.")
+      const selected = await pickSyncFolder(remoteFolderId)
       if (selected) {
         setLocalPath(selected)
         setLocalPathSelected(true)

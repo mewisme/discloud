@@ -1,7 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { relaunch } from "@tauri-apps/plugin-process"
 import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
@@ -157,8 +156,6 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
 
     try {
       await invoke<void>("install_update", { channel })
-      setStage("installing")
-      await relaunch()
     } catch (cause) {
       setStage("available")
       setError(updaterErrorMessage(cause))

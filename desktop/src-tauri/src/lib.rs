@@ -28,6 +28,7 @@ pub fn run() {
         .manage(runtime::desktop::DesktopRuntimeState::default())
         .manage(transfers::download::DownloadEngineState::default())
         .manage(sync::engine::SyncEngineState::default())
+        .manage(sync::grants::SyncRootSelectionState::default())
         .manage(transfers::upload::engine::UploadEngineState::default())
         .manage(transfers::upload::transfer::UploadTransferState::default())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -43,8 +44,7 @@ pub fn run() {
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 Some(vec!["--hidden"]),
             ))
-            .plugin(tauri_plugin_updater::Builder::new().build())
-            .plugin(tauri_plugin_process::init());
+            .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     builder
@@ -112,6 +112,7 @@ pub fn run() {
             sync::engine::open_sync_local_path,
             sync::engine::clear_sync_pair_state,
             sync::engine::configure_sync_pairs,
+            sync::grants::pick_sync_folder,
             sync::grants::revoke_sync_pair_authorization,
             sync::validation::validate_sync_pairs,
             updater::check_for_update,

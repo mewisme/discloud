@@ -76,7 +76,7 @@ pub(crate) async fn resolve_sync_conflict(
     resolution: SyncConflictResolution,
 ) -> Result<SyncRunResult, ApiCommandError> {
     validate_pair(&pair)?;
-    authorize_pair_local_root(&window, &mut pair).await?;
+    authorize_pair_local_root(&window, api_state.inner(), &mut pair).await?;
     if conflict_id.is_empty() || conflict_id.len() > 128 || !conflict_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(ApiCommandError::invalid_request("Invalid sync conflict ID."));
     }
@@ -104,7 +104,7 @@ async fn resolve_sync_conflict_item(
     let mut conflicts = load_sync_conflicts(app, &pair.id).await?;
     let index = conflicts.iter().position(|conflict| conflict.id == conflict_id).ok_or_else(|| ApiCommandError::invalid_request("Sync conflict not found."))?;
     let conflict = conflicts[index].clone();
-    let root = canonical_local_root(&pair.local_path).await?;
+    let root = super::grants::verify_pair_authorization(api, &pair.id, &pair.remote_folder_id).await?;
     let mut local_tree = scan_local_tree(&root, &pair.ignore_patterns).await?;
     let mut remote_tree = scan_remote_tree(api, &pair.remote_folder_id, &pair.ignore_patterns).await?;
     let local = local_tree.files.remove(&conflict.relative_path);

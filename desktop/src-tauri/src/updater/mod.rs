@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::{Updater, UpdaterExt};
 
 const CHANNELS_JSON: &str = include_str!("../../updater-channels.json");
@@ -67,6 +68,9 @@ pub(crate) async fn install_update(app: AppHandle, channel: UpdateChannel) -> Re
         .await
         .map_err(updater_error)?
         .ok_or_else(|| "No update is currently available on this channel.".to_string())?;
+    if !confirm_install(&app, &update.version).await? {
+        return Err("Update installation cancelled.".to_string());
+    }
 
     app.emit(
         PROGRESS_EVENT,
@@ -107,7 +111,27 @@ pub(crate) async fn install_update(app: AppHandle, channel: UpdateChannel) -> Re
             },
         )
         .await
-        .map_err(updater_error)
+        .map_err(updater_error)?;
+    app.restart()
+}
+
+async fn confirm_install(app: &AppHandle, version: &str) -> Result<bool, String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(format!(
+            "Install DisCloud {version} and restart the application now?"
+        ))
+        .title("Install DisCloud update")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Install and restart".to_string(),
+            "Cancel".to_string(),
+        ))
+        .show(move |confirmed| {
+            let _ = sender.send(confirmed);
+        });
+    receiver
+        .await
+        .map_err(|_| "Could not receive update confirmation.".to_string())
 }
 
 fn updater_for(

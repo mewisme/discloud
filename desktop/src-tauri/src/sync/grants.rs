@@ -1,13 +1,61 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
 use keyring::{Entry, Error as KeyringError};
 use serde::{Deserialize, Serialize};
-use tauri::WebviewWindow;
-use tauri_plugin_fs::FsExt;
+use tauri::{Manager, WebviewWindow};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::{api::ApiCommandError, path_security};
 
 const SYNC_ROOT_SERVICE: &str = "com.mewisme.discloud.desktop.sync-root";
+
+#[derive(Default)]
+pub(crate) struct SyncRootSelectionState {
+    selected: Mutex<Option<SyncRootSelection>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SyncRootSelection {
+    path: PathBuf,
+    server_url: String,
+    remote_folder_id: String,
+}
+
+impl SyncRootSelectionState {
+    fn remember(&self, selection: SyncRootSelection) -> Result<(), ApiCommandError> {
+        *self
+            .selected
+            .lock()
+            .map_err(|_| ApiCommandError::internal("Sync folder selection lock is poisoned."))? =
+            Some(selection);
+        Ok(())
+    }
+
+    fn consume(
+        &self,
+        path: &Path,
+        server_url: &str,
+        remote_folder_id: &str,
+    ) -> Result<bool, ApiCommandError> {
+        let mut selected = self
+            .selected
+            .lock()
+            .map_err(|_| ApiCommandError::internal("Sync folder selection lock is poisoned."))?;
+        if selected.as_ref().is_some_and(|selection| {
+            selection.path == path
+                && selection.server_url == server_url
+                && selection.remote_folder_id == remote_folder_id
+        }) {
+            selected.take();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 struct SyncRootGrant {
@@ -15,6 +63,10 @@ struct SyncRootGrant {
     canonical: String,
     #[serde(default)]
     identity: Option<SyncRootIdentity>,
+    #[serde(default)]
+    server_url: Option<String>,
+    #[serde(default)]
+    remote_folder_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -25,33 +77,60 @@ struct SyncRootIdentity {
 
 pub(crate) async fn authorize_pair(
     window: &WebviewWindow,
+    api: &crate::api::ApiState,
     pair_id: &str,
     local_path: &str,
+    remote_folder_id: &str,
 ) -> Result<PathBuf, ApiCommandError> {
     validate_pair_id(pair_id)?;
+    let server_url = api.connected_server_url()?;
     let mut stale_grant_error = None;
     if let Some(granted) = load(pair_id).await? {
         if local_path == granted.requested || local_path == granted.canonical {
-            match verify_grant(&granted).await {
+            match verify_pair_grant(&granted, &server_url, remote_folder_id).await {
                 Ok(root) => return Ok(root),
                 Err(error) => stale_grant_error = Some(error),
             }
         }
     }
 
-    let requested = PathBuf::from(local_path);
-    if !window.fs_scope().is_allowed(&requested) {
+    let canonical = path_security::canonical_directory(local_path, "Sync local path").await?;
+    if !window.state::<SyncRootSelectionState>().consume(
+        &canonical,
+        &server_url,
+        remote_folder_id,
+    )? {
         if let Some(error) = stale_grant_error {
             return Err(error);
         }
         return Err(ApiCommandError::invalid_request(
-            "Sync local path was not authorized by a native folder picker.",
+            "Sync local path must be selected with the native sync folder picker.",
         ));
     }
-
-    let canonical = path_security::canonical_directory(local_path, "Sync local path").await?;
-    save(pair_id, local_path, &canonical).await?;
+    save(
+        pair_id,
+        local_path,
+        &canonical,
+        &server_url,
+        remote_folder_id,
+    )
+    .await?;
     Ok(canonical)
+}
+
+pub(crate) async fn verify_pair_authorization(
+    api: &crate::api::ApiState,
+    pair_id: &str,
+    remote_folder_id: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    validate_pair_id(pair_id)?;
+    let server_url = api.connected_server_url()?;
+    let granted = load(pair_id).await?.ok_or_else(|| {
+        ApiCommandError::invalid_request(
+            "Sync pair has no authorized local root. Choose the folder again.",
+        )
+    })?;
+    verify_pair_grant(&granted, &server_url, remote_folder_id).await
 }
 
 pub(crate) async fn authorized_root(pair_id: &str) -> Result<PathBuf, ApiCommandError> {
@@ -62,6 +141,43 @@ pub(crate) async fn authorized_root(pair_id: &str) -> Result<PathBuf, ApiCommand
         )
     })?;
     verify_grant(&granted).await
+}
+
+#[tauri::command]
+pub(crate) async fn pick_sync_folder(
+    window: WebviewWindow,
+    api_state: tauri::State<'_, crate::api::ApiState>,
+    remote_folder_id: String,
+) -> Result<Option<String>, ApiCommandError> {
+    validate_resource_id(&remote_folder_id, "remote folder ID")?;
+    let server_url = api_state.connected_server_url()?;
+    let selected = window
+        .dialog()
+        .file()
+        .set_title(format!("Choose a local folder to sync with {server_url}"))
+        .blocking_pick_folder();
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected.into_path().map_err(|error| {
+        ApiCommandError::invalid_request(format!("Could not resolve selected sync folder: {error}"))
+    })?;
+    let value = path
+        .to_str()
+        .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))?;
+    let canonical = path_security::canonical_directory(value, "Sync local path").await?;
+    window
+        .state::<SyncRootSelectionState>()
+        .remember(SyncRootSelection {
+            path: canonical.clone(),
+            server_url,
+            remote_folder_id,
+        })?;
+    canonical
+        .to_str()
+        .map(str::to_owned)
+        .map(Some)
+        .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))
 }
 
 #[tauri::command]
@@ -93,6 +209,8 @@ async fn save(
     pair_id: &str,
     requested: &str,
     path: &std::path::Path,
+    server_url: &str,
+    remote_folder_id: &str,
 ) -> Result<(), ApiCommandError> {
     let pair_id = pair_id.to_owned();
     let identity = root_identity(path).await?;
@@ -104,6 +222,8 @@ async fn save(
         requested: requested.to_owned(),
         canonical,
         identity: Some(identity),
+        server_url: Some(server_url.to_owned()),
+        remote_folder_id: Some(remote_folder_id.to_owned()),
     })
     .map_err(|error| {
         ApiCommandError::internal(format!("Could not encode sync authorization: {error}"))
@@ -117,6 +237,24 @@ async fn save(
     .map_err(|error| {
         ApiCommandError::internal(format!("Sync authorization task failed: {error}"))
     })?
+}
+
+async fn verify_pair_grant(
+    granted: &SyncRootGrant,
+    server_url: &str,
+    remote_folder_id: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    if !grant_matches_pair(granted, server_url, remote_folder_id) {
+        return Err(ApiCommandError::invalid_request(
+            "Sync authorization does not match this server and remote folder. Choose the local folder again.",
+        ));
+    }
+    verify_grant(granted).await
+}
+
+fn grant_matches_pair(granted: &SyncRootGrant, server_url: &str, remote_folder_id: &str) -> bool {
+    granted.server_url.as_deref() == Some(server_url)
+        && granted.remote_folder_id.as_deref() == Some(remote_folder_id)
 }
 
 async fn verify_grant(granted: &SyncRootGrant) -> Result<PathBuf, ApiCommandError> {
@@ -240,30 +378,108 @@ fn credential_error(error: KeyringError) -> ApiCommandError {
 }
 
 fn validate_pair_id(value: &str) -> Result<(), ApiCommandError> {
-    if value.is_empty()
-        || value.len() > 128
-        || !value
+    validate_resource_id(value, "sync pair ID")
+}
+
+fn validate_resource_id(value: &str, label: &str) -> Result<(), ApiCommandError> {
+    if !value.is_empty()
+        && value.len() <= 128
+        && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
     {
-        return Err(ApiCommandError::invalid_request("Invalid sync pair ID."));
+        return Ok(());
     }
-    Ok(())
+    Err(ApiCommandError::invalid_request(format!(
+        "Invalid {label}."
+    )))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     use tokio::fs;
 
-    use super::{root_identity, validate_pair_id};
+    use super::{
+        grant_matches_pair, root_identity, validate_pair_id, SyncRootGrant, SyncRootSelection,
+        SyncRootSelectionState,
+    };
 
     #[test]
     fn validates_sync_grant_pair_ids() {
         assert!(validate_pair_id("pair-1_test").is_ok());
         assert!(validate_pair_id("").is_err());
         assert!(validate_pair_id("../pair").is_err());
+    }
+
+    #[test]
+    fn sync_folder_selection_is_one_shot_and_path_bound() {
+        let state = SyncRootSelectionState::default();
+        let selected = PathBuf::from("selected-root");
+        let other = PathBuf::from("other-root");
+        state
+            .remember(SyncRootSelection {
+                path: selected.clone(),
+                server_url: "https://cloud.example.com".to_string(),
+                remote_folder_id: "remote-a".to_string(),
+            })
+            .unwrap();
+
+        assert!(!state
+            .consume(&other, "https://cloud.example.com", "remote-a")
+            .unwrap());
+        assert!(!state
+            .consume(&selected, "https://other.example.com", "remote-a")
+            .unwrap());
+        assert!(!state
+            .consume(&selected, "https://cloud.example.com", "remote-b")
+            .unwrap());
+        assert!(state
+            .consume(&selected, "https://cloud.example.com", "remote-a")
+            .unwrap());
+        assert!(!state
+            .consume(&selected, "https://cloud.example.com", "remote-a")
+            .unwrap());
+    }
+
+    #[test]
+    fn sync_grant_is_bound_to_server_and_remote_folder() {
+        let grant = SyncRootGrant {
+            requested: "C:\\Sync".to_string(),
+            canonical: "C:\\Sync".to_string(),
+            identity: None,
+            server_url: Some("https://cloud.example.com".to_string()),
+            remote_folder_id: Some("remote-a".to_string()),
+        };
+        assert!(grant_matches_pair(
+            &grant,
+            "https://cloud.example.com",
+            "remote-a"
+        ));
+        assert!(!grant_matches_pair(
+            &grant,
+            "https://other.example.com",
+            "remote-a"
+        ));
+        assert!(!grant_matches_pair(
+            &grant,
+            "https://cloud.example.com",
+            "remote-b"
+        ));
+        let legacy = SyncRootGrant {
+            server_url: None,
+            remote_folder_id: None,
+            ..grant
+        };
+        assert!(!grant_matches_pair(
+            &legacy,
+            "https://cloud.example.com",
+            "remote-a"
+        ));
     }
 
     #[tokio::test]

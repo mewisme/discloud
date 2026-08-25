@@ -72,7 +72,14 @@ pub(crate) async fn validate_sync_pair_topology(
         if !pair.enabled {
             continue;
         }
-        let local_root = super::grants::authorize_pair(window, &pair.id, &pair.local_path).await?;
+        let local_root = super::grants::authorize_pair(
+            window,
+            api,
+            &pair.id,
+            &pair.local_path,
+            &pair.remote_folder_id,
+        )
+        .await?;
         let remote_path = load_remote_path(api, &pair.remote_folder_id).await?;
         let access_level = load_remote_access(api, &pair.remote_folder_id).await?;
 

@@ -17,6 +17,87 @@ mod session;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const JSON_ACCEPT: &str = "application/json, application/problem+json";
+const IPC_API_ROUTES: &[(&str, &str)] = &[
+    ("GET", "/api/v1/setup/status"),
+    ("POST", "/api/v1/setup"),
+    ("POST", "/api/v1/auth/login"),
+    ("POST", "/api/v1/auth/mfa/verify"),
+    ("GET", "/api/v1/auth/me"),
+    ("POST", "/api/v1/auth/logout"),
+    ("GET", "/api/v1/me"),
+    ("PATCH", "/api/v1/me"),
+    ("PUT", "/api/v1/me/password"),
+    ("DELETE", "/api/v1/me/avatar"),
+    ("GET", "/api/v1/me/mfa"),
+    ("POST", "/api/v1/me/mfa/totp/enroll"),
+    ("POST", "/api/v1/me/mfa/totp/confirm"),
+    ("POST", "/api/v1/me/mfa/recovery-codes/regenerate"),
+    ("DELETE", "/api/v1/me/mfa/totp"),
+    ("GET", "/api/v1/me/config"),
+    ("PUT", "/api/v1/me/config/common"),
+    ("GET", "/api/v1/workspaces/:username"),
+    ("GET", "/api/v1/search"),
+    ("GET", "/api/v1/shared"),
+    ("GET", "/api/v1/storage/analyzer"),
+    ("GET", "/api/v1/activity"),
+    ("POST", "/api/v1/activity/sync"),
+    ("GET", "/api/v1/users/lookup"),
+    ("POST", "/api/v1/folders"),
+    ("GET", "/api/v1/folders/:folderId/children"),
+    ("GET", "/api/v1/folders/:folderId/breadcrumbs"),
+    ("DELETE", "/api/v1/folders/:folderId"),
+    ("POST", "/api/v1/folders/:folderId/restore"),
+    ("DELETE", "/api/v1/folders/:folderId/permanent"),
+    ("GET", "/api/v1/folders/:folderId/permissions"),
+    ("PUT", "/api/v1/folders/:folderId/permissions/:userId"),
+    ("DELETE", "/api/v1/folders/:folderId/permissions/:userId"),
+    ("GET", "/api/v1/files/:fileId"),
+    ("DELETE", "/api/v1/files/:fileId"),
+    ("POST", "/api/v1/files/:fileId/restore"),
+    ("DELETE", "/api/v1/files/:fileId/permanent"),
+    ("GET", "/api/v1/files/:fileId/versions"),
+    ("POST", "/api/v1/files/:fileId/versions/:versionId/restore"),
+    ("PATCH", "/api/v1/nodes/:nodeId"),
+    ("PUT", "/api/v1/nodes/:nodeId/favorite"),
+    ("DELETE", "/api/v1/nodes/:nodeId/favorite"),
+    ("GET", "/api/v1/trash"),
+    ("GET", "/api/v1/collections"),
+    ("POST", "/api/v1/collections"),
+    ("GET", "/api/v1/collections/:collectionId"),
+    ("PATCH", "/api/v1/collections/:collectionId"),
+    ("DELETE", "/api/v1/collections/:collectionId"),
+    ("POST", "/api/v1/collections/:collectionId/restore"),
+    ("GET", "/api/v1/collections/:collectionId/items"),
+    ("POST", "/api/v1/collections/:collectionId/items"),
+    ("DELETE", "/api/v1/collections/:collectionId/items/:fileId"),
+    ("GET", "/api/v1/collections/:collectionId/access"),
+    ("PUT", "/api/v1/collections/:collectionId/access/:userId"),
+    ("DELETE", "/api/v1/collections/:collectionId/access/:userId"),
+    ("GET", "/api/v1/shares/active"),
+    ("POST", "/api/v1/shares"),
+    ("PATCH", "/api/v1/shares/:shareId"),
+    ("DELETE", "/api/v1/shares/:shareId"),
+    ("DELETE", "/api/v1/shares/:shareId/sessions"),
+    ("GET", "/api/v1/admin/users"),
+    ("POST", "/api/v1/admin/users"),
+    ("GET", "/api/v1/admin/users/:userId"),
+    ("PATCH", "/api/v1/admin/users/:userId"),
+    ("PUT", "/api/v1/admin/users/:userId/quota"),
+    ("POST", "/api/v1/admin/users/:userId/reset-password"),
+    ("POST", "/api/v1/admin/users/:userId/enable"),
+    ("POST", "/api/v1/admin/users/:userId/disable"),
+    ("GET", "/api/v1/admin/storage"),
+    ("POST", "/api/v1/admin/storage/reconcile"),
+    ("GET", "/api/v1/admin/bots"),
+    ("POST", "/api/v1/admin/bots/:botId/probe"),
+    ("POST", "/api/v1/admin/bots/:botId/drain"),
+    ("POST", "/api/v1/admin/bots/:botId/disable"),
+    ("POST", "/api/v1/admin/bots/:botId/enable"),
+    ("POST", "/api/v1/admin/bots/config/:configIndex/probe"),
+    ("GET", "/api/v1/admin/audit"),
+    ("GET", "/api/v1/admin/jobs"),
+    ("GET", "/api/v1/admin/uploads"),
+];
 
 #[derive(Clone)]
 struct DesktopApiClient {
@@ -44,6 +125,28 @@ pub(crate) struct ApiRequest {
 }
 
 impl ApiRequest {
+    pub(crate) fn validate_ipc(&self) -> Result<(), ApiCommandError> {
+        if !self.headers.is_empty() {
+            return Err(ApiCommandError::invalid_request(
+                "Custom HTTP headers are not allowed through desktop IPC.",
+            ));
+        }
+        if self.query.len() > 64 {
+            return Err(ApiCommandError::invalid_request(
+                "Too many API query parameters.",
+            ));
+        }
+        let method = self.method.to_ascii_uppercase();
+        if !IPC_API_ROUTES.iter().any(|(allowed_method, pattern)| {
+            method == *allowed_method && ipc_route_matches(&self.path, pattern)
+        }) {
+            return Err(ApiCommandError::invalid_request(
+                "This API route is not available through desktop IPC.",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_logout(&self) -> bool {
         self.method.eq_ignore_ascii_case("POST") && self.path == "/api/v1/auth/logout"
     }
@@ -51,6 +154,32 @@ impl ApiRequest {
     pub(crate) fn is_session_check(&self) -> bool {
         self.method.eq_ignore_ascii_case("GET") && self.path == "/api/v1/auth/me"
     }
+}
+
+fn ipc_route_matches(path: &str, pattern: &str) -> bool {
+    let path = path.split('/').collect::<Vec<_>>();
+    let pattern = pattern.split('/').collect::<Vec<_>>();
+    path.len() == pattern.len()
+        && path.iter().zip(pattern).all(|(segment, expected)| {
+            if expected.starts_with(':') {
+                ipc_dynamic_segment_allowed(segment)
+            } else {
+                *segment == expected
+            }
+        })
+}
+
+fn ipc_dynamic_segment_allowed(segment: &str) -> bool {
+    if segment.is_empty()
+        || segment.len() > 512
+        || segment == "."
+        || segment == ".."
+        || segment.contains('\\')
+    {
+        return false;
+    }
+    let lower = segment.to_ascii_lowercase();
+    !lower.contains("%2f") && !lower.contains("%5c")
 }
 
 #[derive(Serialize)]
@@ -344,6 +473,13 @@ impl ApiState {
             .map_err(|_| ApiCommandError::internal("API state lock is poisoned."))? = None;
 
         Ok(())
+    }
+
+    pub(crate) fn connected_server_url(&self) -> Result<String, ApiCommandError> {
+        let client = self
+            .client_snapshot()?
+            .ok_or_else(ApiCommandError::not_connected)?;
+        Ok(canonical_server_url(&client.base_url))
     }
 
     pub(crate) async fn request(
@@ -690,7 +826,19 @@ fn default_method() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_server_url, normalize_server_url, DesktopApiClient};
+    use std::collections::HashMap;
+
+    use super::{canonical_server_url, normalize_server_url, ApiRequest, DesktopApiClient};
+
+    fn ipc_request(method: &str, path: &str) -> ApiRequest {
+        ApiRequest {
+            method: method.to_string(),
+            path: path.to_string(),
+            query: Vec::new(),
+            headers: HashMap::new(),
+            body: None,
+        }
+    }
 
     #[test]
     fn defaults_to_https() {
@@ -736,5 +884,47 @@ mod tests {
     fn rejects_parent_path_segments() {
         let client = DesktopApiClient::new("https://example.com").unwrap();
         assert!(client.endpoint("/api/../secret").is_err());
+    }
+
+    #[test]
+    fn allows_only_explicit_desktop_ipc_routes() {
+        assert!(ipc_request("GET", "/api/v1/files/file-id/versions")
+            .validate_ipc()
+            .is_ok());
+        assert!(ipc_request("POST", "/api/v1/admin/bots/config/3/probe")
+            .validate_ipc()
+            .is_ok());
+
+        assert!(ipc_request("GET", "/api/v1/admin/config")
+            .validate_ipc()
+            .is_err());
+        assert!(ipc_request("GET", "/api/v1/admin/metrics")
+            .validate_ipc()
+            .is_err());
+        assert!(ipc_request("POST", "/api/v1/uploads")
+            .validate_ipc()
+            .is_err());
+        assert!(ipc_request("GET", "/api/v1/files/file-id/content")
+            .validate_ipc()
+            .is_err());
+        assert!(ipc_request("POST", "/api/v1/files/file-id/versions")
+            .validate_ipc()
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_ipc_route_smuggling_and_custom_headers() {
+        assert!(ipc_request("GET", "/api/v1/files/a%2Fb/versions")
+            .validate_ipc()
+            .is_err());
+        assert!(ipc_request("GET", "/api/v1/files/../versions")
+            .validate_ipc()
+            .is_err());
+
+        let mut request = ipc_request("GET", "/api/v1/auth/me");
+        request
+            .headers
+            .insert("X-DisCloud-Test".to_string(), "value".to_string());
+        assert!(request.validate_ipc().is_err());
     }
 }

@@ -146,24 +146,6 @@ mod baseline_tests {
     }
 }
 
-async fn canonical_local_root(value: &str) -> Result<PathBuf, ApiCommandError> {
-    let path = PathBuf::from(value);
-    if !path.is_absolute() {
-        return Err(ApiCommandError::invalid_request(
-            "Sync local folder must be an absolute path.",
-        ));
-    }
-    let metadata = fs::symlink_metadata(&path).await.map_err(|error| {
-        ApiCommandError::invalid_request(format!("Could not read sync local folder: {error}"))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(ApiCommandError::invalid_request(
-            "Sync local path must be a real directory, not a symbolic link.",
-        ));
-    }
-    Ok(path)
-}
-
 fn default_sync_enabled() -> bool {
     true
 }
