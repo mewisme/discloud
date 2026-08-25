@@ -208,5 +208,4 @@ The Desktop codebase already contains administration modules for users, quotas, 
 - [Repository README](../README.md)
 - [Complete feature inventory](../FEATURES.md)
 - [Security](../docs/SECURITY.md)
-- [Release checklist](../docs/RELEASE_CHECKLIST.md)
 - [`@discloud/app-ui`](../packages/app-ui/README.md)

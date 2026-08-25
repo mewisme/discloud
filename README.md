@@ -266,9 +266,7 @@ Stable uses the `latest.json` attached to the latest stable release. Mutable `rc
 - [OpenAPI contract](docs/openapi.json)
 - [Operations](docs/OPERATIONS.md)
 - [Security](docs/SECURITY.md)
-- [Database design](docs/DATABASE_DESIGN.md)
 - [Storage benchmarking](docs/BENCHMARKING.md)
-- [Release checklist](docs/RELEASE_CHECKLIST.md)
 
 ## Repository layout
 
