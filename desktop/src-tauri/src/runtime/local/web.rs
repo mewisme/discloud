@@ -11,14 +11,14 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
 use tokio::{
     fs,
-    process::{Child, Command},
+    process::Child,
     sync::Mutex,
     time::{sleep, timeout},
 };
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
-    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -165,7 +165,7 @@ pub(super) async fn start<R: Runtime>(
     let stderr = log.try_clone().map_err(|error| {
         LocalRuntimeError::io("Could not clone the managed web log handle", error)
     })?;
-    let mut command = Command::new(node_path(&runtime_dir));
+    let mut command = process::command(node_path(&runtime_dir));
     command
         .arg(runtime_dir.join("managed-web-runtime.cjs"))
         .current_dir(&runtime_dir)
@@ -414,7 +414,7 @@ async fn runtime_valid(
 async fn verify_node(runtime_dir: &Path) -> Result<(), LocalRuntimeError> {
     let output = timeout(
         Duration::from_secs(5),
-        Command::new(node_path(runtime_dir))
+        process::command(node_path(runtime_dir))
             .arg("--version")
             .output(),
     )

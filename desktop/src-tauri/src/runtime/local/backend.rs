@@ -8,11 +8,12 @@ use std::{
 
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, process::Child, process::Command, sync::Mutex, time::sleep, time::timeout};
+use tokio::{fs, process::Child, sync::Mutex, time::sleep, time::timeout};
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, config, download,
-    layout::LocalRuntimeLayout, ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    layout::LocalRuntimeLayout, ports, process, LocalRuntimeError, LocalRuntimeState,
+    LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -160,7 +161,7 @@ pub(super) async fn start(
     let stderr = log.try_clone().map_err(|error| {
         LocalRuntimeError::io("Could not clone the local backend log handle", error)
     })?;
-    let mut command = Command::new(executable);
+    let mut command = process::command(executable);
     command
         .current_dir(&runtime_dir)
         .envs(environment)
@@ -424,7 +425,7 @@ async fn verify_runtime_version(
 ) -> Result<(), LocalRuntimeError> {
     let output = timeout(
         Duration::from_secs(5),
-        Command::new(binary_path(runtime_dir))
+        process::command(binary_path(runtime_dir))
             .arg("--version")
             .output(),
     )

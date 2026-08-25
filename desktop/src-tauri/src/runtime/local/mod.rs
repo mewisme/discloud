@@ -16,6 +16,7 @@ pub(crate) mod download;
 mod layout;
 mod ports;
 mod postgresql;
+mod process;
 mod web;
 
 use backend::{BackendProcessState, BackendRuntimeSnapshot};

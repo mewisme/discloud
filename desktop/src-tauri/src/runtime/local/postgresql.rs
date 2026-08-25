@@ -16,7 +16,7 @@ use tokio::{
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
-    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const DATABASE_USER: &str = "discloud";
@@ -141,7 +141,7 @@ pub(super) async fn start<R: Runtime>(
 
     let log_path = layout.logs_dir.join("postgresql.log");
     let options = format!("-p {port} -h 127.0.0.1");
-    let mut command = Command::new(&pg_ctl);
+    let mut command = process::command(&pg_ctl);
     command
         .arg("start")
         .arg("-D")
@@ -397,7 +397,7 @@ async fn ensure_database(
     let password_file = layout.staging_dir.join("postgresql-password.txt");
     write_password_file(&password_file, &password).await?;
     let initdb = binary_path(runtime_dir, "initdb");
-    let mut command = Command::new(initdb);
+    let mut command = process::command(initdb);
     command
         .arg("-D")
         .arg(&layout.postgres_data_dir)
@@ -468,7 +468,7 @@ async fn ensure_application_database(
     port: u16,
 ) -> Result<(), LocalRuntimeError> {
     let password = password()?;
-    let mut check = Command::new(binary_path(runtime_dir, "psql"));
+    let mut check = process::command(binary_path(runtime_dir, "psql"));
     check
         .arg("-h")
         .arg("127.0.0.1")
@@ -486,7 +486,7 @@ async fn ensure_application_database(
         return Ok(());
     }
 
-    let mut create = Command::new(binary_path(runtime_dir, "psql"));
+    let mut create = process::command(binary_path(runtime_dir, "psql"));
     create
         .arg("-h")
         .arg("127.0.0.1")
@@ -577,7 +577,7 @@ async fn directory_empty_or_missing(path: &Path) -> Result<bool, LocalRuntimeErr
 }
 
 async fn is_running(pg_ctl: &Path, data_dir: &Path) -> Result<bool, LocalRuntimeError> {
-    let output = Command::new(pg_ctl)
+    let output = process::command(pg_ctl)
         .arg("status")
         .arg("-D")
         .arg(data_dir)
@@ -592,7 +592,7 @@ async fn is_running(pg_ctl: &Path, data_dir: &Path) -> Result<bool, LocalRuntime
 async fn wait_ready(runtime_dir: &Path, port: u16) -> Result<(), LocalRuntimeError> {
     let pg_isready = binary_path(runtime_dir, "pg_isready");
     for _ in 0..30 {
-        let output = Command::new(&pg_isready)
+        let output = process::command(&pg_isready)
             .arg("-h")
             .arg("127.0.0.1")
             .arg("-p")
@@ -617,7 +617,7 @@ async fn wait_ready(runtime_dir: &Path, port: u16) -> Result<(), LocalRuntimeErr
 }
 
 async fn stop_cluster(pg_ctl: &Path, data_dir: &Path) -> Result<(), LocalRuntimeError> {
-    let mut command = Command::new(pg_ctl);
+    let mut command = process::command(pg_ctl);
     command
         .arg("stop")
         .arg("-D")
