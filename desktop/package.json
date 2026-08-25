@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/sync-app-icons.cjs",
     "dev": "vite",
+    "prebuild": "node ../scripts/sync-app-icons.cjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

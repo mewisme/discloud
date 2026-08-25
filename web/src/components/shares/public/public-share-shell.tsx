@@ -1,6 +1,7 @@
+import { AppIcon } from "@discloud/app-ui/shared/app-icon"
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
-import { CloudIcon, Globe2Icon } from "lucide-react"
+import { Globe2Icon } from "lucide-react"
 import Link from "next/link"
 import type { ReactNode } from "react"
 
@@ -10,9 +11,7 @@ export function PublicShareShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2 font-semibold">
-            <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <CloudIcon className="size-4" />
-            </span>
+            <AppIcon className="size-8 rounded-lg" />
             <span>DisCloud</span>
           </Link>
 
