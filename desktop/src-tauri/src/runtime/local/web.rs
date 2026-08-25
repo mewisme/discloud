@@ -8,6 +8,7 @@ use std::{
 
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Runtime};
 use tokio::{
     fs,
     process::{Child, Command},
@@ -16,8 +17,8 @@ use tokio::{
 };
 
 use super::{
-    archive, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout, ports,
-    LocalRuntimeError,
+    archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
+    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -99,23 +100,31 @@ pub(super) async fn inspect(
     })
 }
 
-pub(super) async fn stage(
+pub(super) async fn stage<R: Runtime>(
+    app: &AppHandle<R>,
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
     desktop_version: &str,
+    state: &LocalRuntimeState,
 ) -> Result<(), LocalRuntimeError> {
-    let _ = ensure_runtime(layout, descriptor, desktop_version).await?;
+    let _ = ensure_runtime(app, layout, descriptor, desktop_version, state).await?;
     Ok(())
 }
 
-pub(super) async fn start(
+pub(super) async fn start<R: Runtime>(
+    app: &AppHandle<R>,
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
     desktop_version: &str,
     backend_port: u16,
     process: &WebProcessState,
+    state: &LocalRuntimeState,
 ) -> Result<WebRuntimeSnapshot, LocalRuntimeError> {
-    let runtime_dir = ensure_runtime(layout, descriptor, desktop_version).await?;
+    let runtime_dir = ensure_runtime(app, layout, descriptor, desktop_version, state).await?;
+    state.update(|snapshot| {
+        snapshot.status = LocalRuntimeStatus::StartingWeb;
+        snapshot.error = None;
+    })?;
     let record = read_record(&layout.web_state_path).await?;
     if let Some(record) = record.as_ref() {
         if record.version == descriptor.version && ready(record.port).await {
@@ -296,10 +305,12 @@ pub(super) async fn inspect_with_error(
     }
 }
 
-async fn ensure_runtime(
+async fn ensure_runtime<R: Runtime>(
+    app: &AppHandle<R>,
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
     desktop_version: &str,
+    state: &LocalRuntimeState,
 ) -> Result<PathBuf, LocalRuntimeError> {
     let destination = version_dir(layout, descriptor);
     if runtime_valid(&destination, Some(&descriptor.version)).await? {
@@ -313,19 +324,48 @@ async fn ensure_runtime(
             LocalRuntimeError::io("Could not remove an incomplete managed web runtime", error)
         })?;
     }
-    let client = download::client(desktop_version)?;
-    let downloads_dir = layout.staging_dir.join("downloads");
-    let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+    let (archive_path, downloaded) =
+        if let Some(path) = bundled::resource_archive(app, descriptor).await? {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::Installing;
+                snapshot.error = None;
+            })?;
+            crate::diagnostics::info(
+                "runtime.local.web",
+                format!("using bundled archive={}", path.display()),
+            );
+            (path, false)
+        } else {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::Downloading;
+                snapshot.error = None;
+            })?;
+            let client = download::client(desktop_version)?;
+            let downloads_dir = layout.staging_dir.join("downloads");
+            let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+            crate::diagnostics::info(
+                "runtime.local.web",
+                format!(
+                    "downloaded={} bytes={} sha256={}",
+                    verified.path.display(),
+                    verified.bytes,
+                    verified.sha256
+                ),
+            );
+            (verified.path, true)
+        };
     let extraction_dir = layout
         .staging_dir
         .join(format!("web-{}.extract", descriptor.version));
-    archive::extract_tar_gz(&verified.path, &extraction_dir).await?;
+    archive::extract_tar_gz(&archive_path, &extraction_dir).await?;
     fs::rename(&extraction_dir, &destination)
         .await
         .map_err(|error| {
             LocalRuntimeError::io("Could not install the managed web runtime", error)
         })?;
-    let _ = fs::remove_file(&verified.path).await;
+    if downloaded {
+        let _ = fs::remove_file(&archive_path).await;
+    }
     if !runtime_valid(&destination, Some(&descriptor.version)).await? {
         let _ = fs::remove_dir_all(&destination).await;
         return Err(LocalRuntimeError::invalid_artifact(

@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs, process::Child, process::Command, sync::Mutex, time::sleep, time::timeout};
 
 use super::{
-    archive, components::RuntimeComponentDescriptor, config, download, layout::LocalRuntimeLayout,
-    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    archive, bundled, components::RuntimeComponentDescriptor, config, download,
+    layout::LocalRuntimeLayout, ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -323,6 +323,30 @@ async fn ensure_runtime(
             LocalRuntimeError::io("Could not remove an incomplete backend runtime", error)
         })?;
     }
+    if descriptor.version == desktop_version {
+        if let Some(sidecar) = bundled::backend_sidecar().await? {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::Installing;
+                snapshot.error = None;
+            })?;
+            fs::create_dir_all(&destination).await.map_err(|error| {
+                LocalRuntimeError::io("Could not create the backend runtime directory", error)
+            })?;
+            let executable = binary_path(&destination);
+            fs::copy(&sidecar, &executable).await.map_err(|error| {
+                LocalRuntimeError::io("Could not install the bundled backend sidecar", error)
+            })?;
+            ensure_executable(&executable).await?;
+            if runtime_valid(&destination).await? {
+                crate::diagnostics::info(
+                    "runtime.local.backend",
+                    format!("installed bundled sidecar={}", sidecar.display()),
+                );
+                return Ok(destination);
+            }
+            let _ = fs::remove_dir_all(&destination).await;
+        }
+    }
     state.update(|snapshot| {
         snapshot.status = LocalRuntimeStatus::Downloading;
         snapshot.error = None;
@@ -619,6 +643,25 @@ fn binary_path(runtime_dir: &Path) -> PathBuf {
     #[cfg(not(target_os = "windows"))]
     let name = "discloud";
     runtime_dir.join(name)
+}
+
+async fn ensure_executable(_path: &Path) -> Result<(), LocalRuntimeError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut permissions = fs::metadata(_path)
+            .await
+            .map_err(|error| LocalRuntimeError::io("Could not inspect backend permissions", error))?
+            .permissions();
+        permissions.set_mode(permissions.mode() | 0o755);
+        fs::set_permissions(_path, permissions)
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io("Could not make the bundled backend executable", error)
+            })?;
+    }
+    Ok(())
 }
 
 fn server_url(port: u16) -> String {

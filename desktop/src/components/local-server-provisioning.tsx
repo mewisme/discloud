@@ -29,6 +29,7 @@ export function getLocalProvisioningStage(snapshot: LocalRuntimeSnapshot | null,
   if (!snapshot) return "prepare"
   switch (snapshot.status) {
     case "preparing": return "prepare"
+    case "installing":
     case "downloading":
       if (!snapshot.postgresql?.installed && !snapshot.postgresql?.initialized && !snapshot.postgresql?.running) return "postgresqlRuntime"
       if (snapshot.postgresql?.running && !snapshot.backend?.desiredInstalled) return "backend"
@@ -155,6 +156,7 @@ function inferIncompleteStage(snapshot: LocalRuntimeSnapshot, webEnabled: boolea
 }
 
 function postgresqlRuntimeDescription(snapshot: LocalRuntimeSnapshot | null, state: ProvisioningStepState, version: string) {
+  if (state === "active" && snapshot?.status === "installing") return `Extracting bundled PostgreSQL ${version}.`
   if (state === "active" && snapshot?.status === "downloading") return `Downloading and verifying PostgreSQL ${version}.`
   return stateDescription(state, `Checking PostgreSQL ${version} runtime.`, `PostgreSQL ${version} runtime is ready.`)
 }
@@ -171,6 +173,7 @@ function databaseDescription(snapshot: LocalRuntimeSnapshot | null, state: Provi
 }
 
 function backendDescription(snapshot: LocalRuntimeSnapshot | null, state: ProvisioningStepState, version?: string) {
+  if (state === "active" && snapshot?.status === "installing") return `Installing bundled backend ${version ?? "runtime"}.`
   if (state === "active" && snapshot?.status === "downloading") return `Downloading and verifying backend ${version ?? "runtime"}.`
   if (state === "active" && snapshot?.status === "startingBackend") return "Starting the backend and waiting for /readyz."
   const port = snapshot?.backend?.port
@@ -180,7 +183,8 @@ function backendDescription(snapshot: LocalRuntimeSnapshot | null, state: Provis
 function webDescription(settings: LocalServerSettings, snapshot: LocalRuntimeSnapshot | null, state: ProvisioningStepState, version?: string) {
   if (!settings.webEnabled) return "Skipped because Managed Web UI is disabled."
   if (state === "warning") return snapshot?.web?.error ?? "Managed Web UI is unavailable, but the core local server can continue."
-  if (state === "active" && (snapshot?.status === "downloading" || snapshot?.status === "startingWeb" && !snapshot.web?.desiredInstalled)) return `Downloading and verifying Managed Web UI ${version ?? "runtime"}.`
+  if (state === "active" && snapshot?.status === "installing") return `Extracting bundled Managed Web UI ${version ?? "runtime"}.`
+  if (state === "active" && snapshot?.status === "downloading") return `Downloading and verifying Managed Web UI ${version ?? "runtime"}.`
   if (state === "active" && snapshot?.status === "startingWeb") return "Starting the embedded Node.js Web runtime and waiting for /healthz."
   return stateDescription(state, "Preparing the optional Managed Web UI.", snapshot?.web?.url ? `Managed Web UI is ready at ${snapshot.web.url}.` : "Managed Web UI is ready.")
 }

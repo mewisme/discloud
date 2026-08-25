@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 
 import { nativeError } from "#lib/api/transport"
 
-export type LocalRuntimeStatus = "disabled" | "preparing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "startingWeb" | "ready" | "degraded" | "failed" | "stopping"
+export type LocalRuntimeStatus = "disabled" | "preparing" | "installing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "startingWeb" | "ready" | "degraded" | "failed" | "stopping"
 
 export type LocalRuntimeComponent = {
   kind: "backend" | "postgresql" | "web"

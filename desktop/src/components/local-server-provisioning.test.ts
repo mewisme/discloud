@@ -18,6 +18,7 @@ function runtimeSnapshot(status: LocalRuntimeSnapshot["status"]): LocalRuntimeSn
 
 describe("local provisioning stages", () => {
   it("maps native runtime lifecycle states to provisioning stages", () => {
+    expect(getLocalProvisioningStage(runtimeSnapshot("installing"), true)).toBe("postgresqlRuntime")
     expect(getLocalProvisioningStage(runtimeSnapshot("downloading"), true)).toBe("postgresqlRuntime")
     expect(getLocalProvisioningStage(runtimeSnapshot("initializingDatabase"), true)).toBe("database")
     expect(getLocalProvisioningStage(runtimeSnapshot("startingBackend"), true)).toBe("backend")
@@ -25,8 +26,8 @@ describe("local provisioning stages", () => {
     expect(getLocalProvisioningStage(runtimeSnapshot("ready"), true)).toBe("connect")
   })
 
-  it("identifies later downloads from component snapshots", () => {
-    const backend = runtimeSnapshot("downloading")
+  it("identifies later runtime preparation from component snapshots", () => {
+    const backend = runtimeSnapshot("installing")
     backend.postgresql = { installed: true, initialized: true, running: true, version: "18.6.0", port: 27832 }
     expect(getLocalProvisioningStage(backend, true)).toBe("backend")
 

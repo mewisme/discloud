@@ -7,11 +7,12 @@ use std::{
 use keyring::{Entry, Error as KeyringError};
 use rand::{distr::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Runtime};
 use tokio::{fs, process::Command, time::sleep};
 
 use super::{
-    archive, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout, ports,
-    LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
+    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const DATABASE_USER: &str = "discloud";
@@ -75,13 +76,14 @@ pub(super) async fn inspect(
     })
 }
 
-pub(super) async fn start(
+pub(super) async fn start<R: Runtime>(
+    app: &AppHandle<R>,
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
     desktop_version: &str,
     state: &LocalRuntimeState,
 ) -> Result<(), LocalRuntimeError> {
-    let runtime_dir = ensure_runtime(layout, descriptor, desktop_version, state).await?;
+    let runtime_dir = ensure_runtime(app, layout, descriptor, desktop_version, state).await?;
     let initialized = ensure_database(layout, descriptor, &runtime_dir, state).await?;
     let pg_ctl = binary_path(&runtime_dir, "pg_ctl");
 
@@ -253,7 +255,8 @@ pub(super) fn ensure_password() -> Result<String, LocalRuntimeError> {
     ensure_postgresql_password()
 }
 
-async fn ensure_runtime(
+async fn ensure_runtime<R: Runtime>(
+    app: &AppHandle<R>,
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
     desktop_version: &str,
@@ -281,27 +284,41 @@ async fn ensure_runtime(
         })?;
     }
 
-    state.update(|snapshot| {
-        snapshot.status = LocalRuntimeStatus::Downloading;
-        snapshot.error = None;
-    })?;
-    let client = download::client(desktop_version)?;
-    let downloads_dir = layout.staging_dir.join("downloads");
-    let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
-    crate::diagnostics::info(
-        "runtime.local.postgresql",
-        format!(
-            "downloaded={} bytes={} sha256={}",
-            verified.path.display(),
-            verified.bytes,
-            verified.sha256
-        ),
-    );
+    let (archive_path, downloaded) =
+        if let Some(path) = bundled::resource_archive(app, descriptor).await? {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::Installing;
+                snapshot.error = None;
+            })?;
+            crate::diagnostics::info(
+                "runtime.local.postgresql",
+                format!("using bundled archive={}", path.display()),
+            );
+            (path, false)
+        } else {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::Downloading;
+                snapshot.error = None;
+            })?;
+            let client = download::client(desktop_version)?;
+            let downloads_dir = layout.staging_dir.join("downloads");
+            let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+            crate::diagnostics::info(
+                "runtime.local.postgresql",
+                format!(
+                    "downloaded={} bytes={} sha256={}",
+                    verified.path.display(),
+                    verified.bytes,
+                    verified.sha256
+                ),
+            );
+            (verified.path, true)
+        };
 
     let extraction_dir = layout
         .staging_dir
         .join(format!("postgresql-{}.extract", descriptor.version));
-    archive::extract_tar_gz(&verified.path, &extraction_dir).await?;
+    archive::extract_tar_gz(&archive_path, &extraction_dir).await?;
     let extracted_root = find_runtime_root(&extraction_dir).await?;
     fs::create_dir_all(&layout.postgresql_dir)
         .await
@@ -322,7 +339,9 @@ async fn ensure_runtime(
             })?;
         let _ = fs::remove_dir_all(&extraction_dir).await;
     }
-    let _ = fs::remove_file(&verified.path).await;
+    if downloaded {
+        let _ = fs::remove_file(&archive_path).await;
+    }
 
     if !runtime_valid(&destination).await? {
         return Err(LocalRuntimeError::invalid_artifact(

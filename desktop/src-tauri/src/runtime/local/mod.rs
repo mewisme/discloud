@@ -9,6 +9,7 @@ use tokio::sync::Mutex;
 
 mod archive;
 mod backend;
+mod bundled;
 pub(crate) mod components;
 mod config;
 pub(crate) mod download;
@@ -29,6 +30,7 @@ pub(crate) enum LocalRuntimeStatus {
     #[default]
     Disabled,
     Preparing,
+    Installing,
     Stopped,
     Downloading,
     InitializingDatabase,
@@ -444,9 +446,11 @@ pub(crate) async fn prepare_desktop_update(
         match components::web_descriptor(normalize_update_version(version)) {
             Ok(web_descriptor) => {
                 if let Err(error) = web::stage(
+                    app,
                     &layout,
                     &web_descriptor,
                     &app.package_info().version.to_string(),
+                    state.inner(),
                 )
                 .await
                 {
@@ -517,6 +521,7 @@ async fn start_local_postgresql_inner(
     })?;
     let (layout, manifest) = prepare_foundation(app, state).await?;
     postgresql::start(
+        app,
         &layout,
         &manifest.components.postgresql,
         &manifest.desktop_version,
@@ -556,6 +561,7 @@ async fn start_local_runtime_inner(
     })?;
     let (layout, manifest) = prepare_foundation(app, state).await?;
     postgresql::start(
+        app,
         &layout,
         &manifest.components.postgresql,
         &manifest.desktop_version,
@@ -599,11 +605,13 @@ async fn start_local_runtime_inner(
                 snapshot.error = None;
             })?;
             match web::start(
+                app,
                 &layout,
                 descriptor,
                 &manifest.desktop_version,
                 backend_port,
                 &state.web_process,
+                state,
             )
             .await
             {
