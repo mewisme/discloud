@@ -3,12 +3,12 @@
     "https://github.com/mewisme/discloud/releases/latest/download/latest.json"
   ],
   "rc": [
-    "https://github.com/mewisme/discloud/releases/latest/download/rc.json"
+    "https://github.com/mewisme/discloud/releases/download/updater-channels/rc.json"
   ],
   "beta": [
-    "https://github.com/mewisme/discloud/releases/latest/download/beta.json"
+    "https://github.com/mewisme/discloud/releases/download/updater-channels/beta.json"
   ],
   "alpha": [
-    "https://github.com/mewisme/discloud/releases/latest/download/alpha.json"
+    "https://github.com/mewisme/discloud/releases/download/updater-channels/alpha.json"
   ]
 }

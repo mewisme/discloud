@@ -282,12 +282,13 @@ jobs:
           fi
 
           updater_endpoints="$(node -e '
-            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/latest/download`;
+            const latest = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/latest/download`;
+            const channels = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/updater-channels`;
             process.stdout.write(JSON.stringify({
-              stable: [`${base}/latest.json`],
-              rc: [`${base}/rc.json`],
-              beta: [`${base}/beta.json`],
-              alpha: [`${base}/alpha.json`],
+              stable: [`${latest}/latest.json`],
+              rc: [`${channels}/rc.json`],
+              beta: [`${channels}/beta.json`],
+              alpha: [`${channels}/alpha.json`],
             }));
           ')"
 
@@ -538,6 +539,20 @@ jobs:
           TAURI_UPDATER_ENDPOINTS: ${{ needs.release-info.outputs.updater-endpoints }}
         run: node scripts/tauri-updater-setup.js
 
+      - name: Resolve desktop bundle arguments
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args="${{ matrix.args }}"
+          if [[ "$RUNNER_OS" == "Windows" && "${{ needs.release-info.outputs.prerelease }}" == "true" ]]; then
+            args="$args --bundles nsis"
+          fi
+
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Desktop bundle arguments: ${args:-<default>}"
+
       - name: Build and upload desktop bundles
         uses: tauri-apps/tauri-action@action-v1.0.0
         env:
@@ -552,7 +567,7 @@ jobs:
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           uploadUpdaterSignatures: true
-          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+          args: ${{ steps.bundle.outputs.args }} --config src-tauri/tauri.release.conf.json
 
       - name: Add job summary
         if: ${{ always() }}
@@ -592,31 +607,23 @@ jobs:
       - name: Validate exact-tag updater manifest
         run: node scripts/tauri-updater-release.js validate --manifest updater/exact/latest.json --tag "$GITHUB_REF_NAME"
 
-      - name: Resolve stable pointer release
-        id: stable
+      - name: Ensure updater channel release
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "${{ needs.release-info.outputs.channel }}" == "stable" ]]; then
-            stable_tag="$GITHUB_REF_NAME"
-          else
-            stable_tag="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          if ! gh release view updater-channels >/dev/null 2>&1; then
+            gh release create updater-channels \
+              --target "$GITHUB_SHA" \
+              --title "Updater channels" \
+              --notes "Mutable updater manifests for DisCloud prerelease channels." \
+              --prerelease
           fi
-
-          if [[ -z "$stable_tag" ]]; then
-            echo "No stable release exists. Publish a stable desktop release before prerelease channels." >&2
-            exit 1
-          fi
-
-          echo "tag=$stable_tag" >> "$GITHUB_OUTPUT"
-          echo "Updater channel pointers will be stored with assets of $stable_tag"
 
       - name: Advance channel manifests
         shell: bash
         env:
           RELEASE_CHANNEL: ${{ needs.release-info.outputs.channel }}
-          STABLE_TAG: ${{ steps.stable.outputs.tag }}
         run: |
           set -euo pipefail
 
@@ -635,7 +642,7 @@ jobs:
             cp updater/exact/latest.json "$candidate"
 
             rm -f "$current"
-            gh release download "$STABLE_TAG" --pattern "$channel.json" --dir updater/current >/dev/null 2>&1 || true
+            gh release download updater-channels --pattern "$channel.json" --dir updater/current >/dev/null 2>&1 || true
 
             if [[ -f "$current" ]]; then
               decision=0
@@ -651,7 +658,7 @@ jobs:
               fi
             fi
 
-            gh release upload "$STABLE_TAG" "$candidate" --clobber
+            gh release upload updater-channels "$candidate" --clobber
             echo "Advanced $channel channel to $GITHUB_REF_NAME"
           done
 
