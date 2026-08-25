@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
 import { open } from "@tauri-apps/plugin-dialog"
 import { LoaderCircle } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
@@ -104,6 +105,12 @@ export function ServerConnectionScreen({
     if (typeof selected === "string") setDataDirectory(selected)
   }
 
+  function changeMode(value: string) {
+    if (value !== "local" && value !== "remote") return
+    setMode(value)
+    setError(undefined)
+  }
+
   return (
     <AuthShell>
       <Card>
@@ -115,78 +122,72 @@ export function ServerConnectionScreen({
         </CardHeader>
 
         <CardContent>
-          <div className="mb-4 grid grid-cols-2 gap-2">
-            <Button type="button" variant={mode === "local" ? "default" : "outline"} disabled={connecting} onClick={() => { setMode("local"); setError(undefined) }}>Local</Button>
-            <Button type="button" variant={mode === "remote" ? "default" : "outline"} disabled={connecting} onClick={() => { setMode("remote"); setError(undefined) }}>Remote</Button>
-          </div>
+          <Tabs value={mode} onValueChange={changeMode}>
+            <TabsList className="mb-4 w-full">
+              <TabsTrigger value="local" disabled={connecting}>Local</TabsTrigger>
+              <TabsTrigger value="remote" disabled={connecting}>Remote</TabsTrigger>
+            </TabsList>
 
-          {mode === "remote" ? <form className="flex flex-col gap-4" onSubmit={connect}>
-            <Field data-invalid={!!error}>
-              <FieldLabel htmlFor="server-url">Server</FieldLabel>
-              <Input
-                id="server-url"
-                type="text"
-                value={serverUrl}
-                placeholder="https://cloud.example.com"
-                aria-invalid={!!error}
-                autoCapitalize="none"
-                autoComplete="url"
-                autoCorrect="off"
-                spellCheck={false}
-                autoFocus
-                disabled={connecting}
-                onChange={(event) => setServerUrl(event.target.value)}
-              />
-              <FieldDescription>
-                HTTPS is used automatically when no protocol is specified.
-              </FieldDescription>
-              {error ? <FieldError>{error}</FieldError> : null}
-            </Field>
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={connecting || !serverUrl.trim()}
-            >
-              {connecting ? (
-                <>
-                  <LoaderCircle
-                    data-icon="inline-start"
-                    className="animate-spin"
+            <TabsContent value="remote">
+              <form className="flex flex-col gap-4" onSubmit={connect}>
+                <Field data-invalid={!!error}>
+                  <FieldLabel htmlFor="server-url">Server</FieldLabel>
+                  <Input
+                    id="server-url"
+                    type="text"
+                    value={serverUrl}
+                    placeholder="https://cloud.example.com"
+                    aria-invalid={!!error}
+                    autoCapitalize="none"
+                    autoComplete="url"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoFocus
+                    disabled={connecting}
+                    onChange={(event) => setServerUrl(event.target.value)}
                   />
-                  Connecting
-                </>
-              ) : (
-                "Connect"
-              )}
-            </Button>
-          </form> : <form className="flex flex-col gap-4" onSubmit={connectLocal}>
-            <Field>
-              <FieldLabel htmlFor="local-guild-id">Discord guild ID</FieldLabel>
-              <Input id="local-guild-id" value={guildId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setGuildId(event.target.value)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="local-channel-id">Storage channel ID</FieldLabel>
-              <Input id="local-channel-id" value={channelId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setChannelId(event.target.value)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="local-bot-tokens">Discord bot token{localSettings?.botTokensConfigured ? " (configured)" : ""}</FieldLabel>
-              <Input id="local-bot-tokens" type="password" value={botTokens} autoComplete="off" disabled={connecting} placeholder={localSettings?.botTokensConfigured ? "Leave blank to keep stored token" : "Bot token, or comma-separated tokens"} onChange={(event) => setBotTokens(event.target.value)} />
-              <FieldDescription>Tokens are stored in the OS keyring and are not written to local-server.env.</FieldDescription>
-            </Field>
-            <Field data-invalid={!!error}>
-              <FieldLabel htmlFor="local-data-directory">Local data directory</FieldLabel>
-              <div className="flex gap-2">
-                <Input id="local-data-directory" className="min-w-0" value={dataDirectory} readOnly />
-                <Button type="button" variant="outline" disabled={connecting || !!localSettings?.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
-              </div>
-              <FieldDescription>{localSettings?.dataDirectoryLocked ? "The directory is locked after PostgreSQL initialization." : "Runtime, PostgreSQL data, configuration and logs are stored here."}</FieldDescription>
-              {error ? <FieldError>{error}</FieldError> : null}
-            </Field>
-            <Button type="submit" className="w-full" disabled={connecting || !guildId.trim() || !channelId.trim() || (!botTokens.trim() && !localSettings?.botTokensConfigured)}>
-              {connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Starting local server</> : "Start local server"}
-            </Button>
-          </form>}
+                  <FieldDescription>
+                    HTTPS is used automatically when no protocol is specified.
+                  </FieldDescription>
+                  {error ? <FieldError>{error}</FieldError> : null}
+                </Field>
+
+                <Button type="submit" className="w-full" disabled={connecting || !serverUrl.trim()}>
+                  {connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Connecting</> : "Connect"}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="local">
+              <form className="flex flex-col gap-4" onSubmit={connectLocal}>
+                <Field>
+                  <FieldLabel htmlFor="local-guild-id">Discord guild ID</FieldLabel>
+                  <Input id="local-guild-id" value={guildId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setGuildId(event.target.value)} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="local-channel-id">Storage channel ID</FieldLabel>
+                  <Input id="local-channel-id" value={channelId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setChannelId(event.target.value)} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="local-bot-tokens">Discord bot token{localSettings?.botTokensConfigured ? " (configured)" : ""}</FieldLabel>
+                  <Input id="local-bot-tokens" type="password" value={botTokens} autoComplete="off" disabled={connecting} placeholder={localSettings?.botTokensConfigured ? "Leave blank to keep stored token" : "Bot token, or comma-separated tokens"} onChange={(event) => setBotTokens(event.target.value)} />
+                  <FieldDescription>Tokens are stored in the OS keyring and are not written to local-server.env.</FieldDescription>
+                </Field>
+                <Field data-invalid={!!error}>
+                  <FieldLabel htmlFor="local-data-directory">Local data directory</FieldLabel>
+                  <div className="flex gap-2">
+                    <Input id="local-data-directory" className="min-w-0" value={dataDirectory} readOnly />
+                    <Button type="button" variant="outline" disabled={connecting || !!localSettings?.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
+                  </div>
+                  <FieldDescription>{localSettings?.dataDirectoryLocked ? "The directory is locked after PostgreSQL initialization." : "Runtime, PostgreSQL data, configuration and logs are stored here."}</FieldDescription>
+                  {error ? <FieldError>{error}</FieldError> : null}
+                </Field>
+                <Button type="submit" className="w-full" disabled={connecting || !guildId.trim() || !channelId.trim() || (!botTokens.trim() && !localSettings?.botTokensConfigured)}>
+                  {connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Starting local server</> : "Start local server"}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </AuthShell>
