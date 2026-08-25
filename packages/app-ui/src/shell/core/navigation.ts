@@ -26,6 +26,8 @@ export type AppNavItem = {
 export type AppNavigation = {
   primary: AppNavItem[]
   library: AppNavItem[]
+  insights: AppNavItem[]
+  utility: AppNavItem[]
   administration: AppNavItem[]
 }
 
@@ -79,6 +81,8 @@ export function createAppNavigation({
         href: workspacePath(workspaceUsername, "shared"),
         icon: Share2Icon,
       },
+    ],
+    insights: [
       {
         title: "Activity",
         href: workspacePath(workspaceUsername, "activity"),
@@ -89,6 +93,8 @@ export function createAppNavigation({
         href: workspacePath(workspaceUsername, "storage"),
         icon: HardDriveIcon,
       },
+    ],
+    utility: [
       {
         title: "Trash",
         href: workspacePath(workspaceUsername, "trash"),

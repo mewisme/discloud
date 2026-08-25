@@ -58,6 +58,8 @@ export function DesktopAppLayout({ serverUrl, user }: { serverUrl: string; user:
           primaryItems={navigation.primary}
           workspaceGroups={[{ title: "Transfers", icon: ArrowUpDownIcon, items: transferItems }]}
           libraryItems={navigation.library}
+          insightItems={navigation.insights}
+          utilityItems={navigation.utility}
           administrationItems={navigation.administration}
           header={<DesktopWorkspaceSwitcher currentUser={user} workspaceUsername={workspaceUsername} sidebarSide={sidebarSide} />}
           renderLink={renderRouterLink}

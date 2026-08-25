@@ -51,6 +51,8 @@ export function AppSidebar({
       pathname={pathname}
       primaryItems={navigation.primary}
       libraryItems={navigation.library}
+      insightItems={navigation.insights}
+      utilityItems={navigation.utility}
       administrationItems={navigation.administration}
       header={<WorkspaceSwitcher />}
       footer={
