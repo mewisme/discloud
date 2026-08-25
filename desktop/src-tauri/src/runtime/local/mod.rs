@@ -131,6 +131,10 @@ impl LocalRuntimePaths {
 }
 
 impl LocalRuntimeError {
+    pub(crate) fn message(&self) -> &str {
+        &self.message
+    }
+
     pub(crate) fn io(context: &str, error: impl std::fmt::Display) -> Self {
         Self::new("io", format!("{context}: {error}"))
     }
@@ -263,6 +267,15 @@ pub(crate) struct LocalRuntimeStartResult {
     server_url: String,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalRuntimeUpdateCompatibility {
+    backend_version: String,
+    postgresql_version: String,
+    compatible: bool,
+    detail: Option<String>,
+}
+
 #[tauri::command]
 pub(crate) async fn start_local_runtime(
     app: AppHandle,
@@ -322,6 +335,76 @@ pub(crate) async fn shutdown<R: Runtime>(app: &AppHandle<R>) -> Result<(), Local
     )
     .await?;
     postgresql::stop(&layout, &manifest.components.postgresql, state.inner()).await
+}
+
+pub(crate) async fn check_desktop_update_compatibility(
+    app: &AppHandle,
+    version: &str,
+) -> LocalRuntimeUpdateCompatibility {
+    let version = normalize_update_version(version);
+    let descriptor = match components::backend_descriptor(version) {
+        Ok(descriptor) => descriptor,
+        Err(error) => {
+            return LocalRuntimeUpdateCompatibility {
+                backend_version: version.to_string(),
+                postgresql_version: components::POSTGRESQL_VERSION.to_string(),
+                compatible: false,
+                detail: Some(error.message().to_string()),
+            };
+        }
+    };
+    let result = match download::client(&app.package_info().version.to_string()) {
+        Ok(client) => download::verify_descriptor_available(&client, &descriptor)
+            .await
+            .map_err(|error| error.message().to_string()),
+        Err(error) => Err(error.message().to_string()),
+    };
+    LocalRuntimeUpdateCompatibility {
+        backend_version: version.to_string(),
+        postgresql_version: components::POSTGRESQL_VERSION.to_string(),
+        compatible: result.is_ok(),
+        detail: result.err(),
+    }
+}
+
+pub(crate) async fn prepare_desktop_update(
+    app: &AppHandle,
+    version: &str,
+) -> Result<(), LocalRuntimeError> {
+    let state = app.state::<LocalRuntimeState>();
+    let _operation = state.operation.lock().await;
+    let previous_status = state.snapshot()?.status;
+    let layout = LocalRuntimeLayout::resolve(app)?;
+    layout.prepare().await?;
+    let descriptor = components::backend_descriptor(normalize_update_version(version))?;
+    let result = backend::stage(
+        &layout,
+        &descriptor,
+        &app.package_info().version.to_string(),
+        state.inner(),
+    )
+    .await;
+    let _ = prepare_foundation(app, state.inner()).await;
+    let _ = state.update(|snapshot| {
+        snapshot.status = previous_status;
+        if result.is_ok() {
+            snapshot.error = None;
+        }
+    });
+    result
+}
+
+pub(crate) async fn resume_after_updater_failure(app: &AppHandle) -> Result<(), LocalRuntimeError> {
+    let state = app.state::<LocalRuntimeState>();
+    let api = app.state::<crate::api::ApiState>();
+    let _operation = state.operation.lock().await;
+    start_local_runtime_inner(app, state.inner(), api.inner())
+        .await
+        .map(|_| ())
+}
+
+fn normalize_update_version(version: &str) -> &str {
+    version.strip_prefix('v').unwrap_or(version)
 }
 
 async fn prepare_local_runtime_inner(
@@ -496,10 +579,16 @@ fn path_string(path: &PathBuf) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::LocalRuntimeStatus;
+    use super::{normalize_update_version, LocalRuntimeStatus};
 
     #[test]
     fn local_runtime_starts_disabled() {
         assert_eq!(LocalRuntimeStatus::default(), LocalRuntimeStatus::Disabled);
+    }
+
+    #[test]
+    fn normalizes_release_tag_version() {
+        assert_eq!(normalize_update_version("v1.2.3"), "1.2.3");
+        assert_eq!(normalize_update_version("1.2.3-beta.1"), "1.2.3-beta.1");
     }
 }

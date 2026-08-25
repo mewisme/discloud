@@ -34,8 +34,11 @@ export type PostgresqlRuntimeSnapshot = {
 
 export type BackendRuntimeSnapshot = {
   installed: boolean
+  desiredInstalled: boolean
   running: boolean
   version: string | null
+  desiredVersion: string
+  previousVersion: string | null
   port: number | null
 }
 

@@ -7,7 +7,7 @@ use tokio::fs;
 use super::LocalRuntimeError;
 
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
-const POSTGRESQL_VERSION: &str = "18.6.0";
+pub(crate) const POSTGRESQL_VERSION: &str = "18.6.0";
 const DISCLOUD_RELEASE_BASE: &str = "https://github.com/mewisme/discloud/releases/download";
 const POSTGRESQL_RELEASE_BASE: &str =
     "https://github.com/mewisme/postgresql-binaries/releases/download";
@@ -101,7 +101,9 @@ pub(crate) async fn write_manifest(
     Ok(())
 }
 
-fn backend_descriptor(version: &str) -> Result<RuntimeComponentDescriptor, LocalRuntimeError> {
+pub(crate) fn backend_descriptor(
+    version: &str,
+) -> Result<RuntimeComponentDescriptor, LocalRuntimeError> {
     let (os, arch, extension) = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => ("windows", "amd64", "zip"),
         ("macos", "x86_64") => ("darwin", "amd64", "tar.gz"),

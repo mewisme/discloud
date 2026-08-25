@@ -20,12 +20,14 @@ const channels: { value: UpdateChannel; label: string; description: string }[] =
 
 export function DesktopUpdaterSettings() {
   const updater = useDesktopUpdater()
-  const busy = updater.stage === "checking" || updater.stage === "downloading" || updater.stage === "installing"
+  const busy = updater.stage === "checking" || updater.stage === "preparing-runtime" || updater.stage === "downloading" || updater.stage === "installing"
   const progress = updater.totalBytes && updater.totalBytes > 0
     ? Math.min(100, updater.downloadedBytes / updater.totalBytes * 100)
     : undefined
   const selectedChannel = updater.preferences?.channel ?? "stable"
   const selectedChannelInfo = channels.find((channel) => channel.value === selectedChannel) ?? channels[0]
+  const localRuntime = updater.update?.localRuntime
+  const installBlocked = localRuntime?.compatible === false
 
   return (
     <section className="space-y-4">
@@ -106,15 +108,31 @@ export function DesktopUpdaterSettings() {
               </div>
             ) : null}
 
-            {updater.stage === "downloading" || updater.stage === "installing" ? (
+            {localRuntime ? localRuntime.compatible ? (
+              <Alert>
+                <CheckCircle2Icon />
+                <AlertTitle>Local runtime compatible</AlertTitle>
+                <AlertDescription>Backend v{localRuntime.backendVersion} is available for this Desktop release. PostgreSQL remains pinned to v{localRuntime.postgresqlVersion}. The backend will be staged and verified before Desktop installation starts.</AlertDescription>
+              </Alert>
+            ) : (
+              <Alert variant="destructive">
+                <TriangleAlertIcon />
+                <AlertTitle>Local runtime is not compatible with this update</AlertTitle>
+                <AlertDescription>{localRuntime.detail ?? `Backend v${localRuntime.backendVersion} is unavailable for this platform.`} Desktop installation is blocked while this device uses Local mode.</AlertDescription>
+              </Alert>
+            ) : null}
+
+            {updater.stage === "preparing-runtime" || updater.stage === "downloading" || updater.stage === "installing" ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <span>{updater.stage === "installing" ? "Installing update" : "Downloading update"}</span>
+                  <span>{updater.stage === "preparing-runtime" ? "Preparing local runtime" : updater.stage === "installing" ? "Installing update" : "Downloading update"}</span>
                   {progress !== undefined ? <span className="tabular-nums text-muted-foreground">{Math.round(progress)}%</span> : null}
                 </div>
                 <Progress value={progress} />
                 <p className="text-xs text-muted-foreground">
-                  {updater.stage === "installing"
+                  {updater.stage === "preparing-runtime"
+                    ? `Downloading and verifying backend v${localRuntime?.backendVersion ?? updater.update.version} before Desktop is changed.`
+                    : updater.stage === "installing"
                     ? "DisCloud will relaunch when installation finishes."
                     : updater.totalBytes
                       ? `${formatBytes(updater.downloadedBytes)} / ${formatBytes(updater.totalBytes)}`
@@ -124,9 +142,11 @@ export function DesktopUpdaterSettings() {
             ) : null}
 
             <div className="flex justify-end">
-              <Button disabled={busy} onClick={() => void updater.installUpdate()}>
+              <Button disabled={busy || installBlocked} onClick={() => void updater.installUpdate()}>
                 {busy ? <Loader2Icon className="animate-spin" /> : <DownloadIcon />}
-                {updater.stage === "downloading"
+                {updater.stage === "preparing-runtime"
+                  ? "Preparing runtime..."
+                  : updater.stage === "downloading"
                   ? "Downloading..."
                   : updater.stage === "installing"
                     ? "Installing..."
@@ -162,7 +182,7 @@ function SettingRow({ title, description, children, last = false }: { title: str
 
 function UpdateStatusBadge({ stage, channel }: { stage: ReturnType<typeof useDesktopUpdater>["stage"]; channel: UpdateChannel }) {
   if (stage === "checking") return <Badge variant="secondary">Checking {channel}</Badge>
-  if (stage === "available" || stage === "downloading" || stage === "installing") return <Badge>Update available</Badge>
+  if (stage === "available" || stage === "preparing-runtime" || stage === "downloading" || stage === "installing") return <Badge>Update available</Badge>
   if (stage === "up-to-date") return <Badge variant="secondary">{channel} up to date</Badge>
   if (stage === "error") return <Badge variant="destructive">Check failed</Badge>
   return <Badge variant="secondary">{channel}</Badge>

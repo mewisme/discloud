@@ -24,8 +24,11 @@ const RECOVERED_SHUTDOWN_ACK_TIMEOUT: Duration = Duration::from_secs(3);
 #[serde(rename_all = "camelCase")]
 pub(super) struct BackendRuntimeSnapshot {
     pub(super) installed: bool,
+    pub(super) desired_installed: bool,
     pub(super) running: bool,
     pub(super) version: Option<String>,
+    pub(super) desired_version: String,
+    pub(super) previous_version: Option<String>,
     pub(super) port: Option<u16>,
 }
 
@@ -35,6 +38,8 @@ struct BackendRuntimeRecord {
     version: String,
     port: u16,
     pid: u32,
+    #[serde(default)]
+    previous_version: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -46,41 +51,47 @@ pub(super) async fn inspect(
     layout: &LocalRuntimeLayout,
     descriptor: &RuntimeComponentDescriptor,
 ) -> Result<BackendRuntimeSnapshot, LocalRuntimeError> {
-    let runtime_dir = version_dir(layout, descriptor);
-    let installed = runtime_valid(&runtime_dir).await?;
-    if !installed {
-        return Ok(BackendRuntimeSnapshot {
-            installed: false,
-            running: false,
-            version: Some(descriptor.version.clone()),
-            port: None,
-        });
-    }
-
+    let desired_installed = runtime_valid(&version_dir(layout, descriptor)).await?;
     let Some(record) = read_runtime_record(&layout.backend_state_path).await? else {
         return Ok(BackendRuntimeSnapshot {
-            installed: true,
+            installed: desired_installed,
+            desired_installed,
             running: false,
-            version: Some(descriptor.version.clone()),
+            version: desired_installed.then(|| descriptor.version.clone()),
+            desired_version: descriptor.version.clone(),
+            previous_version: None,
             port: None,
         });
     };
-    if record.version != descriptor.version {
-        let _ = fs::remove_file(&layout.backend_state_path).await;
-        return Ok(BackendRuntimeSnapshot {
-            installed: true,
-            running: false,
-            version: Some(descriptor.version.clone()),
-            port: None,
-        });
-    }
-    let running = ready(record.port).await;
+    let installed = runtime_valid(&layout.backend_dir.join(&record.version)).await?;
+    let running = installed && ready(record.port).await;
+    let previous_version = match record.previous_version {
+        Some(version) if runtime_valid(&layout.backend_dir.join(&version)).await? => Some(version),
+        _ => None,
+    };
     Ok(BackendRuntimeSnapshot {
-        installed: true,
+        installed,
+        desired_installed,
         running,
-        version: Some(descriptor.version.clone()),
+        version: installed.then_some(record.version),
+        desired_version: descriptor.version.clone(),
+        previous_version,
         port: Some(record.port),
     })
+}
+
+pub(super) async fn stage(
+    layout: &LocalRuntimeLayout,
+    descriptor: &RuntimeComponentDescriptor,
+    desktop_version: &str,
+    state: &LocalRuntimeState,
+) -> Result<(), LocalRuntimeError> {
+    let runtime_dir = ensure_runtime(layout, descriptor, desktop_version, state).await?;
+    if let Err(error) = verify_runtime_version(&runtime_dir, &descriptor.version).await {
+        let _ = fs::remove_dir_all(&runtime_dir).await;
+        return Err(error);
+    }
+    Ok(())
 }
 
 pub(super) async fn start(
@@ -95,12 +106,17 @@ pub(super) async fn start(
     let record = read_runtime_record(&layout.backend_state_path).await?;
     if let Some(record) = record.as_ref() {
         if record.version == descriptor.version && ready(record.port).await {
-            set_snapshot(state, descriptor, true, true, Some(record.port))?;
+            set_snapshot(
+                state,
+                descriptor,
+                true,
+                true,
+                Some(record.port),
+                record.previous_version.clone(),
+            )?;
             return Ok(server_url(record.port));
         }
-        if record.version != descriptor.version {
-            let _ = fs::remove_file(&layout.backend_state_path).await;
-        } else if record.pid != 0 {
+        if record.pid != 0 || !ports::port_available(record.port) {
             let acknowledged = request_shutdown_ack(&layout.backend_shutdown_path).await?;
             if acknowledged {
                 if !wait_port_available(record.port).await {
@@ -118,9 +134,14 @@ pub(super) async fn start(
             }
         }
     }
-    let preferred_port = record
-        .filter(|record| record.version == descriptor.version)
-        .map(|record| record.port);
+    let preferred_port = record.as_ref().map(|record| record.port);
+    let previous_version = record.as_ref().and_then(|record| {
+        if record.version != descriptor.version {
+            Some(record.version.clone())
+        } else {
+            record.previous_version.clone()
+        }
+    });
     let port = ports::choose_port(preferred_port, ports::BACKEND_PREFERRED_PORT)?;
     let environment = config::backend_environment(layout, postgresql_port, port).await?;
     let _ = fs::remove_file(&layout.backend_shutdown_path).await;
@@ -158,6 +179,7 @@ pub(super) async fn start(
             version: descriptor.version.clone(),
             port,
             pid,
+            previous_version: previous_version.clone(),
         },
     )
     .await?;
@@ -171,13 +193,14 @@ pub(super) async fn start(
                 version: descriptor.version.clone(),
                 port,
                 pid: 0,
+                previous_version: previous_version.clone(),
             },
         )
         .await;
         return Err(error);
     }
     *process.child.lock().await = Some(child);
-    set_snapshot(state, descriptor, true, true, Some(port))?;
+    set_snapshot(state, descriptor, true, true, Some(port), previous_version)?;
     Ok(server_url(port))
 }
 
@@ -214,17 +237,28 @@ pub(super) async fn stop(
         drop(child_guard);
         let _ = fs::remove_file(&layout.backend_shutdown_path).await;
         if let Some(port) = port {
+            let version = record
+                .as_ref()
+                .map(|record| record.version.clone())
+                .or(snapshot.version.clone())
+                .unwrap_or_else(|| descriptor.version.clone());
+            let previous_version = record
+                .as_ref()
+                .and_then(|record| record.previous_version.clone())
+                .or(snapshot.previous_version.clone());
             write_runtime_record(
                 &layout.backend_state_path,
                 &BackendRuntimeRecord {
-                    version: descriptor.version.clone(),
+                    version,
                     port,
                     pid: 0,
+                    previous_version,
                 },
             )
             .await?;
         }
-        set_snapshot(state, descriptor, snapshot.installed, false, port)?;
+        let next = inspect(layout, descriptor).await?;
+        state.update(|state_snapshot| state_snapshot.backend = Some(next))?;
         return Ok(());
     }
     let port = snapshot.port.expect("running backend has a port");
@@ -257,13 +291,18 @@ pub(super) async fn stop(
     write_runtime_record(
         &layout.backend_state_path,
         &BackendRuntimeRecord {
-            version: descriptor.version.clone(),
+            version: snapshot
+                .version
+                .clone()
+                .unwrap_or_else(|| descriptor.version.clone()),
             port,
             pid: 0,
+            previous_version: snapshot.previous_version.clone(),
         },
     )
     .await?;
-    set_snapshot(state, descriptor, true, false, Some(port))?;
+    let next = inspect(layout, descriptor).await?;
+    state.update(|state_snapshot| state_snapshot.backend = Some(next))?;
     Ok(())
 }
 
@@ -339,16 +378,48 @@ fn set_snapshot(
     installed: bool,
     running: bool,
     port: Option<u16>,
+    previous_version: Option<String>,
 ) -> Result<(), LocalRuntimeError> {
     state.update(|snapshot| {
         snapshot.backend = Some(BackendRuntimeSnapshot {
             installed,
+            desired_installed: installed,
             running,
             version: Some(descriptor.version.clone()),
+            desired_version: descriptor.version.clone(),
+            previous_version,
             port,
         });
         snapshot.error = None;
     })
+}
+
+async fn verify_runtime_version(
+    runtime_dir: &Path,
+    expected: &str,
+) -> Result<(), LocalRuntimeError> {
+    let output = timeout(
+        Duration::from_secs(5),
+        Command::new(binary_path(runtime_dir))
+            .arg("--version")
+            .output(),
+    )
+    .await
+    .map_err(|_| {
+        LocalRuntimeError::invalid_artifact("The staged backend version check timed out.")
+    })?
+    .map_err(|error| {
+        LocalRuntimeError::invalid_artifact(format!(
+            "Could not execute the staged backend version check: {error}"
+        ))
+    })?;
+    let actual = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() || actual != expected {
+        return Err(LocalRuntimeError::invalid_artifact(format!(
+            "The staged backend reported version {actual:?}, expected {expected}."
+        )));
+    }
+    Ok(())
 }
 
 async fn stop_owned_child(child: &mut Child) -> Result<(), LocalRuntimeError> {
@@ -556,10 +627,17 @@ fn server_url(port: u16) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::server_url;
+    use super::{server_url, BackendRuntimeRecord};
 
     #[test]
     fn formats_loopback_server_url() {
         assert_eq!(server_url(12345), "http://127.0.0.1:12345");
+    }
+
+    #[test]
+    fn reads_legacy_runtime_record_without_previous_version() {
+        let record: BackendRuntimeRecord =
+            serde_json::from_str("{\"version\":\"1.0.0\",\"port\":27831,\"pid\":0}").unwrap();
+        assert_eq!(record.previous_version, None);
     }
 }

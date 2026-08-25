@@ -80,6 +80,15 @@ export function LocalServerSettings() {
   const configured = !!guildId.trim() && !!channelId.trim() && !!settings?.botTokensConfigured && !!settings.encryptionKeyConfigured && !!settings.databasePasswordConfigured
   const backendPort = runtime?.backend?.port ?? settings?.backendPreferredPort
   const postgresqlPort = runtime?.postgresql?.port ?? settings?.postgresqlPreferredPort
+  const backendVersion = runtime?.backend?.version
+  const backendDesiredVersion = runtime?.backend?.desiredVersion
+  const backendVersionDetail = backendVersion && backendDesiredVersion && backendVersion !== backendDesiredVersion
+    ? `v${backendVersion} · target v${backendDesiredVersion}`
+    : backendVersion
+      ? `v${backendVersion}`
+      : backendDesiredVersion
+        ? `target v${backendDesiredVersion}`
+        : "version unavailable"
 
   return (
     <Card>
@@ -89,9 +98,11 @@ export function LocalServerSettings() {
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2">
-          <RuntimeItem icon={ServerIcon} label="Backend" status={runtime?.backend?.running ? "Running" : "Stopped"} detail={`127.0.0.1:${backendPort ?? "-"}`} />
+          <RuntimeItem icon={ServerIcon} label="Backend" status={runtime?.backend?.running ? "Running" : "Stopped"} detail={`${backendVersionDetail} · 127.0.0.1:${backendPort ?? "-"}`} />
           <RuntimeItem icon={DatabaseIcon} label="PostgreSQL" status={runtime?.postgresql?.running ? "Running" : "Stopped"} detail={`127.0.0.1:${postgresqlPort ?? "-"}`} />
         </div>
+
+        {runtime?.backend?.previousVersion ? <p className="text-xs text-muted-foreground">Previous backend binary v{runtime.backend.previousVersion} is retained as a recovery artifact. Automatic binary downgrade is not performed after database migrations.</p> : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>

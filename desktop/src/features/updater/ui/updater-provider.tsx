@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event"
 import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
+import { loadConnectionSettings } from "#lib/settings"
+
 import { loadUpdaterPreferences, type UpdateChannel, type UpdaterPreferences, updateUpdaterPreferences } from "../core/preferences"
 
 export type DesktopUpdateInfo = {
@@ -11,12 +13,18 @@ export type DesktopUpdateInfo = {
   version: string
   date?: string
   body?: string
+  localRuntime?: {
+    backendVersion: string
+    postgresqlVersion: string
+    compatible: boolean
+    detail?: string
+  }
 }
 
-export type DesktopUpdaterStage = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "installing" | "error"
+export type DesktopUpdaterStage = "idle" | "checking" | "up-to-date" | "available" | "preparing-runtime" | "downloading" | "installing" | "error"
 
 type DesktopUpdaterProgress = {
-  event: "started" | "progress" | "installing"
+  event: "preparingRuntime" | "started" | "progress" | "installing"
   downloadedBytes: number
   totalBytes?: number
 }
@@ -97,7 +105,8 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
     setTotalBytes(undefined)
 
     try {
-      const update = await invoke<DesktopUpdateInfo | null>("check_for_update", { channel })
+      const connection = await loadConnectionSettings()
+      const update = await invoke<DesktopUpdateInfo | null>("check_for_update", { channel, localRuntime: connection.mode === "local" })
       setLastCheckedAt(Date.now())
 
       if (!update) {
@@ -138,6 +147,11 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
 
     const unlisten = await listen<DesktopUpdaterProgress>(PROGRESS_EVENT, ({ payload }) => {
       switch (payload.event) {
+        case "preparingRuntime":
+          setStage("preparing-runtime")
+          setDownloadedBytes(0)
+          setTotalBytes(undefined)
+          break
         case "started":
           setStage("downloading")
           setDownloadedBytes(0)
@@ -155,7 +169,8 @@ export function DesktopUpdaterProvider({ children }: { children: ReactNode }) {
     })
 
     try {
-      await invoke<void>("install_update", { channel })
+      const connection = await loadConnectionSettings()
+      await invoke<void>("install_update", { channel, localRuntime: connection.mode === "local" })
     } catch (cause) {
       setStage("available")
       setError(updaterErrorMessage(cause))

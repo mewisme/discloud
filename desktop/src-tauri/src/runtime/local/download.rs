@@ -95,6 +95,28 @@ pub(crate) async fn download_verified(
     })
 }
 
+pub(crate) async fn verify_descriptor_available(
+    client: &Client,
+    descriptor: &RuntimeComponentDescriptor,
+) -> Result<(), LocalRuntimeError> {
+    let checksum_document = client
+        .get(&descriptor.checksum_url)
+        .send()
+        .await
+        .map_err(|error| {
+            LocalRuntimeError::network("Could not download the runtime checksum", error)
+        })?
+        .error_for_status()
+        .map_err(|error| LocalRuntimeError::network("Runtime checksum download failed", error))?
+        .text()
+        .await
+        .map_err(|error| {
+            LocalRuntimeError::network("Could not read the runtime checksum", error)
+        })?;
+    parse_checksum_document(&checksum_document, &descriptor.archive_name)?;
+    Ok(())
+}
+
 async fn write_verified_response(
     mut response: reqwest::Response,
     path: &Path,
