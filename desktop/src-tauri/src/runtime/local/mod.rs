@@ -14,6 +14,7 @@ pub(crate) mod components;
 mod config;
 pub(crate) mod download;
 mod layout;
+mod logs;
 mod ports;
 mod postgresql;
 mod process;
@@ -203,6 +204,15 @@ pub(crate) fn get_local_runtime_snapshot(
     state: State<'_, LocalRuntimeState>,
 ) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
     state.snapshot()
+}
+
+#[tauri::command]
+pub(crate) async fn get_local_runtime_log(
+    app: AppHandle,
+    stage: logs::LocalRuntimeLogStage,
+) -> Result<logs::LocalRuntimeLog, LocalRuntimeError> {
+    let layout = LocalRuntimeLayout::resolve(&app)?;
+    logs::read(&layout, stage).await
 }
 
 #[tauri::command]
@@ -560,7 +570,27 @@ async fn start_local_runtime_inner(
         snapshot.status = LocalRuntimeStatus::Preparing;
         snapshot.error = None;
     })?;
+    let initial_layout = LocalRuntimeLayout::resolve(app)?;
+    logs::reset(&initial_layout).await;
+    logs::append(
+        &initial_layout,
+        logs::LocalRuntimeLogStage::Prepare,
+        format!(
+            "Preparing local runtime at {}.",
+            initial_layout.root_dir.display()
+        ),
+    )
+    .await;
     let (layout, manifest) = prepare_foundation(app, state).await?;
+    logs::append(
+        &layout,
+        logs::LocalRuntimeLogStage::Prepare,
+        format!(
+            "Local runtime directory ready at {}.",
+            layout.root_dir.display()
+        ),
+    )
+    .await;
     postgresql::start(
         app,
         &layout,
@@ -585,12 +615,24 @@ async fn start_local_runtime_inner(
         state,
     )
     .await?;
+    logs::append(
+        &layout,
+        logs::LocalRuntimeLogStage::Connect,
+        format!("Connecting Desktop to {server_url}."),
+    )
+    .await;
     api.connect(server_url.clone()).await.map_err(|error| {
         LocalRuntimeError::network(
             "Could not connect Desktop to the local backend",
             format!("{error:?}"),
         )
     })?;
+    logs::append(
+        &layout,
+        logs::LocalRuntimeLogStage::Connect,
+        "Desktop connected to the local backend.",
+    )
+    .await;
     let backend_port = state
         .snapshot()?
         .backend
@@ -625,6 +667,12 @@ async fn start_local_runtime_inner(
                 }
             }
         } else {
+            logs::append(
+                &layout,
+                logs::LocalRuntimeLogStage::Web,
+                "Managed Web UI is disabled; skipping this stage.",
+            )
+            .await;
             match web::stop(&layout, descriptor, false, &state.web_process).await {
                 Ok(web_snapshot) => state.update(|snapshot| snapshot.web = Some(web_snapshot))?,
                 Err(error) => {
@@ -640,6 +688,12 @@ async fn start_local_runtime_inner(
         snapshot.status = LocalRuntimeStatus::Ready;
         snapshot.error = None;
     })?;
+    logs::append(
+        &layout,
+        logs::LocalRuntimeLogStage::Connect,
+        "Local runtime provisioning is complete.",
+    )
+    .await;
     Ok(LocalRuntimeStartResult {
         snapshot: state.snapshot()?,
         server_url,

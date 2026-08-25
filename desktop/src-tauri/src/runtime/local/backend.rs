@@ -12,7 +12,7 @@ use tokio::{fs, process::Child, sync::Mutex, time::sleep, time::timeout};
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, config, download,
-    layout::LocalRuntimeLayout, ports, process, LocalRuntimeError, LocalRuntimeState,
+    layout::LocalRuntimeLayout, logs, ports, process, LocalRuntimeError, LocalRuntimeState,
     LocalRuntimeStatus,
 };
 
@@ -107,6 +107,12 @@ pub(super) async fn start(
     let record = read_runtime_record(&layout.backend_state_path).await?;
     if let Some(record) = record.as_ref() {
         if record.version == descriptor.version && ready(record.port).await {
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Backend,
+                format!("Backend is already ready on 127.0.0.1:{}.", record.port),
+            )
+            .await;
             set_snapshot(
                 state,
                 descriptor,
@@ -150,9 +156,17 @@ pub(super) async fn start(
         snapshot.status = LocalRuntimeStatus::StartingBackend;
         snapshot.error = None;
     })?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Backend,
+        format!("Starting backend on 127.0.0.1:{port}."),
+    )
+    .await;
 
     let executable = binary_path(&runtime_dir);
     let log_path = layout.logs_dir.join("backend.log");
+    std::fs::write(&log_path, b"")
+        .map_err(|error| LocalRuntimeError::io("Could not reset the local backend log", error))?;
     let log = OpenOptions::new()
         .create(true)
         .append(true)
@@ -201,6 +215,12 @@ pub(super) async fn start(
         return Err(error);
     }
     *process.child.lock().await = Some(child);
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Backend,
+        format!("Backend is ready on 127.0.0.1:{port}."),
+    )
+    .await;
     set_snapshot(state, descriptor, true, true, Some(port), previous_version)?;
     Ok(server_url(port))
 }
@@ -315,6 +335,15 @@ async fn ensure_runtime(
 ) -> Result<PathBuf, LocalRuntimeError> {
     let destination = version_dir(layout, descriptor);
     if runtime_valid(&destination).await? {
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Backend,
+            format!(
+                "Backend {} runtime is already installed.",
+                descriptor.version
+            ),
+        )
+        .await;
         return Ok(destination);
     }
     if fs::try_exists(&destination).await.map_err(|error| {
@@ -330,6 +359,12 @@ async fn ensure_runtime(
                 snapshot.status = LocalRuntimeStatus::Installing;
                 snapshot.error = None;
             })?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Backend,
+                format!("Installing bundled backend {}.", descriptor.version),
+            )
+            .await;
             fs::create_dir_all(&destination).await.map_err(|error| {
                 LocalRuntimeError::io("Could not create the backend runtime directory", error)
             })?;
@@ -339,6 +374,12 @@ async fn ensure_runtime(
             })?;
             ensure_executable(&executable).await?;
             if runtime_valid(&destination).await? {
+                logs::append(
+                    layout,
+                    logs::LocalRuntimeLogStage::Backend,
+                    format!("Backend {} runtime is ready.", descriptor.version),
+                )
+                .await;
                 crate::diagnostics::info(
                     "runtime.local.backend",
                     format!("installed bundled sidecar={}", sidecar.display()),
@@ -352,9 +393,24 @@ async fn ensure_runtime(
         snapshot.status = LocalRuntimeStatus::Downloading;
         snapshot.error = None;
     })?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Backend,
+        format!("Downloading backend {}.", descriptor.version),
+    )
+    .await;
     let client = download::client(desktop_version)?;
     let downloads_dir = layout.staging_dir.join("downloads");
     let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Backend,
+        format!(
+            "Downloaded and verified backend {} ({} bytes).",
+            descriptor.version, verified.bytes
+        ),
+    )
+    .await;
     crate::diagnostics::info(
         "runtime.local.backend",
         format!(
@@ -394,6 +450,12 @@ async fn ensure_runtime(
             "The backend runtime archive does not contain the DisCloud executable.",
         ));
     }
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Backend,
+        format!("Backend {} runtime is ready.", descriptor.version),
+    )
+    .await;
     Ok(destination)
 }
 

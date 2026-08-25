@@ -16,7 +16,7 @@ use tokio::{
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
-    ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    logs, ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const DATABASE_USER: &str = "discloud";
@@ -104,8 +104,20 @@ pub(super) async fn start<R: Runtime>(
                     )
                 })?,
         };
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Database,
+            format!("PostgreSQL is already running on 127.0.0.1:{port}."),
+        )
+        .await;
         wait_ready(&runtime_dir, port).await?;
         ensure_application_database(&runtime_dir, port).await?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Database,
+            "DisCloud PostgreSQL database is ready.",
+        )
+        .await;
         write_runtime_record(
             &layout.postgresql_state_path,
             &PostgresqlRuntimeRecord {
@@ -138,8 +150,17 @@ pub(super) async fn start<R: Runtime>(
         snapshot.status = LocalRuntimeStatus::StartingDatabase;
         snapshot.error = None;
     })?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        format!("Starting PostgreSQL on 127.0.0.1:{port}."),
+    )
+    .await;
 
     let log_path = layout.logs_dir.join("postgresql.log");
+    fs::write(&log_path, b"")
+        .await
+        .map_err(|error| LocalRuntimeError::io("Could not reset the PostgreSQL log", error))?;
     let options = format!("-p {port} -h 127.0.0.1");
     let mut command = process::command(&pg_ctl);
     command
@@ -155,6 +176,12 @@ pub(super) async fn start<R: Runtime>(
         .arg(options);
     crate::diagnostics::info("runtime.local.postgresql", format!("starting port={port}"));
     run_pg_ctl(command, "Could not start PostgreSQL", Some(&log_path)).await?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        "pg_ctl start completed; waiting for PostgreSQL readiness.",
+    )
+    .await;
     crate::diagnostics::info(
         "runtime.local.postgresql",
         format!("pg_ctl start completed port={port}"),
@@ -163,11 +190,23 @@ pub(super) async fn start<R: Runtime>(
         let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
         return Err(error);
     }
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        format!("PostgreSQL is accepting connections on 127.0.0.1:{port}."),
+    )
+    .await;
     crate::diagnostics::info("runtime.local.postgresql", format!("ready port={port}"));
     if let Err(error) = ensure_application_database(&runtime_dir, port).await {
         let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
         return Err(error);
     }
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        "DisCloud PostgreSQL database is ready.",
+    )
+    .await;
     crate::diagnostics::info(
         "runtime.local.postgresql",
         format!("application database ready port={port}"),
@@ -279,6 +318,15 @@ async fn ensure_runtime<R: Runtime>(
 ) -> Result<PathBuf, LocalRuntimeError> {
     let destination = version_dir(layout, descriptor);
     if runtime_valid(&destination).await? {
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::PostgresqlRuntime,
+            format!(
+                "PostgreSQL {} runtime is already installed.",
+                descriptor.version
+            ),
+        )
+        .await;
         set_snapshot(
             state,
             descriptor,
@@ -305,6 +353,15 @@ async fn ensure_runtime<R: Runtime>(
                 snapshot.status = LocalRuntimeStatus::Installing;
                 snapshot.error = None;
             })?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::PostgresqlRuntime,
+                format!(
+                    "Installing bundled PostgreSQL {} runtime.",
+                    descriptor.version
+                ),
+            )
+            .await;
             crate::diagnostics::info(
                 "runtime.local.postgresql",
                 format!("using bundled archive={}", path.display()),
@@ -315,9 +372,24 @@ async fn ensure_runtime<R: Runtime>(
                 snapshot.status = LocalRuntimeStatus::Downloading;
                 snapshot.error = None;
             })?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::PostgresqlRuntime,
+                format!("Downloading PostgreSQL {} runtime.", descriptor.version),
+            )
+            .await;
             let client = download::client(desktop_version)?;
             let downloads_dir = layout.staging_dir.join("downloads");
             let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::PostgresqlRuntime,
+                format!(
+                    "Downloaded and verified PostgreSQL {} runtime ({} bytes).",
+                    descriptor.version, verified.bytes
+                ),
+            )
+            .await;
             crate::diagnostics::info(
                 "runtime.local.postgresql",
                 format!(
@@ -363,6 +435,12 @@ async fn ensure_runtime<R: Runtime>(
             "The PostgreSQL runtime archive does not contain the required executables.",
         ));
     }
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::PostgresqlRuntime,
+        format!("PostgreSQL {} runtime is ready.", descriptor.version),
+    )
+    .await;
     Ok(destination)
 }
 
@@ -374,6 +452,12 @@ async fn ensure_database(
 ) -> Result<bool, LocalRuntimeError> {
     if database_initialized(&layout.postgres_data_dir).await? {
         validate_database_major(&layout.postgres_data_dir, &descriptor.version).await?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Database,
+            "Existing PostgreSQL cluster is valid.",
+        )
+        .await;
         set_snapshot(
             state,
             descriptor,
@@ -393,6 +477,12 @@ async fn ensure_database(
         snapshot.status = LocalRuntimeStatus::InitializingDatabase;
         snapshot.error = None;
     })?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        "Initializing the PostgreSQL cluster.",
+    )
+    .await;
     let password = ensure_postgresql_password()?;
     let password_file = layout.staging_dir.join("postgresql-password.txt");
     write_password_file(&password_file, &password).await?;
@@ -420,6 +510,12 @@ async fn ensure_database(
         return Err(error);
     }
     validate_database_major(&layout.postgres_data_dir, &descriptor.version).await?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Database,
+        "PostgreSQL cluster initialization completed.",
+    )
+    .await;
     Ok(true)
 }
 

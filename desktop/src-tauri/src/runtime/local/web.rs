@@ -18,7 +18,7 @@ use tokio::{
 
 use super::{
     archive, bundled, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
-    ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    logs, ports, process, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -128,6 +128,15 @@ pub(super) async fn start<R: Runtime>(
     let record = read_record(&layout.web_state_path).await?;
     if let Some(record) = record.as_ref() {
         if record.version == descriptor.version && ready(record.port).await {
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Web,
+                format!(
+                    "Managed Web UI is already ready on 127.0.0.1:{}.",
+                    record.port
+                ),
+            )
+            .await;
             return inspect(layout, descriptor, true).await;
         }
         if record.pid != 0 || !ports::port_available(record.port) {
@@ -156,11 +165,20 @@ pub(super) async fn start<R: Runtime>(
         }
     });
     let port = ports::choose_port(preferred_port, ports::WEB_PREFERRED_PORT)?;
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Web,
+        format!("Starting Managed Web UI on 127.0.0.1:{port}."),
+    )
+    .await;
     let _ = fs::remove_file(&layout.web_shutdown_path).await;
+    let log_path = layout.logs_dir.join("web.log");
+    std::fs::write(&log_path, b"")
+        .map_err(|error| LocalRuntimeError::io("Could not reset the managed web log", error))?;
     let log = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(layout.logs_dir.join("web.log"))
+        .open(&log_path)
         .map_err(|error| LocalRuntimeError::io("Could not open the managed web log", error))?;
     let stderr = log.try_clone().map_err(|error| {
         LocalRuntimeError::io("Could not clone the managed web log handle", error)
@@ -216,6 +234,12 @@ pub(super) async fn start<R: Runtime>(
         return Err(error);
     }
     *process.child.lock().await = Some(child);
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Web,
+        format!("Managed Web UI is ready at http://127.0.0.1:{port}."),
+    )
+    .await;
     inspect(layout, descriptor, true).await
 }
 
@@ -315,6 +339,15 @@ async fn ensure_runtime<R: Runtime>(
     let destination = version_dir(layout, descriptor);
     if runtime_valid(&destination, Some(&descriptor.version)).await? {
         verify_node(&destination).await?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Web,
+            format!(
+                "Managed Web UI {} runtime is already installed.",
+                descriptor.version
+            ),
+        )
+        .await;
         return Ok(destination);
     }
     if fs::try_exists(&destination).await.map_err(|error| {
@@ -330,6 +363,15 @@ async fn ensure_runtime<R: Runtime>(
                 snapshot.status = LocalRuntimeStatus::Installing;
                 snapshot.error = None;
             })?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Web,
+                format!(
+                    "Installing bundled Managed Web UI {} runtime.",
+                    descriptor.version
+                ),
+            )
+            .await;
             crate::diagnostics::info(
                 "runtime.local.web",
                 format!("using bundled archive={}", path.display()),
@@ -340,9 +382,24 @@ async fn ensure_runtime<R: Runtime>(
                 snapshot.status = LocalRuntimeStatus::Downloading;
                 snapshot.error = None;
             })?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Web,
+                format!("Downloading Managed Web UI {} runtime.", descriptor.version),
+            )
+            .await;
             let client = download::client(desktop_version)?;
             let downloads_dir = layout.staging_dir.join("downloads");
             let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+            logs::append(
+                layout,
+                logs::LocalRuntimeLogStage::Web,
+                format!(
+                    "Downloaded and verified Managed Web UI {} runtime ({} bytes).",
+                    descriptor.version, verified.bytes
+                ),
+            )
+            .await;
             crate::diagnostics::info(
                 "runtime.local.web",
                 format!(
@@ -377,6 +434,12 @@ async fn ensure_runtime<R: Runtime>(
         let _ = fs::remove_dir_all(&destination).await;
         return Err(error);
     }
+    logs::append(
+        layout,
+        logs::LocalRuntimeLogStage::Web,
+        format!("Managed Web UI {} runtime is ready.", descriptor.version),
+    )
+    .await;
     Ok(destination)
 }
 

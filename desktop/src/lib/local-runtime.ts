@@ -3,6 +3,12 @@ import { invoke } from "@tauri-apps/api/core"
 import { nativeError } from "#lib/api/transport"
 
 export type LocalRuntimeStatus = "disabled" | "preparing" | "installing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "startingWeb" | "ready" | "degraded" | "failed" | "stopping"
+export type LocalRuntimeLogStage = "prepare" | "postgresqlRuntime" | "database" | "backend" | "web" | "connect"
+
+export type LocalRuntimeLog = {
+  content: string
+  truncated: boolean
+}
 
 export type LocalRuntimeComponent = {
   kind: "backend" | "postgresql" | "web"
@@ -113,6 +119,10 @@ export type LocalServerSettingsInput = {
 
 export function getLocalRuntimeSnapshot() {
   return invokeLocal<LocalRuntimeSnapshot>("get_local_runtime_snapshot")
+}
+
+export function getLocalRuntimeLog(stage: LocalRuntimeLogStage) {
+  return invokeLocal<LocalRuntimeLog>("get_local_runtime_log", { stage })
 }
 
 export function prepareLocalRuntime() {

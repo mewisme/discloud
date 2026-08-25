@@ -91,6 +91,7 @@ pub fn run() {
             commands::connect_server,
             commands::disconnect_server,
             runtime::local::get_local_runtime_snapshot,
+            runtime::local::get_local_runtime_log,
             runtime::local::get_local_server_settings,
             runtime::local::prepare_local_runtime,
             runtime::local::save_local_server_settings,
