@@ -121,10 +121,16 @@ function githubHeaders(url) {
 
 function checksumFor(content, filename, allowUnnamed = false) {
   const lines = content.split(/\r?\n/).filter(Boolean)
-  const line = lines.find((value) => value.includes(filename)) ?? (allowUnnamed ? lines[0] : undefined)
-  const checksum = line?.match(/[a-fA-F0-9]{64}/)?.[0]
-  if (!checksum) throw new Error(`Checksum not found for ${filename}`)
-  return checksum.toLowerCase()
+  const namedLine = lines.find((value) => value.includes(filename))
+  const namedChecksum = namedLine?.match(/\b[a-fA-F0-9]{64}\b/)?.[0]
+  if (namedChecksum) return namedChecksum.toLowerCase()
+  if (allowUnnamed) {
+    for (const line of lines) {
+      const checksum = line.match(/\b[a-fA-F0-9]{64}\b/)?.[0]
+      if (checksum) return checksum.toLowerCase()
+    }
+  }
+  throw new Error(`Checksum not found for ${filename}`)
 }
 
 async function verifyChecksum(file, expected) {
