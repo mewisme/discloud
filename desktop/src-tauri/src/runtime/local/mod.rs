@@ -15,11 +15,13 @@ pub(crate) mod download;
 mod layout;
 mod ports;
 mod postgresql;
+mod web;
 
 use backend::{BackendProcessState, BackendRuntimeSnapshot};
 use components::LocalRuntimeManifest;
 use layout::LocalRuntimeLayout;
 use postgresql::PostgresqlRuntimeSnapshot;
+use web::{WebProcessState, WebRuntimeSnapshot};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +35,7 @@ pub(crate) enum LocalRuntimeStatus {
     StartingDatabase,
     DatabaseReady,
     StartingBackend,
+    StartingWeb,
     Ready,
     Degraded,
     Failed,
@@ -54,6 +57,8 @@ pub(crate) struct LocalRuntimePaths {
     postgresql_state_path: String,
     backend_state_path: String,
     backend_shutdown_path: String,
+    web_state_path: String,
+    web_shutdown_path: String,
     logs_dir: String,
 }
 
@@ -65,6 +70,7 @@ pub(crate) struct LocalRuntimeSnapshot {
     manifest: Option<LocalRuntimeManifest>,
     postgresql: Option<PostgresqlRuntimeSnapshot>,
     backend: Option<BackendRuntimeSnapshot>,
+    web: Option<WebRuntimeSnapshot>,
     error: Option<String>,
 }
 
@@ -73,6 +79,7 @@ pub(crate) struct LocalRuntimeState {
     snapshot: Arc<RwLock<LocalRuntimeSnapshot>>,
     operation: Arc<Mutex<()>>,
     backend_process: BackendProcessState,
+    web_process: WebProcessState,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -125,6 +132,8 @@ impl LocalRuntimePaths {
             postgresql_state_path: path_string(&layout.postgresql_state_path),
             backend_state_path: path_string(&layout.backend_state_path),
             backend_shutdown_path: path_string(&layout.backend_shutdown_path),
+            web_state_path: path_string(&layout.web_state_path),
+            web_shutdown_path: path_string(&layout.web_shutdown_path),
             logs_dir: path_string(&layout.logs_dir),
         }
     }
@@ -274,6 +283,10 @@ pub(crate) struct LocalRuntimeUpdateCompatibility {
     postgresql_version: String,
     compatible: bool,
     detail: Option<String>,
+    web_enabled: bool,
+    web_version: Option<String>,
+    web_compatible: Option<bool>,
+    web_detail: Option<String>,
 }
 
 #[tauri::command]
@@ -327,6 +340,12 @@ pub(crate) async fn shutdown<R: Runtime>(app: &AppHandle<R>) -> Result<(), Local
     let _operation = state.operation.lock().await;
     let layout = LocalRuntimeLayout::resolve(app)?;
     let manifest = LocalRuntimeManifest::for_current_platform(app)?;
+    let web_enabled = config::web_enabled(&layout).await.unwrap_or(false);
+    if let Some(descriptor) = manifest.components.web.as_ref() {
+        if let Err(error) = web::stop(&layout, descriptor, web_enabled, &state.web_process).await {
+            crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+        }
+    }
     backend::stop(
         &layout,
         &manifest.components.backend,
@@ -350,20 +369,57 @@ pub(crate) async fn check_desktop_update_compatibility(
                 postgresql_version: components::POSTGRESQL_VERSION.to_string(),
                 compatible: false,
                 detail: Some(error.message().to_string()),
+                web_enabled: false,
+                web_version: Some(version.to_string()),
+                web_compatible: None,
+                web_detail: None,
             };
         }
     };
-    let result = match download::client(&app.package_info().version.to_string()) {
-        Ok(client) => download::verify_descriptor_available(&client, &descriptor)
+    let client = download::client(&app.package_info().version.to_string());
+    let result = match client.as_ref() {
+        Ok(client) => download::verify_descriptor_available(client, &descriptor)
             .await
             .map_err(|error| error.message().to_string()),
         Err(error) => Err(error.message().to_string()),
+    };
+    let web_enabled = match LocalRuntimeLayout::resolve(app) {
+        Ok(layout) => config::web_enabled(&layout).await.unwrap_or(false),
+        Err(_) => false,
+    };
+    let (web_version, web_compatible, web_detail) = if web_enabled {
+        match components::web_descriptor(version) {
+            Ok(web_descriptor) => {
+                let web_result = match client.as_ref() {
+                    Ok(client) => download::verify_descriptor_available(client, &web_descriptor)
+                        .await
+                        .map_err(|error| error.message().to_string()),
+                    Err(error) => Err(error.message().to_string()),
+                };
+                (
+                    Some(version.to_string()),
+                    Some(web_result.is_ok()),
+                    web_result.err(),
+                )
+            }
+            Err(error) => (
+                Some(version.to_string()),
+                Some(false),
+                Some(error.message().to_string()),
+            ),
+        }
+    } else {
+        (Some(version.to_string()), None, None)
     };
     LocalRuntimeUpdateCompatibility {
         backend_version: version.to_string(),
         postgresql_version: components::POSTGRESQL_VERSION.to_string(),
         compatible: result.is_ok(),
         detail: result.err(),
+        web_enabled,
+        web_version,
+        web_compatible,
+        web_detail,
     }
 }
 
@@ -384,6 +440,24 @@ pub(crate) async fn prepare_desktop_update(
         state.inner(),
     )
     .await;
+    if result.is_ok() && config::web_enabled(&layout).await.unwrap_or(false) {
+        match components::web_descriptor(normalize_update_version(version)) {
+            Ok(web_descriptor) => {
+                if let Err(error) = web::stage(
+                    &layout,
+                    &web_descriptor,
+                    &app.package_info().version.to_string(),
+                )
+                .await
+                {
+                    crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+                }
+            }
+            Err(error) => {
+                crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+            }
+        }
+    }
     let _ = prepare_foundation(app, state.inner()).await;
     let _ = state.update(|snapshot| {
         snapshot.status = previous_status;
@@ -510,6 +584,49 @@ async fn start_local_runtime_inner(
             format!("{error:?}"),
         )
     })?;
+    let backend_port = state
+        .snapshot()?
+        .backend
+        .and_then(|backend| backend.port)
+        .ok_or_else(|| {
+            LocalRuntimeError::internal("Backend is ready but its port is unavailable.")
+        })?;
+    let web_enabled = config::web_enabled(&layout).await?;
+    if let Some(descriptor) = manifest.components.web.as_ref() {
+        if web_enabled {
+            state.update(|snapshot| {
+                snapshot.status = LocalRuntimeStatus::StartingWeb;
+                snapshot.error = None;
+            })?;
+            match web::start(
+                &layout,
+                descriptor,
+                &manifest.desktop_version,
+                backend_port,
+                &state.web_process,
+            )
+            .await
+            {
+                Ok(web_snapshot) => state.update(|snapshot| snapshot.web = Some(web_snapshot))?,
+                Err(error) => {
+                    crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+                    let web_snapshot =
+                        web::inspect_with_error(&layout, descriptor, true, &error).await;
+                    state.update(|snapshot| snapshot.web = Some(web_snapshot))?;
+                }
+            }
+        } else {
+            match web::stop(&layout, descriptor, false, &state.web_process).await {
+                Ok(web_snapshot) => state.update(|snapshot| snapshot.web = Some(web_snapshot))?,
+                Err(error) => {
+                    crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+                    let web_snapshot =
+                        web::inspect_with_error(&layout, descriptor, false, &error).await;
+                    state.update(|snapshot| snapshot.web = Some(web_snapshot))?;
+                }
+            }
+        }
+    }
     state.update(|snapshot| {
         snapshot.status = LocalRuntimeStatus::Ready;
         snapshot.error = None;
@@ -526,6 +643,18 @@ async fn stop_local_runtime_inner(
     api: &crate::api::ApiState,
 ) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
     let (layout, manifest) = prepare_foundation(app, state).await?;
+    let web_enabled = config::web_enabled(&layout).await.unwrap_or(false);
+    if let Some(descriptor) = manifest.components.web.as_ref() {
+        match web::stop(&layout, descriptor, web_enabled, &state.web_process).await {
+            Ok(web_snapshot) => state.update(|snapshot| snapshot.web = Some(web_snapshot))?,
+            Err(error) => {
+                crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+                let web_snapshot =
+                    web::inspect_with_error(&layout, descriptor, web_enabled, &error).await;
+                state.update(|snapshot| snapshot.web = Some(web_snapshot))?;
+            }
+        }
+    }
     api.disconnect().map_err(|error| {
         LocalRuntimeError::internal(format!(
             "Could not disconnect the local API client: {error:?}"
@@ -558,11 +687,24 @@ async fn prepare_foundation(
     let paths = LocalRuntimePaths::from_layout(&layout);
     let postgresql = postgresql::inspect(&layout, &manifest.components.postgresql).await?;
     let backend = backend::inspect(&layout, &manifest.components.backend).await?;
+    let web_enabled = config::web_enabled(&layout).await?;
+    let web = if let Some(descriptor) = manifest.components.web.as_ref() {
+        match web::inspect(&layout, descriptor, web_enabled).await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                crate::diagnostics::warn("runtime.local.web", error.message().to_string());
+                Some(web::inspect_with_error(&layout, descriptor, web_enabled, &error).await)
+            }
+        }
+    } else {
+        None
+    };
     state.update(|snapshot| {
         snapshot.paths = Some(paths);
         snapshot.manifest = Some(manifest.clone());
         snapshot.postgresql = Some(postgresql);
         snapshot.backend = Some(backend);
+        snapshot.web = web;
         snapshot.error = None;
     })?;
     Ok((layout, manifest))

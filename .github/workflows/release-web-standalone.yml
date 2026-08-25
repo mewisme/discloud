@@ -16,15 +16,29 @@ jobs:
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
         include:
           - name: Linux x64
             platform: ubuntu-24.04
+            os: linux
             arch: amd64
           - name: Linux ARM64
             platform: ubuntu-24.04-arm
+            os: linux
             arch: arm64
+          - name: Windows x64
+            platform: windows-latest
+            os: windows
+            arch: amd64
+          - name: macOS Apple Silicon
+            platform: macos-15
+            os: darwin
+            arch: arm64
+          - name: macOS Intel
+            platform: macos-15-intel
+            os: darwin
+            arch: amd64
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -42,45 +56,57 @@ jobs:
           install: false
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted
 
       - name: Build web standalone
         run: pnpm web:build
 
-      - name: Package and smoke test standalone runtime
+      - name: Package and smoke test managed web runtime
         id: package
         shell: bash
         run: |
           set -euo pipefail
 
           version="${{ inputs.version }}"
-          archive="discloud-web_${version}_linux_${{ matrix.arch }}.tar.gz"
+          archive="discloud-web_${version}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz"
           stage="$RUNNER_TEMP/discloud-web"
+          node_name="node"
+          if [[ "${{ matrix.os }}" == "windows" ]]; then node_name="node.exe"; fi
 
           rm -rf "$stage"
+          node scripts/materialize-next-standalone.cjs web/.next/standalone "$stage"
           mkdir -p "$stage/web/.next" "$stage/web/public"
-          cp -a web/.next/standalone/. "$stage/"
           cp -a web/.next/static "$stage/web/.next/static"
+          cp scripts/managed-web-runtime.cjs "$stage/managed-web-runtime.cjs"
+          printf '%s\n' "$version" > "$stage/discloud-web-version.txt"
+          node -e 'require("node:fs").copyFileSync(process.execPath, process.argv[1])' "$stage/$node_name"
+          if [[ "${{ matrix.os }}" != "windows" ]]; then chmod +x "$stage/$node_name"; fi
 
           if [[ -d web/public ]]; then
             cp -a web/public/. "$stage/web/public/"
           fi
 
+          test -f "$stage/$node_name"
+          test -f "$stage/managed-web-runtime.cjs"
+          test -f "$stage/discloud-web-version.txt"
           test -f "$stage/web/server.js"
           test -d "$stage/web/.next/server"
           test -d "$stage/web/.next/static"
 
+          shutdown_file="$RUNNER_TEMP/discloud-web.shutdown"
+          rm -f "$shutdown_file"
           HOSTNAME=127.0.0.1 \
           PORT=3100 \
           DISCLOUD_API_URL=http://127.0.0.1:8080 \
-          DISCLOUD_PUBLIC_API_URL=http://127.0.0.1:8080 \
-            node "$stage/web/server.js" >"$RUNNER_TEMP/discloud-web.log" 2>&1 &
+          DISCLOUD_PUBLIC_API_URL= \
+          DISCLOUD_MANAGED_WEB_SHUTDOWN_FILE="$shutdown_file" \
+            "$stage/$node_name" "$stage/managed-web-runtime.cjs" >"$RUNNER_TEMP/discloud-web.log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
 
           ready=false
-          for _ in {1..30}; do
-            if curl --fail --silent --show-error http://127.0.0.1:3100/runtime-config.js >/dev/null; then
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/healthz >/dev/null; then
               ready=true
               break
             fi
@@ -92,7 +118,17 @@ jobs:
             exit 1
           fi
 
-          kill "$server_pid" >/dev/null 2>&1 || true
+          printf 'shutdown\n' > "$shutdown_file"
+          for _ in {1..40}; do
+            if [[ ! -f "$shutdown_file" ]] && ! kill -0 "$server_pid" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.25
+          done
+          if kill -0 "$server_pid" >/dev/null 2>&1; then
+            cat "$RUNNER_TEMP/discloud-web.log"
+            exit 1
+          fi
           wait "$server_pid" 2>/dev/null || true
           trap - EXIT
 
@@ -114,7 +150,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Status | \`${{ job.status }}\` |"
             echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Output | Node.js 24+ standalone runtime |"
+            echo "| Output | Self-contained Node.js 24 + Next.js managed runtime |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   checksums:

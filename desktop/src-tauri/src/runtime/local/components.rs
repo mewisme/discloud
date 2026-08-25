@@ -56,6 +56,7 @@ impl LocalRuntimeManifest {
         let desktop_version = app.package_info().version.to_string();
         let backend = backend_descriptor(&desktop_version)?;
         let postgresql = postgresql_descriptor()?;
+        let web = web_descriptor(&desktop_version)?;
 
         Ok(Self {
             schema_version: MANIFEST_SCHEMA_VERSION,
@@ -63,7 +64,7 @@ impl LocalRuntimeManifest {
             components: LocalRuntimeComponents {
                 backend,
                 postgresql,
-                web: None,
+                web: Some(web),
             },
         })
     }
@@ -126,6 +127,30 @@ pub(crate) fn backend_descriptor(
     })
 }
 
+pub(crate) fn web_descriptor(
+    version: &str,
+) -> Result<RuntimeComponentDescriptor, LocalRuntimeError> {
+    let (os, arch) = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => ("windows", "amd64"),
+        ("macos", "x86_64") => ("darwin", "amd64"),
+        ("macos", "aarch64") => ("darwin", "arm64"),
+        ("linux", "x86_64") => ("linux", "amd64"),
+        ("linux", "aarch64") => ("linux", "arm64"),
+        _ => return Err(LocalRuntimeError::unsupported_platform()),
+    };
+    let archive_name = format!("discloud-web_{version}_{os}_{arch}.tar.gz");
+    let release = format!("{DISCLOUD_RELEASE_BASE}/v{version}");
+    Ok(RuntimeComponentDescriptor {
+        kind: RuntimeComponentKind::Web,
+        version: version.to_string(),
+        target: format!("{os}_{arch}"),
+        download_url: format!("{release}/{archive_name}"),
+        checksum_url: format!("{release}/discloud-web-checksums.txt"),
+        archive_name,
+        optional: true,
+    })
+}
+
 fn postgresql_descriptor() -> Result<RuntimeComponentDescriptor, LocalRuntimeError> {
     let target = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => "x86_64-pc-windows-msvc",
@@ -152,7 +177,8 @@ fn postgresql_descriptor() -> Result<RuntimeComponentDescriptor, LocalRuntimeErr
 #[cfg(test)]
 mod tests {
     use super::{
-        backend_descriptor, postgresql_descriptor, RuntimeComponentKind, POSTGRESQL_VERSION,
+        backend_descriptor, postgresql_descriptor, web_descriptor, RuntimeComponentKind,
+        POSTGRESQL_VERSION,
     };
 
     #[test]
@@ -171,5 +197,20 @@ mod tests {
         assert_eq!(descriptor.kind, RuntimeComponentKind::PostgreSQL);
         assert_eq!(descriptor.version, POSTGRESQL_VERSION);
         assert!(descriptor.checksum_url.ends_with(".sha256"));
+    }
+
+    #[test]
+    fn web_descriptor_uses_versioned_optional_release_asset() {
+        let descriptor = web_descriptor("0.1.0-beta.2").unwrap();
+        assert_eq!(descriptor.kind, RuntimeComponentKind::Web);
+        assert!(descriptor.optional);
+        assert!(descriptor.download_url.contains("/v0.1.0-beta.2/"));
+        assert!(descriptor
+            .archive_name
+            .starts_with("discloud-web_0.1.0-beta.2_"));
+        assert_eq!(
+            descriptor.checksum_url.split('/').next_back(),
+            Some("discloud-web-checksums.txt")
+        );
     }
 }

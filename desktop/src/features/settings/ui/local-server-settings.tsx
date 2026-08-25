@@ -2,8 +2,9 @@ import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Field, FieldDescription, FieldLabel } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
+import { Switch } from "@discloud/ui/components/switch"
 import { open } from "@tauri-apps/plugin-dialog"
-import { DatabaseIcon, FolderOpenIcon, KeyRoundIcon, LoaderCircle, RefreshCwIcon, ServerIcon } from "lucide-react"
+import { DatabaseIcon, FolderOpenIcon, Globe2Icon, KeyRoundIcon, LoaderCircle, RefreshCwIcon, ServerIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
 import { errorMessage } from "#lib/instance"
@@ -18,6 +19,7 @@ export function LocalServerSettings() {
   const [channelId, setChannelId] = useState("")
   const [botTokens, setBotTokens] = useState("")
   const [dataDirectory, setDataDirectory] = useState("")
+  const [webEnabled, setWebEnabled] = useState(false)
   const [error, setError] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -31,6 +33,7 @@ export function LocalServerSettings() {
       setGuildId(nextSettings.guildId)
       setChannelId(nextSettings.channelId)
       setDataDirectory(nextSettings.dataDirectory)
+      setWebEnabled(nextSettings.webEnabled)
       setError(undefined)
     } catch (error) {
       setError(errorMessage(error))
@@ -46,7 +49,7 @@ export function LocalServerSettings() {
     setSaving(true)
     setError(undefined)
     try {
-      const nextSettings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory })
+      const nextSettings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory, webEnabled })
       setSettings(nextSettings)
       setBotTokens("")
       setRuntime(await prepareLocalRuntime())
@@ -80,6 +83,7 @@ export function LocalServerSettings() {
   const configured = !!guildId.trim() && !!channelId.trim() && !!settings?.botTokensConfigured && !!settings.encryptionKeyConfigured && !!settings.databasePasswordConfigured
   const backendPort = runtime?.backend?.port ?? settings?.backendPreferredPort
   const postgresqlPort = runtime?.postgresql?.port ?? settings?.postgresqlPreferredPort
+  const webPort = runtime?.web?.port ?? settings?.webPreferredPort
   const backendVersion = runtime?.backend?.version
   const backendDesiredVersion = runtime?.backend?.desiredVersion
   const backendVersionDetail = backendVersion && backendDesiredVersion && backendVersion !== backendDesiredVersion
@@ -89,20 +93,32 @@ export function LocalServerSettings() {
       : backendDesiredVersion
         ? `target v${backendDesiredVersion}`
         : "version unavailable"
+  const webVersion = runtime?.web?.version
+  const webDesiredVersion = runtime?.web?.desiredVersion
+  const webVersionDetail = webVersion && webDesiredVersion && webVersion !== webDesiredVersion
+    ? `v${webVersion} · target v${webDesiredVersion}`
+    : webVersion
+      ? `v${webVersion}`
+      : webDesiredVersion
+        ? `target v${webDesiredVersion}`
+        : "version unavailable"
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Local server</CardTitle>
-        <CardDescription>Configure the managed PostgreSQL and DisCloud backend that run with Desktop.</CardDescription>
+        <CardDescription>Configure managed PostgreSQL, the DisCloud backend, and the optional Web UI that run with Desktop.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <RuntimeItem icon={ServerIcon} label="Backend" status={runtime?.backend?.running ? "Running" : "Stopped"} detail={`${backendVersionDetail} · 127.0.0.1:${backendPort ?? "-"}`} />
           <RuntimeItem icon={DatabaseIcon} label="PostgreSQL" status={runtime?.postgresql?.running ? "Running" : "Stopped"} detail={`127.0.0.1:${postgresqlPort ?? "-"}`} />
+          <RuntimeItem icon={Globe2Icon} label="Managed web" status={!webEnabled ? "Disabled" : runtime?.web?.running ? "Running" : runtime?.web?.error ? "Unavailable" : "Stopped"} detail={`${webVersionDetail} · 127.0.0.1:${webPort ?? "-"}`} />
         </div>
 
         {runtime?.backend?.previousVersion ? <p className="text-xs text-muted-foreground">Previous backend binary v{runtime.backend.previousVersion} is retained as a recovery artifact. Automatic binary downgrade is not performed after database migrations.</p> : null}
+
+        {runtime?.web?.error ? <p className="text-sm text-destructive">Managed web: {runtime.web.error}</p> : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
@@ -116,10 +132,18 @@ export function LocalServerSettings() {
         </div>
 
         <Field>
-          <FieldLabel htmlFor="desktop-local-bot-tokens">Discord bot token{settings?.botTokensConfigured ? " (configured)" : ""}</FieldLabel>
-          <Input id="desktop-local-bot-tokens" type="password" value={botTokens} autoComplete="off" placeholder={settings?.botTokensConfigured ? "Leave blank to keep stored token" : "Bot token, or comma-separated tokens"} onChange={(event) => setBotTokens(event.target.value)} />
-          <FieldDescription>Stored in the OS keyring. The saved token is never returned to the UI.</FieldDescription>
+          <FieldLabel htmlFor="desktop-local-bot-tokens">Discord bot tokens{settings?.botTokensConfigured ? ` (${settings.botTokenCount} configured)` : ""}</FieldLabel>
+          <Input id="desktop-local-bot-tokens" type="password" value={botTokens} autoComplete="off" placeholder={settings?.botTokensConfigured ? "Leave blank to keep stored tokens" : "Token, or comma-separated tokens"} onChange={(event) => setBotTokens(event.target.value)} />
+          <FieldDescription>Each token is stored as a separate indexed OS keyring credential. Saved tokens are never returned to the UI.</FieldDescription>
         </Field>
+
+        <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Managed web UI</p>
+            <p className="mt-1 text-sm text-muted-foreground">Optional self-contained Next.js runtime with embedded Node.js 24. It binds only to localhost and proxies browser API requests to the managed backend.</p>
+          </div>
+          <Switch checked={webEnabled} onCheckedChange={setWebEnabled} aria-label="Enable managed web UI" />
+        </div>
 
         <Field>
           <FieldLabel htmlFor="desktop-local-data-directory">Local data directory</FieldLabel>
@@ -133,7 +157,7 @@ export function LocalServerSettings() {
         </Field>
 
         <div className="grid gap-2 text-sm sm:grid-cols-3">
-          <SecretState label="Bot token" configured={!!settings?.botTokensConfigured} />
+          <SecretState label={settings?.botTokensConfigured ? `Bot tokens (${settings.botTokenCount})` : "Bot tokens"} configured={!!settings?.botTokensConfigured} />
           <SecretState label="Encryption key" configured={!!settings?.encryptionKeyConfigured} />
           <SecretState label="Database password" configured={!!settings?.databasePasswordConfigured} />
         </div>

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 
 import { nativeError } from "#lib/api/transport"
 
-export type LocalRuntimeStatus = "disabled" | "preparing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "ready" | "degraded" | "failed" | "stopping"
+export type LocalRuntimeStatus = "disabled" | "preparing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "startingWeb" | "ready" | "degraded" | "failed" | "stopping"
 
 export type LocalRuntimeComponent = {
   kind: "backend" | "postgresql" | "web"
@@ -42,6 +42,19 @@ export type BackendRuntimeSnapshot = {
   port: number | null
 }
 
+export type WebRuntimeSnapshot = {
+  enabled: boolean
+  installed: boolean
+  desiredInstalled: boolean
+  running: boolean
+  version: string | null
+  desiredVersion: string
+  previousVersion: string | null
+  port: number | null
+  url: string | null
+  error: string | null
+}
+
 export type LocalRuntimeSnapshot = {
   status: LocalRuntimeStatus
   paths: {
@@ -57,11 +70,14 @@ export type LocalRuntimeSnapshot = {
     postgresqlStatePath: string
     backendStatePath: string
     backendShutdownPath: string
+    webStatePath: string
+    webShutdownPath: string
     logsDir: string
   } | null
   manifest: LocalRuntimeManifest | null
   postgresql: PostgresqlRuntimeSnapshot | null
   backend: BackendRuntimeSnapshot | null
+  web: WebRuntimeSnapshot | null
   error: string | null
 }
 
@@ -74,6 +90,7 @@ export type LocalServerSettings = {
   guildId: string
   channelId: string
   botTokensConfigured: boolean
+  botTokenCount: number
   encryptionKeyConfigured: boolean
   databasePasswordConfigured: boolean
   dataDirectory: string
@@ -83,6 +100,7 @@ export type LocalServerSettings = {
   backendPreferredPort: number
   postgresqlPreferredPort: number
   webPreferredPort: number
+  webEnabled: boolean
 }
 
 export type LocalServerSettingsInput = {
@@ -90,6 +108,7 @@ export type LocalServerSettingsInput = {
   channelId: string
   botTokens?: string
   dataDirectory?: string
+  webEnabled?: boolean
 }
 
 export function getLocalRuntimeSnapshot() {

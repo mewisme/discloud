@@ -18,6 +18,10 @@ export type DesktopUpdateInfo = {
     postgresqlVersion: string
     compatible: boolean
     detail?: string
+    webEnabled: boolean
+    webVersion?: string
+    webCompatible?: boolean
+    webDetail?: string
   }
 }
 

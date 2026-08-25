@@ -1,19 +1,9 @@
 import { AuthShell } from "@discloud/app-ui/auth/auth-shell"
 import { Button } from "@discloud/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@discloud/ui/components/card"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@discloud/ui/components/field"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
+import { Questionnaire, QuestionnaireActions, QuestionnaireChoice, QuestionnaireChoiceDescription, QuestionnaireChoices, QuestionnaireDescription, QuestionnaireError, QuestionnaireInput, QuestionnaireItem, QuestionnaireNext, QuestionnairePrevious, QuestionnaireProgress, QuestionnaireSkip, QuestionnaireSubmit, QuestionnaireTitle } from "@discloud/ui/components/questionnaire"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
 import { open } from "@tauri-apps/plugin-dialog"
 import { LoaderCircle } from "lucide-react"
@@ -37,9 +27,6 @@ export function ServerConnectionScreen({
   const [serverUrl, setServerUrl] = useState(initialServerUrl)
   const [mode, setMode] = useState<ConnectionMode>("remote")
   const [localSettings, setLocalSettings] = useState<LocalServerSettings | null>(null)
-  const [guildId, setGuildId] = useState("")
-  const [channelId, setChannelId] = useState("")
-  const [botTokens, setBotTokens] = useState("")
   const [dataDirectory, setDataDirectory] = useState("")
   const [error, setError] = useState(initialError)
   const [connecting, setConnecting] = useState(false)
@@ -55,8 +42,6 @@ export function ServerConnectionScreen({
     void getLocalServerSettings()
       .then((settings) => {
         setLocalSettings(settings)
-        setGuildId(settings.guildId)
-        setChannelId(settings.channelId)
         setDataDirectory(settings.dataDirectory)
       })
       .catch((error) => setError(errorMessage(error)))
@@ -88,9 +73,13 @@ export function ServerConnectionScreen({
     setConnecting(true)
     setError(undefined)
     try {
-      const settings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory })
+      const answers = new FormData(event.currentTarget)
+      const guildId = String(answers.get("guildId") ?? "").trim()
+      const channelId = String(answers.get("channelId") ?? "").trim()
+      const botTokens = String(answers.get("botTokens") ?? "").trim()
+      const webEnabled = answers.get("webEnabled") === "true"
+      const settings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory, webEnabled })
       setLocalSettings(settings)
-      setBotTokens("")
       await saveConnectionMode("local")
       onConnected(await connectLocalRuntime())
     } catch (error) {
@@ -110,6 +99,13 @@ export function ServerConnectionScreen({
     setMode(value)
     setError(undefined)
   }
+
+  const localSetupItems = localSettings ? [
+    { name: "guildId", required: true },
+    { name: "channelId", required: true },
+    { name: "botTokens", required: !localSettings.botTokensConfigured },
+    { name: "webEnabled", required: true, choices: [{ value: "true" }, { value: "false" }] },
+  ] as const : []
 
   return (
     <AuthShell>
@@ -159,33 +155,56 @@ export function ServerConnectionScreen({
             </TabsContent>
 
             <TabsContent value="local">
-              <form className="flex flex-col gap-4" onSubmit={connectLocal}>
-                <Field>
-                  <FieldLabel htmlFor="local-guild-id">Discord guild ID</FieldLabel>
-                  <Input id="local-guild-id" value={guildId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setGuildId(event.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="local-channel-id">Storage channel ID</FieldLabel>
-                  <Input id="local-channel-id" value={channelId} inputMode="numeric" autoComplete="off" disabled={connecting} onChange={(event) => setChannelId(event.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="local-bot-tokens">Discord bot token{localSettings?.botTokensConfigured ? " (configured)" : ""}</FieldLabel>
-                  <Input id="local-bot-tokens" type="password" value={botTokens} autoComplete="off" disabled={connecting} placeholder={localSettings?.botTokensConfigured ? "Leave blank to keep stored token" : "Bot token, or comma-separated tokens"} onChange={(event) => setBotTokens(event.target.value)} />
-                  <FieldDescription>Tokens are stored in the OS keyring and are not written to local-server.env.</FieldDescription>
-                </Field>
-                <Field data-invalid={!!error}>
-                  <FieldLabel htmlFor="local-data-directory">Local data directory</FieldLabel>
-                  <div className="flex gap-2">
-                    <Input id="local-data-directory" className="min-w-0" value={dataDirectory} readOnly />
-                    <Button type="button" variant="outline" disabled={connecting || !!localSettings?.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
-                  </div>
-                  <FieldDescription>{localSettings?.dataDirectoryLocked ? "The directory is locked after PostgreSQL initialization." : "Runtime, PostgreSQL data, configuration and logs are stored here."}</FieldDescription>
+              {!localSettings ? <div className="flex min-h-32 items-center justify-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading local server settings</div> : (
+                <div className="space-y-4">
+                  <Field>
+                    <FieldLabel htmlFor="local-data-directory">Data directory</FieldLabel>
+                    <div className="flex gap-2">
+                      <Input id="local-data-directory" className="min-w-0" value={dataDirectory} readOnly />
+                      <Button type="button" variant="outline" disabled={connecting || localSettings.dataDirectoryLocked} onClick={() => void pickDataDirectory()}>Browse</Button>
+                    </div>
+                    <FieldDescription>{localSettings.dataDirectoryLocked ? "Locked after PostgreSQL initialization." : "Advanced option. The default location is recommended."}</FieldDescription>
+                  </Field>
+
+                  <Questionnaire items={localSetupItems} onSubmit={connectLocal}>
+                    <QuestionnaireProgress />
+                    <QuestionnaireItem name="guildId" required>
+                      <QuestionnaireTitle>Which Discord server should Local use?</QuestionnaireTitle>
+                      <QuestionnaireDescription>Enter the numeric Discord guild ID.</QuestionnaireDescription>
+                      <QuestionnaireChoices><QuestionnaireInput aria-label="Discord guild ID" inputMode="numeric" autoComplete="off" disabled={connecting} defaultValue={localSettings.guildId} placeholder="123456789012345678" /></QuestionnaireChoices>
+                      <QuestionnaireError>Enter a Discord guild ID to continue.</QuestionnaireError>
+                    </QuestionnaireItem>
+                    <QuestionnaireItem name="channelId" required>
+                      <QuestionnaireTitle>Which channel should store files?</QuestionnaireTitle>
+                      <QuestionnaireDescription>Enter the numeric ID of the Discord storage channel.</QuestionnaireDescription>
+                      <QuestionnaireChoices><QuestionnaireInput aria-label="Discord storage channel ID" inputMode="numeric" autoComplete="off" disabled={connecting} defaultValue={localSettings.channelId} placeholder="123456789012345678" /></QuestionnaireChoices>
+                      <QuestionnaireError>Enter a storage channel ID to continue.</QuestionnaireError>
+                    </QuestionnaireItem>
+                    <QuestionnaireItem name="botTokens" required={!localSettings.botTokensConfigured}>
+                      <QuestionnaireTitle>{localSettings.botTokensConfigured ? `Replace ${localSettings.botTokenCount} stored bot token${localSettings.botTokenCount === 1 ? "" : "s"}?` : "Add Discord bot tokens"}</QuestionnaireTitle>
+                      <QuestionnaireDescription>{localSettings.botTokensConfigured ? "Enter a replacement list, or skip to keep the current tokens." : "Separate multiple bot tokens with commas. Each token is stored as its own indexed OS keyring credential."}</QuestionnaireDescription>
+                      <QuestionnaireChoices><QuestionnaireInput aria-label="Discord bot tokens" type="password" autoComplete="off" disabled={connecting} placeholder={localSettings.botTokensConfigured ? "New tokens, comma-separated" : "Token, or comma-separated tokens"} /></QuestionnaireChoices>
+                      <QuestionnaireError>At least one bot token is required.</QuestionnaireError>
+                    </QuestionnaireItem>
+                    <QuestionnaireItem name="webEnabled" required>
+                      <QuestionnaireTitle>Enable the managed Web UI?</QuestionnaireTitle>
+                      <QuestionnaireDescription>This optional localhost-only Web runtime is managed alongside the backend.</QuestionnaireDescription>
+                      <QuestionnaireChoices>
+                        <QuestionnaireChoice value="true" defaultChecked={localSettings.webEnabled}><span className="font-medium">Enable Web UI</span><QuestionnaireChoiceDescription>Download and run the matching managed Web runtime.</QuestionnaireChoiceDescription></QuestionnaireChoice>
+                        <QuestionnaireChoice value="false" defaultChecked={!localSettings.webEnabled}><span className="font-medium">Desktop only</span><QuestionnaireChoiceDescription>Run only PostgreSQL and the backend.</QuestionnaireChoiceDescription></QuestionnaireChoice>
+                      </QuestionnaireChoices>
+                      <QuestionnaireError>Choose whether to enable the managed Web UI.</QuestionnaireError>
+                    </QuestionnaireItem>
+                    <QuestionnaireActions>
+                      <QuestionnairePrevious disabled={connecting} />
+                      <QuestionnaireSkip disabled={connecting} />
+                      <QuestionnaireNext disabled={connecting} />
+                      <QuestionnaireSubmit disabled={connecting}>{connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Starting local server</> : "Start local server"}</QuestionnaireSubmit>
+                    </QuestionnaireActions>
+                  </Questionnaire>
                   {error ? <FieldError>{error}</FieldError> : null}
-                </Field>
-                <Button type="submit" className="w-full" disabled={connecting || !guildId.trim() || !channelId.trim() || (!botTokens.trim() && !localSettings?.botTokensConfigured)}>
-                  {connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Starting local server</> : "Start local server"}
-                </Button>
-              </form>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

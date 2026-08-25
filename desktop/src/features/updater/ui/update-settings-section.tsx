@@ -112,13 +112,27 @@ export function DesktopUpdaterSettings() {
               <Alert>
                 <CheckCircle2Icon />
                 <AlertTitle>Local runtime compatible</AlertTitle>
-                <AlertDescription>Backend v{localRuntime.backendVersion} is available for this Desktop release. PostgreSQL remains pinned to v{localRuntime.postgresqlVersion}. The backend will be staged and verified before Desktop installation starts.</AlertDescription>
+                <AlertDescription>Backend v{localRuntime.backendVersion} is available for this Desktop release. PostgreSQL remains pinned to v{localRuntime.postgresqlVersion}. Required runtime components will be staged and verified before Desktop installation starts.</AlertDescription>
               </Alert>
             ) : (
               <Alert variant="destructive">
                 <TriangleAlertIcon />
                 <AlertTitle>Local runtime is not compatible with this update</AlertTitle>
                 <AlertDescription>{localRuntime.detail ?? `Backend v${localRuntime.backendVersion} is unavailable for this platform.`} Desktop installation is blocked while this device uses Local mode.</AlertDescription>
+              </Alert>
+            ) : null}
+
+            {localRuntime?.webEnabled && localRuntime.webCompatible === false ? (
+              <Alert>
+                <TriangleAlertIcon />
+                <AlertTitle>Managed web runtime is unavailable for this update</AlertTitle>
+                <AlertDescription>{localRuntime.webDetail ?? `Managed web v${localRuntime.webVersion ?? updater.update.version} is unavailable for this platform.`} The Desktop and managed backend can still update; the optional web UI will remain unavailable until a matching artifact is published.</AlertDescription>
+              </Alert>
+            ) : localRuntime?.webEnabled && localRuntime.webCompatible ? (
+              <Alert>
+                <CheckCircle2Icon />
+                <AlertTitle>Managed web runtime compatible</AlertTitle>
+                <AlertDescription>Managed web v{localRuntime.webVersion ?? updater.update.version} is available and will be staged with its embedded Node.js runtime.</AlertDescription>
               </Alert>
             ) : null}
 
@@ -131,7 +145,7 @@ export function DesktopUpdaterSettings() {
                 <Progress value={progress} />
                 <p className="text-xs text-muted-foreground">
                   {updater.stage === "preparing-runtime"
-                    ? `Downloading and verifying backend v${localRuntime?.backendVersion ?? updater.update.version} before Desktop is changed.`
+                    ? `Downloading and verifying managed runtime components for v${localRuntime?.backendVersion ?? updater.update.version} before Desktop is changed.`
                     : updater.stage === "installing"
                     ? "DisCloud will relaunch when installation finishes."
                     : updater.totalBytes

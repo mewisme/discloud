@@ -155,6 +155,7 @@ jobs:
     needs:
       - release-info
       - release-backend
+      - release-web-standalone
     uses: ./.github/workflows/release-desktop.yml
     permissions:
       contents: write
