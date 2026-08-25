@@ -1,9 +1,10 @@
-import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@discloud/ui/components/card"
+import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Progress } from "@discloud/ui/components/progress"
+import { toast } from "@discloud/ui/components/sonner"
 import { CheckCircle2Icon, CircleIcon, LoaderCircleIcon, MinusCircleIcon, TriangleAlertIcon } from "lucide-react"
-import type { ComponentType } from "react"
+import { type ComponentType, useEffect } from "react"
 
 import type { LocalRuntimeSnapshot, LocalServerSettings } from "#lib/local-runtime"
 
@@ -22,6 +23,7 @@ type LocalServerProvisioningProps = {
 }
 
 const STAGES: LocalProvisioningStage[] = ["prepare", "postgresqlRuntime", "database", "backend", "web", "connect"]
+const PROVISIONING_ERROR_TOAST_ID = "local-provisioning-error"
 
 export function getLocalProvisioningStage(snapshot: LocalRuntimeSnapshot | null, webEnabled: boolean): LocalProvisioningStage {
   if (!snapshot) return "prepare"
@@ -53,6 +55,25 @@ export function LocalServerProvisioning({ settings, snapshot, reachedStage, busy
   const completed = 1 + STAGES.indexOf(reachedStage)
   const progress = Math.round((completed / steps.length) * 100)
 
+  useEffect(() => {
+    if (!error) {
+      toast.dismiss(PROVISIONING_ERROR_TOAST_ID)
+      return
+    }
+    toast.error("Local provisioning failed", {
+      id: PROVISIONING_ERROR_TOAST_ID,
+      description: (
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="min-w-0 flex-1 break-words">{error}</span>
+          <CopyButton value={error} label="Copy error" copiedLabel="Error copied" type="button" size="icon-xs" variant="ghost" />
+        </div>
+      ),
+    })
+    return () => {
+      toast.dismiss(PROVISIONING_ERROR_TOAST_ID)
+    }
+  }, [error])
+
   return (
     <Card>
       <CardHeader>
@@ -71,14 +92,6 @@ export function LocalServerProvisioning({ settings, snapshot, reachedStage, busy
         <div className="space-y-1" aria-live="polite">
           {steps.map((step) => <ProvisioningStep key={step.label} {...step} />)}
         </div>
-
-        {error ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertTitle>Local provisioning failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
       </CardContent>
       {error ? (
         <CardFooter className="flex justify-between gap-2">
