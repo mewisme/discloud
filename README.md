@@ -1,50 +1,39 @@
 <div align="center">
 
-<h1>DisCloud</h1>
+# DisCloud
 
-<p>Self-hosted multi-user file storage backed by Discord attachments and PostgreSQL.</p>
+Self-hosted multi-user file storage backed by PostgreSQL and Discord attachments.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/mewisme/discloud/ci.yml?branch=main&label=CI&logo=github)](https://github.com/mewisme/discloud/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mewisme/discloud?display_name=tag&sort=semver&logo=github)](https://github.com/mewisme/discloud/releases)
-[![Backend](https://img.shields.io/badge/GHCR-dcbe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcbe)
-[![Frontend](https://img.shields.io/badge/GHCR-dcfe-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/dcfe)
-[![Desktop Updater](https://img.shields.io/badge/Updater-latest.json-24C8DB?logo=tauri&logoColor=white)](https://github.com/mewisme/discloud/releases/latest/download/latest.json)
+[![Backend](https://img.shields.io/badge/GHCR-discloud--backend-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/discloud-backend)
+[![Frontend](https://img.shields.io/badge/GHCR-discloud--frontend-2496ED?logo=docker&logoColor=white)](https://github.com/mewisme/discloud/pkgs/container/discloud-frontend)
 [![Go](https://img.shields.io/github/go-mod/go-version/mewisme/discloud?logo=go)](go.mod)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web)
+[![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)](desktop)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](compose.yml)
 
 </div>
 
-## Overview
+## What is DisCloud?
 
-DisCloud is a self-hosted file storage application that keeps application state and metadata in PostgreSQL while using Discord attachments as blob storage.
+DisCloud is a self-hosted file workspace with Web and native Desktop clients. PostgreSQL is the canonical source of users, metadata, permissions and application state; Discord attachments provide the physical blob storage layer.
 
-It provides web and desktop interfaces for managing personal and shared files, together with administration and diagnostics for the underlying storage system.
+The project includes hierarchical files and folders, chunked uploads, sharing, search, collections, file versions, MFA, administration, storage diagnostics and native Desktop workflows such as local folder sync and transfer queues.
 
-### Features
+See [FEATURES.md](FEATURES.md) for the complete implemented feature inventory.
 
-- Multi-user workspaces with hierarchical files and folders
-- Resumable and chunked uploads with deduplication
-- File previews, downloads and HTTP Range support
-- Search, favorites, collections and Trash
-- Folder and collection sharing with access control
-- Public file, folder and collection shares
-- Multiple Discord storage bots with adaptive upload concurrency
-- MFA, storage quotas and session management
-- Administration for users, bots, jobs and runtime diagnostics
-- Native desktop client with tray integration, notifications and signed updates
+## Project map
 
-## Architecture
-
-| Component | Purpose |
-| --- | --- |
-| **Web** | Next.js user and administration interface |
-| **Desktop** | Tauri native desktop client and signed updater |
-| **Backend** | Go API, storage coordination and background jobs |
-| **PostgreSQL** | Users, metadata, permissions and application state |
-| **Discord** | Physical chunk and attachment storage |
-
-PostgreSQL remains the canonical source of application state. Discord is used only for physical blob storage.
+| Project | Purpose | Documentation |
+| --- | --- | --- |
+| Backend | Go API, storage coordination, background workers and PostgreSQL state | This README |
+| Web | Next.js browser client and public share viewer | [web/README.md](web/README.md) |
+| Desktop | Tauri + React native client | [desktop/README.md](desktop/README.md) |
+| `@discloud/api` | Generated OpenAPI types and API contracts | [packages/api/README.md](packages/api/README.md) |
+| `@discloud/app-ui` | Product-level UI shared by Web and Desktop | [packages/app-ui/README.md](packages/app-ui/README.md) |
+| `@discloud/shared` | Framework-neutral shared utilities | [packages/shared/README.md](packages/shared/README.md) |
+| `@discloud/ui` | Reusable UI primitives and global styles | [packages/ui/README.md](packages/ui/README.md) |
 
 ## Quick start
 
@@ -52,7 +41,20 @@ PostgreSQL remains the canonical source of application state. Discord is used on
 
 - Docker with Docker Compose
 - A Discord guild and storage channel
-- One or more Discord bot tokens with access to the storage channel
+- One or more Discord bot tokens that can access the storage channel
+
+### Recommended Discord bot count
+
+DisCloud can run with a single usable Discord bot, but **4 usable bots is the recommended starting point** for a normal self-hosted deployment. Each usable bot contributes at most one active Discord lease, so additional bots increase the scheduler's available concurrency and provide headroom when individual bots are cooling down.
+
+| Usable bots | Guidance |
+| --- | --- |
+| `1` | Minimum; suitable for development or very light use |
+| `2` | Light personal use |
+| `4` | Recommended starting point |
+| `8+` | Higher-throughput deployments; benchmark and monitor Discord rate limits before scaling further |
+
+The effective pool can temporarily be smaller than the configured pool when bots are unavailable or rate-limited. Use the admin bot runtime view or `GET /api/v1/admin/bots` to inspect current capacity. See [docs/BENCHMARKING.md](docs/BENCHMARKING.md) for the bot-count benchmark procedure.
 
 Clone the repository and create the environment file:
 
@@ -62,13 +64,17 @@ cd discloud
 cp .env.example .env
 ```
 
-Generate a 32-byte encryption key:
+Generate the required 32-byte encryption key with either OpenSSL or Node.js:
 
 ```bash
+# OpenSSL
 openssl rand -base64 32
+
+# Node.js
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-Configure at least these values in `.env`:
+Set at least these values in `.env`:
 
 ```env
 DISCLOUD_ENCRYPTION_MASTER_KEY_BASE64=
@@ -77,116 +83,78 @@ DISCLOUD_DISCORD_CHANNEL_ID=
 DISCLOUD_DISCORD_BOT_TOKENS=
 ```
 
-Pull and start the containers:
+Start DisCloud:
 
 ```bash
 docker compose pull
 docker compose up -d --no-build
 ```
 
-Open:
+Open `http://localhost:3000`. A fresh installation redirects to `/setup`, where the first administrator account is created.
 
-```text
-http://localhost:3000
-```
-
-A new installation will guide you through creating the first administrator at `/setup`.
-
-### Build from source
-
-To build the backend and frontend images locally instead:
+### Build containers locally
 
 ```bash
 docker compose up -d --build
 ```
 
+## Release channels
+
+`compose.yml` uses one Docker tag for both backend and Web images:
+
+```env
+DISCLOUD_DOCKER_TAG=rc
+```
+
+Supported values:
+
+| Value | Meaning |
+| --- | --- |
+| `latest` | Latest stable release |
+| `rc` | Latest release candidate |
+| `beta` | Latest beta |
+| `alpha` | Latest alpha |
+| `vX.Y.Z...` | Exact immutable release |
+
+For reproducible deployments, pin an exact `v*` tag.
+
+Published images:
+
+```text
+ghcr.io/mewisme/discloud-backend
+ghcr.io/mewisme/discloud-frontend
+```
+
 ## Configuration
 
-The complete backend configuration is documented in `.env.example`.
+The complete server configuration is documented inline in [.env.example](.env.example). The main groups are:
 
-The most important groups are:
+- HTTP, public URL, trusted proxies and CORS
+- PostgreSQL connection pooling
+- authentication cookies and session lifetime
+- MFA issuer and encryption master key
+- Discord guild, channel and bot pool
+- normal and media upload chunk sizing
+- background worker count
+- structured log level
 
-* HTTP and CORS
-* PostgreSQL
-* authentication and MFA
-* encryption
-* Discord storage
-* upload and chunk sizing
-* background workers
-* logging
-
-For production deployments, review cookie security, public URLs, CORS origins and database credentials before exposing the instance publicly.
-
-## Docker images
-
-Multi-platform images are published to GitHub Container Registry:
-
-```text
-ghcr.io/mewisme/dcbe
-ghcr.io/mewisme/dcfe
-```
-
-Every release publishes its exact Git tag together with a release channel:
-
-| Git tag | Channel |
-| --- | --- |
-| `v1.0.0` | `latest` |
-| `v1.1.0-alpha.1` | `alpha` |
-| `v1.1.0-beta.1` | `beta` |
-| `v1.1.0-rc.1` | `rc` |
-
-For example:
-
-```text
-ghcr.io/mewisme/dcbe:v1.1.0-beta.1
-ghcr.io/mewisme/dcbe:beta
-
-ghcr.io/mewisme/dcfe:v1.1.0-beta.1
-ghcr.io/mewisme/dcfe:beta
-```
-
-`compose.yml` uses `DISCLOUD_DOCKER_TAG` for both images and currently defaults to the `rc` channel. Set it to `latest`, `alpha`, `beta`, `rc`, or an exact `v*` release tag.
-
-For reproducible deployments, set `DISCLOUD_DOCKER_TAG` to an exact release tag so both images stay on the same version.
-
-## Web standalone releases
-
-GitHub Releases also include Node.js standalone Web runtimes for Linux `amd64` and `arm64`:
-
-```text
-discloud-web_<version>_linux_amd64.tar.gz
-discloud-web_<version>_linux_arm64.tar.gz
-discloud-web-checksums.txt
-```
-
-They require Node.js 24 or newer. Extract the archive, configure the same runtime environment used by the container, then start `node web/server.js`.
-
-## Desktop releases
-
-Desktop installers and updater artifacts are attached to the same GitHub Release as the backend archives. Each exact release contains its own signed `latest.json`, and every download URL inside that manifest points back to the exact Git tag that produced it.
-
-Desktop users choose their update channel in **Settings > Desktop > Updates**:
-
-| Desktop channel | Receives |
-| --- | --- |
-| Stable | Stable releases only |
-| Release candidate | RC and newer stable releases |
-| Beta | Beta, RC and newer stable releases |
-| Alpha | Alpha, beta, RC and newer stable releases |
-
-Stable uses `releases/latest/download/latest.json`. The mutable `rc.json`, `beta.json` and `alpha.json` channel pointers are stored on the dedicated `updater-channels` prerelease and are advanced only when a compatible newer release is published.
-
-Desktop release signing requires these GitHub Actions secrets:
-
-```text
-TAURI_SIGNING_PUBLIC_KEY
-TAURI_SIGNING_PRIVATE_KEY
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-```
-
-The private signing key must never be committed to the repository.
+Before exposing an instance publicly, review cookie security, public URLs, allowed origins, reverse-proxy settings and database credentials.
 
 ## Development
+
+### Requirements
+
+- Go version declared in [go.mod](go.mod)
+- Node.js 24+
+- pnpm version declared in [package.json](package.json)
+- PostgreSQL 18 for integration tests
+- Rust stable and Tauri prerequisites when working on Desktop
+
+Install JavaScript workspace dependencies once from the repository root:
+
+```bash
+pnpm install
+```
 
 ### Backend
 
@@ -196,7 +164,7 @@ Start PostgreSQL:
 docker compose up -d postgres
 ```
 
-Set the test database:
+Set the integration-test database DSN:
 
 ```bash
 export DISCLOUD_TEST_DATABASE_DSN="postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable"
@@ -205,46 +173,119 @@ export DISCLOUD_TEST_DATABASE_DSN="postgres://discloud:discloud@localhost:5432/d
 Run the backend checks:
 
 ```bash
-go test -race ./...
+gofmt -w .
 go vet ./...
+go test -race ./...
 go build ./cmd/discloud
 ```
+
+Run the server with the variables from `.env` loaded into your shell:
+
+```bash
+go run ./cmd/discloud
+```
+
+The API listens on `:8080` by default.
 
 ### Web
 
 ```bash
-cd web
-pnpm install
-pnpm dev
+cp web/.env.example web/.env.local
+pnpm web:dev
 ```
 
-The development server runs at `http://localhost:3000`.
+Open `http://localhost:3000`. See [web/README.md](web/README.md) for the Web architecture and deployment options.
 
 ### Desktop
 
 ```bash
-pnpm install
 pnpm desktop:tauri dev
 ```
 
-Before a release, validate both frontend and native desktop code:
+See [desktop/README.md](desktop/README.md) for native prerequisites, architecture, sync, transfers and updater details.
+
+## Common checks
+
+Backend:
 
 ```bash
+go vet ./...
+go test -race ./...
+```
+
+JavaScript workspace:
+
+```bash
+pnpm api:types:check
+pnpm api:typecheck
+pnpm shared:typecheck
+pnpm ui:typecheck
+pnpm app-ui:typecheck
+pnpm web:lint
+pnpm web:typecheck
+pnpm web:test
 pnpm desktop:lint
 pnpm desktop:typecheck
-pnpm desktop:build
+pnpm desktop:test
+```
+
+Desktop Rust:
+
+```bash
 cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
 cargo check --manifest-path desktop/src-tauri/Cargo.toml --locked
 cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
 ```
 
+## Releases
+
+A release is created from a `v*` Git tag. Release automation publishes the backend archives and container image, the multi-platform Web image, Linux standalone Web archives, Tauri installers, updater manifests and checksums.
+
+Web standalone artifacts:
+
+```text
+discloud-web_<version>_linux_amd64.tar.gz
+discloud-web_<version>_linux_arm64.tar.gz
+discloud-web-checksums.txt
+```
+
+Desktop update channels:
+
+| Channel | Receives |
+| --- | --- |
+| Stable | Stable releases |
+| RC | RC and newer stable releases |
+| Beta | Beta, RC and newer stable releases |
+| Alpha | Alpha, beta, RC and newer stable releases |
+
+Stable uses the `latest.json` attached to the latest stable release. Mutable `rc.json`, `beta.json` and `alpha.json` manifests live on the dedicated `updater-channels` prerelease.
+
 ## Documentation
 
-* [OpenAPI](docs/openapi.json)
-* [Operations](docs/OPERATIONS.md)
-* [Security](docs/SECURITY.md)
-* [Storage benchmarking](docs/BENCHMARKING.md)
-* [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Feature inventory](FEATURES.md)
+- [OpenAPI contract](docs/openapi.json)
+- [Operations](docs/OPERATIONS.md)
+- [Security](docs/SECURITY.md)
+- [Database design](docs/DATABASE_DESIGN.md)
+- [Storage benchmarking](docs/BENCHMARKING.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+
+## Repository layout
+
+```text
+cmd/discloud/        Backend entry point
+internal/            Backend services and HTTP API
+migrations/          Embedded PostgreSQL migrations
+docs/                API and operational documentation
+web/                 Next.js client
+desktop/             Tauri desktop client
+packages/api/        Shared API contracts
+packages/app-ui/     Shared product UI
+packages/shared/     Shared framework-neutral utilities
+packages/ui/         Shared UI primitives
+scripts/             Release and native-sidecar helpers
+.github/workflows/   CI and release workflows
+```
 
 ## License
 

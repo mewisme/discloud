@@ -2,7 +2,7 @@ name: discloud
 
 services:
   backend:
-    image: ghcr.io/mewisme/dcbe:${DISCLOUD_DOCKER_TAG:-rc}
+    image: ghcr.io/mewisme/discloud-backend:${DISCLOUD_DOCKER_TAG:-rc}
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,7 +24,7 @@ services:
       - network
 
   web:
-    image: ghcr.io/mewisme/dcfe:${DISCLOUD_DOCKER_TAG:-rc}
+    image: ghcr.io/mewisme/discloud-frontend:${DISCLOUD_DOCKER_TAG:-rc}
     build:
       context: .
       dockerfile: web/Dockerfile

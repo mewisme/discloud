@@ -1,0 +1,100 @@
+name: Release updater channels
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish updater channels
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download exact release manifest
+        shell: bash
+        run: |
+          mkdir -p updater/exact
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir updater/exact
+
+      - name: Validate exact-tag updater manifest
+        run: node scripts/tauri-updater-release.js validate --manifest updater/exact/latest.json --tag "$GITHUB_REF_NAME"
+
+      - name: Ensure updater channel release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! gh release view updater-channels >/dev/null 2>&1; then
+            gh release create updater-channels \
+              --title "Updater channels" \
+              --notes "Mutable updater manifests for DisCloud prerelease channels." \
+              --prerelease
+          fi
+
+      - name: Advance channel manifests
+        shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+
+          case "$RELEASE_CHANNEL" in
+            stable|rc) targets=(rc beta alpha) ;;
+            beta) targets=(beta alpha) ;;
+            alpha) targets=(alpha) ;;
+            *) echo "Unsupported release channel: $RELEASE_CHANNEL" >&2; exit 1 ;;
+          esac
+
+          mkdir -p updater/current updater/candidate
+
+          for channel in "${targets[@]}"; do
+            candidate="updater/candidate/$channel.json"
+            current="updater/current/$channel.json"
+            cp updater/exact/latest.json "$candidate"
+
+            rm -f "$current"
+            gh release download updater-channels --pattern "$channel.json" --dir updater/current >/dev/null 2>&1 || true
+
+            if [[ -f "$current" ]]; then
+              decision=0
+              node scripts/tauri-updater-release.js compare --candidate "$candidate" --current "$current" || decision=$?
+
+              if [[ "$decision" -eq 3 ]]; then
+                echo "Keeping newer $channel channel manifest."
+                continue
+              fi
+
+              if [[ "$decision" -ne 0 ]]; then
+                exit "$decision"
+              fi
+            fi
+
+            gh release upload updater-channels "$candidate" --clobber
+            echo "Advanced $channel channel to $GITHUB_REF_NAME"
+          done
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Publish updater channels"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Channel | \`${{ inputs.channel }}\` |"
+            echo "| Output | Validated and advanced updater manifests |"
+          } >> "$GITHUB_STEP_SUMMARY"

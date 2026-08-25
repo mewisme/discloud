@@ -125,6 +125,8 @@ Never record bot tokens.
 
 ## Bot-count matrix
 
+For normal self-hosted deployments, the documentation recommends starting with **4 usable bots**. This is an operational starting point, not a benchmark conclusion; use the matrix below to determine whether a smaller or larger pool is appropriate for the actual workload and Discord rate-limit behavior.
+
 Run each relevant workload with:
 
 ```text

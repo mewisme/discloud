@@ -12,245 +12,17 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  DISCLOUD_BACKEND_DOCKER_IMAGE: ghcr.io/mewisme/dcbe
-
 jobs:
-  verify-backend:
-    name: Verify backend
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_DB: discloud
-          POSTGRES_USER: discloud
-          POSTGRES_PASSWORD: discloud
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U discloud -d discloud"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DISCLOUD_TEST_DATABASE_DSN: postgres://discloud:discloud@localhost:5432/discloud?sslmode=disable
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
-
-      - name: Check formatting
-        shell: bash
-        run: test -z "$(gofmt -l .)"
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test -race ./...
-
-      - name: Check GoReleaser configuration
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: check
-
-      - name: Build release binary
-        shell: bash
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build \
-            -trimpath \
-            -ldflags="-s -w" \
-            -o /tmp/discloud \
-            ./cmd/discloud
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Verify backend"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Checks | gofmt, go vet, race tests, GoReleaser config, release binary build |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  verify-web:
-    name: Verify web
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v2
-        with:
-          package-json-file: package.json
-          cache-dependency-path: pnpm-lock.yaml
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Check API contracts
-        run: pnpm api:types:check
-
-      - name: Type check API package
-        run: pnpm api:typecheck
-
-      - name: Type check shared package
-        run: pnpm shared:typecheck
-
-      - name: Type check UI package
-        run: pnpm ui:typecheck
-
-      - name: Type check App UI package
-        run: pnpm app-ui:typecheck
-
-      - name: Generate Next.js types
-        run: pnpm --filter @discloud/web typegen
-
-      - name: Lint web
-        run: pnpm web:lint
-
-      - name: Type check web
-        run: pnpm web:typecheck
-
-      - name: Test web
-        run: pnpm web:test
-
-      - name: Build web
-        run: pnpm web:build
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Verify web"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Checks | API contracts, type checks, lint, tests, web build |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  verify-desktop:
-    name: Verify desktop
-    runs-on: ubuntu-latest
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: sccache
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Tauri system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v2
-        with:
-          package-json-file: package.json
-          cache-dependency-path: pnpm-lock.yaml
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.11
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
-          shared-key: desktop-x86_64-unknown-linux-gnu
-          cache-on-failure: true
-
-      - name: Validate updater channels
-        run: node scripts/tauri-updater-setup.js --check
-
-      - name: Lint desktop
-        run: pnpm desktop:lint
-
-      - name: Type check desktop
-        run: pnpm desktop:typecheck
-
-      - name: Build desktop frontend
-        run: pnpm desktop:build
-
-      - name: Check Rust formatting
-        working-directory: desktop/src-tauri
-        run: cargo fmt --check
-
-      - name: Check Rust
-        working-directory: desktop/src-tauri
-        run: cargo check --locked
-
-      - name: Test Rust
-        working-directory: desktop/src-tauri
-        run: cargo test --locked
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Verify desktop"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Checks | updater validation, frontend lint/type checks/build, Rust format/check/test |"
-          } >> "$GITHUB_STEP_SUMMARY"
+  verify:
+    name: Verify release
+    uses: ./.github/workflows/release-verify.yml
+    permissions:
+      contents: read
 
   release-info:
     name: Resolve release info
     needs:
-      - verify-backend
-      - verify-web
-      - verify-desktop
+      - verify
     runs-on: ubuntu-latest
     outputs:
       channel: ${{ steps.info.outputs.channel }}
@@ -328,72 +100,23 @@ jobs:
     name: Release backend
     needs:
       - release-info
-    runs-on: ubuntu-latest
-
+    uses: ./.github/workflows/release-backend.yml
     permissions:
       contents: write
       packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Release
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCLOUD_DOCKER_CHANNEL_TAG: ${{ needs.release-info.outputs.channel == 'stable' && 'latest' || needs.release-info.outputs.channel }}
-          DISCLOUD_RELEASE_MAKE_LATEST: ${{ needs.release-info.outputs.make-latest }}
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Release backend"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Channel | \`${{ needs.release-info.outputs.channel }}\` |"
-            echo "| Output | GoReleaser release and GHCR image |"
-          } >> "$GITHUB_STEP_SUMMARY"
+    with:
+      channel: ${{ needs.release-info.outputs.channel }}
+      make_latest: ${{ needs.release-info.outputs.make-latest }}
 
   release-web:
     name: Release web
     needs:
       - release-info
     uses: docker/github-builder/.github/workflows/build.yml@v1
-
     permissions:
       contents: read
       packages: write
       id-token: write
-
     with:
       output: image
       push: true
@@ -403,14 +126,13 @@ jobs:
       cache: true
       cache-scope: dcfe
       cache-mode: max
-      meta-images: ghcr.io/mewisme/dcfe
+      meta-images: ghcr.io/mewisme/discloud-frontend
       meta-tags: |
         type=raw,value=${{ github.ref_name }}
         type=raw,value=alpha,enable=${{ needs.release-info.outputs.channel == 'alpha' }}
         type=raw,value=beta,enable=${{ needs.release-info.outputs.channel == 'beta' }}
         type=raw,value=rc,enable=${{ needs.release-info.outputs.channel == 'rc' }}
         type=raw,value=latest,enable=${{ needs.release-info.outputs.channel == 'stable' }}
-
     secrets:
       registry-auths: |
         - registry: ghcr.io
@@ -418,426 +140,37 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
   release-web-standalone:
-    name: Release web standalone (${{ matrix.name }})
+    name: Release web standalone
     needs:
       - release-info
       - release-backend
-    runs-on: ${{ matrix.platform }}
+    uses: ./.github/workflows/release-web-standalone.yml
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        include:
-          - name: Linux x64
-            platform: ubuntu-24.04
-            arch: amd64
-          - name: Linux ARM64
-            platform: ubuntu-24.04-arm
-            arch: arm64
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v2
-        with:
-          package-json-file: package.json
-          cache-dependency-path: pnpm-lock.yaml
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web standalone
-        run: pnpm web:build
-
-      - name: Package and smoke test standalone runtime
-        id: package
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          version="${{ needs.release-info.outputs.version }}"
-          archive="discloud-web_${version}_linux_${{ matrix.arch }}.tar.gz"
-          stage="$RUNNER_TEMP/discloud-web"
-
-          rm -rf "$stage"
-          mkdir -p "$stage/web/.next" "$stage/web/public"
-          cp -a web/.next/standalone/. "$stage/"
-          cp -a web/.next/static "$stage/web/.next/static"
-
-          if [[ -d web/public ]]; then
-            cp -a web/public/. "$stage/web/public/"
-          fi
-
-          test -f "$stage/web/server.js"
-          test -d "$stage/web/.next/server"
-          test -d "$stage/web/.next/static"
-
-          HOSTNAME=127.0.0.1 \
-          PORT=3100 \
-          DISCLOUD_API_URL=http://127.0.0.1:8080 \
-          DISCLOUD_PUBLIC_API_URL=http://127.0.0.1:8080 \
-            node "$stage/web/server.js" >"$RUNNER_TEMP/discloud-web.log" 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
-
-          ready=false
-          for _ in {1..30}; do
-            if curl --fail --silent --show-error http://127.0.0.1:3100/runtime-config.js >/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 1
-          done
-
-          if [[ "$ready" != "true" ]]; then
-            cat "$RUNNER_TEMP/discloud-web.log"
-            exit 1
-          fi
-
-          kill "$server_pid" >/dev/null 2>&1 || true
-          wait "$server_pid" 2>/dev/null || true
-          trap - EXIT
-
-          tar -C "$stage" -czf "$archive" .
-          echo "archive=$archive" >> "$GITHUB_OUTPUT"
-
-      - name: Upload standalone runtime
-        shell: bash
-        run: gh release upload "$GITHUB_REF_NAME" "${{ steps.package.outputs.archive }}" --clobber
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Release web standalone — ${{ matrix.name }}"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Output | Node.js 24+ standalone runtime |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  release-web-standalone-checksums:
-    name: Release web standalone checksums
-    needs:
-      - release-info
-      - release-web-standalone
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Download standalone runtimes
-        shell: bash
-        run: |
-          mkdir -p dist
-          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'discloud-web_*.tar.gz' --dir dist
-
-      - name: Generate and upload checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd dist
-          sha256sum discloud-web_*.tar.gz > discloud-web-checksums.txt
-          gh release upload "$GITHUB_REF_NAME" discloud-web-checksums.txt --repo "$GITHUB_REPOSITORY" --clobber
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Release web standalone checksums"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Output | \`discloud-web-checksums.txt\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  prepare-desktop-ffmpeg:
-    name: Prepare FFmpeg (${{ matrix.target-triple }})
-    needs:
-      - release-info
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target-triple: x86_64-unknown-linux-gnu
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-          - target-triple: x86_64-pc-windows-msvc
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
-          - target-triple: aarch64-apple-darwin
-            staged-file: desktop/src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          - target-triple: x86_64-apple-darwin
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-apple-darwin
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Download, verify and stage FFmpeg
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/prepare-ffmpeg-sidecar.js --target "${{ matrix.target-triple }}" --output desktop/src-tauri/binaries
-
-      - name: Upload target FFmpeg
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-${{ matrix.target-triple }}
-          path: ${{ matrix.staged-file }}
-          if-no-files-found: error
-          retention-days: 1
+    with:
+      version: ${{ needs.release-info.outputs.version }}
 
   release-desktop:
-    name: Release desktop (${{ matrix.name }})
+    name: Release desktop
     needs:
       - release-info
       - release-backend
-      - prepare-desktop-ffmpeg
+    uses: ./.github/workflows/release-desktop.yml
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        include:
-          - name: Linux x64
-            platform: ubuntu-22.04
-            args: ""
-            rust-target: ""
-            target-triple: x86_64-unknown-linux-gnu
-          - name: Windows x64
-            platform: windows-latest
-            args: ""
-            rust-target: ""
-            target-triple: x86_64-pc-windows-msvc
-          - name: macOS Apple Silicon
-            platform: macos-latest
-            args: --target aarch64-apple-darwin
-            rust-target: aarch64-apple-darwin
-            target-triple: aarch64-apple-darwin
-          - name: macOS Intel
-            platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust-target: x86_64-apple-darwin
-            target-triple: x86_64-apple-darwin
-    runs-on: ${{ matrix.platform }}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: sccache
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Download FFmpeg sidecar
-        uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-${{ matrix.target-triple }}
-          path: desktop/src-tauri/binaries
-
-      - name: Make FFmpeg executable
-        if: runner.os != 'Windows'
-        shell: bash
-        run: chmod +x "desktop/src-tauri/binaries/ffmpeg-${{ matrix.target-triple }}"
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v2
-        with:
-          package-json-file: package.json
-          cache-dependency-path: pnpm-lock.yaml
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust-target }}
-
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.11
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
-          shared-key: desktop-${{ matrix.target-triple }}
-          cache-on-failure: true
-
-      - name: Configure signed updater
-        shell: bash
-        env:
-          TAURI_APP_VERSION: ${{ needs.release-info.outputs.version }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          TAURI_UPDATER_ENDPOINTS: ${{ needs.release-info.outputs.updater-endpoints }}
-        run: node scripts/tauri-updater-setup.js
-
-      - name: Resolve desktop bundle arguments
-        id: bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          args="${{ matrix.args }}"
-          if [[ "$RUNNER_OS" == "Windows" && "${{ needs.release-info.outputs.prerelease }}" == "true" ]]; then
-            args="$args --bundles nsis"
-          fi
-
-          echo "args=$args" >> "$GITHUB_OUTPUT"
-          echo "Desktop bundle arguments: ${args:-<default>}"
-
-      - name: Build and upload desktop bundles
-        uses: tauri-apps/tauri-action@action-v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: desktop
-          tagName: ${{ github.ref_name }}
-          releaseDraft: false
-          retryAttempts: 5
-          uploadUpdaterJson: true
-          updaterJsonPreferNsis: true
-          uploadUpdaterSignatures: true
-          args: ${{ steps.bundle.outputs.args }} --config src-tauri/tauri.release.conf.json
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Release desktop — ${{ matrix.name }}"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Output | Signed Tauri bundle and updater assets |"
-          } >> "$GITHUB_STEP_SUMMARY"
+    with:
+      version: ${{ needs.release-info.outputs.version }}
+      prerelease: ${{ needs.release-info.outputs.prerelease }}
+      updater_endpoints: ${{ needs.release-info.outputs.updater-endpoints }}
+    secrets: inherit
 
   publish-updater-channels:
     name: Publish updater channels
     needs:
       - release-info
       - release-desktop
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/release-updater.yml
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Download exact release manifest
-        shell: bash
-        run: |
-          mkdir -p updater/exact
-          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir updater/exact
-
-      - name: Validate exact-tag updater manifest
-        run: node scripts/tauri-updater-release.js validate --manifest updater/exact/latest.json --tag "$GITHUB_REF_NAME"
-
-      - name: Ensure updater channel release
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if ! gh release view updater-channels >/dev/null 2>&1; then
-            gh release create updater-channels \
-              --title "Updater channels" \
-              --notes "Mutable updater manifests for DisCloud prerelease channels." \
-              --prerelease
-          fi
-
-      - name: Advance channel manifests
-        shell: bash
-        env:
-          RELEASE_CHANNEL: ${{ needs.release-info.outputs.channel }}
-        run: |
-          set -euo pipefail
-
-          case "$RELEASE_CHANNEL" in
-            stable|rc) targets=(rc beta alpha) ;;
-            beta) targets=(beta alpha) ;;
-            alpha) targets=(alpha) ;;
-            *) echo "Unsupported release channel: $RELEASE_CHANNEL" >&2; exit 1 ;;
-          esac
-
-          mkdir -p updater/current updater/candidate
-
-          for channel in "${targets[@]}"; do
-            candidate="updater/candidate/$channel.json"
-            current="updater/current/$channel.json"
-            cp updater/exact/latest.json "$candidate"
-
-            rm -f "$current"
-            gh release download updater-channels --pattern "$channel.json" --dir updater/current >/dev/null 2>&1 || true
-
-            if [[ -f "$current" ]]; then
-              decision=0
-              node scripts/tauri-updater-release.js compare --candidate "$candidate" --current "$current" || decision=$?
-
-              if [[ "$decision" -eq 3 ]]; then
-                echo "Keeping newer $channel channel manifest."
-                continue
-              fi
-
-              if [[ "$decision" -ne 0 ]]; then
-                exit "$decision"
-              fi
-            fi
-
-            gh release upload updater-channels "$candidate" --clobber
-            echo "Advanced $channel channel to $GITHUB_REF_NAME"
-          done
-
-      - name: Add job summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          {
-            echo "## Publish updater channels"
-            echo
-            echo "| Result | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
-            echo "| Channel | \`${{ needs.release-info.outputs.channel }}\` |"
-            echo "| Output | Validated and advanced updater manifests |"
-          } >> "$GITHUB_STEP_SUMMARY"
+    with:
+      channel: ${{ needs.release-info.outputs.channel }}

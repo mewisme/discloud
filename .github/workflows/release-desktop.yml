@@ -1,0 +1,200 @@
+name: Release desktop
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      prerelease:
+        required: true
+        type: string
+      updater_endpoints:
+        required: true
+        type: string
+    secrets:
+      TAURI_SIGNING_PUBLIC_KEY:
+        required: true
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: true
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-ffmpeg:
+    name: Prepare FFmpeg (${{ matrix.target-triple }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target-triple: x86_64-unknown-linux-gnu
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          - target-triple: x86_64-pc-windows-msvc
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          - target-triple: aarch64-apple-darwin
+            staged-file: desktop/src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          - target-triple: x86_64-apple-darwin
+            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download, verify and stage FFmpeg
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/prepare-ffmpeg-sidecar.js --target "${{ matrix.target-triple }}" --output desktop/src-tauri/binaries
+
+      - name: Upload target FFmpeg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target-triple }}
+          path: ${{ matrix.staged-file }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release desktop (${{ matrix.name }})
+    needs:
+      - prepare-ffmpeg
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - name: Linux x64
+            platform: ubuntu-22.04
+            args: ""
+            rust-target: ""
+            target-triple: x86_64-unknown-linux-gnu
+          - name: Windows x64
+            platform: windows-latest
+            args: ""
+            rust-target: ""
+            target-triple: x86_64-pc-windows-msvc
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-target: aarch64-apple-darwin
+            target-triple: aarch64-apple-darwin
+          - name: macOS Intel
+            platform: macos-latest
+            args: --target x86_64-apple-darwin
+            rust-target: x86_64-apple-darwin
+            target-triple: x86_64-apple-darwin
+    runs-on: ${{ matrix.platform }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download FFmpeg sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target-triple }}
+          path: desktop/src-tauri/binaries
+
+      - name: Make FFmpeg executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: chmod +x "desktop/src-tauri/binaries/ffmpeg-${{ matrix.target-triple }}"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          shared-key: desktop-${{ matrix.target-triple }}
+          cache-on-failure: true
+
+      - name: Configure signed updater
+        shell: bash
+        env:
+          TAURI_APP_VERSION: ${{ inputs.version }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_UPDATER_ENDPOINTS: ${{ inputs.updater_endpoints }}
+        run: node scripts/tauri-updater-setup.js
+
+      - name: Resolve desktop bundle arguments
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args="${{ matrix.args }}"
+          if [[ "$RUNNER_OS" == "Windows" && "${{ inputs.prerelease }}" == "true" ]]; then
+            args="$args --bundles nsis"
+          fi
+
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Desktop bundle arguments: ${args:-<default>}"
+
+      - name: Build and upload desktop bundles
+        uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseDraft: false
+          retryAttempts: 5
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterSignatures: true
+          args: ${{ steps.bundle.outputs.args }} --config src-tauri/tauri.release.conf.json
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release desktop — ${{ matrix.name }}"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Output | Signed Tauri bundle and updater assets |"
+          } >> "$GITHUB_STEP_SUMMARY"

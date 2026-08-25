@@ -1,0 +1,155 @@
+name: Release web standalone
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release web standalone (${{ matrix.name }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - name: Linux x64
+            platform: ubuntu-24.04
+            arch: amd64
+          - name: Linux ARM64
+            platform: ubuntu-24.04-arm
+            arch: arm64
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web standalone
+        run: pnpm web:build
+
+      - name: Package and smoke test standalone runtime
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ inputs.version }}"
+          archive="discloud-web_${version}_linux_${{ matrix.arch }}.tar.gz"
+          stage="$RUNNER_TEMP/discloud-web"
+
+          rm -rf "$stage"
+          mkdir -p "$stage/web/.next" "$stage/web/public"
+          cp -a web/.next/standalone/. "$stage/"
+          cp -a web/.next/static "$stage/web/.next/static"
+
+          if [[ -d web/public ]]; then
+            cp -a web/public/. "$stage/web/public/"
+          fi
+
+          test -f "$stage/web/server.js"
+          test -d "$stage/web/.next/server"
+          test -d "$stage/web/.next/static"
+
+          HOSTNAME=127.0.0.1 \
+          PORT=3100 \
+          DISCLOUD_API_URL=http://127.0.0.1:8080 \
+          DISCLOUD_PUBLIC_API_URL=http://127.0.0.1:8080 \
+            node "$stage/web/server.js" >"$RUNNER_TEMP/discloud-web.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
+
+          ready=false
+          for _ in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/runtime-config.js >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$ready" != "true" ]]; then
+            cat "$RUNNER_TEMP/discloud-web.log"
+            exit 1
+          fi
+
+          kill "$server_pid" >/dev/null 2>&1 || true
+          wait "$server_pid" 2>/dev/null || true
+          trap - EXIT
+
+          tar -C "$stage" -czf "$archive" .
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload standalone runtime
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" "${{ steps.package.outputs.archive }}" --clobber
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release web standalone — ${{ matrix.name }}"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Output | Node.js 24+ standalone runtime |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  checksums:
+    name: Release web standalone checksums
+    needs:
+      - release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Download standalone runtimes
+        shell: bash
+        run: |
+          mkdir -p dist
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'discloud-web_*.tar.gz' --dir dist
+
+      - name: Generate and upload checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum discloud-web_*.tar.gz > discloud-web-checksums.txt
+          gh release upload "$GITHUB_REF_NAME" discloud-web-checksums.txt --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Add job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Release web standalone checksums"
+            echo
+            echo "| Result | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Output | \`discloud-web-checksums.txt\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

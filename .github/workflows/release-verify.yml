@@ -1,24 +1,14 @@
-name: CI
+name: Release verify
 
 on:
-  push:
-    branches:
-      - "**"
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  DISCLOUD_BACKEND_DOCKER_IMAGE: ghcr.io/mewisme/discloud-backend
-
 jobs:
   backend:
-    name: Backend
+    name: Verify backend
     runs-on: ubuntu-latest
 
     services:
@@ -60,9 +50,6 @@ jobs:
       - name: Test
         run: go test -race ./...
 
-      - name: Build binary
-        run: go build ./cmd/discloud
-
       - name: Check GoReleaser configuration
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -70,54 +57,32 @@ jobs:
           version: "~> v2"
           args: check
 
-      - name: Build local container
-        run: docker build --pull -t discloud-backend:test .
-
-      - name: Build release container target
+      - name: Build release binary
         shell: bash
         run: |
-          context="$(mktemp -d)"
-          trap 'rm -rf "$context"' EXIT
-
-          mkdir -p "$context/linux/amd64"
-
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
             go build \
             -trimpath \
             -ldflags="-s -w" \
-            -o "$context/linux/amd64/discloud" \
+            -o /tmp/discloud \
             ./cmd/discloud
-
-          docker build \
-            --pull \
-            --target release \
-            --build-arg TARGETPLATFORM=linux/amd64 \
-            --file Dockerfile \
-            --tag discloud-backend:release-test \
-            "$context"
-
-      - name: Validate Compose
-        shell: bash
-        run: |
-          cp .env.example .env
-          docker compose config >/dev/null
 
       - name: Add job summary
         if: ${{ always() }}
         shell: bash
         run: |
           {
-            echo "## Backend"
+            echo "## Verify backend"
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
             echo "| Status | \`${{ job.status }}\` |"
-            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
-            echo "| Checks | gofmt, go vet, race tests, binary build, GoReleaser config, Docker images, Compose config |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Checks | gofmt, go vet, race tests, GoReleaser config, release binary build |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   web:
-    name: Web
+    name: Verify web
     runs-on: ubuntu-latest
 
     steps:
@@ -151,21 +116,6 @@ jobs:
       - name: Type check App UI package
         run: pnpm app-ui:typecheck
 
-      - name: Validate updater channels
-        run: node scripts/tauri-updater-setup.js --check
-
-      - name: Lint desktop
-        run: pnpm desktop:lint
-
-      - name: Test desktop
-        run: pnpm desktop:test
-
-      - name: Type check desktop
-        run: pnpm desktop:typecheck
-
-      - name: Build desktop frontend
-        run: pnpm desktop:build
-
       - name: Generate Next.js types
         run: pnpm --filter @discloud/web typegen
 
@@ -181,33 +131,26 @@ jobs:
       - name: Build web
         run: pnpm web:build
 
-      - name: Build local container
-        run: docker build --pull --file web/Dockerfile --tag discloud-frontend:test .
-
       - name: Add job summary
         if: ${{ always() }}
         shell: bash
         run: |
           {
-            echo "## Web"
+            echo "## Verify web"
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
             echo "| Status | \`${{ job.status }}\` |"
-            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
-            echo "| Checks | API contracts, package and app type checks, lint, tests, builds, Docker image |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Checks | API contracts, type checks, lint, tests, web build |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  desktop-rust:
-    name: Desktop Rust
+  desktop:
+    name: Verify desktop
     runs-on: ubuntu-latest
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
-
-    defaults:
-      run:
-        working-directory: desktop/src-tauri
 
     steps:
       - name: Checkout
@@ -225,8 +168,20 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
-        working-directory: .
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -243,13 +198,28 @@ jobs:
           shared-key: desktop-x86_64-unknown-linux-gnu
           cache-on-failure: true
 
-      - name: Check formatting
+      - name: Validate updater channels
+        run: node scripts/tauri-updater-setup.js --check
+
+      - name: Lint desktop
+        run: pnpm desktop:lint
+
+      - name: Type check desktop
+        run: pnpm desktop:typecheck
+
+      - name: Build desktop frontend
+        run: pnpm desktop:build
+
+      - name: Check Rust formatting
+        working-directory: desktop/src-tauri
         run: cargo fmt --check
 
-      - name: Check
+      - name: Check Rust
+        working-directory: desktop/src-tauri
         run: cargo check --locked
 
-      - name: Test
+      - name: Test Rust
+        working-directory: desktop/src-tauri
         run: cargo test --locked
 
       - name: Add job summary
@@ -257,11 +227,11 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## Desktop Rust"
+            echo "## Verify desktop"
             echo
             echo "| Result | Value |"
             echo "| --- | --- |"
             echo "| Status | \`${{ job.status }}\` |"
-            echo "| Commit | [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}) |"
-            echo "| Checks | cargo fmt, cargo check, cargo test |"
+            echo "| Tag | \`${GITHUB_REF_NAME}\` |"
+            echo "| Checks | updater validation, frontend lint/type checks/build, Rust format/check/test |"
           } >> "$GITHUB_STEP_SUMMARY"
