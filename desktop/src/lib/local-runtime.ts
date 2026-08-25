@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 
+import { nativeError } from "#lib/api/transport"
+
 export type LocalRuntimeStatus = "disabled" | "preparing" | "stopped" | "downloading" | "initializingDatabase" | "startingDatabase" | "databaseReady" | "startingBackend" | "ready" | "degraded" | "failed" | "stopping"
 
 export type LocalRuntimeComponent = {
@@ -65,26 +67,68 @@ export type LocalRuntimeStartResult = {
   serverUrl: string
 }
 
+export type LocalServerSettings = {
+  guildId: string
+  channelId: string
+  botTokensConfigured: boolean
+  encryptionKeyConfigured: boolean
+  databasePasswordConfigured: boolean
+  dataDirectory: string
+  defaultDataDirectory: string
+  usingCustomDataDirectory: boolean
+  dataDirectoryLocked: boolean
+  backendPreferredPort: number
+  postgresqlPreferredPort: number
+  webPreferredPort: number
+}
+
+export type LocalServerSettingsInput = {
+  guildId: string
+  channelId: string
+  botTokens?: string
+  dataDirectory?: string
+}
+
 export function getLocalRuntimeSnapshot() {
-  return invoke<LocalRuntimeSnapshot>("get_local_runtime_snapshot")
+  return invokeLocal<LocalRuntimeSnapshot>("get_local_runtime_snapshot")
 }
 
 export function prepareLocalRuntime() {
-  return invoke<LocalRuntimeSnapshot>("prepare_local_runtime")
+  return invokeLocal<LocalRuntimeSnapshot>("prepare_local_runtime")
+}
+
+export function getLocalServerSettings() {
+  return invokeLocal<LocalServerSettings>("get_local_server_settings")
+}
+
+export function saveLocalServerSettings(settings: LocalServerSettingsInput) {
+  return invokeLocal<LocalServerSettings>("save_local_server_settings", { settings })
 }
 
 export function startLocalPostgresql() {
-  return invoke<LocalRuntimeSnapshot>("start_local_postgresql")
+  return invokeLocal<LocalRuntimeSnapshot>("start_local_postgresql")
 }
 
 export function startLocalRuntime() {
-  return invoke<LocalRuntimeStartResult>("start_local_runtime")
+  return invokeLocal<LocalRuntimeStartResult>("start_local_runtime")
 }
 
 export function stopLocalRuntime() {
-  return invoke<LocalRuntimeSnapshot>("stop_local_runtime")
+  return invokeLocal<LocalRuntimeSnapshot>("stop_local_runtime")
+}
+
+export function restartLocalRuntime() {
+  return invokeLocal<LocalRuntimeStartResult>("restart_local_runtime")
 }
 
 export function stopLocalPostgresql() {
-  return invoke<LocalRuntimeSnapshot>("stop_local_postgresql")
+  return invokeLocal<LocalRuntimeSnapshot>("stop_local_postgresql")
+}
+
+async function invokeLocal<T>(command: string, args?: Record<string, unknown>) {
+  try {
+    return await invoke<T>(command, args)
+  } catch (error) {
+    throw nativeError(error)
+  }
 }

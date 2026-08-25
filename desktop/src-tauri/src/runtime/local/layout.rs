@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime};
 use tokio::fs;
 
@@ -21,11 +22,31 @@ pub(super) struct LocalRuntimeLayout {
     pub(super) logs_dir: PathBuf,
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalRuntimeRootPreference {
+    root_dir: String,
+}
+
 impl LocalRuntimeLayout {
     pub(super) fn resolve<R: Runtime>(app: &AppHandle<R>) -> Result<Self, LocalRuntimeError> {
-        let root_dir = app.path().app_local_data_dir().map_err(|error| {
-            LocalRuntimeError::io("Could not resolve the local runtime directory", error)
-        })?;
+        let default_root_dir = default_root_dir(app)?;
+        let root_dir = read_root_preference(app)?.unwrap_or(default_root_dir);
+        Self::from_root(root_dir)
+    }
+
+    pub(super) fn default_root<R: Runtime>(
+        app: &AppHandle<R>,
+    ) -> Result<PathBuf, LocalRuntimeError> {
+        default_root_dir(app)
+    }
+
+    fn from_root(root_dir: PathBuf) -> Result<Self, LocalRuntimeError> {
+        if !root_dir.is_absolute() {
+            return Err(LocalRuntimeError::configuration(
+                "The local runtime data directory must be an absolute path.",
+            ));
+        }
         let runtime_dir = root_dir.join("runtime");
         let config_dir = root_dir.join("config");
         let state_dir = root_dir.join("state");
@@ -45,6 +66,78 @@ impl LocalRuntimeLayout {
             root_dir,
             runtime_dir,
         })
+    }
+
+    pub(super) async fn set_root<R: Runtime>(
+        app: &AppHandle<R>,
+        root_dir: &PathBuf,
+    ) -> Result<(), LocalRuntimeError> {
+        if !root_dir.is_absolute() {
+            return Err(LocalRuntimeError::configuration(
+                "The local runtime data directory must be an absolute path.",
+            ));
+        }
+        let default_root = default_root_dir(app)?;
+        let path = root_preference_path(app)?;
+        fs::create_dir_all(path.parent().expect("runtime root preference has a parent"))
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io(
+                    "Could not create the local runtime settings directory",
+                    error,
+                )
+            })?;
+        if root_dir == &default_root {
+            if fs::try_exists(&path).await.map_err(|error| {
+                LocalRuntimeError::io("Could not inspect the local runtime root preference", error)
+            })? {
+                fs::remove_file(&path).await.map_err(|error| {
+                    LocalRuntimeError::io(
+                        "Could not clear the local runtime root preference",
+                        error,
+                    )
+                })?;
+            }
+            return Ok(());
+        }
+        let preference = LocalRuntimeRootPreference {
+            root_dir: root_dir.to_string_lossy().into_owned(),
+        };
+        let mut content = serde_json::to_vec_pretty(&preference).map_err(|error| {
+            LocalRuntimeError::internal(format!(
+                "Could not serialize the local runtime root preference: {error}"
+            ))
+        })?;
+        content.push(b'\n');
+        let temporary = path.with_extension("json.tmp");
+        fs::write(&temporary, content).await.map_err(|error| {
+            LocalRuntimeError::io("Could not write the local runtime root preference", error)
+        })?;
+        if fs::try_exists(&path).await.map_err(|error| {
+            LocalRuntimeError::io("Could not inspect the local runtime root preference", error)
+        })? {
+            fs::remove_file(&path).await.map_err(|error| {
+                LocalRuntimeError::io("Could not replace the local runtime root preference", error)
+            })?;
+        }
+        fs::rename(&temporary, &path).await.map_err(|error| {
+            LocalRuntimeError::io("Could not install the local runtime root preference", error)
+        })
+    }
+
+    pub(super) fn for_root(root_dir: PathBuf) -> Result<Self, LocalRuntimeError> {
+        Self::from_root(root_dir)
+    }
+
+    pub(super) async fn database_initialized(&self) -> Result<bool, LocalRuntimeError> {
+        fs::try_exists(self.postgres_data_dir.join("PG_VERSION"))
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io(
+                    "Could not inspect the local PostgreSQL data directory",
+                    error,
+                )
+            })
     }
 
     pub(super) async fn prepare(&self) -> Result<(), LocalRuntimeError> {
@@ -70,4 +163,41 @@ impl LocalRuntimeLayout {
         }
         Ok(())
     }
+}
+
+fn default_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, LocalRuntimeError> {
+    app.path().app_local_data_dir().map_err(|error| {
+        LocalRuntimeError::io("Could not resolve the local runtime directory", error)
+    })
+}
+
+fn root_preference_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, LocalRuntimeError> {
+    Ok(default_root_dir(app)?
+        .join("state")
+        .join("local-runtime-root.json"))
+}
+
+fn read_root_preference<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Option<PathBuf>, LocalRuntimeError> {
+    let path = root_preference_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read(&path).map_err(|error| {
+        LocalRuntimeError::io("Could not read the local runtime root preference", error)
+    })?;
+    let preference: LocalRuntimeRootPreference =
+        serde_json::from_slice(&content).map_err(|error| {
+            LocalRuntimeError::configuration(format!(
+                "The local runtime root preference is invalid: {error}"
+            ))
+        })?;
+    let root_dir = PathBuf::from(preference.root_dir);
+    if !root_dir.is_absolute() {
+        return Err(LocalRuntimeError::configuration(
+            "The saved local runtime data directory is not absolute.",
+        ));
+    }
+    Ok(Some(root_dir))
 }

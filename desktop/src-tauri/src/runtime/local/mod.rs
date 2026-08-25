@@ -13,6 +13,7 @@ pub(crate) mod components;
 mod config;
 pub(crate) mod download;
 mod layout;
+mod ports;
 mod postgresql;
 
 use backend::{BackendProcessState, BackendRuntimeSnapshot};
@@ -207,6 +208,29 @@ pub(crate) async fn prepare_local_runtime(
 }
 
 #[tauri::command]
+pub(crate) async fn get_local_server_settings(
+    app: AppHandle,
+) -> Result<config::LocalServerSettings, LocalRuntimeError> {
+    config::load_settings(&app).await
+}
+
+#[tauri::command]
+pub(crate) async fn save_local_server_settings(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    settings: config::LocalServerSettingsInput,
+) -> Result<config::LocalServerSettings, LocalRuntimeError> {
+    let _operation = state.operation.lock().await;
+    let result = config::save_settings(&app, settings).await;
+    if let Err(error) = &result {
+        fail(state.inner(), error);
+        return result;
+    }
+    prepare_foundation(&app, state.inner()).await?;
+    result
+}
+
+#[tauri::command]
 pub(crate) async fn start_local_postgresql(
     app: AppHandle,
     state: State<'_, LocalRuntimeState>,
@@ -261,6 +285,24 @@ pub(crate) async fn stop_local_runtime(
 ) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
     let _operation = state.operation.lock().await;
     let result = stop_local_runtime_inner(&app, state.inner(), api.inner()).await;
+    if let Err(error) = &result {
+        fail(state.inner(), error);
+    }
+    result
+}
+
+#[tauri::command]
+pub(crate) async fn restart_local_runtime(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    api: State<'_, crate::api::ApiState>,
+) -> Result<LocalRuntimeStartResult, LocalRuntimeError> {
+    let _operation = state.operation.lock().await;
+    let result = async {
+        stop_local_runtime_inner(&app, state.inner(), api.inner()).await?;
+        start_local_runtime_inner(&app, state.inner(), api.inner()).await
+    }
+    .await;
     if let Err(error) = &result {
         fail(state.inner(), error);
     }

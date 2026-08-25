@@ -1,6 +1,5 @@
 use std::{
     fs::OpenOptions,
-    net::TcpListener,
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
@@ -13,7 +12,7 @@ use tokio::{fs, process::Child, process::Command, sync::Mutex, time::sleep, time
 
 use super::{
     archive, components::RuntimeComponentDescriptor, config, download, layout::LocalRuntimeLayout,
-    LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
+    ports, LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
 const READY_ATTEMPTS: usize = 240;
@@ -111,7 +110,7 @@ pub(super) async fn start(
                     )));
                 }
                 sleep(Duration::from_millis(500)).await;
-            } else if !port_available(record.port) {
+            } else if !ports::port_available(record.port) {
                 return Err(LocalRuntimeError::process(format!(
                     "A previous local backend on 127.0.0.1:{} is not ready and did not acknowledge shutdown.",
                     record.port
@@ -122,7 +121,7 @@ pub(super) async fn start(
     let preferred_port = record
         .filter(|record| record.version == descriptor.version)
         .map(|record| record.port);
-    let port = choose_port(preferred_port)?;
+    let port = ports::choose_port(preferred_port, ports::BACKEND_PREFERRED_PORT)?;
     let environment = config::backend_environment(layout, postgresql_port, port).await?;
     let _ = fs::remove_file(&layout.backend_shutdown_path).await;
     state.update(|snapshot| {
@@ -205,7 +204,7 @@ pub(super) async fn stop(
                             "The recovered local backend did not release 127.0.0.1:{port} after shutdown."
                         )));
                     }
-                } else if !port_available(port) {
+                } else if !ports::port_available(port) {
                     return Err(LocalRuntimeError::process(format!(
                         "A previous local backend on 127.0.0.1:{port} did not acknowledge shutdown."
                     )));
@@ -475,12 +474,12 @@ async fn request_shutdown_ack(path: &Path) -> Result<bool, LocalRuntimeError> {
 async fn wait_port_available(port: u16) -> bool {
     let attempts = (STOP_TIMEOUT.as_millis() / READY_INTERVAL.as_millis()) as usize;
     for _ in 0..attempts {
-        if port_available(port) {
+        if ports::port_available(port) {
             return true;
         }
         sleep(READY_INTERVAL).await;
     }
-    port_available(port)
+    ports::port_available(port)
 }
 
 fn readiness_client() -> Result<Client, LocalRuntimeError> {
@@ -491,22 +490,6 @@ fn readiness_client() -> Result<Client, LocalRuntimeError> {
         .map_err(|error| {
             LocalRuntimeError::network("Could not create the backend readiness client", error)
         })
-}
-
-fn choose_port(preferred: Option<u16>) -> Result<u16, LocalRuntimeError> {
-    if let Some(port) = preferred.filter(|port| port_available(*port)) {
-        return Ok(port);
-    }
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|error| LocalRuntimeError::io("Could not allocate a local backend port", error))?;
-    listener
-        .local_addr()
-        .map(|address| address.port())
-        .map_err(|error| LocalRuntimeError::io("Could not resolve the local backend port", error))
-}
-
-fn port_available(port: u16) -> bool {
-    TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
 async fn read_runtime_record(
@@ -573,16 +556,7 @@ fn server_url(port: u16) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
-    use super::{choose_port, server_url};
-
-    #[test]
-    fn chooses_new_backend_port_when_preferred_is_busy() {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-        let busy = listener.local_addr().unwrap().port();
-        assert_ne!(choose_port(Some(busy)).unwrap(), busy);
-    }
+    use super::server_url;
 
     #[test]
     fn formats_loopback_server_url() {

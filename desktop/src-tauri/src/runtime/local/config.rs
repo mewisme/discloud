@@ -1,9 +1,15 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use keyring::{Entry, Error as KeyringError};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Runtime};
 use tokio::fs;
 
+use super::ports;
 use super::{layout::LocalRuntimeLayout, postgresql, LocalRuntimeError};
 
 const KEYRING_SERVICE: &str = "com.mewisme.discloud.local-runtime";
@@ -14,6 +20,32 @@ const ENV_DISCORD_GUILD_ID: &str = "DISCLOUD_DISCORD_GUILD_ID";
 const ENV_DISCORD_CHANNEL_ID: &str = "DISCLOUD_DISCORD_CHANNEL_ID";
 const ENV_DISCORD_BOT_TOKENS: &str = "DISCLOUD_DISCORD_BOT_TOKENS";
 const DEFAULT_CONFIG: &str = "# DisCloud local server settings\n# Secrets are stored in the OS keyring when configured through Desktop.\nDISCLOUD_DISCORD_GUILD_ID=\nDISCLOUD_DISCORD_CHANNEL_ID=\nDISCLOUD_LOG_LEVEL=info\n\n# Manual/dev fallback only. Prefer the Desktop settings UI once available.\n# DISCLOUD_DISCORD_BOT_TOKENS=\n";
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalServerSettings {
+    guild_id: String,
+    channel_id: String,
+    bot_tokens_configured: bool,
+    encryption_key_configured: bool,
+    database_password_configured: bool,
+    data_directory: String,
+    default_data_directory: String,
+    using_custom_data_directory: bool,
+    data_directory_locked: bool,
+    backend_preferred_port: u16,
+    postgresql_preferred_port: u16,
+    web_preferred_port: u16,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalServerSettingsInput {
+    guild_id: String,
+    channel_id: String,
+    bot_tokens: Option<String>,
+    data_directory: Option<String>,
+}
 
 pub(super) async fn ensure_config_file(
     layout: &LocalRuntimeLayout,
@@ -26,6 +58,92 @@ pub(super) async fn ensure_config_file(
     fs::write(&layout.config_path, DEFAULT_CONFIG)
         .await
         .map_err(|error| LocalRuntimeError::io("Could not create the local server config", error))
+}
+
+pub(super) async fn load_settings<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<LocalServerSettings, LocalRuntimeError> {
+    let layout = LocalRuntimeLayout::resolve(app)?;
+    layout.prepare().await?;
+    ensure_config_file(&layout).await?;
+    let env = parse_env_file(&layout.config_path).await?;
+    let default_root = LocalRuntimeLayout::default_root(app)?;
+    let data_directory_locked = layout.database_initialized().await?;
+    Ok(LocalServerSettings {
+        guild_id: nonempty(&env, ENV_DISCORD_GUILD_ID).unwrap_or_default(),
+        channel_id: nonempty(&env, ENV_DISCORD_CHANNEL_ID).unwrap_or_default(),
+        bot_tokens_configured: keyring_value(KEYRING_DISCORD_TOKENS)?.is_some()
+            || nonempty(&env, ENV_DISCORD_BOT_TOKENS).is_some(),
+        encryption_key_configured: keyring_value(KEYRING_ENCRYPTION_KEY)?.is_some()
+            || nonempty(&env, ENV_ENCRYPTION_KEY).is_some(),
+        database_password_configured: postgresql::password_configured()?,
+        data_directory: path_string(&layout.root_dir),
+        default_data_directory: path_string(&default_root),
+        using_custom_data_directory: layout.root_dir != default_root,
+        data_directory_locked,
+        backend_preferred_port: ports::BACKEND_PREFERRED_PORT,
+        postgresql_preferred_port: ports::POSTGRESQL_PREFERRED_PORT,
+        web_preferred_port: ports::WEB_PREFERRED_PORT,
+    })
+}
+
+pub(super) async fn save_settings<R: Runtime>(
+    app: &AppHandle<R>,
+    input: LocalServerSettingsInput,
+) -> Result<LocalServerSettings, LocalRuntimeError> {
+    let guild_id = validate_snowflake("Discord guild ID", &input.guild_id)?;
+    let channel_id = validate_snowflake("Discord channel ID", &input.channel_id)?;
+    let current_layout = LocalRuntimeLayout::resolve(app)?;
+    current_layout.prepare().await?;
+    ensure_config_file(&current_layout).await?;
+    let mut env = parse_env_file(&current_layout.config_path).await?;
+    let requested_root = input
+        .data_directory
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| current_layout.root_dir.clone());
+    if !requested_root.is_absolute() {
+        return Err(LocalRuntimeError::configuration(
+            "The local runtime data directory must be an absolute path.",
+        ));
+    }
+    if requested_root != current_layout.root_dir && current_layout.database_initialized().await? {
+        return Err(LocalRuntimeError::invalid_state(
+            "The local data directory cannot be changed after PostgreSQL has been initialized.",
+        ));
+    }
+
+    let submitted_tokens = normalize_bot_tokens(input.bot_tokens.as_deref().unwrap_or(""));
+    if !submitted_tokens.is_empty() {
+        store_discord_bot_tokens(&submitted_tokens)?;
+    } else if keyring_value(KEYRING_DISCORD_TOKENS)?.is_none() {
+        let existing_tokens = nonempty(&env, ENV_DISCORD_BOT_TOKENS)
+            .map(|value| normalize_bot_tokens(&value))
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                LocalRuntimeError::configuration(
+                    "At least one Discord bot token is required for the local server.",
+                )
+            })?;
+        store_discord_bot_tokens(&existing_tokens)?;
+    }
+    let _ = encryption_key(&env)?;
+    let _ = postgresql::ensure_password()?;
+
+    env.insert(ENV_DISCORD_GUILD_ID.into(), guild_id);
+    env.insert(ENV_DISCORD_CHANNEL_ID.into(), channel_id);
+    env.remove(ENV_DISCORD_BOT_TOKENS);
+    env.remove(ENV_ENCRYPTION_KEY);
+    env.entry("DISCLOUD_LOG_LEVEL".into())
+        .or_insert_with(|| "info".into());
+
+    let target_layout = LocalRuntimeLayout::for_root(requested_root.clone())?;
+    target_layout.prepare().await?;
+    write_env_file(&target_layout.config_path, &env).await?;
+    LocalRuntimeLayout::set_root(app, &requested_root).await?;
+    load_settings(app).await
 }
 
 pub(super) async fn backend_environment(
@@ -63,7 +181,6 @@ pub(super) async fn backend_environment(
     Ok(env)
 }
 
-#[allow(dead_code)]
 pub(super) fn store_discord_bot_tokens(tokens: &str) -> Result<(), LocalRuntimeError> {
     if tokens.trim().is_empty() {
         return Err(LocalRuntimeError::configuration(
@@ -77,6 +194,35 @@ pub(super) fn store_discord_bot_tokens(tokens: &str) -> Result<(), LocalRuntimeE
                 "Could not save Discord bot tokens to the OS keyring: {error}"
             ))
         })
+}
+
+async fn write_env_file(
+    path: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<(), LocalRuntimeError> {
+    let mut content = String::from(
+        "# DisCloud local server settings\n# Secrets are stored in the OS keyring and are never written here.\n",
+    );
+    for (key, value) in env {
+        content.push_str(key);
+        content.push('=');
+        content.push_str(value);
+        content.push('\n');
+    }
+    let temporary = path.with_extension("env.tmp");
+    fs::write(&temporary, content)
+        .await
+        .map_err(|error| LocalRuntimeError::io("Could not write the local server config", error))?;
+    if fs::try_exists(path).await.map_err(|error| {
+        LocalRuntimeError::io("Could not inspect the local server config", error)
+    })? {
+        fs::remove_file(path).await.map_err(|error| {
+            LocalRuntimeError::io("Could not replace the local server config", error)
+        })?;
+    }
+    fs::rename(&temporary, path)
+        .await
+        .map_err(|error| LocalRuntimeError::io("Could not install the local server config", error))
 }
 
 async fn parse_env_file(path: &Path) -> Result<BTreeMap<String, String>, LocalRuntimeError> {
@@ -144,6 +290,25 @@ fn nonempty(values: &BTreeMap<String, String>, key: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
+fn validate_snowflake(label: &str, value: &str) -> Result<String, LocalRuntimeError> {
+    let value = value.trim();
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(LocalRuntimeError::configuration(format!(
+            "{label} must contain only digits."
+        )));
+    }
+    Ok(value.to_string())
+}
+
+fn normalize_bot_tokens(value: &str) -> String {
+    value
+        .split([',', '\n', '\r'])
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn encryption_key(env: &BTreeMap<String, String>) -> Result<String, LocalRuntimeError> {
     if let Some(value) = keyring_value(KEYRING_ENCRYPTION_KEY)? {
         validate_encryption_key(&value)?;
@@ -204,9 +369,13 @@ fn keyring_entry(username: &str) -> Result<Entry, LocalRuntimeError> {
     })
 }
 
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_env, validate_encryption_key};
+    use super::{normalize_bot_tokens, parse_env, validate_encryption_key, validate_snowflake};
 
     #[test]
     fn parses_env_values_and_quotes() {
@@ -225,5 +394,19 @@ mod tests {
     fn validates_32_byte_encryption_key() {
         assert!(validate_encryption_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").is_ok());
         assert!(validate_encryption_key("YQ==").is_err());
+    }
+
+    #[test]
+    fn normalizes_discord_bot_tokens() {
+        assert_eq!(
+            normalize_bot_tokens(" one, two\nthree\r\n"),
+            "one,two,three"
+        );
+    }
+
+    #[test]
+    fn validates_discord_snowflakes() {
+        assert_eq!(validate_snowflake("Guild", " 123456 ").unwrap(), "123456");
+        assert!(validate_snowflake("Guild", "123abc").is_err());
     }
 }

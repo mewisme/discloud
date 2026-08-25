@@ -1,5 +1,4 @@
 use std::{
-    net::TcpListener,
     path::{Path, PathBuf},
     process::Output,
     time::Duration,
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs, process::Command, time::sleep};
 
 use super::{
-    archive, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout,
+    archive, components::RuntimeComponentDescriptor, download, layout::LocalRuntimeLayout, ports,
     LocalRuntimeError, LocalRuntimeState, LocalRuntimeStatus,
 };
 
@@ -121,11 +120,12 @@ pub(super) async fn start(
     }
 
     let record = read_runtime_record(&layout.postgresql_state_path).await?;
-    let port = choose_port(
+    let port = ports::choose_port(
         record
             .as_ref()
             .filter(|record| record.version == descriptor.version)
             .map(|record| record.port),
+        ports::POSTGRESQL_PREFERRED_PORT,
     )?;
     state.update(|snapshot| {
         snapshot.status = LocalRuntimeStatus::StartingDatabase;
@@ -227,7 +227,6 @@ pub(super) async fn stop(
     Ok(())
 }
 
-#[allow(dead_code)]
 pub(super) fn password() -> Result<String, LocalRuntimeError> {
     let entry = postgresql_keyring_entry()?;
     entry.get_password().map_err(|error| match error {
@@ -238,6 +237,20 @@ pub(super) fn password() -> Result<String, LocalRuntimeError> {
             "Could not read the local PostgreSQL credential from the OS keyring: {error}"
         )),
     })
+}
+
+pub(super) fn password_configured() -> Result<bool, LocalRuntimeError> {
+    match postgresql_keyring_entry()?.get_password() {
+        Ok(password) => Ok(!password.trim().is_empty()),
+        Err(KeyringError::NoEntry) => Ok(false),
+        Err(error) => Err(LocalRuntimeError::credentials(format!(
+            "Could not read the local PostgreSQL credential from the OS keyring: {error}"
+        ))),
+    }
+}
+
+pub(super) fn ensure_password() -> Result<String, LocalRuntimeError> {
+    ensure_postgresql_password()
 }
 
 async fn ensure_runtime(
@@ -622,25 +635,6 @@ fn parse_postmaster_port(content: &str) -> Option<u16> {
     content.lines().nth(3)?.trim().parse().ok()
 }
 
-fn choose_port(preferred: Option<u16>) -> Result<u16, LocalRuntimeError> {
-    if let Some(port) = preferred.filter(|port| port_available(*port)) {
-        return Ok(port);
-    }
-    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|error| {
-        LocalRuntimeError::io("Could not allocate a local PostgreSQL port", error)
-    })?;
-    listener
-        .local_addr()
-        .map(|address| address.port())
-        .map_err(|error| {
-            LocalRuntimeError::io("Could not resolve the local PostgreSQL port", error)
-        })
-}
-
-fn port_available(port: u16) -> bool {
-    TcpListener::bind(("127.0.0.1", port)).is_ok()
-}
-
 async fn read_runtime_record(
     path: &Path,
 ) -> Result<Option<PostgresqlRuntimeRecord>, LocalRuntimeError> {
@@ -759,9 +753,7 @@ fn binary_path(runtime_dir: &Path, name: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
-    use super::{choose_port, parse_postmaster_port, random_password};
+    use super::{parse_postmaster_port, random_password};
 
     #[test]
     fn parses_postmaster_port() {
@@ -774,13 +766,5 @@ mod tests {
         let password = random_password();
         assert_eq!(password.len(), 48);
         assert!(password.bytes().all(|byte| byte.is_ascii_alphanumeric()));
-    }
-
-    #[test]
-    fn chooses_a_new_port_when_preferred_port_is_busy() {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-        let busy_port = listener.local_addr().unwrap().port();
-        let chosen_port = choose_port(Some(busy_port)).unwrap();
-        assert_ne!(chosen_port, busy_port);
     }
 }
