@@ -34,6 +34,10 @@ const DesktopSearchPage = lazy(() => import("./features/search/search-page").the
 const DesktopSettingsPage = lazy(() => import("./features/settings/ui/settings-page").then((module) => ({ default: module.DesktopSettingsPage })))
 const DesktopCommonSettingsPage = lazy(() => import("./features/settings/ui/common-settings-page").then((module) => ({ default: module.DesktopCommonSettingsPage })))
 const DesktopNativeSettingsPage = lazy(() => import("./features/settings/ui/desktop-settings-page").then((module) => ({ default: module.DesktopNativeSettingsPage })))
+const DesktopGeneralSettings = lazy(() => import("./features/settings/ui/desktop-general-settings").then((module) => ({ default: module.DesktopGeneralSettings })))
+const DesktopUpdatesSettings = lazy(() => import("./features/settings/ui/desktop-updates-settings").then((module) => ({ default: module.DesktopUpdatesSettings })))
+const DesktopDiagnosticsPage = lazy(() => import("./features/settings/ui/desktop-diagnostics-page").then((module) => ({ default: module.DesktopDiagnosticsPage })))
+const LocalServerPage = lazy(() => import("./features/settings/local-server/ui/local-server-page").then((module) => ({ default: module.LocalServerPage })))
 const DesktopProfileSettingsPage = lazy(() => import("./features/settings/ui/profile-settings-page").then((module) => ({ default: module.DesktopProfileSettingsPage })))
 const DesktopSecuritySettingsPage = lazy(() => import("./features/settings/ui/security-settings-page").then((module) => ({ default: module.DesktopSecuritySettingsPage })))
 const DesktopSharedPage = lazy(() => import("./features/shared/shared-page").then((module) => ({ default: module.DesktopSharedPage })))
@@ -72,7 +76,16 @@ export const router = createHashRouter([
           { path: "sync", Component: SyncRoute },
           { path: "settings", Component: SettingsRoute },
           { path: "settings/common", Component: CommonSettingsRoute },
-          { path: "settings/desktop", Component: DesktopSettingsRoute },
+          {
+            path: "settings/desktop",
+            Component: DesktopSettingsRoute,
+            children: [
+              { index: true, Component: DesktopGeneralSettingsRoute },
+              { path: "local-server", Component: DesktopLocalServerSettingsRoute },
+              { path: "updates", Component: DesktopUpdatesSettingsRoute },
+              { path: "diagnostics", Component: DesktopDiagnosticsSettingsRoute },
+            ],
+          },
           { path: "settings/profile", Component: ProfileSettingsRoute },
           { path: "settings/security", Component: SecuritySettingsRoute },
           {
@@ -244,6 +257,22 @@ function CommonSettingsRoute() {
 
 function DesktopSettingsRoute() {
   return <RouteSuspense label="Loading desktop settings"><DesktopNativeSettingsPage /></RouteSuspense>
+}
+
+function DesktopGeneralSettingsRoute() {
+  return <RouteSuspense label="Loading general desktop settings"><DesktopGeneralSettings /></RouteSuspense>
+}
+
+function DesktopLocalServerSettingsRoute() {
+  return <RouteSuspense label="Loading Local server settings"><LocalServerPage /></RouteSuspense>
+}
+
+function DesktopUpdatesSettingsRoute() {
+  return <RouteSuspense label="Loading update settings"><DesktopUpdatesSettings /></RouteSuspense>
+}
+
+function DesktopDiagnosticsSettingsRoute() {
+  return <RouteSuspense label="Loading desktop diagnostics"><DesktopDiagnosticsPage /></RouteSuspense>
 }
 
 function ProfileSettingsRoute() {

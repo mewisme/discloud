@@ -19,7 +19,7 @@ const settings = [
   {
     suffix: "settings/desktop",
     title: "Desktop",
-    description: "Manage startup, tray behavior and native notifications for this device.",
+    description: "Manage native behavior, Local server, updates and diagnostics for this device.",
     icon: MonitorCogIcon,
   },
   {

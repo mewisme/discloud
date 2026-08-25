@@ -192,5 +192,5 @@ function desktopSettingsPage(pathname: string, username: string) {
     { path: workspacePath(username, "settings/desktop"), title: "Desktop", maxWidth: "max-w-3xl" },
   ] as const
 
-  return pages.find((page) => page.path === pathname)
+  return pages.find((page) => page.path === pathname || (page.path.endsWith("/settings/desktop") && pathname.startsWith(`${page.path}/`)))
 }
