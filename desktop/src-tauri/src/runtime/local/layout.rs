@@ -16,6 +16,8 @@ pub(super) struct LocalRuntimeLayout {
     pub(super) config_path: PathBuf,
     pub(super) manifest_path: PathBuf,
     pub(super) postgresql_state_path: PathBuf,
+    pub(super) backend_state_path: PathBuf,
+    pub(super) backend_shutdown_path: PathBuf,
     pub(super) logs_dir: PathBuf,
 }
 
@@ -37,6 +39,8 @@ impl LocalRuntimeLayout {
             config_path: config_dir.join("local-server.env"),
             manifest_path: state_dir.join("runtime-manifest.json"),
             postgresql_state_path: state_dir.join("postgresql.json"),
+            backend_state_path: state_dir.join("backend.json"),
+            backend_shutdown_path: state_dir.join("backend.shutdown"),
             logs_dir: root_dir.join("logs"),
             root_dir,
             runtime_dir,

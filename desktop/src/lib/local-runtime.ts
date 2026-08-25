@@ -30,6 +30,13 @@ export type PostgresqlRuntimeSnapshot = {
   port: number | null
 }
 
+export type BackendRuntimeSnapshot = {
+  installed: boolean
+  running: boolean
+  version: string | null
+  port: number | null
+}
+
 export type LocalRuntimeSnapshot = {
   status: LocalRuntimeStatus
   paths: {
@@ -43,11 +50,19 @@ export type LocalRuntimeSnapshot = {
     configPath: string
     manifestPath: string
     postgresqlStatePath: string
+    backendStatePath: string
+    backendShutdownPath: string
     logsDir: string
   } | null
   manifest: LocalRuntimeManifest | null
   postgresql: PostgresqlRuntimeSnapshot | null
+  backend: BackendRuntimeSnapshot | null
   error: string | null
+}
+
+export type LocalRuntimeStartResult = {
+  snapshot: LocalRuntimeSnapshot
+  serverUrl: string
 }
 
 export function getLocalRuntimeSnapshot() {
@@ -60,6 +75,14 @@ export function prepareLocalRuntime() {
 
 export function startLocalPostgresql() {
   return invoke<LocalRuntimeSnapshot>("start_local_postgresql")
+}
+
+export function startLocalRuntime() {
+  return invoke<LocalRuntimeStartResult>("start_local_runtime")
+}
+
+export function stopLocalRuntime() {
+  return invoke<LocalRuntimeSnapshot>("stop_local_runtime")
 }
 
 export function stopLocalPostgresql() {

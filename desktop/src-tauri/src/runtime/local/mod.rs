@@ -8,11 +8,14 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
 mod archive;
+mod backend;
 pub(crate) mod components;
+mod config;
 pub(crate) mod download;
 mod layout;
 mod postgresql;
 
+use backend::{BackendProcessState, BackendRuntimeSnapshot};
 use components::LocalRuntimeManifest;
 use layout::LocalRuntimeLayout;
 use postgresql::PostgresqlRuntimeSnapshot;
@@ -48,6 +51,8 @@ pub(crate) struct LocalRuntimePaths {
     config_path: String,
     manifest_path: String,
     postgresql_state_path: String,
+    backend_state_path: String,
+    backend_shutdown_path: String,
     logs_dir: String,
 }
 
@@ -58,6 +63,7 @@ pub(crate) struct LocalRuntimeSnapshot {
     paths: Option<LocalRuntimePaths>,
     manifest: Option<LocalRuntimeManifest>,
     postgresql: Option<PostgresqlRuntimeSnapshot>,
+    backend: Option<BackendRuntimeSnapshot>,
     error: Option<String>,
 }
 
@@ -65,6 +71,7 @@ pub(crate) struct LocalRuntimeSnapshot {
 pub(crate) struct LocalRuntimeState {
     snapshot: Arc<RwLock<LocalRuntimeSnapshot>>,
     operation: Arc<Mutex<()>>,
+    backend_process: BackendProcessState,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -115,6 +122,8 @@ impl LocalRuntimePaths {
             config_path: path_string(&layout.config_path),
             manifest_path: path_string(&layout.manifest_path),
             postgresql_state_path: path_string(&layout.postgresql_state_path),
+            backend_state_path: path_string(&layout.backend_state_path),
+            backend_shutdown_path: path_string(&layout.backend_shutdown_path),
             logs_dir: path_string(&layout.logs_dir),
         }
     }
@@ -143,6 +152,10 @@ impl LocalRuntimeError {
 
     pub(crate) fn invalid_state(message: impl Into<String>) -> Self {
         Self::new("invalidState", message)
+    }
+
+    pub(crate) fn configuration(message: impl Into<String>) -> Self {
+        Self::new("configuration", message)
     }
 
     pub(crate) fn unsupported_platform() -> Self {
@@ -219,11 +232,53 @@ pub(crate) async fn stop_local_postgresql(
     result
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalRuntimeStartResult {
+    snapshot: LocalRuntimeSnapshot,
+    server_url: String,
+}
+
+#[tauri::command]
+pub(crate) async fn start_local_runtime(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    api: State<'_, crate::api::ApiState>,
+) -> Result<LocalRuntimeStartResult, LocalRuntimeError> {
+    let _operation = state.operation.lock().await;
+    let result = start_local_runtime_inner(&app, state.inner(), api.inner()).await;
+    if let Err(error) = &result {
+        fail(state.inner(), error);
+    }
+    result
+}
+
+#[tauri::command]
+pub(crate) async fn stop_local_runtime(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    api: State<'_, crate::api::ApiState>,
+) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
+    let _operation = state.operation.lock().await;
+    let result = stop_local_runtime_inner(&app, state.inner(), api.inner()).await;
+    if let Err(error) = &result {
+        fail(state.inner(), error);
+    }
+    result
+}
+
 pub(crate) async fn shutdown<R: Runtime>(app: &AppHandle<R>) -> Result<(), LocalRuntimeError> {
     let state = app.state::<LocalRuntimeState>();
     let _operation = state.operation.lock().await;
     let layout = LocalRuntimeLayout::resolve(app)?;
     let manifest = LocalRuntimeManifest::for_current_platform(app)?;
+    backend::stop(
+        &layout,
+        &manifest.components.backend,
+        &state.backend_process,
+        state.inner(),
+    )
+    .await?;
     postgresql::stop(&layout, &manifest.components.postgresql, state.inner()).await
 }
 
@@ -234,6 +289,12 @@ async fn prepare_local_runtime_inner(
     prepare_foundation(app, state).await?;
     state.update(|snapshot| {
         snapshot.status = if snapshot
+            .backend
+            .as_ref()
+            .is_some_and(|backend| backend.running)
+        {
+            LocalRuntimeStatus::Ready
+        } else if snapshot
             .postgresql
             .as_ref()
             .is_some_and(|postgresql| postgresql.running)
@@ -271,7 +332,92 @@ async fn stop_local_postgresql_inner(
     state: &LocalRuntimeState,
 ) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
     let (layout, manifest) = prepare_foundation(app, state).await?;
+    if state
+        .snapshot()?
+        .backend
+        .as_ref()
+        .is_some_and(|backend| backend.running)
+    {
+        return Err(LocalRuntimeError::invalid_state(
+            "Stop the local runtime before stopping PostgreSQL.",
+        ));
+    }
     postgresql::stop(&layout, &manifest.components.postgresql, state).await?;
+    state.snapshot()
+}
+
+async fn start_local_runtime_inner(
+    app: &AppHandle,
+    state: &LocalRuntimeState,
+    api: &crate::api::ApiState,
+) -> Result<LocalRuntimeStartResult, LocalRuntimeError> {
+    state.update(|snapshot| {
+        snapshot.status = LocalRuntimeStatus::Preparing;
+        snapshot.error = None;
+    })?;
+    let (layout, manifest) = prepare_foundation(app, state).await?;
+    postgresql::start(
+        &layout,
+        &manifest.components.postgresql,
+        &manifest.desktop_version,
+        state,
+    )
+    .await?;
+    let postgresql_port = state
+        .snapshot()?
+        .postgresql
+        .and_then(|postgresql| postgresql.port)
+        .ok_or_else(|| {
+            LocalRuntimeError::internal("PostgreSQL is ready but its port is unavailable.")
+        })?;
+    let server_url = backend::start(
+        &layout,
+        &manifest.components.backend,
+        &manifest.desktop_version,
+        postgresql_port,
+        &state.backend_process,
+        state,
+    )
+    .await?;
+    api.connect(server_url.clone()).await.map_err(|error| {
+        LocalRuntimeError::network(
+            "Could not connect Desktop to the local backend",
+            format!("{error:?}"),
+        )
+    })?;
+    state.update(|snapshot| {
+        snapshot.status = LocalRuntimeStatus::Ready;
+        snapshot.error = None;
+    })?;
+    Ok(LocalRuntimeStartResult {
+        snapshot: state.snapshot()?,
+        server_url,
+    })
+}
+
+async fn stop_local_runtime_inner(
+    app: &AppHandle,
+    state: &LocalRuntimeState,
+    api: &crate::api::ApiState,
+) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
+    let (layout, manifest) = prepare_foundation(app, state).await?;
+    api.disconnect().map_err(|error| {
+        LocalRuntimeError::internal(format!(
+            "Could not disconnect the local API client: {error:?}"
+        ))
+    })?;
+    backend::stop(
+        &layout,
+        &manifest.components.backend,
+        &state.backend_process,
+        state,
+    )
+    .await?;
+    postgresql::stop(&layout, &manifest.components.postgresql, state).await?;
+    state.update(|snapshot| {
+        snapshot.status = LocalRuntimeStatus::Stopped;
+        snapshot.error = None;
+    })?;
     state.snapshot()
 }
 
@@ -283,12 +429,15 @@ async fn prepare_foundation(
     layout.prepare().await?;
     let manifest = LocalRuntimeManifest::for_current_platform(app)?;
     components::write_manifest(&layout.manifest_path, &manifest).await?;
+    config::ensure_config_file(&layout).await?;
     let paths = LocalRuntimePaths::from_layout(&layout);
     let postgresql = postgresql::inspect(&layout, &manifest.components.postgresql).await?;
+    let backend = backend::inspect(&layout, &manifest.components.backend).await?;
     state.update(|snapshot| {
         snapshot.paths = Some(paths);
         snapshot.manifest = Some(manifest.clone());
         snapshot.postgresql = Some(postgresql);
+        snapshot.backend = Some(backend);
         snapshot.error = None;
     })?;
     Ok((layout, manifest))

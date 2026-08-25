@@ -68,12 +68,14 @@ func Run() error {
 		"upload_session_ttl", cfg.Upload.SessionTTL.String(),
 	)
 
-	ctx, stop := signal.NotifyContext(
+	signalCtx, stopSignals := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
-	defer stop()
+	defer stopSignals()
+	ctx, stopManaged := managedShutdownContext(signalCtx)
+	defer stopManaged()
 
 	dbLogger := logger.With("component", "database")
 	dbStartedAt := time.Now()

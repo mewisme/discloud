@@ -2,6 +2,7 @@ import type { SetupStatus } from "@discloud/api/models"
 import { invoke } from "@tauri-apps/api/core"
 
 import { apiJSON, nativeError } from "#lib/api/transport"
+import { startLocalRuntime, stopLocalRuntime } from "#lib/local-runtime"
 
 type ConnectedServer = {
   serverUrl: string
@@ -35,6 +36,28 @@ export async function connectServer(serverUrl: string): Promise<ServerConnection
       // Preserve the original API error.
     }
 
+    throw error
+  }
+}
+
+export async function connectLocalRuntime(): Promise<ServerConnection> {
+  let serverUrl: string
+
+  try {
+    serverUrl = (await startLocalRuntime()).serverUrl
+  } catch (error) {
+    throw nativeError(error)
+  }
+
+  try {
+    const status = await apiJSON<SetupStatus>("/api/v1/setup/status")
+    return { serverUrl, setupRequired: status.setupRequired }
+  } catch (error) {
+    try {
+      await stopLocalRuntime()
+    } catch {
+      // Preserve the original API error.
+    }
     throw error
   }
 }

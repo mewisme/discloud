@@ -99,6 +99,7 @@ pub(super) async fn start(
                 })?,
         };
         wait_ready(&runtime_dir, port).await?;
+        ensure_application_database(&runtime_dir, port).await?;
         write_runtime_record(
             &layout.postgresql_state_path,
             &PostgresqlRuntimeRecord {
@@ -147,6 +148,10 @@ pub(super) async fn start(
         .arg(options);
     run_checked(command, "Could not start PostgreSQL").await?;
     if let Err(error) = wait_ready(&runtime_dir, port).await {
+        let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
+        return Err(error);
+    }
+    if let Err(error) = ensure_application_database(&runtime_dir, port).await {
         let _ = stop_cluster(&pg_ctl, &layout.postgres_data_dir).await;
         return Err(error);
     }
@@ -398,7 +403,7 @@ fn version_dir(layout: &LocalRuntimeLayout, descriptor: &RuntimeComponentDescrip
 }
 
 async fn runtime_valid(runtime_dir: &Path) -> Result<bool, LocalRuntimeError> {
-    for name in ["initdb", "pg_ctl", "pg_isready", "postgres"] {
+    for name in ["initdb", "pg_ctl", "pg_isready", "postgres", "psql"] {
         if !fs::try_exists(binary_path(runtime_dir, name))
             .await
             .map_err(|error| {
@@ -409,6 +414,48 @@ async fn runtime_valid(runtime_dir: &Path) -> Result<bool, LocalRuntimeError> {
         }
     }
     Ok(true)
+}
+
+async fn ensure_application_database(
+    runtime_dir: &Path,
+    port: u16,
+) -> Result<(), LocalRuntimeError> {
+    let password = password()?;
+    let mut check = Command::new(binary_path(runtime_dir, "psql"));
+    check
+        .arg("-h")
+        .arg("127.0.0.1")
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("-U")
+        .arg(DATABASE_USER)
+        .arg("-d")
+        .arg("postgres")
+        .arg("-Atqc")
+        .arg("SELECT 1 FROM pg_database WHERE datname = 'discloud'")
+        .env("PGPASSWORD", &password);
+    let output = run_checked(check, "Could not inspect the DisCloud PostgreSQL database").await?;
+    if String::from_utf8_lossy(&output.stdout).trim() == "1" {
+        return Ok(());
+    }
+
+    let mut create = Command::new(binary_path(runtime_dir, "psql"));
+    create
+        .arg("-h")
+        .arg("127.0.0.1")
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("-U")
+        .arg(DATABASE_USER)
+        .arg("-d")
+        .arg("postgres")
+        .arg("-v")
+        .arg("ON_ERROR_STOP=1")
+        .arg("-c")
+        .arg("CREATE DATABASE discloud")
+        .env("PGPASSWORD", password);
+    run_checked(create, "Could not create the DisCloud PostgreSQL database").await?;
+    Ok(())
 }
 
 async fn find_runtime_root(extraction_dir: &Path) -> Result<PathBuf, LocalRuntimeError> {

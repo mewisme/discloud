@@ -92,6 +92,8 @@ pub fn run() {
             commands::disconnect_server,
             runtime::local::get_local_runtime_snapshot,
             runtime::local::prepare_local_runtime,
+            runtime::local::start_local_runtime,
+            runtime::local::stop_local_runtime,
             runtime::local::start_local_postgresql,
             runtime::local::stop_local_postgresql,
             commands::download_file,

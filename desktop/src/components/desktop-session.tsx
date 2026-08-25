@@ -14,11 +14,13 @@ import {
   logout,
 } from "#lib/auth"
 import {
+  connectLocalRuntime,
   connectServer,
   disconnectServer,
   errorMessage,
   type ServerConnection,
 } from "#lib/instance"
+import { stopLocalRuntime } from "#lib/local-runtime"
 import { loadConnectionSettings } from "#lib/settings"
 
 export type DesktopSessionState =
@@ -71,9 +73,19 @@ export function DesktopSessionProvider({
     async function bootstrap() {
       try {
         const connectionSettings = await loadConnectionSettings()
-        storedServerUrl = connectionSettings.serverUrl
 
         if (cancelled) return
+
+        if (connectionSettings.mode === "local") {
+          storedServerUrl = null
+          const connection = await connectLocalRuntime()
+          storedServerUrl = connection.serverUrl
+          const nextState = await connectedState(connection)
+          if (!cancelled) setState(nextState)
+          return
+        }
+
+        storedServerUrl = connectionSettings.serverUrl
 
         if (connectionSettings.mode !== "remote" || !storedServerUrl) {
           setState({ status: "disconnected" })
@@ -133,7 +145,9 @@ export function DesktopSessionProvider({
     })
 
     try {
-      await disconnectServer()
+      const connectionSettings = await loadConnectionSettings()
+      if (connectionSettings.mode === "local") await stopLocalRuntime()
+      else await disconnectServer()
     } catch {
       // The next connection replaces the native client anyway.
     }
