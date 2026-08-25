@@ -544,7 +544,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          gh release download "$GITHUB_REF_NAME" --pattern 'discloud-web_*.tar.gz' --dir dist
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'discloud-web_*.tar.gz' --dir dist
 
       - name: Generate and upload checksums
         shell: bash
@@ -552,7 +552,7 @@ jobs:
           set -euo pipefail
           cd dist
           sha256sum discloud-web_*.tar.gz > discloud-web-checksums.txt
-          gh release upload "$GITHUB_REF_NAME" discloud-web-checksums.txt --clobber
+          gh release upload "$GITHUB_REF_NAME" discloud-web-checksums.txt --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Add job summary
         if: ${{ always() }}
