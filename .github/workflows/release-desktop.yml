@@ -60,10 +60,43 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  prepare-local-runtime:
+    name: Prepare Local runtime (${{ matrix.target-triple }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target-triple:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download, verify and stage Local runtime
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/prepare-local-runtime-bundle.mjs --version "${{ inputs.version }}" --target "${{ matrix.target-triple }}" --output "$RUNNER_TEMP/local-runtime"
+
+      - name: Upload target Local runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-runtime-${{ matrix.target-triple }}
+          path: ${{ runner.temp }}/local-runtime
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     name: Release desktop (${{ matrix.name }})
     needs:
       - prepare-ffmpeg
+      - prepare-local-runtime
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -104,10 +137,18 @@ jobs:
           name: ffmpeg-${{ matrix.target-triple }}
           path: desktop/src-tauri/binaries
 
-      - name: Make FFmpeg executable
+      - name: Download Local runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: local-runtime-${{ matrix.target-triple }}
+          path: desktop/src-tauri
+
+      - name: Make sidecars executable
         if: runner.os != 'Windows'
         shell: bash
-        run: chmod +x "desktop/src-tauri/binaries/ffmpeg-${{ matrix.target-triple }}"
+        run: |
+          chmod +x "desktop/src-tauri/binaries/ffmpeg-${{ matrix.target-triple }}"
+          chmod +x "desktop/src-tauri/binaries/discloud-backend-${{ matrix.target-triple }}"
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
