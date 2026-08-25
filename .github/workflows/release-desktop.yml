@@ -114,7 +114,7 @@ jobs:
         include:
           - name: Linux x64
             platform: ubuntu-22.04
-            args: ""
+            args: --bundles deb,rpm
             rust-target: ""
             target-triple: x86_64-unknown-linux-gnu
           - name: Windows x64
@@ -230,7 +230,7 @@ jobs:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
           releaseDraft: false
-          retryAttempts: 5
+          retryAttempts: 0
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           uploadUpdaterSignatures: true
