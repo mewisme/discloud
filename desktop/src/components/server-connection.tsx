@@ -10,8 +10,9 @@ import { open } from "@tauri-apps/plugin-dialog"
 import { LoaderCircle } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
 
+import { advanceLocalProvisioningStage, getLocalProvisioningStage, type LocalProvisioningStage, LocalServerProvisioning } from "#components/local-server-provisioning"
 import { connectLocalRuntime, connectServer, errorMessage, type ServerConnection } from "#lib/instance"
-import { getLocalServerSettings, type LocalServerSettings, saveLocalServerSettings } from "#lib/local-runtime"
+import { getLocalRuntimeSnapshot, getLocalServerSettings, type LocalRuntimeSnapshot, type LocalServerSettings, saveLocalServerSettings } from "#lib/local-runtime"
 import { type ConnectionMode, loadConnectionSettings, saveConnectionMode, saveRemoteConnection } from "#lib/settings"
 
 type ServerConnectionScreenProps = {
@@ -31,6 +32,10 @@ export function ServerConnectionScreen({
   const [dataDirectory, setDataDirectory] = useState("")
   const [error, setError] = useState(initialError)
   const [connecting, setConnecting] = useState(false)
+  const [provisioning, setProvisioning] = useState(false)
+  const [provisioningSnapshot, setProvisioningSnapshot] = useState<LocalRuntimeSnapshot | null>(null)
+  const [provisioningStage, setProvisioningStage] = useState<LocalProvisioningStage>("prepare")
+  const [provisioningError, setProvisioningError] = useState<string>()
 
   useEffect(() => {
     void loadConnectionSettings().then((settings) => {
@@ -47,6 +52,28 @@ export function ServerConnectionScreen({
       })
       .catch((error) => setError(errorMessage(error)))
   }, [localSettings, mode])
+
+  useEffect(() => {
+    if (!provisioning || !connecting) return
+    let cancelled = false
+    const webEnabled = localSettings?.webEnabled ?? false
+    async function refresh() {
+      try {
+        const snapshot = await getLocalRuntimeSnapshot()
+        if (cancelled) return
+        setProvisioningSnapshot(snapshot)
+        setProvisioningStage((current) => advanceLocalProvisioningStage(current, getLocalProvisioningStage(snapshot, webEnabled)))
+      } catch {
+        // The provisioning command reports actionable failures separately.
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 250)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [connecting, localSettings?.webEnabled, provisioning])
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -82,12 +109,52 @@ export function ServerConnectionScreen({
       const webEnabled = answers.get("webEnabled") === "true"
       const settings = await saveLocalServerSettings({ guildId, channelId, botTokens: botTokens || undefined, dataDirectory: selectedDataDirectory, webEnabled })
       setLocalSettings(settings)
+      setDataDirectory(settings.dataDirectory)
       await saveConnectionMode("local")
-      onConnected(await connectLocalRuntime())
+      setProvisioningSnapshot(null)
+      setProvisioningStage("prepare")
+      setProvisioningError(undefined)
+      setProvisioning(true)
+      await provisionLocal(settings.webEnabled)
     } catch (error) {
       setError(errorMessage(error))
     } finally {
       setConnecting(false)
+    }
+  }
+
+  async function provisionLocal(webEnabled = localSettings?.webEnabled ?? false) {
+    setConnecting(true)
+    setProvisioningError(undefined)
+    try {
+      onConnected(await connectLocalRuntime())
+    } catch (error) {
+      try {
+        const snapshot = await getLocalRuntimeSnapshot()
+        setProvisioningSnapshot(snapshot)
+        setProvisioningStage((current) => advanceLocalProvisioningStage(current, getLocalProvisioningStage(snapshot, webEnabled)))
+      } catch {
+        // Preserve the provisioning error from the runtime command.
+      }
+      setProvisioningError(errorMessage(error))
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  async function backToLocalSetup() {
+    if (connecting) return
+    setProvisioning(false)
+    setProvisioningError(undefined)
+    setProvisioningSnapshot(null)
+    setProvisioningStage("prepare")
+    setError(undefined)
+    try {
+      const settings = await getLocalServerSettings()
+      setLocalSettings(settings)
+      setDataDirectory(settings.dataDirectory)
+    } catch (error) {
+      setError(errorMessage(error))
     }
   }
 
@@ -109,6 +176,22 @@ export function ServerConnectionScreen({
     { name: "dataDirectory", required: true },
     { name: "webEnabled", required: true, choices: [{ value: "true" }, { value: "false" }] },
   ] as const : []
+
+  if (provisioning && localSettings) {
+    return (
+      <AuthShell>
+        <LocalServerProvisioning
+          settings={localSettings}
+          snapshot={provisioningSnapshot}
+          reachedStage={provisioningStage}
+          busy={connecting}
+          error={provisioningError}
+          onRetry={() => void provisionLocal(localSettings.webEnabled)}
+          onBack={() => void backToLocalSetup()}
+        />
+      </AuthShell>
+    )
+  }
 
   return (
     <AuthShell>
@@ -216,7 +299,7 @@ export function ServerConnectionScreen({
                       <QuestionnairePrevious disabled={connecting} />
                       <QuestionnaireSkip disabled={connecting} />
                       <QuestionnaireNext disabled={connecting} />
-                      <QuestionnaireSubmit disabled={connecting}>{connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Starting local server</> : "Start local server"}</QuestionnaireSubmit>
+                      <QuestionnaireSubmit disabled={connecting}>{connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Saving configuration</> : "Save and continue"}</QuestionnaireSubmit>
                     </QuestionnaireActions>
                   </Questionnaire>
                   {error ? <FieldError>{error}</FieldError> : null}
