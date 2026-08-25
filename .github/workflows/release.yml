@@ -143,7 +143,6 @@ jobs:
     name: Release web standalone
     needs:
       - release-info
-      - release-backend
     uses: ./.github/workflows/release-web-standalone.yml
     permissions:
       contents: write

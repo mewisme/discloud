@@ -24,44 +24,41 @@ permissions:
   contents: write
 
 jobs:
-  prepare-ffmpeg:
-    name: Prepare FFmpeg (${{ matrix.target-triple }})
+  build-frontend:
+    name: Build desktop frontend
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target-triple: x86_64-unknown-linux-gnu
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-          - target-triple: x86_64-pc-windows-msvc
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
-          - target-triple: aarch64-apple-darwin
-            staged-file: desktop/src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          - target-triple: x86_64-apple-darwin
-            staged-file: desktop/src-tauri/binaries/ffmpeg-x86_64-apple-darwin
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download, verify and stage FFmpeg
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/prepare-ffmpeg-sidecar.js --target "${{ matrix.target-triple }}" --output desktop/src-tauri/binaries
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@v2
+        with:
+          package-json-file: package.json
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+          cache: true
+          install: false
 
-      - name: Upload target FFmpeg
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @discloud/desktop...
+
+      - name: Build desktop frontend
+        run: pnpm desktop:build
+
+      - name: Upload desktop frontend
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ matrix.target-triple }}
-          path: ${{ matrix.staged-file }}
+          name: desktop-frontend
+          path: desktop/dist
           if-no-files-found: error
           retention-days: 1
 
-  prepare-local-runtime:
-    name: Prepare Local runtime (${{ matrix.target-triple }})
+  prepare-inputs:
+    name: Prepare desktop inputs (${{ matrix.target-triple }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -78,25 +75,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download, verify and stage Local runtime
+      - name: Prepare FFmpeg and Local runtime
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/prepare-local-runtime-bundle.mjs --version "${{ inputs.version }}" --target "${{ matrix.target-triple }}" --output "$RUNNER_TEMP/local-runtime"
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/desktop-inputs"
+          mkdir -p "$output/binaries"
+          node scripts/prepare-ffmpeg-sidecar.js --target "${{ matrix.target-triple }}" --output "$output/binaries" &
+          ffmpeg_pid=$!
+          node scripts/prepare-local-runtime-bundle.mjs --version "${{ inputs.version }}" --target "${{ matrix.target-triple }}" --output "$output" &
+          runtime_pid=$!
+          ffmpeg_status=0
+          runtime_status=0
+          wait "$ffmpeg_pid" || ffmpeg_status=$?
+          wait "$runtime_pid" || runtime_status=$?
+          if (( ffmpeg_status != 0 || runtime_status != 0 )); then exit 1; fi
 
-      - name: Upload target Local runtime
+      - name: Upload target desktop inputs
         uses: actions/upload-artifact@v4
         with:
-          name: local-runtime-${{ matrix.target-triple }}
-          path: ${{ runner.temp }}/local-runtime
+          name: desktop-inputs-${{ matrix.target-triple }}
+          path: ${{ runner.temp }}/desktop-inputs
           if-no-files-found: error
           retention-days: 1
 
   release:
     name: Release desktop (${{ matrix.name }})
     needs:
-      - prepare-ffmpeg
-      - prepare-local-runtime
+      - build-frontend
+      - prepare-inputs
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -131,16 +140,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download FFmpeg sidecar
+      - name: Download desktop frontend
         uses: actions/download-artifact@v4
         with:
-          name: ffmpeg-${{ matrix.target-triple }}
-          path: desktop/src-tauri/binaries
+          name: desktop-frontend
+          path: desktop/dist
 
-      - name: Download Local runtime bundle
+      - name: Download desktop inputs
         uses: actions/download-artifact@v4
         with:
-          name: local-runtime-${{ matrix.target-triple }}
+          name: desktop-inputs-${{ matrix.target-triple }}
           path: desktop/src-tauri
 
       - name: Make sidecars executable
@@ -171,7 +180,7 @@ jobs:
           install: false
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --filter @discloud/desktop...
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
