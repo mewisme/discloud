@@ -347,92 +347,89 @@ async fn ensure_runtime<R: Runtime>(
         })?;
     }
 
-    let (archive_path, downloaded) =
-        if let Some(path) = bundled::resource_archive(app, descriptor).await? {
-            state.update(|snapshot| {
-                snapshot.status = LocalRuntimeStatus::Installing;
-                snapshot.error = None;
-            })?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::PostgresqlRuntime,
-                format!(
-                    "Installing bundled PostgreSQL {} runtime.",
-                    descriptor.version
-                ),
-            )
-            .await;
-            crate::diagnostics::info(
-                "runtime.local.postgresql",
-                format!("using bundled archive={}", path.display()),
-            );
-            (path, false)
-        } else {
-            state.update(|snapshot| {
-                snapshot.status = LocalRuntimeStatus::Downloading;
-                snapshot.error = None;
-            })?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::PostgresqlRuntime,
-                format!("Downloading PostgreSQL {} runtime.", descriptor.version),
-            )
-            .await;
-            let client = download::client(desktop_version)?;
-            let downloads_dir = layout.staging_dir.join("downloads");
-            let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::PostgresqlRuntime,
-                format!(
-                    "Downloaded and verified PostgreSQL {} runtime ({} bytes).",
-                    descriptor.version, verified.bytes
-                ),
-            )
-            .await;
-            crate::diagnostics::info(
-                "runtime.local.postgresql",
-                format!(
-                    "downloaded={} bytes={} sha256={}",
-                    verified.path.display(),
-                    verified.bytes,
-                    verified.sha256
-                ),
-            );
-            (verified.path, true)
-        };
-
-    let extraction_dir = layout
-        .staging_dir
-        .join(format!("postgresql-{}.extract", descriptor.version));
-    archive::extract_tar_gz(&archive_path, &extraction_dir).await?;
-    let extracted_root = find_runtime_root(&extraction_dir).await?;
-    fs::create_dir_all(&layout.postgresql_dir)
-        .await
-        .map_err(|error| {
-            LocalRuntimeError::io("Could not create the PostgreSQL runtime directory", error)
+    if let Some(resource_dir) = bundled::resource_directory(app, descriptor).await? {
+        state.update(|snapshot| {
+            snapshot.status = LocalRuntimeStatus::Installing;
+            snapshot.error = None;
         })?;
-    if extracted_root == extraction_dir {
-        fs::rename(&extraction_dir, &destination)
-            .await
-            .map_err(|error| {
-                LocalRuntimeError::io("Could not install the PostgreSQL runtime", error)
-            })?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::PostgresqlRuntime,
+            format!(
+                "Installing bundled PostgreSQL {} runtime.",
+                descriptor.version
+            ),
+        )
+        .await;
+        crate::diagnostics::info(
+            "runtime.local.postgresql",
+            format!("using bundled directory={}", resource_dir.display()),
+        );
+        let resource_root = find_runtime_root(&resource_dir).await?;
+        bundled::copy_resource_directory(&resource_root, &destination).await?;
     } else {
-        fs::rename(&extracted_root, &destination)
+        state.update(|snapshot| {
+            snapshot.status = LocalRuntimeStatus::Downloading;
+            snapshot.error = None;
+        })?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::PostgresqlRuntime,
+            format!("Downloading PostgreSQL {} runtime.", descriptor.version),
+        )
+        .await;
+        let client = download::client(desktop_version)?;
+        let downloads_dir = layout.staging_dir.join("downloads");
+        let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::PostgresqlRuntime,
+            format!(
+                "Downloaded and verified PostgreSQL {} runtime ({} bytes).",
+                descriptor.version, verified.bytes
+            ),
+        )
+        .await;
+        crate::diagnostics::info(
+            "runtime.local.postgresql",
+            format!(
+                "downloaded={} bytes={} sha256={}",
+                verified.path.display(),
+                verified.bytes,
+                verified.sha256
+            ),
+        );
+        let extraction_dir = layout
+            .staging_dir
+            .join(format!("postgresql-{}.extract", descriptor.version));
+        archive::extract_tar_gz(&verified.path, &extraction_dir).await?;
+        let extracted_root = find_runtime_root(&extraction_dir).await?;
+        fs::create_dir_all(&layout.postgresql_dir)
             .await
             .map_err(|error| {
-                LocalRuntimeError::io("Could not install the PostgreSQL runtime", error)
+                LocalRuntimeError::io("Could not create the PostgreSQL runtime directory", error)
             })?;
-        let _ = fs::remove_dir_all(&extraction_dir).await;
-    }
-    if downloaded {
-        let _ = fs::remove_file(&archive_path).await;
+        if extracted_root == extraction_dir {
+            fs::rename(&extraction_dir, &destination)
+                .await
+                .map_err(|error| {
+                    LocalRuntimeError::io("Could not install the PostgreSQL runtime", error)
+                })?;
+        } else {
+            fs::rename(&extracted_root, &destination)
+                .await
+                .map_err(|error| {
+                    LocalRuntimeError::io("Could not install the PostgreSQL runtime", error)
+                })?;
+            let _ = fs::remove_dir_all(&extraction_dir).await;
+        }
+        let _ = fs::remove_file(&verified.path).await;
     }
 
+    ensure_runtime_executables(&destination).await?;
     if !runtime_valid(&destination).await? {
         return Err(LocalRuntimeError::invalid_artifact(
-            "The PostgreSQL runtime archive does not contain the required executables.",
+            "The PostgreSQL runtime does not contain the required executables.",
         ));
     }
     logs::append(
@@ -559,6 +556,47 @@ async fn runtime_valid(runtime_dir: &Path) -> Result<bool, LocalRuntimeError> {
     Ok(true)
 }
 
+#[cfg(unix)]
+async fn ensure_runtime_executables(runtime_dir: &Path) -> Result<(), LocalRuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut entries = fs::read_dir(runtime_dir.join("bin"))
+        .await
+        .map_err(|error| {
+            LocalRuntimeError::io("Could not inspect PostgreSQL runtime permissions", error)
+        })?;
+    while let Some(entry) = entries.next_entry().await.map_err(|error| {
+        LocalRuntimeError::io("Could not inspect PostgreSQL runtime permissions", error)
+    })? {
+        let file_type = entry.file_type().await.map_err(|error| {
+            LocalRuntimeError::io("Could not inspect a PostgreSQL runtime executable", error)
+        })?;
+        if !file_type.is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let mut permissions = entry
+            .metadata()
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io("Could not inspect PostgreSQL runtime permissions", error)
+            })?
+            .permissions();
+        permissions.set_mode(permissions.mode() | 0o755);
+        fs::set_permissions(path, permissions)
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io("Could not make a PostgreSQL runtime file executable", error)
+            })?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+async fn ensure_runtime_executables(_runtime_dir: &Path) -> Result<(), LocalRuntimeError> {
+    Ok(())
+}
+
 async fn ensure_application_database(
     runtime_dir: &Path,
     port: u16,
@@ -628,7 +666,7 @@ async fn find_runtime_root(extraction_dir: &Path) -> Result<PathBuf, LocalRuntim
     match candidates.len() {
         1 => Ok(candidates.remove(0)),
         _ => Err(LocalRuntimeError::invalid_artifact(
-            "The PostgreSQL archive has an unsupported directory layout.",
+            "The PostgreSQL runtime has an unsupported directory layout.",
         )),
     }
 }

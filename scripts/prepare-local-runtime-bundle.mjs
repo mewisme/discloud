@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto"
+import { execFileSync } from "node:child_process"
 import { createReadStream, createWriteStream } from "node:fs"
-import { chmod, copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises"
+import { access, chmod, copyFile, cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { pipeline } from "node:stream/promises"
 import { Readable } from "node:stream"
 import { setTimeout as delay } from "node:timers/promises"
-import { execFileSync } from "node:child_process"
 
 process.noDeprecation = true
 
@@ -47,15 +47,32 @@ try {
   await downloadFile(`${releaseBase}/${backendArchiveName}`, backendArchive)
   await verifyChecksum(backendArchive, checksumFor(backendChecksums, backendArchiveName))
 
-  const webArchive = path.join(resourcesDir, webArchiveName)
+  const webArchive = path.join(temporary, webArchiveName)
   const webChecksums = await downloadText(`${releaseBase}/discloud-web-checksums.txt`)
   await downloadFile(`${releaseBase}/${webArchiveName}`, webArchive)
   await verifyChecksum(webArchive, checksumFor(webChecksums, webArchiveName))
 
-  const postgresqlArchive = path.join(resourcesDir, postgresqlArchiveName)
+  const postgresqlArchive = path.join(temporary, postgresqlArchiveName)
   const postgresqlChecksum = await downloadText(`${postgresqlBase}/${postgresqlArchiveName}.sha256`)
   await downloadFile(`${postgresqlBase}/${postgresqlArchiveName}`, postgresqlArchive)
   await verifyChecksum(postgresqlArchive, checksumFor(postgresqlChecksum, postgresqlArchiveName, true))
+
+  const webExtracted = path.join(temporary, "web")
+  const postgresqlExtracted = path.join(temporary, "postgresql")
+  await extractTarGz(webArchive, webExtracted)
+  await extractTarGz(postgresqlArchive, postgresqlExtracted)
+  for (const required of ["managed-web-runtime.cjs", path.join("web", "server.js"), path.join("web", ".next", "server")]) {
+    if (!(await pathExists(path.join(webExtracted, required)))) throw new Error(`Web archive is missing ${required}`)
+  }
+  const postgresqlBinary = await findFile(postgresqlExtracted, args.target.includes("windows") ? "postgres.exe" : "postgres")
+  if (!postgresqlBinary || path.basename(path.dirname(postgresqlBinary)) !== "bin") {
+    throw new Error("PostgreSQL archive does not contain bin/postgres")
+  }
+  const postgresqlRoot = path.dirname(path.dirname(postgresqlBinary))
+  const webResource = path.join(resourcesDir, "web", version)
+  const postgresqlResource = path.join(resourcesDir, "postgresql", POSTGRESQL_VERSION)
+  await cp(webExtracted, webResource, { recursive: true, dereference: true })
+  await cp(postgresqlRoot, postgresqlResource, { recursive: true, dereference: true })
 
   const extracted = path.join(temporary, "backend")
   await mkdir(extracted, { recursive: true })
@@ -70,8 +87,8 @@ try {
 
   console.log(`Prepared Local runtime bundle for ${args.target}`)
   console.log(`Backend: ${sidecar}`)
-  console.log(`PostgreSQL: ${postgresqlArchive}`)
-  console.log(`Web: ${webArchive}`)
+  console.log(`PostgreSQL: ${postgresqlResource}`)
+  console.log(`Web: ${webResource}`)
 } finally {
   await rm(temporary, { recursive: true, force: true })
 }
@@ -150,4 +167,18 @@ async function findFile(directory, filename) {
     }
   }
   return null
+}
+
+async function extractTarGz(archive, destination) {
+  await mkdir(destination, { recursive: true })
+  execFileSync("tar", ["-xzf", archive, "-C", destination], { stdio: "inherit" })
+}
+
+async function pathExists(candidate) {
+  try {
+    await access(candidate)
+    return true
+  } catch {
+    return false
+  }
 }

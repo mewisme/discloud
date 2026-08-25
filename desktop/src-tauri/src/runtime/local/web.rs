@@ -357,76 +357,72 @@ async fn ensure_runtime<R: Runtime>(
             LocalRuntimeError::io("Could not remove an incomplete managed web runtime", error)
         })?;
     }
-    let (archive_path, downloaded) =
-        if let Some(path) = bundled::resource_archive(app, descriptor).await? {
-            state.update(|snapshot| {
-                snapshot.status = LocalRuntimeStatus::Installing;
-                snapshot.error = None;
-            })?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::Web,
-                format!(
-                    "Installing bundled Managed Web UI {} runtime.",
-                    descriptor.version
-                ),
-            )
-            .await;
-            crate::diagnostics::info(
-                "runtime.local.web",
-                format!("using bundled archive={}", path.display()),
-            );
-            (path, false)
-        } else {
-            state.update(|snapshot| {
-                snapshot.status = LocalRuntimeStatus::Downloading;
-                snapshot.error = None;
-            })?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::Web,
-                format!("Downloading Managed Web UI {} runtime.", descriptor.version),
-            )
-            .await;
-            let client = download::client(desktop_version)?;
-            let downloads_dir = layout.staging_dir.join("downloads");
-            let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
-            logs::append(
-                layout,
-                logs::LocalRuntimeLogStage::Web,
-                format!(
-                    "Downloaded and verified Managed Web UI {} runtime ({} bytes).",
-                    descriptor.version, verified.bytes
-                ),
-            )
-            .await;
-            crate::diagnostics::info(
-                "runtime.local.web",
-                format!(
-                    "downloaded={} bytes={} sha256={}",
-                    verified.path.display(),
-                    verified.bytes,
-                    verified.sha256
-                ),
-            );
-            (verified.path, true)
-        };
-    let extraction_dir = layout
-        .staging_dir
-        .join(format!("web-{}.extract", descriptor.version));
-    archive::extract_tar_gz(&archive_path, &extraction_dir).await?;
-    fs::rename(&extraction_dir, &destination)
-        .await
-        .map_err(|error| {
-            LocalRuntimeError::io("Could not install the managed web runtime", error)
+    if let Some(resource_dir) = bundled::resource_directory(app, descriptor).await? {
+        state.update(|snapshot| {
+            snapshot.status = LocalRuntimeStatus::Installing;
+            snapshot.error = None;
         })?;
-    if downloaded {
-        let _ = fs::remove_file(&archive_path).await;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Web,
+            format!(
+                "Installing bundled Managed Web UI {} runtime.",
+                descriptor.version
+            ),
+        )
+        .await;
+        crate::diagnostics::info(
+            "runtime.local.web",
+            format!("using bundled directory={}", resource_dir.display()),
+        );
+        bundled::copy_resource_directory(&resource_dir, &destination).await?;
+    } else {
+        state.update(|snapshot| {
+            snapshot.status = LocalRuntimeStatus::Downloading;
+            snapshot.error = None;
+        })?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Web,
+            format!("Downloading Managed Web UI {} runtime.", descriptor.version),
+        )
+        .await;
+        let client = download::client(desktop_version)?;
+        let downloads_dir = layout.staging_dir.join("downloads");
+        let verified = download::download_verified(&client, descriptor, &downloads_dir).await?;
+        logs::append(
+            layout,
+            logs::LocalRuntimeLogStage::Web,
+            format!(
+                "Downloaded and verified Managed Web UI {} runtime ({} bytes).",
+                descriptor.version, verified.bytes
+            ),
+        )
+        .await;
+        crate::diagnostics::info(
+            "runtime.local.web",
+            format!(
+                "downloaded={} bytes={} sha256={}",
+                verified.path.display(),
+                verified.bytes,
+                verified.sha256
+            ),
+        );
+        let extraction_dir = layout
+            .staging_dir
+            .join(format!("web-{}.extract", descriptor.version));
+        archive::extract_tar_gz(&verified.path, &extraction_dir).await?;
+        fs::rename(&extraction_dir, &destination)
+            .await
+            .map_err(|error| {
+                LocalRuntimeError::io("Could not install the managed web runtime", error)
+            })?;
+        let _ = fs::remove_file(&verified.path).await;
     }
     if !runtime_valid(&destination, Some(&descriptor.version)).await? {
         let _ = fs::remove_dir_all(&destination).await;
         return Err(LocalRuntimeError::invalid_artifact(
-            "The managed web archive is missing Node.js, its launcher, server.js, Next.js runtime assets, or matching version metadata.",
+            "The managed web runtime is missing Node.js, its launcher, server.js, Next.js runtime assets, or matching version metadata.",
         ));
     }
     ensure_node_executable(&destination).await?;
