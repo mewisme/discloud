@@ -134,6 +134,10 @@
     cursor: pointer;
   }
 
+  input[type="password"]::-ms-reveal {
+    display: none;
+  }
+
   html {
     @apply font-sans;
   }
