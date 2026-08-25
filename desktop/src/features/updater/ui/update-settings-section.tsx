@@ -18,7 +18,7 @@ const channels: { value: UpdateChannel; label: string; description: string }[] =
   { value: "alpha", label: "Alpha", description: "Alpha, beta, RC and newer stable releases." },
 ]
 
-export function DesktopUpdaterSettings() {
+export function DesktopUpdaterSettings({ showHeading = true }: { showHeading?: boolean } = {}) {
   const updater = useDesktopUpdater()
   const busy = updater.stage === "checking" || updater.stage === "preparing-runtime" || updater.stage === "downloading" || updater.stage === "installing"
   const progress = updater.totalBytes && updater.totalBytes > 0
@@ -31,10 +31,12 @@ export function DesktopUpdaterSettings() {
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Updates</h2>
-        <p className="text-sm text-muted-foreground">Choose an update channel, check signed releases and install them without leaving the app.</p>
-      </div>
+      {showHeading ? (
+        <div>
+          <h2 className="text-lg font-semibold">Updates</h2>
+          <p className="text-sm text-muted-foreground">Choose an update channel, check signed releases and install them without leaving the app.</p>
+        </div>
+      ) : null}
 
       {updater.error ? (
         <Alert variant="destructive">
