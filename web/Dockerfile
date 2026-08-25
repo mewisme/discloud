@@ -35,6 +35,8 @@ COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 
 COPY packages ./packages
 COPY web ./web
+COPY scripts/sync-app-icons.cjs ./scripts/sync-app-icons.cjs
+COPY desktop/src-tauri/icons/icon.png desktop/src-tauri/icons/icon.ico ./desktop/src-tauri/icons/
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
