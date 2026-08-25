@@ -3,6 +3,7 @@ import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
+import { Progress } from "@discloud/ui/components/progress"
 import { Questionnaire, QuestionnaireActions, QuestionnaireChoice, QuestionnaireChoiceDescription, QuestionnaireChoices, QuestionnaireDescription, QuestionnaireError, QuestionnaireInput, QuestionnaireItem, QuestionnaireNext, QuestionnairePrevious, QuestionnaireProgress, QuestionnaireSkip, QuestionnaireSubmit, QuestionnaireTitle } from "@discloud/ui/components/questionnaire"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
 import { open } from "@tauri-apps/plugin-dialog"
@@ -160,7 +161,21 @@ export function ServerConnectionScreen({
               {!localSettings ? <div className="flex min-h-32 items-center justify-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading local server settings</div> : (
                 <div className="space-y-4">
                   <Questionnaire items={localSetupItems} onSubmit={connectLocal}>
-                    <QuestionnaireProgress />
+                    <QuestionnaireProgress
+                      className="w-full"
+                      render={(props, { current, total }) => {
+                        const value = total ? (current / total) * 100 : 0
+                        return (
+                          <div {...props}>
+                            <div className="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-muted-foreground">
+                              <span>Step {current} of {total}</span>
+                              <span>{Math.round(value)}%</span>
+                            </div>
+                            <Progress value={value} aria-hidden="true" />
+                          </div>
+                        )
+                      }}
+                    />
                     <QuestionnaireItem name="guildId" required>
                       <QuestionnaireTitle>Which Discord server should Local use?</QuestionnaireTitle>
                       <QuestionnaireDescription>Enter the numeric Discord guild ID.</QuestionnaireDescription>
