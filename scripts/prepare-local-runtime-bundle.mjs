@@ -71,8 +71,10 @@ try {
   const postgresqlRoot = path.dirname(path.dirname(postgresqlBinary))
   const webResource = path.join(resourcesDir, "web", version)
   const postgresqlResource = path.join(resourcesDir, "postgresql", POSTGRESQL_VERSION)
-  await cp(webExtracted, webResource, { recursive: true, dereference: true })
+  await copyWebResource(webExtracted, webResource)
   await cp(postgresqlRoot, postgresqlResource, { recursive: true, dereference: true })
+  if (await findDirectory(webResource, ".pnpm")) throw new Error("Prepared Web resource still contains the pnpm virtual store")
+  if (!(await pathExists(path.join(webResource, "web", "node_modules", "next", "package.json")))) throw new Error("Prepared Web resource is missing flattened Next.js dependencies")
 
   const extracted = path.join(temporary, "backend")
   await mkdir(extracted, { recursive: true })
@@ -169,9 +171,31 @@ async function findFile(directory, filename) {
   return null
 }
 
+async function findDirectory(directory, dirname) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const candidate = path.join(directory, entry.name)
+    if (entry.name === dirname) return candidate
+    const found = await findDirectory(candidate, dirname)
+    if (found) return found
+  }
+  return null
+}
+
 async function extractTarGz(archive, destination) {
   await mkdir(destination, { recursive: true })
   execFileSync("tar", ["-xzf", archive, "-C", destination], { stdio: "inherit" })
+}
+
+async function copyWebResource(source, destination) {
+  const pnpmStore = `${path.sep}node_modules${path.sep}.pnpm${path.sep}`
+  await cp(source, destination, {
+    recursive: true,
+    dereference: true,
+    filter(sourcePath) {
+      return !(sourcePath + path.sep).includes(pnpmStore)
+    },
+  })
 }
 
 async function pathExists(candidate) {
