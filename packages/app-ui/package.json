@@ -28,20 +28,20 @@
     "@discloud/api": "workspace:*",
     "@discloud/shared": "workspace:*",
     "@discloud/ui": "workspace:*",
-    "@hookform/resolvers": "^5.9.1",
-    "lucide-react": "^1.32.0",
-    "react-hook-form": "^7.85.0",
-    "zod": "^4.4.3"
+    "@hookform/resolvers": "catalog:",
+    "lucide-react": "catalog:",
+    "react-hook-form": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "typescript": "^5"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
   }
 }
