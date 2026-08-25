@@ -31,12 +31,12 @@ archives:
         formats:
           - zip
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      discloud-backend_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
       - README.md
 
 checksum:
-  name_template: checksums.txt
+  name_template: discloud-backend-checksums.txt
 
 changelog:
   sort: asc
