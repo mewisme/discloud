@@ -1,6 +1,12 @@
 "use client"
 
-import { DateTimeSettings, FileBrowserSettings, FilePreviewSettings, type PaginationMode, PaginationSettings, SettingsSaveBar, type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant, ThemeSettings, type ToolbarDockPosition, type ToolbarVariant } from "@discloud/app-ui/settings/common-settings"
+import { DateTimeSettings } from "@discloud/app-ui/settings/date-time-settings"
+import { FileBrowserSettings, type ToolbarDockPosition, type ToolbarVariant } from "@discloud/app-ui/settings/file-browser-settings"
+import { FilePreviewSettings } from "@discloud/app-ui/settings/file-preview-settings"
+import { type PaginationMode, PaginationSettings } from "@discloud/app-ui/settings/pagination-settings"
+import { SettingsSaveBar } from "@discloud/app-ui/settings/settings-save-bar"
+import { type SidebarCollapsible, SidebarSettings, type SidebarSide, type SidebarVariant } from "@discloud/app-ui/settings/sidebar-settings"
+import { ThemeSettings } from "@discloud/app-ui/settings/theme-settings"
 import type { ThemeEffect } from "@discloud/shared/theme-transition"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
