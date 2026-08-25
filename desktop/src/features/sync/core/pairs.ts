@@ -1,6 +1,6 @@
 import type { SyncPair } from "./types"
 
-export type UpdateSyncPairInput = Partial<Pick<SyncPair, "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
+export type UpdateSyncPairInput = Partial<Pick<SyncPair, "localPath" | "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
 
 export function normalizeSyncPair(pair: SyncPair): SyncPair {
   return pair.direction === "two-way" && pair.deletePolicy !== "propagate" ? { ...pair, deletePolicy: "propagate" } : pair

@@ -31,6 +31,10 @@ describe("sync pair deletion policy", () => {
     const current = { ...pair, direction: "upload-only" as const, deletePolicy: "preserve" as const }
     expect(patchScopedSyncPair([current], "pair", { direction: "two-way" }, current.serverUrl, current.username)?.[0].deletePolicy).toBe("propagate")
   })
+
+  it("allows an existing pair local root to be reselected", () => {
+    expect(patchScopedSyncPair([pair], "pair", { localPath: "D:\\DisCloud" }, pair.serverUrl, pair.username)?.[0].localPath).toBe("D:\\DisCloud")
+  })
 })
 
 describe("sync pair remote path", () => {

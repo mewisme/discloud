@@ -105,7 +105,13 @@ export function DesktopSyncProvider({ children }: { children: ReactNode }) {
     if (!scopeServerUrl || !scopeUsername) return
     const next = patchScopedSyncPair(allPairsRef.current, pairId, patch, scopeServerUrl, scopeUsername)
     if (!next) return
+    const localRootReselected = patch.localPath !== undefined
     await validateNativeSyncPairs(syncPairsForValidation(scopedSyncPairs(next, scopeServerUrl, scopeUsername), runningRef.current))
+    if (localRootReselected) {
+      await clearNativeSyncPairState(pairId)
+      setConflicts((current) => current.filter((conflict) => conflict.pairId !== pairId))
+      setRuntimes((current) => ({ ...current, [pairId]: { status: "idle" } }))
+    }
     await persist(next)
   }, [persist, scopeServerUrl, scopeUsername])
 

@@ -132,6 +132,27 @@ pub(crate) async fn canonical_directory(
     canonical_existing_directory(&path, label, None).await
 }
 
+pub(crate) async fn canonical_granted_directory(
+    value: &str,
+    label: &str,
+) -> Result<PathBuf, ApiCommandError> {
+    let path = PathBuf::from(value);
+    if !path.is_absolute() {
+        return Err(invalid_path(
+            label,
+            "stored authorization is not an absolute path",
+        ));
+    }
+    let canonical = canonical_existing_directory(&path, label, None).await?;
+    if !same_canonical_path(&path, &canonical) {
+        return Err(invalid_path(
+            label,
+            "no longer resolves to the directory that was originally authorized",
+        ));
+    }
+    Ok(canonical)
+}
+
 pub(crate) async fn canonical_path_within(
     root: &Path,
     value: &str,
@@ -150,9 +171,7 @@ pub(crate) async fn canonical_path_within(
     let canonical = fs::canonicalize(&path)
         .await
         .map_err(|error| invalid_path(label, format!("could not resolve path: {error}")))?;
-    let canonical_root = fs::canonicalize(root).await.map_err(|error| {
-        invalid_path(label, format!("could not resolve authorized root: {error}"))
-    })?;
+    let canonical_root = canonical_root(root, label).await?;
     if canonical != canonical_root && !canonical.starts_with(&canonical_root) {
         return Err(invalid_path(label, "is outside the authorized local root"));
     }
@@ -297,9 +316,28 @@ async fn canonical_root(root: &Path, label: &str) -> Result<PathBuf, ApiCommandE
             "authorized root must be a regular directory",
         ));
     }
-    fs::canonicalize(root)
-        .await
-        .map_err(|error| invalid_path(label, format!("could not resolve authorized root: {error}")))
+    let canonical = fs::canonicalize(root).await.map_err(|error| {
+        invalid_path(label, format!("could not resolve authorized root: {error}"))
+    })?;
+    if !same_canonical_path(root, &canonical) {
+        return Err(invalid_path(
+            label,
+            "authorized root changed after it was resolved",
+        ));
+    }
+    Ok(canonical)
+}
+
+#[cfg(windows)]
+fn same_canonical_path(left: &Path, right: &Path) -> bool {
+    left.as_os_str()
+        .to_string_lossy()
+        .eq_ignore_ascii_case(&right.as_os_str().to_string_lossy())
+}
+
+#[cfg(not(windows))]
+fn same_canonical_path(left: &Path, right: &Path) -> bool {
+    left == right
 }
 
 async fn inspect_child_components(
@@ -451,7 +489,11 @@ fn invalid_path(label: &str, reason: impl AsRef<str>) -> ApiCommandError {
 
 #[cfg(test)]
 mod tests {
-    use super::{absolute_path, safe_relative_path};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use tokio::fs;
+
+    use super::{absolute_path, canonical_root, checked_child_output_file, safe_relative_path};
 
     #[test]
     fn rejects_relative_and_trimmed_paths() {
@@ -480,5 +522,49 @@ mod tests {
             assert!(safe_relative_path("folder/file.txt:stream", "Path").is_err());
             assert!(safe_relative_path("CON.txt", "Path").is_err());
         }
+    }
+
+    #[tokio::test]
+    async fn rejects_noncanonical_authorized_root() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!(
+            "discloud-path-security-{}-{nonce}",
+            std::process::id()
+        ));
+        let root = base.join("root");
+        fs::create_dir_all(&root).await.unwrap();
+        let canonical = fs::canonicalize(&root).await.unwrap();
+        let alias = root.join("..").join("root");
+
+        assert!(canonical_root(&canonical, "Root").await.is_ok());
+        assert!(canonical_root(&alias, "Root").await.is_err());
+
+        let _ = fs::remove_dir_all(base).await;
+    }
+
+    #[tokio::test]
+    async fn rejects_non_directory_child_parent() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!(
+            "discloud-path-security-child-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&base).await.unwrap();
+        let root = fs::canonicalize(&base).await.unwrap();
+        fs::write(root.join("parent"), b"file").await.unwrap();
+
+        assert!(
+            checked_child_output_file(&root, "parent/child.txt", "Child")
+                .await
+                .is_err()
+        );
+
+        let _ = fs::remove_dir_all(base).await;
     }
 }

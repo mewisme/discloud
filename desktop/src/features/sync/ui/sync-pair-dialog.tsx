@@ -25,6 +25,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
   const [deletePolicy, setDeletePolicy] = useState<SyncDeletePolicy>(pair?.deletePolicy ?? (readOnlyRemote ? "preserve" : "propagate"))
   const [intervalSeconds, setIntervalSeconds] = useState(pair?.intervalSeconds ?? 30)
   const [ignoreText, setIgnoreText] = useState((pair?.ignorePatterns ?? defaultSyncIgnorePatterns).join("\n"))
+  const [localPathSelected, setLocalPathSelected] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
   const remoteName = remoteFolder?.name ?? pair?.remoteFolderName ?? "Folder"
@@ -36,13 +37,17 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
     setDeletePolicy(pair?.deletePolicy ?? (readOnlyRemote ? "preserve" : "propagate"))
     setIntervalSeconds(pair?.intervalSeconds ?? 30)
     setIgnoreText((pair?.ignorePatterns ?? defaultSyncIgnorePatterns).join("\n"))
+    setLocalPathSelected(false)
     setError(undefined)
   }, [open, pair, readOnlyRemote])
 
   async function chooseFolder() {
     try {
       const selected = await pickSyncFolder()
-      if (selected) setLocalPath(selected)
+      if (selected) {
+        setLocalPath(selected)
+        setLocalPathSelected(true)
+      }
     } catch (cause) {
       setError(errorMessage(cause))
     }
@@ -50,7 +55,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
 
   async function save() {
     const normalizedLocal = localPath.trim()
-    if (!pair && !normalizedLocal) return setError("Choose a local folder.")
+    if (!normalizedLocal) return setError("Choose a local folder.")
     if (!pair && !remoteFolder) return setError("Remote folder is missing.")
 
     setPending(true)
@@ -59,7 +64,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
     try {
       const behavior = { direction, deletePolicy, intervalSeconds, ignorePatterns: parseIgnorePatterns(ignoreText) }
       if (pair) {
-        await sync.updatePair(pair.id, { ...behavior, ...(remoteFolder ? { remoteFolderName: remoteFolder.name } : {}) })
+        await sync.updatePair(pair.id, { ...behavior, ...(localPathSelected ? { localPath: normalizedLocal } : {}), ...(remoteFolder ? { remoteFolderName: remoteFolder.name } : {}) })
       } else {
         await sync.addPair({
           ...behavior,
@@ -82,7 +87,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{pair ? `Sync settings for ${remoteName}` : `Sync ${remoteName}`}</DialogTitle>
-          <DialogDescription>{pair ? "Change how this pair syncs. Remote and local roots stay fixed to protect the existing baseline." : "Connect this DisCloud folder with one local folder."}</DialogDescription>
+          <DialogDescription>{pair ? "Change sync behavior or re-select the local folder. Re-selecting it renews filesystem access and resets the baseline." : "Connect this DisCloud folder with one local folder."}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-5 py-1">
@@ -95,7 +100,7 @@ export function DesktopSyncPairDialog({ pair, remoteFolder, open, onOpenChange }
             Local folder
             <div className="flex gap-2">
               <Input value={localPath} placeholder="Choose a folder" disabled={pending} readOnly />
-              {!pair ? <Button type="button" variant="outline" disabled={pending} onClick={() => void chooseFolder()}><FolderOpenIcon />Browse</Button> : null}
+              <Button type="button" variant="outline" disabled={pending} onClick={() => void chooseFolder()}><FolderOpenIcon />Browse</Button>
             </div>
           </label>
 
