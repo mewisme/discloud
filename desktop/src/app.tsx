@@ -1,3 +1,4 @@
+import { Toaster } from "@discloud/ui/components/sonner"
 import { RouterProvider } from "react-router/dom"
 
 import { DesktopSessionProvider } from "#components/desktop-session"
@@ -17,6 +18,7 @@ export function App() {
           </DesktopContextMenuProvider>
         </DesktopSessionProvider>
       </DesktopUpdaterProvider>
+      <Toaster position="bottom-right" />
     </DesktopRuntimeProvider>
   )
 }

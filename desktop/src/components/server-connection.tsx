@@ -1,10 +1,12 @@
 import { AuthShell } from "@discloud/app-ui/auth/auth-shell"
 import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
+import { CopyButton } from "@discloud/ui/components/copy-button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
 import { Progress } from "@discloud/ui/components/progress"
 import { Questionnaire, QuestionnaireActions, QuestionnaireChoice, QuestionnaireChoiceDescription, QuestionnaireChoices, QuestionnaireDescription, QuestionnaireError, QuestionnaireInput, QuestionnaireItem, QuestionnaireNext, QuestionnairePrevious, QuestionnaireProgress, QuestionnaireSkip, QuestionnaireSubmit, QuestionnaireTitle } from "@discloud/ui/components/questionnaire"
+import { toast } from "@discloud/ui/components/sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
 import { open } from "@tauri-apps/plugin-dialog"
 import { LoaderCircle } from "lucide-react"
@@ -50,7 +52,7 @@ export function ServerConnectionScreen({
         setLocalSettings(settings)
         setDataDirectory(settings.dataDirectory)
       })
-      .catch((error) => setError(errorMessage(error)))
+      .catch((error) => showLocalSetupError(error, "Could not load Local settings"))
   }, [localSettings, mode])
 
   useEffect(() => {
@@ -117,7 +119,7 @@ export function ServerConnectionScreen({
       setProvisioning(true)
       await provisionLocal(settings.webEnabled)
     } catch (error) {
-      setError(errorMessage(error))
+      showLocalSetupError(error, "Could not save Local setup")
     } finally {
       setConnecting(false)
     }
@@ -154,7 +156,7 @@ export function ServerConnectionScreen({
       setLocalSettings(settings)
       setDataDirectory(settings.dataDirectory)
     } catch (error) {
-      setError(errorMessage(error))
+      showLocalSetupError(error, "Could not reload Local settings")
     }
   }
 
@@ -302,7 +304,6 @@ export function ServerConnectionScreen({
                       <QuestionnaireSubmit disabled={connecting}>{connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Saving configuration</> : "Save and continue"}</QuestionnaireSubmit>
                     </QuestionnaireActions>
                   </Questionnaire>
-                  {error ? <FieldError>{error}</FieldError> : null}
                 </div>
               )}
             </TabsContent>
@@ -311,4 +312,16 @@ export function ServerConnectionScreen({
       </Card>
     </AuthShell>
   )
+}
+
+function showLocalSetupError(error: unknown, title: string) {
+  const message = errorMessage(error)
+  toast.error(title, {
+    description: (
+      <div className="flex min-w-0 items-start gap-2">
+        <span className="min-w-0 flex-1 break-words">{message}</span>
+        <CopyButton value={message} label="Copy error" copiedLabel="Error copied" type="button" size="icon-xs" variant="ghost" />
+      </div>
+    ),
+  })
 }
