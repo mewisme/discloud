@@ -10,6 +10,15 @@ export type LocalRuntimeLog = {
   truncated: boolean
 }
 
+export type LocalDataCompatibility = {
+  schemaVersion: number
+  supportedSchemaMin: number
+  supportedSchemaMax: number
+  compatible: boolean
+  lastAppVersion: string | null
+  detail: string | null
+}
+
 export type LocalRuntimeComponent = {
   kind: "backend" | "postgresql" | "web"
   version: string
@@ -73,6 +82,7 @@ export type LocalRuntimeSnapshot = {
     postgresDataDir: string
     configPath: string
     manifestPath: string
+    dataMetadataPath: string
     postgresqlStatePath: string
     backendStatePath: string
     backendShutdownPath: string
@@ -107,6 +117,7 @@ export type LocalServerSettings = {
   postgresqlPreferredPort: number
   webPreferredPort: number
   webEnabled: boolean
+  dataCompatibility: LocalDataCompatibility
 }
 
 export type LocalServerSettingsInput = {

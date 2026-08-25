@@ -10,7 +10,7 @@ use tauri::{AppHandle, Runtime};
 use tokio::fs;
 
 use super::ports;
-use super::{layout::LocalRuntimeLayout, postgresql, LocalRuntimeError};
+use super::{compatibility, layout::LocalRuntimeLayout, postgresql, LocalRuntimeError};
 
 const KEYRING_SERVICE: &str = "com.mewisme.discloud.local-runtime";
 const KEYRING_ENCRYPTION_KEY: &str = "backend.encryption-master-key";
@@ -41,6 +41,7 @@ pub(crate) struct LocalServerSettings {
     postgresql_preferred_port: u16,
     web_preferred_port: u16,
     web_enabled: bool,
+    data_compatibility: compatibility::LocalDataCompatibility,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -70,6 +71,7 @@ pub(super) async fn load_settings<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<LocalServerSettings, LocalRuntimeError> {
     let layout = LocalRuntimeLayout::resolve(app)?;
+    let data_compatibility = compatibility::inspect(app, &layout).await?;
     layout.prepare().await?;
     ensure_config_file(&layout).await?;
     let env = parse_env_file(&layout.config_path).await?;
@@ -97,6 +99,7 @@ pub(super) async fn load_settings<R: Runtime>(
         postgresql_preferred_port: ports::POSTGRESQL_PREFERRED_PORT,
         web_preferred_port: ports::WEB_PREFERRED_PORT,
         web_enabled: bool_value(&env, ENV_LOCAL_WEB_ENABLED)?.unwrap_or(false),
+        data_compatibility,
     })
 }
 
@@ -127,6 +130,8 @@ pub(super) async fn save_settings<R: Runtime>(
             "The local data directory cannot be changed after PostgreSQL has been initialized.",
         ));
     }
+    let target_layout = LocalRuntimeLayout::for_root(requested_root.clone())?;
+    compatibility::ensure_compatible(app, &target_layout).await?;
 
     let submitted_tokens = normalize_bot_token_list(input.bot_tokens.as_deref().unwrap_or(""));
     if !submitted_tokens.is_empty() {
@@ -156,7 +161,6 @@ pub(super) async fn save_settings<R: Runtime>(
         .unwrap_or(bool_value(&env, ENV_LOCAL_WEB_ENABLED)?.unwrap_or(false));
     env.insert(ENV_LOCAL_WEB_ENABLED.into(), web_enabled.to_string());
 
-    let target_layout = LocalRuntimeLayout::for_root(requested_root.clone())?;
     target_layout.prepare().await?;
     write_env_file(&target_layout.config_path, &env).await?;
     LocalRuntimeLayout::set_root(app, &requested_root).await?;

@@ -245,7 +245,13 @@ export function ServerConnectionScreen({
             <TabsContent value="local">
               {!localSettings ? <div className="flex min-h-32 items-center justify-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading local server settings</div> : (
                 <div className="space-y-4">
-                  <Questionnaire items={localSetupItems} onSubmit={connectLocal}>
+                  {!localSettings.dataCompatibility.compatible ? (
+                    <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
+                      <p className="font-medium text-destructive">Local data requires a compatible DisCloud version</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{localSettings.dataCompatibility.detail ?? "Update DisCloud before using Local mode. Remote mode remains available."}</p>
+                    </div>
+                  ) : (
+                    <Questionnaire items={localSetupItems} onSubmit={connectLocal}>
                     <QuestionnaireProgress
                       className="w-full"
                       render={(props, { current, total }) => {
@@ -303,7 +309,8 @@ export function ServerConnectionScreen({
                       <QuestionnaireNext disabled={connecting} />
                       <QuestionnaireSubmit disabled={connecting}>{connecting ? <><LoaderCircle data-icon="inline-start" className="animate-spin" />Saving configuration</> : "Save and continue"}</QuestionnaireSubmit>
                     </QuestionnaireActions>
-                  </Questionnaire>
+                    </Questionnaire>
+                  )}
                 </div>
               )}
             </TabsContent>

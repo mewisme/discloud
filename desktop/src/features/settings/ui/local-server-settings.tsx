@@ -26,7 +26,8 @@ export function LocalServerSettings() {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextSettings, nextRuntime, connection] = await Promise.all([getLocalServerSettings(), prepareLocalRuntime(), loadConnectionSettings()])
+      const nextSettings = await getLocalServerSettings()
+      const [nextRuntime, connection] = await Promise.all([nextSettings.dataCompatibility.compatible ? prepareLocalRuntime() : Promise.resolve(null), loadConnectionSettings()])
       setSettings(nextSettings)
       setRuntime(nextRuntime)
       setMode(connection.mode)
@@ -81,6 +82,7 @@ export function LocalServerSettings() {
   }
 
   const configured = !!guildId.trim() && !!channelId.trim() && !!settings?.botTokensConfigured && !!settings.encryptionKeyConfigured && !!settings.databasePasswordConfigured
+  const dataCompatible = settings?.dataCompatibility.compatible ?? true
   const backendPort = runtime?.backend?.port ?? settings?.backendPreferredPort
   const postgresqlPort = runtime?.postgresql?.port ?? settings?.postgresqlPreferredPort
   const webPort = runtime?.web?.port ?? settings?.webPreferredPort
@@ -119,6 +121,8 @@ export function LocalServerSettings() {
         {runtime?.backend?.previousVersion ? <p className="text-xs text-muted-foreground">Previous backend binary v{runtime.backend.previousVersion} is retained as a recovery artifact. Automatic binary downgrade is not performed after database migrations.</p> : null}
 
         {runtime?.web?.error ? <p className="text-sm text-destructive">Managed web: {runtime.web.error}</p> : null}
+
+        {!dataCompatible ? <p className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{settings?.dataCompatibility.detail ?? "Update DisCloud before using this Local data directory."}</p> : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
@@ -169,10 +173,10 @@ export function LocalServerSettings() {
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={saving || !guildId.trim() || !channelId.trim() || (!botTokens.trim() && !settings?.botTokensConfigured)} onClick={() => void save()}>
+          <Button type="button" disabled={!dataCompatible || saving || !guildId.trim() || !channelId.trim() || (!botTokens.trim() && !settings?.botTokensConfigured)} onClick={() => void save()}>
             {saving ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}Save settings
           </Button>
-          <Button type="button" variant="outline" disabled={restarting || mode !== "local" || !configured} onClick={() => void restart()}>
+          <Button type="button" variant="outline" disabled={!dataCompatible || restarting || mode !== "local" || !configured} onClick={() => void restart()}>
             {restarting ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCwIcon data-icon="inline-start" />}Restart local server
           </Button>
           {mode !== "local" ? <span className="self-center text-sm text-muted-foreground">Switch the active connection to Local before restarting.</span> : null}

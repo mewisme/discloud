@@ -991,6 +991,7 @@ dependencies = [
  "objc2-quick-look-thumbnailing",
  "rand 0.9.5",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.0",

@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 mod archive;
 mod backend;
 mod bundled;
+mod compatibility;
 pub(crate) mod components;
 mod config;
 pub(crate) mod download;
@@ -58,6 +59,7 @@ pub(crate) struct LocalRuntimePaths {
     postgres_data_dir: String,
     config_path: String,
     manifest_path: String,
+    data_metadata_path: String,
     postgresql_state_path: String,
     backend_state_path: String,
     backend_shutdown_path: String,
@@ -133,6 +135,7 @@ impl LocalRuntimePaths {
             postgres_data_dir: path_string(&layout.postgres_data_dir),
             config_path: path_string(&layout.config_path),
             manifest_path: path_string(&layout.manifest_path),
+            data_metadata_path: path_string(&layout.data_metadata_path),
             postgresql_state_path: path_string(&layout.postgresql_state_path),
             backend_state_path: path_string(&layout.backend_state_path),
             backend_shutdown_path: path_string(&layout.backend_shutdown_path),
@@ -170,6 +173,10 @@ impl LocalRuntimeError {
 
     pub(crate) fn invalid_state(message: impl Into<String>) -> Self {
         Self::new("invalidState", message)
+    }
+
+    pub(crate) fn incompatible_data(message: impl Into<String>) -> Self {
+        Self::new("incompatibleData", message)
     }
 
     pub(crate) fn configuration(message: impl Into<String>) -> Self {
@@ -500,6 +507,7 @@ async fn prepare_local_runtime_inner(
     app: &AppHandle,
     state: &LocalRuntimeState,
 ) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
+    ensure_local_data_compatible(app).await?;
     prepare_foundation(app, state).await?;
     state.update(|snapshot| {
         snapshot.status = if snapshot
@@ -530,6 +538,7 @@ async fn start_local_postgresql_inner(
         snapshot.status = LocalRuntimeStatus::Preparing;
         snapshot.error = None;
     })?;
+    ensure_local_data_compatible(app).await?;
     let (layout, manifest) = prepare_foundation(app, state).await?;
     postgresql::start(
         app,
@@ -571,6 +580,7 @@ async fn start_local_runtime_inner(
         snapshot.error = None;
     })?;
     let initial_layout = LocalRuntimeLayout::resolve(app)?;
+    compatibility::ensure_compatible(app, &initial_layout).await?;
     logs::reset(&initial_layout).await;
     logs::append(
         &initial_layout,
@@ -771,6 +781,12 @@ async fn prepare_foundation(
         snapshot.error = None;
     })?;
     Ok((layout, manifest))
+}
+
+async fn ensure_local_data_compatible(app: &AppHandle) -> Result<(), LocalRuntimeError> {
+    let layout = LocalRuntimeLayout::resolve(app)?;
+    compatibility::ensure_compatible(app, &layout).await?;
+    Ok(())
 }
 
 fn fail(state: &LocalRuntimeState, error: &LocalRuntimeError) {
