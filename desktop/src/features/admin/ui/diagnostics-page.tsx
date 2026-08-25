@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/component
 import { EyeIcon, Loader2Icon, RefreshCwIcon, SearchIcon, TriangleAlertIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { errorMessage } from "#lib/instance"
 
 import { loadAuditDiagnostics, loadJobDiagnostics, loadUploadDiagnostics } from "../core/api"
@@ -91,6 +92,7 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
       setQuery({ ...nextQuery, cursor: undefined })
     } catch (cause) {
       setError(errorMessage(cause))
+      if (append) throw cause
     } finally {
       setLoading(false)
     }
@@ -137,11 +139,11 @@ function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
         <Table className="table-fixed">
           <TableHeader><TableRow><TableHead className="w-40">Time</TableHead><TableHead className="w-48">Action</TableHead><TableHead className="hidden w-48 lg:table-cell">Actor</TableHead><TableHead className="hidden md:table-cell">Resource</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
           <TableBody>
-            {events.map((event) => <TableRow key={event.id}><TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell><TableCell className="min-w-0 overflow-hidden"><Badge variant="outline" className="max-w-full overflow-hidden font-mono font-normal"><span className="truncate" title={event.action}>{event.action}</span></Badge></TableCell><TableCell className="hidden overflow-hidden text-ellipsis lg:table-cell" title={event.actorName || (event.actorUsername ? `@${event.actorUsername}` : event.actorUserId || "system")}>{event.actorName || (event.actorUsername ? `@${event.actorUsername}` : event.actorUserId || "system")}</TableCell><TableCell className="hidden min-w-0 overflow-hidden md:table-cell"><div className="min-w-0"><p className="truncate text-sm">{event.resourceType || "—"}{event.resourceName ? ` · ${event.resourceName}` : event.resourceUsername ? ` · @${event.resourceUsername}` : ""}</p>{event.resourceId ? <p className="truncate font-mono text-[11px] text-muted-foreground">{event.resourceId}</p> : null}</div></TableCell><TableCell><JSONDialogButton title={event.action} value={event.metadata} /></TableCell></TableRow>)}
+            {events.map((event) => <TableRow key={event.id}><TableCell className="overflow-hidden whitespace-nowrap text-muted-foreground"><span className="block truncate">{formatDateTime(event.createdAt)}</span></TableCell><TableCell className="min-w-0 overflow-hidden"><Badge variant="outline" className="max-w-full overflow-hidden font-mono font-normal"><span className="truncate" title={event.action}>{event.action}</span></Badge></TableCell><TableCell className="hidden overflow-hidden text-ellipsis lg:table-cell" title={event.actorName || (event.actorUsername ? `@${event.actorUsername}` : event.actorUserId || "system")}>{event.actorName || (event.actorUsername ? `@${event.actorUsername}` : event.actorUserId || "system")}</TableCell><TableCell className="hidden min-w-0 overflow-hidden md:table-cell"><div className="min-w-0"><p className="truncate text-sm">{event.resourceType || "—"}{event.resourceName ? ` · ${event.resourceName}` : event.resourceUsername ? ` · @${event.resourceUsername}` : ""}</p>{event.resourceId ? <p className="truncate font-mono text-[11px] text-muted-foreground">{event.resourceId}</p> : null}</div></TableCell><TableCell><JSONDialogButton title={event.action} value={event.metadata} /></TableCell></TableRow>)}
             {!loading && !events.length ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No audit events found.</TableCell></TableRow> : null}
           </TableBody>
         </Table>
-        <LoadMore loading={loading} nextCursor={nextCursor} onLoad={() => nextCursor ? run({ ...query, cursor: nextCursor }, true) : Promise.resolve()} />
+        {nextCursor ? <DesktopPaginationTrigger loadKey={nextCursor} hasMore loading={loading} onLoadMore={() => run({ ...query, cursor: nextCursor }, true)} className="border-t p-2" loadingLabel="Loading more audit events…" /> : null}
       </div>
     </div>
   )
@@ -167,6 +169,7 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
       setQuery({ ...nextQuery, cursor: undefined })
     } catch (cause) {
       setError(errorMessage(cause))
+      if (append) throw cause
     } finally {
       setLoading(false)
     }
@@ -198,8 +201,8 @@ function JobDiagnostics({ initialPage }: { initialPage: JobPage }) {
       </FilterGrid>
       {error ? <InlineError message={error} /> : null}
       <div className="overflow-hidden rounded-xl border">
-        <Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-40">Updated</TableHead><TableHead>Type</TableHead><TableHead className="w-28">Status</TableHead><TableHead className="hidden w-24 md:table-cell">Attempts</TableHead><TableHead className="hidden w-40 lg:table-cell">Run at</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{jobs.map((job) => <TableRow key={job.id}><TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(job.updatedAt)}</TableCell><TableCell className="min-w-0 overflow-hidden"><div className="truncate font-mono text-xs" title={job.type}>{job.type}</div></TableCell><TableCell><StatusBadge status={job.status} /></TableCell><TableCell className="hidden tabular-nums md:table-cell">{job.attempts} / {job.maxAttempts}</TableCell><TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">{formatDateTime(job.runAt)}</TableCell><TableCell><JSONDialogButton title={job.type} value={{ id: job.id, status: job.status, priority: job.priority, attempts: job.attempts, maxAttempts: job.maxAttempts, lockedAt: job.lockedAt, lockedBy: job.lockedBy, completedAt: job.completedAt, lastError: job.lastError, payload: job.payload }} /></TableCell></TableRow>)}{!loading && !jobs.length ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No jobs found.</TableCell></TableRow> : null}</TableBody></Table>
-        <LoadMore loading={loading} nextCursor={nextCursor} onLoad={() => nextCursor ? run({ ...query, cursor: nextCursor }, true) : Promise.resolve()} />
+        <Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-40">Updated</TableHead><TableHead>Type</TableHead><TableHead className="w-28">Status</TableHead><TableHead className="hidden w-24 md:table-cell">Attempts</TableHead><TableHead className="hidden w-40 lg:table-cell">Run at</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{jobs.map((job) => <TableRow key={job.id}><TableCell className="overflow-hidden whitespace-nowrap text-muted-foreground"><span className="block truncate">{formatDateTime(job.updatedAt)}</span></TableCell><TableCell className="min-w-0 overflow-hidden"><div className="truncate font-mono text-xs" title={job.type}>{job.type}</div></TableCell><TableCell><StatusBadge status={job.status} /></TableCell><TableCell className="hidden tabular-nums md:table-cell">{job.attempts} / {job.maxAttempts}</TableCell><TableCell className="hidden overflow-hidden whitespace-nowrap text-muted-foreground lg:table-cell"><span className="block truncate">{formatDateTime(job.runAt)}</span></TableCell><TableCell><JSONDialogButton title={job.type} value={{ id: job.id, status: job.status, priority: job.priority, attempts: job.attempts, maxAttempts: job.maxAttempts, lockedAt: job.lockedAt, lockedBy: job.lockedBy, completedAt: job.completedAt, lastError: job.lastError, payload: job.payload }} /></TableCell></TableRow>)}{!loading && !jobs.length ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No jobs found.</TableCell></TableRow> : null}</TableBody></Table>
+        {nextCursor ? <DesktopPaginationTrigger loadKey={nextCursor} hasMore loading={loading} onLoadMore={() => run({ ...query, cursor: nextCursor }, true)} className="border-t p-2" loadingLabel="Loading more jobs…" /> : null}
       </div>
     </div>
   )
@@ -226,6 +229,7 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
       setQuery({ ...nextQuery, cursor: undefined })
     } catch (cause) {
       setError(errorMessage(cause))
+      if (append) throw cause
     } finally {
       setLoading(false)
     }
@@ -260,8 +264,8 @@ function UploadDiagnostics({ initialPage }: { initialPage: UploadDiagnosticPage 
       </FilterGrid>
       {error ? <InlineError message={error} /> : null}
       <div className="overflow-hidden rounded-xl border">
-        <Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-40">Updated</TableHead><TableHead>Name</TableHead><TableHead className="w-28">Status</TableHead><TableHead className="hidden w-24 md:table-cell">Parts</TableHead><TableHead className="hidden w-28 lg:table-cell">Size</TableHead><TableHead className="hidden w-24 xl:table-cell">Failures</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{uploads.map((upload) => <TableRow key={upload.id}><TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(upload.updatedAt)}</TableCell><TableCell className="min-w-0 overflow-hidden"><div className="min-w-0"><p className="truncate font-medium" title={upload.name}>{upload.name}</p><p className="truncate text-xs text-muted-foreground">Owner: {upload.ownerName} · @{upload.ownerUsername}</p><p className="truncate text-xs text-muted-foreground">Actor: {upload.actorName} · @{upload.actorUsername}</p></div></TableCell><TableCell><StatusBadge status={upload.status} /></TableCell><TableCell className="hidden tabular-nums md:table-cell">{formatNumber(upload.uploadedParts)} / {formatNumber(upload.expectedParts)}</TableCell><TableCell className="hidden tabular-nums lg:table-cell">{formatBytes(upload.sizeBytes)}</TableCell><TableCell className="hidden tabular-nums xl:table-cell">{formatNumber(upload.failedAttempts)} / {formatNumber(upload.attemptCount)}</TableCell><TableCell><JSONDialogButton title={upload.name} value={upload} /></TableCell></TableRow>)}{!loading && !uploads.length ? <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No uploads found.</TableCell></TableRow> : null}</TableBody></Table>
-        <LoadMore loading={loading} nextCursor={nextCursor} onLoad={() => nextCursor ? run({ ...query, cursor: nextCursor }, true) : Promise.resolve()} />
+        <Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-40">Updated</TableHead><TableHead>Name</TableHead><TableHead className="w-28">Status</TableHead><TableHead className="hidden w-24 md:table-cell">Parts</TableHead><TableHead className="hidden w-28 lg:table-cell">Size</TableHead><TableHead className="hidden w-24 xl:table-cell">Failures</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{uploads.map((upload) => <TableRow key={upload.id}><TableCell className="overflow-hidden whitespace-nowrap text-muted-foreground"><span className="block truncate">{formatDateTime(upload.updatedAt)}</span></TableCell><TableCell className="min-w-0 overflow-hidden"><div className="min-w-0"><p className="truncate font-medium" title={upload.name}>{upload.name}</p><p className="truncate text-xs text-muted-foreground">Owner: {upload.ownerName} · @{upload.ownerUsername}</p><p className="truncate text-xs text-muted-foreground">Actor: {upload.actorName} · @{upload.actorUsername}</p></div></TableCell><TableCell><StatusBadge status={upload.status} /></TableCell><TableCell className="hidden tabular-nums md:table-cell">{formatNumber(upload.uploadedParts)} / {formatNumber(upload.expectedParts)}</TableCell><TableCell className="hidden tabular-nums lg:table-cell">{formatBytes(upload.sizeBytes)}</TableCell><TableCell className="hidden tabular-nums xl:table-cell">{formatNumber(upload.failedAttempts)} / {formatNumber(upload.attemptCount)}</TableCell><TableCell><JSONDialogButton title={upload.name} value={upload} /></TableCell></TableRow>)}{!loading && !uploads.length ? <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No uploads found.</TableCell></TableRow> : null}</TableBody></Table>
+        {nextCursor ? <DesktopPaginationTrigger loadKey={nextCursor} hasMore loading={loading} onLoadMore={() => run({ ...query, cursor: nextCursor }, true)} className="border-t p-2" loadingLabel="Loading more upload diagnostics…" /> : null}
       </div>
     </div>
   )
@@ -283,10 +287,6 @@ function StatusBadge({ status }: { status: string }) {
   const destructive = status === "failed" || status === "dead" || status === "expired"
   const secondary = status === "running" || status === "completing" || status === "completed"
   return <Badge variant={destructive ? "destructive" : secondary ? "secondary" : "outline"} className="capitalize">{status}</Badge>
-}
-
-function LoadMore({ loading, nextCursor, onLoad }: { loading: boolean; nextCursor?: string | null; onLoad: () => Promise<void> }) {
-  return <div className="flex justify-center border-t p-3">{nextCursor ? <Button size="sm" variant="outline" disabled={loading} onClick={() => void onLoad()}>{loading ? <Loader2Icon className="animate-spin" /> : null}{loading ? "Loading" : "Load more"}</Button> : <span className="text-xs text-muted-foreground">End of results</span>}</div>
 }
 
 function JSONDialogButton({ title, value }: { title: string; value: unknown }) {

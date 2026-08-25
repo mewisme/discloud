@@ -17,7 +17,7 @@ export function PaginationSettings({ mode, onModeChange }: { mode: PaginationMod
         <CardDescription>Choose how DisCloud loads additional items in paginated lists.</CardDescription>
       </CardHeader>
       <CardContent>
-        <SettingsRow title="Loading behavior" description="Applies to Files, Search, Favorites, Collections, and Trash." last>
+        <SettingsRow title="Loading behavior" description="Applies to all paginated lists across DisCloud." last>
           <div className="space-y-3">
             <Select value={mode} onValueChange={(value) => { if (value === "infinite" || value === "manual") onModeChange(value) }}>
               <SelectTrigger className="w-full sm:w-56" aria-label="Pagination loading behavior"><SelectValue /></SelectTrigger>

@@ -7,9 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { DIAGNOSTICS_PAGE_SIZE, InfiniteScrollSentinel, JSONDialog, StatusBadge } from "@/components/admin/diagnostics/diagnostics-shared"
+import { DIAGNOSTICS_PAGE_SIZE, JSONDialog, StatusBadge } from "@/components/admin/diagnostics/diagnostics-shared"
 import { DiagnosticsFilterBar } from "@/components/admin/diagnostics-filter-bar"
 import { DateTime } from "@/components/common/date-time"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { apiJSON } from "@/lib/api/client"
 import type { UploadDiagnostic, UploadDiagnosticPage, UploadDiagnosticsQuery } from "@/lib/api/models"
 import { apiErrorMessage, formatBytes, formatNumber } from "@/lib/helpers"
@@ -57,6 +58,7 @@ export function UploadDiagnostics({
       const message = apiErrorMessage(error, "Could not load upload diagnostics.")
       if (append) setPaginationError(message)
       else toast.error(message)
+      if (append) throw error
     } finally {
       loadingRef.current = false
       setLoading(false)
@@ -172,8 +174,8 @@ export function UploadDiagnostics({
           <TableBody>
             {uploads.map((upload) => (
               <TableRow key={upload.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  <DateTime value={upload.updatedAt} />
+                <TableCell className="overflow-hidden whitespace-nowrap text-muted-foreground">
+                  <DateTime value={upload.updatedAt} className="block truncate" />
                 </TableCell>
 
                 <TableCell className="min-w-0 overflow-hidden">
@@ -251,13 +253,8 @@ export function UploadDiagnostics({
           </TableBody>
         </Table>
 
-        <InfiniteScrollSentinel
-          loading={loading}
-          hasMore={!!nextCursor}
-          error={paginationError}
-          onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
-          onRetry={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
-        />
+        {paginationError ? <div role="alert" className="border-t px-3 py-2 text-center text-xs text-destructive">{paginationError}</div> : null}
+        {nextCursor ? <PaginationTrigger loadKey={nextCursor} hasMore loading={loading} onLoadMore={() => load({ ...appliedQuery, cursor: nextCursor }, true)} className="border-t p-2" loadingLabel="Loading more upload diagnostics…" /> : null}
       </div>
     </div>
   )

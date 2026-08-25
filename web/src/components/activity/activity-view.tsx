@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { useWorkspace } from "@/components/app/workspace-context"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { apiJSON } from "@/lib/api/client"
 import { APIError } from "@/lib/api/types"
 import { apiErrorMessage } from "@/lib/helpers"
@@ -41,13 +42,15 @@ export function ActivityView() {
     try {
       const page = await apiJSON<RecentActivityPage>("/api/v1/activity", { query: { ownerId: workspace.id, limit: 30, beforeAt: cursor.beforeAt, beforeId: cursor.beforeId } })
       setState({ status: "ready", items: [...items, ...page.items], nextCursor: page.nextCursor })
-    } catch (cause) { setState({ status: "error", message: apiErrorMessage(cause, "Could not load recent activity") }) }
+    } catch (cause) { throw new Error(apiErrorMessage(cause, "Could not load recent activity"), { cause }) }
     finally { setLoadingMore(false) }
   }
 
   if (state.status === "loading") return <Loading />
   if (state.status === "error") return <ErrorState message={state.message} onRetry={() => setRetry((value) => value + 1)} />
-  return <RecentActivityView username={workspace.username} items={state.items} hasMore={Boolean(state.nextCursor)} loadingMore={loadingMore} onLoadMore={() => void loadMore()} renderLink={({ href, className, children }) => <Link href={href} className={className}>{children}</Link>} />
+  const cursor = state.nextCursor
+  const pagination = cursor ? <PaginationTrigger loadKey={`${cursor.beforeAt}:${cursor.beforeId}`} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more activity…" /> : null
+  return <RecentActivityView username={workspace.username} items={state.items} pagination={pagination} renderLink={({ href, className, children }) => <Link href={href} className={className}>{children}</Link>} />
 }
 
 function Loading() { return <div className="grid min-h-64 place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" />Loading activity…</div></div> }

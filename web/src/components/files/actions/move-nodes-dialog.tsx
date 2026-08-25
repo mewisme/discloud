@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { Fragment, useState } from "react"
 import { toast } from "sonner"
 
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { NodeActionError } from "@/components/files/actions/node-action-error"
 import { apiJSON } from "@/lib/api/client"
 import type { BrowserNode, FolderChildrenQuery, Node, NodePage, UpdateNodeInput } from "@/lib/api/models"
@@ -97,6 +98,7 @@ export function MoveNodesDialog({
       }))
     } catch (cause) {
       setError(apiErrorMessage(cause, "Could not load more folders."))
+      throw cause
     } finally {
       setLoading(false)
     }
@@ -206,12 +208,7 @@ export function MoveNodesDialog({
             ))
           )}
 
-          {page.nextCursor && (
-            <Button type="button" variant="ghost" className="w-full" disabled={loading || moving} onClick={() => void loadMore()}>
-              {loading && <Loader2Icon className="animate-spin" />}
-              Load more
-            </Button>
-          )}
+          {page.nextCursor ? <PaginationTrigger loadKey={page.nextCursor} hasMore loading={loading || moving} onLoadMore={loadMore} className="py-1" loadingLabel="Loading more folders…" /> : null}
         </div>
 
         {!canMoveHere && (

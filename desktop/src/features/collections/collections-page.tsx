@@ -9,6 +9,7 @@ import { Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
 import { Link, useParams } from "react-router"
 
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -24,7 +25,7 @@ export function DesktopCollectionsPage() {
   if (state.status === "error") return <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-6 text-center"><div className="space-y-3"><p className="text-sm text-muted-foreground">{state.message}</p><Button size="sm" variant="outline" onClick={() => setRetryVersion((value) => value + 1)}><RefreshCwIcon />Try again</Button></div></div>
   function created(collection: Collection) { setState((current) => current.status === "ready" ? { ...current, page: { ...current.page, collections: [...current.page.collections, collection].sort((a, b) => a.name.localeCompare(b.name)) } } : current) }
   const owner = state.workspace.owner
-  return <CollectionsView username={owner.username} collections={state.page.collections} action={<CreateCollectionDialog workspace={state.workspace} onCreated={created} />} renderLink={(collection, className, children) => <Link to={workspaceCollectionPath(owner.username, collection.id)} className={className}>{children}</Link>} pagination={state.page.nextCursor ? <div className="flex justify-center"><Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? <Loader2Icon className="animate-spin" /> : null}{loadingMore ? "Loading" : "Load more"}</Button></div> : null} />
+  return <CollectionsView username={owner.username} collections={state.page.collections} action={<CreateCollectionDialog workspace={state.workspace} onCreated={created} />} renderLink={(collection, className, children) => <Link to={workspaceCollectionPath(owner.username, collection.id)} className={className}>{children}</Link>} pagination={state.page.nextCursor ? <DesktopPaginationTrigger loadKey={state.page.nextCursor} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more collections…" /> : null} />
 }
 
 function CreateCollectionDialog({ workspace, onCreated }: { workspace: WorkspaceDetails; onCreated: (collection: Collection) => void }) {

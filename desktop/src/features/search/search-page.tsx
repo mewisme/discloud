@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useSearchParams } from "react-router"
 
 import { useDesktopSession } from "#components/desktop-session"
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -28,6 +29,7 @@ export function DesktopSearchPage() {
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({ status: "loading" })
   const [resultsState, setResultsState] = useState<ResultsState>({ status: "loading" })
   const [loadingMore, setLoadingMore] = useState(false)
+  const [paginationError, setPaginationError] = useState<string>()
   const [retryVersion, setRetryVersion] = useState(0)
 
   useEffect(() => {
@@ -62,6 +64,7 @@ export function DesktopSearchPage() {
 
     async function load() {
       setResultsState({ status: "loading" })
+      setPaginationError(undefined)
       try {
         const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspace.owner.id, admin) })
         if (!cancelled) setResultsState({ status: "ready", page })
@@ -84,11 +87,13 @@ export function DesktopSearchPage() {
     if (workspaceState.status !== "ready" || resultsState.status !== "ready" || !resultsState.page.nextCursor || loadingMore) return
 
     setLoadingMore(true)
+    setPaginationError(undefined)
     try {
       const page = await apiJSON<SearchPage>("/api/v1/search", { query: searchQuery(options, workspaceState.workspace.owner.id, admin, resultsState.page.nextCursor) })
       setResultsState((current) => current.status === "ready" ? { status: "ready", page: { ...page, results: appendUnique(current.page.results, page.results) } } : current)
     } catch (error) {
-      setResultsState({ status: "error", message: errorMessage(error) })
+      setPaginationError(errorMessage(error))
+      throw error
     } finally {
       setLoadingMore(false)
     }
@@ -121,15 +126,9 @@ export function DesktopSearchPage() {
         <EmptySearch query={options.q} />
       ) : (
         <>
+          {paginationError ? <p role="alert" className="text-sm text-destructive">{paginationError}</p> : null}
           <DesktopSearchResultsTable username={workspaceState.workspace.owner.username} results={resultsState.page.results} />
-          {resultsState.page.nextCursor ? (
-            <div className="flex justify-center">
-              <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-                {loadingMore ? <Loader2Icon className="animate-spin" /> : null}
-                {loadingMore ? "Loading" : "Load more"}
-              </Button>
-            </div>
-          ) : null}
+          {resultsState.page.nextCursor ? <DesktopPaginationTrigger loadKey={resultsState.page.nextCursor} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more results…" /> : null}
         </>
       )}
     </div>

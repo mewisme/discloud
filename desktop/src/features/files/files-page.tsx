@@ -6,9 +6,10 @@ import { workspaceFilePath, workspaceFolderPath, workspacePath } from "@discloud
 import { Alert, AlertDescription, AlertTitle } from "@discloud/ui/components/alert"
 import { Button } from "@discloud/ui/components/button"
 import { LoaderCircleIcon, TriangleAlertIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router"
 
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -50,7 +51,6 @@ export function DesktopFilesPage() {
   const options = parseBrowserOptions(Object.fromEntries(searchParams))
   const { sort, order } = options
   const toolbarConfig = config?.common.fileBrowserToolbar ?? { variant: "inline", dockPosition: "bottom" } as const
-  const paginationMode = config?.common.pagination.mode ?? "manual"
   const currentFolderId = state.status === "ready" ? state.data.folder.id : undefined
   const currentSyncPair = state.status === "ready" ? syncPairForRemotePath(sync.pairs, state.data.breadcrumbs.map((item) => item.id)) : undefined
   const nodes = state.status === "ready" ? state.data.page.nodes : []
@@ -212,6 +212,7 @@ export function DesktopFilesPage() {
       })
     } catch (error) {
       setPaginationError(errorMessage(error))
+      throw error
     } finally {
       setLoadingMore(false)
     }
@@ -274,27 +275,12 @@ export function DesktopFilesPage() {
           emptyDescription={editable ? "Drop files or folders here, or use Upload." : "No files or folders here."}
         />
 
-        {data.page.nextCursor && paginationMode === "manual" ? <div className="flex justify-center"><Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? <LoaderCircleIcon className="animate-spin" /> : null}{loadingMore ? "Loading" : "Load more"}</Button></div> : null}
-        {data.page.nextCursor && paginationMode === "infinite" ? <InfiniteLoadMore loading={loadingMore} onVisible={() => void loadMore()} /> : null}
+        {data.page.nextCursor ? <DesktopPaginationTrigger loadKey={data.page.nextCursor} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more items…" /> : null}
         {moveTargets ? <DesktopMoveNodesDialog nodes={moveTargets} folder={data.folder} breadcrumbs={data.breadcrumbs} initialPage={data.page} open onOpenChange={(open) => { if (!open) setMoveTargets(undefined) }} onMoved={changed} /> : null}
         {trashTargets ? <DesktopTrashNodesDialog nodes={trashTargets} open onOpenChange={(open) => { if (!open) setTrashTargets(undefined) }} onTrashed={changed} /> : null}
       </div>
     </DesktopFileUploadTarget>
   )
-}
-
-function InfiniteLoadMore({ loading, onVisible }: { loading: boolean; onVisible: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const target = ref.current
-    if (!target) return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !loading) onVisible()
-    }, { rootMargin: "320px" })
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [loading, onVisible])
-  return <div ref={ref} className="flex min-h-12 items-center justify-center text-sm text-muted-foreground">{loading ? <><LoaderCircleIcon className="mr-2 size-4 animate-spin" />Loading more</> : "Scroll to load more"}</div>
 }
 
 function FilesLoading() {

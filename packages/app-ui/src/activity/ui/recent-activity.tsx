@@ -1,17 +1,16 @@
 import type { RecentActivityItem } from "@discloud/api/models"
 import { workspaceCollectionPath, workspaceFilePath, workspaceFolderPath } from "@discloud/shared/navigation"
-import { Button } from "@discloud/ui/components/button"
-import { ArchiveRestoreIcon, FileUpIcon, FolderInputIcon, HistoryIcon, Loader2Icon, PencilIcon, RefreshCwIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
+import { ArchiveRestoreIcon, FileUpIcon, FolderInputIcon, HistoryIcon, PencilIcon, RefreshCwIcon, Share2Icon, ShieldIcon, Trash2Icon } from "lucide-react"
 import type { ComponentType, ReactNode } from "react"
 
 export type ActivityLinkRenderer = (props: { href: string; className?: string; children: ReactNode }) => ReactNode
 
-export function RecentActivityView({ username, items, hasMore, loadingMore, onLoadMore, renderLink }: { username: string; items: readonly RecentActivityItem[]; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void; renderLink: ActivityLinkRenderer }) {
+export function RecentActivityView({ username, items, pagination, renderLink }: { username: string; items: readonly RecentActivityItem[]; pagination?: ReactNode; renderLink: ActivityLinkRenderer }) {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
       <div><h1 className="text-xl font-semibold">Recent activity</h1><p className="text-sm text-muted-foreground">Uploads, file changes, sharing, sync and administrative activity for this workspace.</p></div>
       {items.length ? <div className="overflow-hidden rounded-xl border bg-card">{items.map((item) => <ActivityRow key={item.id} username={username} item={item} renderLink={renderLink} />)}</div> : <div className="grid min-h-56 place-items-center rounded-xl border border-dashed"><div className="text-center"><HistoryIcon className="mx-auto mb-2 size-5 text-muted-foreground" /><p className="font-medium">No recent activity</p><p className="text-sm text-muted-foreground">New workspace actions will appear here.</p></div></div>}
-      {hasMore ? <div className="flex justify-center"><Button variant="outline" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Load more</Button></div> : null}
+      {pagination}
     </div>
   )
 }

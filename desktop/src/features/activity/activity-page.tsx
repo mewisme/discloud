@@ -5,6 +5,7 @@ import { Loader2Icon, RefreshCwIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router"
 
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -46,15 +47,16 @@ export function DesktopActivityPage() {
     try {
       const page = await apiJSON<RecentActivityPage>("/api/v1/activity", { query: { ownerId, limit: 30, beforeAt: cursor.beforeAt, beforeId: cursor.beforeId } })
       setActivityState({ status: "ready", items: [...items, ...page.items], nextCursor: page.nextCursor })
-    } catch (cause) { setActivityState({ status: "error", message: errorMessage(cause) }) }
-    finally { setLoadingMore(false) }
+    } finally { setLoadingMore(false) }
   }
 
   if (workspaceState.status === "loading") return <Loading />
   if (workspaceState.status === "error") return <ErrorState message={workspaceState.message} onRetry={() => setRetry((value) => value + 1)} />
   if (activityState.status === "loading") return <Loading />
   if (activityState.status === "error") return <ErrorState message={activityState.message} onRetry={() => setRetry((value) => value + 1)} />
-  return <RecentActivityView username={workspaceState.workspace.owner.username} items={activityState.items} hasMore={Boolean(activityState.nextCursor)} loadingMore={loadingMore} onLoadMore={() => void loadMore()} renderLink={({ href, className, children }) => <Link to={href} className={className}>{children}</Link>} />
+  const cursor = activityState.nextCursor
+  const pagination = cursor ? <DesktopPaginationTrigger loadKey={`${cursor.beforeAt}:${cursor.beforeId}`} hasMore loading={loadingMore} onLoadMore={loadMore} loadingLabel="Loading more activity…" /> : null
+  return <RecentActivityView username={workspaceState.workspace.owner.username} items={activityState.items} pagination={pagination} renderLink={({ href, className, children }) => <Link to={href} className={className}>{children}</Link>} />
 }
 
 function Loading() { return <div className="grid min-h-64 place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" />Loading activity…</div></div> }

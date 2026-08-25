@@ -7,9 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { DIAGNOSTICS_PAGE_SIZE, InfiniteScrollSentinel, JSONDialog } from "@/components/admin/diagnostics/diagnostics-shared"
+import { DIAGNOSTICS_PAGE_SIZE, JSONDialog } from "@/components/admin/diagnostics/diagnostics-shared"
 import { type DiagnosticsDateRange, DiagnosticsDateRangePicker, DiagnosticsFilterBar } from "@/components/admin/diagnostics-filter-bar"
 import { DateTime } from "@/components/common/date-time"
+import { PaginationTrigger } from "@/components/common/pagination-trigger"
 import { useUserConfig } from "@/components/settings/user-config-context"
 import { apiJSON } from "@/lib/api/client"
 import type { AuditEvent, AuditPage, AuditQuery } from "@/lib/api/models"
@@ -59,6 +60,7 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
       const message = apiErrorMessage(error, "Could not load audit events.")
       if (append) setPaginationError(message)
       else toast.error(message)
+      if (append) throw error
     } finally {
       loadingRef.current = false
       setLoading(false)
@@ -176,8 +178,8 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
           <TableBody>
             {events.map((event) => (
               <TableRow key={event.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  <DateTime value={event.createdAt} />
+                <TableCell className="overflow-hidden whitespace-nowrap text-muted-foreground">
+                  <DateTime value={event.createdAt} className="block truncate" />
                 </TableCell>
 
                 <TableCell className="min-w-0 overflow-hidden">
@@ -258,13 +260,8 @@ export function AuditDiagnostics({ initialPage }: { initialPage: AuditPage }) {
           </TableBody>
         </Table>
 
-        <InfiniteScrollSentinel
-          loading={loading}
-          hasMore={!!nextCursor}
-          error={paginationError}
-          onLoad={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
-          onRetry={() => nextCursor && void load({ ...appliedQuery, cursor: nextCursor }, true)}
-        />
+        {paginationError ? <div role="alert" className="border-t px-3 py-2 text-center text-xs text-destructive">{paginationError}</div> : null}
+        {nextCursor ? <PaginationTrigger loadKey={nextCursor} hasMore loading={loading} onLoadMore={() => load({ ...appliedQuery, cursor: nextCursor }, true)} className="border-t p-2" loadingLabel="Loading more audit events…" /> : null}
       </div>
     </div>
   )

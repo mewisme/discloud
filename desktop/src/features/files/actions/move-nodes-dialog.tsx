@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ChevronRightIcon, FolderIcon, Loader2Icon } from "lucide-react"
 import { useState } from "react"
 
+import { DesktopPaginationTrigger } from "#components/pagination-trigger"
 import { apiJSON } from "#lib/api/transport"
 import { errorMessage } from "#lib/instance"
 
@@ -91,6 +92,7 @@ export function DesktopMoveNodesDialog({
       })
     } catch (cause) {
       setError(errorMessage(cause))
+      throw cause
     } finally {
       setLoading(false)
     }
@@ -183,12 +185,7 @@ export function DesktopMoveNodesDialog({
             </Button>
           ))}
 
-          {page.nextCursor ? (
-            <Button type="button" variant="ghost" className="w-full" disabled={loading || moving} onClick={() => void loadMore()}>
-              {loading ? <Loader2Icon className="animate-spin" /> : null}
-              Load more
-            </Button>
-          ) : null}
+          {page.nextCursor ? <DesktopPaginationTrigger loadKey={page.nextCursor} hasMore loading={loading || moving} onLoadMore={loadMore} className="py-1" loadingLabel="Loading more folders…" /> : null}
         </div>
 
         {!canMoveHere ? (
