@@ -237,7 +237,7 @@ pub(crate) fn get_desktop_diagnostics() -> Result<DesktopDiagnostics, ApiCommand
         });
     }
     Ok(DesktopDiagnostics {
-        directory: directory.to_string_lossy().into_owned(),
+        directory: crate::path_display::user_path_string(directory),
         files,
         total_size,
         tail,

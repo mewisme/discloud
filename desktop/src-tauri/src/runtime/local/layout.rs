@@ -107,7 +107,7 @@ impl LocalRuntimeLayout {
             return Ok(());
         }
         let preference = LocalRuntimeRootPreference {
-            root_dir: root_dir.to_string_lossy().into_owned(),
+            root_dir: crate::path_display::user_path_string(root_dir),
         };
         let mut content = serde_json::to_vec_pretty(&preference).map_err(|error| {
             LocalRuntimeError::internal(format!(
@@ -191,7 +191,7 @@ fn read_root_preference<R: Runtime>(
                 "The local runtime root preference is invalid: {error}"
             ))
         })?;
-    let root_dir = PathBuf::from(preference.root_dir);
+    let root_dir = crate::path_display::user_path(&PathBuf::from(preference.root_dir));
     if !root_dir.is_absolute() {
         return Err(LocalRuntimeError::configuration(
             "The saved local runtime data directory is not absolute.",

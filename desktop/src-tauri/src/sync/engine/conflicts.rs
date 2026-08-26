@@ -48,7 +48,7 @@ fn build_sync_conflict(pair: &SyncPairInput, relative_path: &str, local: &LocalF
         id,
         pair_id: pair.id.clone(),
         relative_path: relative_path.to_string(),
-        local_path: local.path.to_string_lossy().into_owned(),
+        local_path: crate::path_display::user_path_string(&local.path),
         remote_file_id: remote.id.clone(),
         remote_name: remote.name.clone(),
         local_size: local.fingerprint.size,

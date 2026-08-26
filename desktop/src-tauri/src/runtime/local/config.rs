@@ -119,6 +119,7 @@ pub(super) async fn save_settings<R: Runtime>(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
+        .map(|path| crate::path_display::user_path(&path))
         .unwrap_or_else(|| current_layout.root_dir.clone());
     if !requested_root.is_absolute() {
         return Err(LocalRuntimeError::configuration(
@@ -470,7 +471,7 @@ fn keyring_entry(username: &str) -> Result<Entry, LocalRuntimeError> {
 }
 
 fn path_string(path: &Path) -> String {
-    path.to_string_lossy().into_owned()
+    crate::path_display::user_path_string(path)
 }
 
 #[cfg(test)]

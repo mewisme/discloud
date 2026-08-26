@@ -390,7 +390,7 @@ fn absolute_path(value: &str, label: &str) -> Result<PathBuf, ApiCommandError> {
             "is required and must not contain surrounding whitespace",
         ));
     }
-    let path = PathBuf::from(value);
+    let path = crate::path_display::user_path(Path::new(value));
     if !path.is_absolute() {
         return Err(invalid_path(label, "must be an absolute path"));
     }
@@ -469,7 +469,13 @@ fn reject_device_namespace(path: &Path, label: &str) -> Result<(), ApiCommandErr
     let Some(Component::Prefix(prefix)) = path.components().next() else {
         return Ok(());
     };
-    if matches!(prefix.kind(), Prefix::DeviceNS(_) | Prefix::Verbatim(_)) {
+    if matches!(
+        prefix.kind(),
+        Prefix::DeviceNS(_)
+            | Prefix::Verbatim(_)
+            | Prefix::VerbatimDisk(_)
+            | Prefix::VerbatimUNC(_, _)
+    ) {
         return Err(invalid_path(
             label,
             "must not use a Windows device namespace",
@@ -489,6 +495,8 @@ fn invalid_path(label: &str, reason: impl AsRef<str>) -> ApiCommandError {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use tokio::fs;
@@ -507,6 +515,20 @@ mod tests {
         assert!(absolute_path(r"C:\Users\test\file.txt", "Path").is_ok());
         #[cfg(not(windows))]
         assert!(absolute_path("/tmp/file.txt", "Path").is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalizes_windows_verbatim_file_paths() {
+        assert_eq!(
+            absolute_path(r"\\?\C:\Users\test\file.txt", "Path").unwrap(),
+            PathBuf::from(r"C:\Users\test\file.txt")
+        );
+        assert_eq!(
+            absolute_path(r"\\?\UNC\server\share\file.txt", "Path").unwrap(),
+            PathBuf::from(r"\\server\share\file.txt")
+        );
+        assert!(absolute_path(r"\\?\Volume{1234}\file.txt", "Path").is_err());
     }
 
     #[test]

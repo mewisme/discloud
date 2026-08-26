@@ -1,9 +1,13 @@
+import { normalizeNativePath } from "#lib/native-path"
+
 import type { SyncPair } from "./types"
 
 export type UpdateSyncPairInput = Partial<Pick<SyncPair, "localPath" | "remoteFolderName" | "enabled" | "direction" | "deletePolicy" | "intervalSeconds" | "ignorePatterns">>
 
 export function normalizeSyncPair(pair: SyncPair): SyncPair {
-  return pair.direction === "two-way" && pair.deletePolicy !== "propagate" ? { ...pair, deletePolicy: "propagate" } : pair
+  const localPath = normalizeNativePath(pair.localPath)
+  const deletePolicy = pair.direction === "two-way" ? "propagate" : pair.deletePolicy
+  return localPath !== pair.localPath || deletePolicy !== pair.deletePolicy ? { ...pair, localPath, deletePolicy } : pair
 }
 
 export function scopedSyncPairs(pairs: readonly SyncPair[], serverUrl?: string, username?: string): SyncPair[] {

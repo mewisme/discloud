@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 
 import { errorMessage } from "#lib/instance"
 import { exportLocalDatabase, getLocalServerSettings, importLocalDatabase, type LocalRuntimeSnapshot, type LocalServerSettings, prepareLocalRuntime, restartLocalRuntime, saveLocalServerSettings } from "#lib/local-runtime"
+import { normalizeNativePath } from "#lib/native-path"
 import { type ConnectionMode, loadConnectionSettings } from "#lib/settings"
 
 import { LocalServerConfiguration } from "./local-server-configuration"
@@ -78,7 +79,7 @@ export function LocalServerPage() {
   async function pickDataDirectory() {
     if (!settings || settings.dataDirectoryLocked || !settings.dataCompatibility.compatible) return
     const selected = await open({ directory: true, multiple: false, defaultPath: dataDirectory || undefined })
-    if (typeof selected === "string") setDataDirectory(selected)
+    if (typeof selected === "string") setDataDirectory(normalizeNativePath(selected))
   }
 
   async function exportDatabase() {

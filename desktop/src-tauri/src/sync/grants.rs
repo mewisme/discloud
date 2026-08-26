@@ -86,7 +86,9 @@ pub(crate) async fn authorize_pair(
     let server_url = api.connected_server_url()?;
     let mut stale_grant_error = None;
     if let Some(granted) = load(pair_id).await? {
-        if local_path == granted.requested || local_path == granted.canonical {
+        if crate::path_display::same_user_path(local_path, &granted.requested)
+            || crate::path_display::same_user_path(local_path, &granted.canonical)
+        {
             match verify_pair_grant(&granted, &server_url, remote_folder_id).await {
                 Ok(root) => return Ok(root),
                 Err(error) => stale_grant_error = Some(error),
@@ -173,11 +175,7 @@ pub(crate) async fn pick_sync_folder(
             server_url,
             remote_folder_id,
         })?;
-    canonical
-        .to_str()
-        .map(str::to_owned)
-        .map(Some)
-        .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))
+    Ok(Some(crate::path_display::user_path_string(&canonical)))
 }
 
 #[tauri::command]
@@ -219,7 +217,7 @@ async fn save(
         .ok_or_else(|| ApiCommandError::invalid_request("Sync local path must be valid UTF-8."))?
         .to_owned();
     let grant = serde_json::to_string(&SyncRootGrant {
-        requested: requested.to_owned(),
+        requested: crate::path_display::user_path_string(Path::new(requested)),
         canonical,
         identity: Some(identity),
         server_url: Some(server_url.to_owned()),

@@ -1043,7 +1043,7 @@ fn fail(state: &LocalRuntimeState, error: &LocalRuntimeError) {
 }
 
 fn path_string(path: &PathBuf) -> String {
-    path.to_string_lossy().into_owned()
+    crate::path_display::user_path_string(path)
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ use tauri_plugin_fs::FsExt;
 mod api;
 mod commands;
 mod diagnostics;
+mod path_display;
 mod path_security;
 mod runtime;
 mod settings;

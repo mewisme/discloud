@@ -35,6 +35,10 @@ describe("sync pair deletion policy", () => {
   it("allows an existing pair local root to be reselected", () => {
     expect(patchScopedSyncPair([pair], "pair", { localPath: "D:\\DisCloud" }, pair.serverUrl, pair.username)?.[0].localPath).toBe("D:\\DisCloud")
   })
+
+  it("migrates Windows verbatim local paths", () => {
+    expect(normalizeSyncPair({ ...pair, localPath: "\\\\?\\E:\\DisCloud" }).localPath).toBe("E:\\DisCloud")
+  })
 })
 
 describe("sync pair remote path", () => {

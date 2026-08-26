@@ -15,6 +15,7 @@ import { type FormEvent, useEffect, useState } from "react"
 import { advanceLocalProvisioningStage, getLocalProvisioningStage, type LocalProvisioningStage, LocalServerProvisioning } from "#components/local-server-provisioning"
 import { connectLocalRuntime, connectServer, errorMessage, type ServerConnection } from "#lib/instance"
 import { getLocalRuntimeSnapshot, getLocalServerSettings, type LocalRuntimeSnapshot, type LocalServerSettings, saveLocalServerSettings } from "#lib/local-runtime"
+import { normalizeNativePath } from "#lib/native-path"
 import { type ConnectionMode, loadConnectionSettings, saveConnectionMode, saveRemoteConnection } from "#lib/settings"
 
 type ServerConnectionScreenProps = {
@@ -162,7 +163,7 @@ export function ServerConnectionScreen({
 
   async function pickDataDirectory() {
     const selected = await open({ directory: true, multiple: false, defaultPath: dataDirectory || undefined })
-    if (typeof selected === "string") setDataDirectory(selected)
+    if (typeof selected === "string") setDataDirectory(normalizeNativePath(selected))
   }
 
   function changeMode(value: string) {
