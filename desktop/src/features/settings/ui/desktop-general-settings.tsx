@@ -76,6 +76,9 @@ export function DesktopGeneralSettings() {
           <SettingRow title="Launch at startup" description="Start DisCloud automatically after signing in to the operating system. Autostart launches hidden in the tray.">
             <Switch checked={runtime.autostartEnabled} disabled={!!pending} onCheckedChange={(enabled) => void run("autostart", () => runtime.setAutostart(enabled))} />
           </SettingRow>
+          <SettingRow title="Minimize to tray" description="Hide the main window in the system tray when it is minimized.">
+            <Switch checked={runtime.preferences.minimizeToTray} disabled={!!pending} onCheckedChange={(enabled) => void run("minimize-to-tray", () => runtime.setMinimizeToTray(enabled))} />
+          </SettingRow>
           <SettingRow title="Close to tray" description="Hide the main window instead of exiting when the window close button is pressed." last>
             <Switch checked={runtime.preferences.closeToTray} disabled={!!pending} onCheckedChange={(enabled) => void run("close-to-tray", () => runtime.setCloseToTray(enabled))} />
           </SettingRow>

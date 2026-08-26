@@ -8,12 +8,14 @@ use tauri::{
 
 pub(crate) struct DesktopRuntimeState {
     close_to_tray: AtomicBool,
+    minimize_to_tray: AtomicBool,
 }
 
 impl Default for DesktopRuntimeState {
     fn default() -> Self {
         Self {
             close_to_tray: AtomicBool::new(true),
+            minimize_to_tray: AtomicBool::new(false),
         }
     }
 }
@@ -26,11 +28,24 @@ impl DesktopRuntimeState {
     fn set_close_to_tray(&self, enabled: bool) {
         self.close_to_tray.store(enabled, Ordering::Relaxed);
     }
+
+    fn minimize_to_tray(&self) -> bool {
+        self.minimize_to_tray.load(Ordering::Relaxed)
+    }
+
+    fn set_minimize_to_tray(&self, enabled: bool) {
+        self.minimize_to_tray.store(enabled, Ordering::Relaxed);
+    }
 }
 
 #[tauri::command]
 pub(crate) fn set_close_to_tray(state: State<'_, DesktopRuntimeState>, enabled: bool) {
     state.set_close_to_tray(enabled);
+}
+
+#[tauri::command]
+pub(crate) fn set_minimize_to_tray(state: State<'_, DesktopRuntimeState>, enabled: bool) {
+    state.set_minimize_to_tray(enabled);
 }
 
 pub(crate) fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
@@ -83,9 +98,16 @@ pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &Window
         return;
     }
 
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        let state = window.app_handle().state::<DesktopRuntimeState>();
+    let state = window.app_handle().state::<DesktopRuntimeState>();
+    if matches!(event, WindowEvent::Resized(_))
+        && state.minimize_to_tray()
+        && window.is_minimized().unwrap_or(false)
+    {
+        let _ = window.hide();
+        return;
+    }
 
+    if let WindowEvent::CloseRequested { api, .. } = event {
         if state.close_to_tray() {
             api.prevent_close();
             let _ = window.hide();

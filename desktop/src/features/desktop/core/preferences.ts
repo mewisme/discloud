@@ -2,11 +2,13 @@ import { Store } from "@tauri-apps/plugin-store"
 
 export type DesktopPreferences = {
   closeToTray: boolean
+  minimizeToTray: boolean
   notifications: boolean
 }
 
 const defaults: DesktopPreferences = {
   closeToTray: true,
+  minimizeToTray: false,
   notifications: false,
 }
 
@@ -14,13 +16,15 @@ let storePromise: Promise<Store> | undefined
 
 export async function loadDesktopPreferences(): Promise<DesktopPreferences> {
   const store = await desktopPreferencesStore()
-  const [closeToTray, notifications] = await Promise.all([
+  const [closeToTray, minimizeToTray, notifications] = await Promise.all([
     store.get<boolean>("closeToTray"),
+    store.get<boolean>("minimizeToTray"),
     store.get<boolean>("notifications"),
   ])
 
   return {
     closeToTray: closeToTray ?? defaults.closeToTray,
+    minimizeToTray: minimizeToTray ?? defaults.minimizeToTray,
     notifications: notifications ?? defaults.notifications,
   }
 }

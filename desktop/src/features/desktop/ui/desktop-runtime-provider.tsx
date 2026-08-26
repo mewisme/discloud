@@ -2,7 +2,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart"
 import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
-import { setNativeCloseToTray } from "../core/native"
+import { setNativeCloseToTray, setNativeMinimizeToTray } from "../core/native"
 import { desktopNotificationPermissionGranted, requestDesktopNotificationPermission, sendDesktopNotification } from "../core/notifications"
 import { type DesktopPreferences, loadDesktopPreferences, updateDesktopPreferences } from "../core/preferences"
 
@@ -13,6 +13,7 @@ type DesktopRuntimeContextValue = {
   loading: boolean
   error?: string
   setCloseToTray: (enabled: boolean) => Promise<void>
+  setMinimizeToTray: (enabled: boolean) => Promise<void>
   setAutostart: (enabled: boolean) => Promise<void>
   setNotifications: (enabled: boolean) => Promise<void>
   testNotification: () => Promise<boolean>
@@ -43,7 +44,10 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
           desktopNotificationPermissionGranted(),
         ])
 
-        await setNativeCloseToTray(nextPreferences.closeToTray)
+        await Promise.all([
+          setNativeCloseToTray(nextPreferences.closeToTray),
+          setNativeMinimizeToTray(nextPreferences.minimizeToTray),
+        ])
 
         if (!cancelled) {
           setPreferences(nextPreferences)
@@ -67,6 +71,12 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   const setCloseToTray = useCallback(async (enabled: boolean) => {
     await setNativeCloseToTray(enabled)
     const next = await updateDesktopPreferences({ closeToTray: enabled })
+    setPreferences(next)
+  }, [])
+
+  const setMinimizeToTray = useCallback(async (enabled: boolean) => {
+    await setNativeMinimizeToTray(enabled)
+    const next = await updateDesktopPreferences({ minimizeToTray: enabled })
     setPreferences(next)
   }, [])
 
@@ -104,11 +114,12 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     setCloseToTray,
+    setMinimizeToTray,
     setAutostart,
     setNotifications,
     testNotification,
     reload,
-  }), [preferences, autostartEnabled, notificationPermissionGranted, loading, error, setCloseToTray, setAutostart, setNotifications, testNotification, reload])
+  }), [preferences, autostartEnabled, notificationPermissionGranted, loading, error, setCloseToTray, setMinimizeToTray, setAutostart, setNotifications, testNotification, reload])
 
   return <DesktopRuntimeContext.Provider value={value}>{children}</DesktopRuntimeContext.Provider>
 }

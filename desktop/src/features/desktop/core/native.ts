@@ -9,3 +9,11 @@ export async function setNativeCloseToTray(enabled: boolean) {
     throw nativeError(error)
   }
 }
+
+export async function setNativeMinimizeToTray(enabled: boolean) {
+  try {
+    await invoke<void>("set_minimize_to_tray", { enabled })
+  } catch (error) {
+    throw nativeError(error)
+  }
+}

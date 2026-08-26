@@ -117,6 +117,7 @@ pub fn run() {
             commands::load_avatar,
             commands::save_recovery_codes,
             runtime::desktop::set_close_to_tray,
+            runtime::desktop::set_minimize_to_tray,
             sync::engine::run_sync_pair,
             sync::engine::list_sync_conflicts,
             sync::engine::resolve_sync_conflict,
