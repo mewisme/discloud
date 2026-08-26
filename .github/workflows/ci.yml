@@ -70,10 +70,19 @@ jobs:
           version: "~> v2"
           args: check
 
-      - name: Build local container
-        run: docker build --pull -t discloud-backend:test .
+      - name: Build local container (with retry)
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if docker build --pull -t discloud-backend:test .; then
+              exit 0
+            fi
+            echo "Docker build failed (attempt ${attempt}/3), retrying..."
+            sleep 10
+          done
+          exit 1
 
-      - name: Build release container target
+      - name: Build release container target (with retry)
         shell: bash
         run: |
           context="$(mktemp -d)"
@@ -88,13 +97,20 @@ jobs:
             -o "$context/linux/amd64/discloud" \
             ./cmd/discloud
 
-          docker build \
-            --pull \
-            --target release \
-            --build-arg TARGETPLATFORM=linux/amd64 \
-            --file Dockerfile \
-            --tag discloud-backend:release-test \
-            "$context"
+          for attempt in 1 2 3; do
+            if docker build \
+              --pull \
+              --target release \
+              --build-arg TARGETPLATFORM=linux/amd64 \
+              --file Dockerfile \
+              --tag discloud-backend:release-test \
+              "$context"; then
+              exit 0
+            fi
+            echo "Docker build failed (attempt ${attempt}/3), retrying..."
+            sleep 10
+          done
+          exit 1
 
       - name: Validate Compose
         shell: bash
