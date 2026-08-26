@@ -93,6 +93,8 @@ pub fn run() {
             runtime::local::get_local_runtime_snapshot,
             runtime::local::get_local_runtime_log,
             runtime::local::get_local_server_settings,
+            runtime::local::export_local_database,
+            runtime::local::import_local_database,
             runtime::local::prepare_local_runtime,
             runtime::local::save_local_server_settings,
             runtime::local::start_local_runtime,

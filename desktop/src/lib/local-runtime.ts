@@ -102,6 +102,11 @@ export type LocalRuntimeStartResult = {
   serverUrl: string
 }
 
+export type LocalDatabaseExportResult = {
+  path: string
+  bytes: number
+}
+
 export type LocalServerSettings = {
   guildId: string
   channelId: string
@@ -146,6 +151,14 @@ export function getLocalServerSettings() {
 
 export function saveLocalServerSettings(settings: LocalServerSettingsInput) {
   return invokeLocal<LocalServerSettings>("save_local_server_settings", { settings })
+}
+
+export function exportLocalDatabase(destination: string) {
+  return invokeLocal<LocalDatabaseExportResult>("export_local_database", { destination })
+}
+
+export function importLocalDatabase(source: string) {
+  return invokeLocal<LocalRuntimeSnapshot>("import_local_database", { source })
 }
 
 export function startLocalPostgresql() {

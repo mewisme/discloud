@@ -1,9 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@discloud/ui/components/tabs"
-import { open } from "@tauri-apps/plugin-dialog"
+import { confirm, open, save as saveFile } from "@tauri-apps/plugin-dialog"
 import { useCallback, useEffect, useState } from "react"
 
 import { errorMessage } from "#lib/instance"
-import { getLocalServerSettings, type LocalRuntimeSnapshot, type LocalServerSettings, prepareLocalRuntime, restartLocalRuntime, saveLocalServerSettings } from "#lib/local-runtime"
+import { exportLocalDatabase, getLocalServerSettings, importLocalDatabase, type LocalRuntimeSnapshot, type LocalServerSettings, prepareLocalRuntime, restartLocalRuntime, saveLocalServerSettings } from "#lib/local-runtime"
 import { type ConnectionMode, loadConnectionSettings } from "#lib/settings"
 
 import { LocalServerConfiguration } from "./local-server-configuration"
@@ -23,6 +23,8 @@ export function LocalServerPage() {
   const [error, setError] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [restarting, setRestarting] = useState(false)
+  const [databaseAction, setDatabaseAction] = useState<"export" | "import">()
+  const [databaseMessage, setDatabaseMessage] = useState<string>()
 
   const refresh = useCallback(async () => {
     try {
@@ -79,6 +81,44 @@ export function LocalServerPage() {
     if (typeof selected === "string") setDataDirectory(selected)
   }
 
+  async function exportDatabase() {
+    if (databaseAction || !runtime?.postgresql?.initialized || !settings?.dataCompatibility.compatible) return
+    const destination = await saveFile({
+      defaultPath: databaseBackupName(),
+      filters: [{ name: "PostgreSQL custom backup", extensions: ["dump"] }],
+    })
+    if (!destination) return
+    setDatabaseAction("export"); setDatabaseMessage(undefined); setError(undefined)
+    try {
+      const result = await exportLocalDatabase(destination)
+      setDatabaseMessage(`Database exported successfully (${formatBytes(result.bytes)}).`)
+      setRuntime(await prepareLocalRuntime())
+    } catch (error) {
+      setError(errorMessage(error))
+    } finally {
+      setDatabaseAction(undefined)
+    }
+  }
+
+  async function importDatabase() {
+    if (databaseAction || !settings?.dataCompatibility.compatible) return
+    const source = await open({ multiple: false, directory: false, filters: [{ name: "PostgreSQL custom backup", extensions: ["dump"] }] })
+    if (typeof source !== "string") return
+    const accepted = await confirm("The selected backup will be validated and restored into a temporary database before replacing the current Local server database. The runtime may restart and you may need to sign in again.", { title: "Import Local server database", kind: "warning" })
+    if (!accepted) return
+    setDatabaseAction("import"); setDatabaseMessage(undefined); setError(undefined)
+    try {
+      setRuntime(await importLocalDatabase(source))
+      setSettings(await getLocalServerSettings())
+      setDatabaseMessage("Database imported and validated successfully. You may need to sign in again if the restored backup contains different sessions.")
+    } catch (error) {
+      setError(errorMessage(error))
+      try { setRuntime(await prepareLocalRuntime()) } catch { setRuntime(null) }
+    } finally {
+      setDatabaseAction(undefined)
+    }
+  }
+
   if (!settings) {
     return (
       <section className="space-y-4">
@@ -112,8 +152,22 @@ export function LocalServerPage() {
           <LocalServerConfiguration settings={settings} guildId={guildId} channelId={channelId} botTokens={botTokens} webEnabled={webEnabled} saving={saving} onGuildIdChange={setGuildId} onChannelIdChange={setChannelId} onBotTokensChange={setBotTokens} onWebEnabledChange={setWebEnabled} onSave={() => void save()} />
         </TabsContent>
         <TabsContent value="runtime" className="mt-4"><LocalServerRuntime settings={settings} runtime={runtime} mode={mode} restarting={restarting} configured={configured} onRestart={() => void restart()} /></TabsContent>
-        <TabsContent value="database" className="mt-4"><LocalServerDatabase settings={settings} dataDirectory={dataDirectory} saving={saving} onPickDataDirectory={() => void pickDataDirectory()} onSave={() => void save()} /></TabsContent>
+        <TabsContent value="database" className="mt-4"><LocalServerDatabase settings={settings} runtime={runtime} dataDirectory={dataDirectory} saving={saving} databaseAction={databaseAction} databaseMessage={databaseMessage} onPickDataDirectory={() => void pickDataDirectory()} onSave={() => void save()} onExport={() => void exportDatabase()} onImport={() => void importDatabase()} /></TabsContent>
       </Tabs>
     </section>
   )
+}
+
+function databaseBackupName() {
+  const now = new Date()
+  const stamp = [now.getFullYear(), `${now.getMonth() + 1}`.padStart(2, "0"), `${now.getDate()}`.padStart(2, "0"), "-", `${now.getHours()}`.padStart(2, "0"), `${now.getMinutes()}`.padStart(2, "0"), `${now.getSeconds()}`.padStart(2, "0")].join("")
+  return `discloud-${stamp}.dump`
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B"
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
+  const unit = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
+  const size = value / 1024 ** unit
+  return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
 }

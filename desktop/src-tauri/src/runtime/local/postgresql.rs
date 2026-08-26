@@ -543,7 +543,15 @@ fn version_dir(layout: &LocalRuntimeLayout, descriptor: &RuntimeComponentDescrip
 }
 
 async fn runtime_valid(runtime_dir: &Path) -> Result<bool, LocalRuntimeError> {
-    for name in ["initdb", "pg_ctl", "pg_isready", "postgres", "psql"] {
+    for name in [
+        "initdb",
+        "pg_ctl",
+        "pg_dump",
+        "pg_isready",
+        "pg_restore",
+        "postgres",
+        "psql",
+    ] {
         if !fs::try_exists(binary_path(runtime_dir, name))
             .await
             .map_err(|error| {

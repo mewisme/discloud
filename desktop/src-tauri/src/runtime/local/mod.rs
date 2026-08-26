@@ -14,6 +14,7 @@ mod bundled;
 mod compatibility;
 pub(crate) mod components;
 mod config;
+mod database;
 pub(crate) mod download;
 mod layout;
 mod logs;
@@ -303,6 +304,164 @@ pub(crate) async fn stop_local_postgresql(
 pub(crate) struct LocalRuntimeStartResult {
     snapshot: LocalRuntimeSnapshot,
     server_url: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalDatabaseExportResult {
+    path: String,
+    bytes: u64,
+}
+
+#[tauri::command]
+pub(crate) async fn export_local_database(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    destination: String,
+) -> Result<LocalDatabaseExportResult, LocalRuntimeError> {
+    let _operation = state.operation.lock().await;
+    ensure_local_data_compatible(&app).await?;
+    let (layout, manifest) = prepare_foundation(&app, state.inner()).await?;
+    if !layout.database_initialized().await? {
+        return Err(LocalRuntimeError::invalid_state(
+            "Initialize the Local server database before exporting it.",
+        ));
+    }
+    let initial = state.snapshot()?;
+    let postgresql_was_running = initial
+        .postgresql
+        .as_ref()
+        .is_some_and(|postgresql| postgresql.running);
+    if !postgresql_was_running {
+        postgresql::start(
+            &app,
+            &layout,
+            &manifest.components.postgresql,
+            &manifest.desktop_version,
+            state.inner(),
+        )
+        .await?;
+    }
+    let port = state
+        .snapshot()?
+        .postgresql
+        .and_then(|postgresql| postgresql.port)
+        .ok_or_else(|| LocalRuntimeError::internal("PostgreSQL port is unavailable for export."))?;
+    let result = database::export(
+        &layout,
+        &manifest.components.postgresql,
+        port,
+        &PathBuf::from(destination),
+    )
+    .await;
+    if !postgresql_was_running {
+        if let Err(error) =
+            postgresql::stop(&layout, &manifest.components.postgresql, state.inner()).await
+        {
+            if result.is_ok() {
+                return Err(error);
+            }
+            crate::diagnostics::warn(
+                "runtime.local.database",
+                format!(
+                    "could not restore PostgreSQL state after export: {}",
+                    error.message()
+                ),
+            );
+        }
+    }
+    let exported = result?;
+    Ok(LocalDatabaseExportResult {
+        path: path_string(&exported.path),
+        bytes: exported.bytes,
+    })
+}
+
+#[tauri::command]
+pub(crate) async fn import_local_database(
+    app: AppHandle,
+    state: State<'_, LocalRuntimeState>,
+    api: State<'_, crate::api::ApiState>,
+    source: String,
+) -> Result<LocalRuntimeSnapshot, LocalRuntimeError> {
+    let source = database::validate_source(&PathBuf::from(source)).await?;
+    let _operation = state.operation.lock().await;
+    ensure_local_data_compatible(&app).await?;
+    let initial = prepare_local_runtime_inner(&app, state.inner()).await?;
+    let runtime_was_running = initial
+        .backend
+        .as_ref()
+        .is_some_and(|backend| backend.running);
+    let postgresql_was_running = initial
+        .postgresql
+        .as_ref()
+        .is_some_and(|postgresql| postgresql.running);
+    if runtime_was_running {
+        stop_local_runtime_inner(&app, state.inner(), api.inner()).await?;
+    } else if postgresql_was_running {
+        stop_local_postgresql_inner(&app, state.inner()).await?;
+    }
+    let (layout, manifest) = prepare_foundation(&app, state.inner()).await?;
+    let import_result = async {
+        postgresql::start(
+            &app,
+            &layout,
+            &manifest.components.postgresql,
+            &manifest.desktop_version,
+            state.inner(),
+        )
+        .await?;
+        let port = state
+            .snapshot()?
+            .postgresql
+            .and_then(|postgresql| postgresql.port)
+            .ok_or_else(|| {
+                LocalRuntimeError::internal("PostgreSQL port is unavailable for import.")
+            })?;
+        database::import(&layout, &manifest.components.postgresql, port, &source).await
+    }
+    .await;
+    let restore_result = if runtime_was_running {
+        start_local_runtime_inner(&app, state.inner(), api.inner())
+            .await
+            .map(|result| result.snapshot)
+    } else if postgresql_was_running {
+        postgresql::start(
+            &app,
+            &layout,
+            &manifest.components.postgresql,
+            &manifest.desktop_version,
+            state.inner(),
+        )
+        .await?;
+        prepare_local_runtime_inner(&app, state.inner()).await
+    } else {
+        if let Err(error) =
+            postgresql::stop(&layout, &manifest.components.postgresql, state.inner()).await
+        {
+            if import_result.is_ok() {
+                return Err(error);
+            }
+            crate::diagnostics::warn(
+                "runtime.local.database",
+                format!(
+                    "could not restore PostgreSQL state after import: {}",
+                    error.message()
+                ),
+            );
+        }
+        prepare_local_runtime_inner(&app, state.inner()).await
+    };
+    match (import_result, restore_result) {
+        (Ok(()), Ok(snapshot)) => Ok(snapshot),
+        (Err(error), Ok(_)) => Err(error),
+        (Ok(()), Err(error)) => Err(error),
+        (Err(error), Err(restore_error)) => Err(LocalRuntimeError::process(format!(
+            "Database import failed and the previous runtime state could not be restored. Import: {} Runtime: {}",
+            error.message(),
+            restore_error.message()
+        ))),
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

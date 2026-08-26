@@ -3,11 +3,11 @@ import { Button } from "@discloud/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { Field, FieldDescription, FieldLabel } from "@discloud/ui/components/field"
 import { Input } from "@discloud/ui/components/input"
-import { DatabaseIcon, FolderOpenIcon, KeyRoundIcon, LoaderCircle, LockKeyholeIcon, ShieldCheckIcon } from "lucide-react"
+import { DatabaseBackupIcon, DatabaseIcon, DownloadIcon, FolderOpenIcon, KeyRoundIcon, LoaderCircle, LockKeyholeIcon, ShieldCheckIcon, UploadIcon } from "lucide-react"
 
-import type { LocalServerSettings } from "#lib/local-runtime"
+import type { LocalRuntimeSnapshot, LocalServerSettings } from "#lib/local-runtime"
 
-export function LocalServerDatabase({ settings, dataDirectory, saving, onPickDataDirectory, onSave }: { settings: LocalServerSettings; dataDirectory: string; saving: boolean; onPickDataDirectory: () => void; onSave: () => void }) {
+export function LocalServerDatabase({ settings, runtime, dataDirectory, saving, databaseAction, databaseMessage, onPickDataDirectory, onSave, onExport, onImport }: { settings: LocalServerSettings; runtime: LocalRuntimeSnapshot | null; dataDirectory: string; saving: boolean; databaseAction?: "export" | "import"; databaseMessage?: string; onPickDataDirectory: () => void; onSave: () => void; onExport: () => void; onImport: () => void }) {
   const compatibility = settings.dataCompatibility
   const directoryChanged = dataDirectory !== settings.dataDirectory
 
@@ -59,8 +59,25 @@ export function LocalServerDatabase({ settings, dataDirectory, saving, onPickDat
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><DatabaseBackupIcon className="size-4" />Backup and restore</CardTitle>
+          <CardDescription>Export a portable PostgreSQL backup or replace the Local server database from a validated backup.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <DatabaseAction icon={DownloadIcon} title="Export database" description="Creates a transactionally consistent PostgreSQL custom-format backup. OS keyring secrets such as the encryption key are not included." action={databaseAction === "export" ? "Exporting…" : "Export backup"} loading={databaseAction === "export"} disabled={!compatibility.compatible || !!databaseAction || !runtime?.postgresql?.initialized} onAction={onExport} />
+          <DatabaseAction icon={UploadIcon} title="Import database" description="Validates the archive, restores it into a temporary database, checks the DisCloud schema, then swaps it into place. The previous database is retained until validation succeeds." action={databaseAction === "import" ? "Importing…" : "Import backup"} loading={databaseAction === "import"} disabled={!compatibility.compatible || !!databaseAction} onAction={onImport} />
+          {databaseMessage ? <p className="rounded-lg border bg-muted/30 p-3 text-sm">{databaseMessage}</p> : null}
+          {!runtime?.postgresql?.initialized ? <p className="text-xs text-muted-foreground">Export becomes available after PostgreSQL has been initialized. Import can initialize the managed database runtime when needed.</p> : null}
+        </CardContent>
+      </Card>
     </div>
   )
+}
+
+function DatabaseAction({ icon: Icon, title, description, action, loading, disabled, onAction }: { icon: typeof DatabaseIcon; title: string; description: string; action: string; loading: boolean; disabled: boolean; onAction: () => void }) {
+  return <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center"><div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"><Icon className="size-4" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p></div><Button type="button" variant={title.startsWith("Import") ? "outline" : "default"} disabled={disabled} onClick={onAction}>{loading ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}{action}</Button></div>
 }
 
 function StatusRow({ icon: Icon, label, detail, value, good }: { icon: typeof DatabaseIcon; label: string; detail: string; value: string; good?: boolean }) {
