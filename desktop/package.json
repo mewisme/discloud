@@ -32,6 +32,7 @@
     "@tauri-apps/plugin-autostart": "~2.5.1",
     "@tauri-apps/plugin-dialog": "~2.7.2",
     "@tauri-apps/plugin-notification": "~2.3.3",
+    "@tauri-apps/plugin-shell": "~2.3.1",
     "@tauri-apps/plugin-store": "^2.4.4",
     "lucide-react": "catalog:",
     "next-themes": "catalog:",

@@ -100,10 +100,10 @@ docker compose up -d --build
 
 ## Release channels
 
-`compose.yml` uses one Docker tag for both backend and Web images:
+`compose.yml` uses the stable Docker tag by default for both backend and Web images:
 
 ```env
-DISCLOUD_DOCKER_TAG=rc
+DISCLOUD_DOCKER_TAG=latest
 ```
 
 Supported values:
@@ -116,7 +116,7 @@ Supported values:
 | `alpha` | Latest alpha |
 | `vX.Y.Z...` | Exact immutable release |
 
-For reproducible deployments, pin an exact `v*` tag.
+For reproducible deployments, pin an exact `v*` tag. The default `latest` tag follows stable releases.
 
 Published images:
 

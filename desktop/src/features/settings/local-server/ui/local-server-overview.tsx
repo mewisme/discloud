@@ -1,6 +1,8 @@
+import { open } from "@tauri-apps/plugin-shell"
+import { Button } from "@discloud/ui/components/button"
 import { Badge } from "@discloud/ui/components/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
-import { DatabaseIcon, FolderIcon, Globe2Icon, ServerIcon, ShieldCheckIcon } from "lucide-react"
+import { DatabaseIcon, ExternalLinkIcon, FolderIcon, Globe2Icon, ServerIcon, ShieldCheckIcon } from "lucide-react"
 
 import type { LocalRuntimeSnapshot, LocalServerSettings } from "#lib/local-runtime"
 
@@ -43,7 +45,10 @@ export function LocalServerOverview({ settings, runtime }: { settings: LocalServ
             <CardTitle>Local server</CardTitle>
             <CardDescription>Health and connectivity for the services managed by this Desktop installation.</CardDescription>
           </div>
-          <Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Not running"}</Badge>
+          <div className="flex items-center gap-2">
+            {settings.webEnabled && runtime?.web?.running ? <Button type="button" variant="outline" size="sm" onClick={() => open(`http://127.0.0.1:${runtime.web.port}`)}><ExternalLinkIcon data-icon="inline-start" />Open in web</Button> : null}
+            <Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Not running"}</Badge>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-3">
           {services.map((service) => <ServiceCard key={service.label} {...service} />)}
