@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"time"
 
@@ -42,7 +41,7 @@ type mfaRequiredResponse struct {
 	ExpiresAt      time.Time `json:"expiresAt"`
 }
 
-func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
+func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, httpCfg config.HTTPConfig, cfg config.AuthConfig) {
 	limits := newAuthRateLimits()
 
 	mux.HandleFunc("POST /api/v1/auth/login", func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +51,7 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
-		ipAddress := requestIP(r)
+		ipAddress := requestIP(r, httpCfg)
 		if allowed, retryAfter := limits.allowLogin(ipAddress, input.Username); !allowed {
 			writeAuthRateLimit(w, r, retryAfter)
 			return
@@ -92,7 +91,7 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 			return
 		}
 
-		ipAddress := requestIP(r)
+		ipAddress := requestIP(r, httpCfg)
 		if allowed, retryAfter := limits.allowMFA(ipAddress); !allowed {
 			writeAuthRateLimit(w, r, retryAfter)
 			return
@@ -140,7 +139,7 @@ func registerAuthRoutes(mux *http.ServeMux, service *auth.Service, cfg config.Au
 	})))
 
 	registerMeRoutes(mux, service, cfg)
-	registerMFARoutes(mux, service, cfg)
+	registerMFARoutes(mux, service, httpCfg, cfg)
 }
 
 func requireAuth(service *auth.Service, cfg config.AuthConfig, next http.Handler) http.Handler {
@@ -219,17 +218,6 @@ func sameSite(mode config.SameSiteMode) http.SameSite {
 	default:
 		return http.SameSiteLaxMode
 	}
-}
-
-func requestIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	if net.ParseIP(r.RemoteAddr) != nil {
-		return r.RemoteAddr
-	}
-	return ""
 }
 
 func limitRunes(value string, limit int) string {

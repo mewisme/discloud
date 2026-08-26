@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
 mod archive;
+mod atomic_file;
 mod backend;
 mod bundled;
 mod compatibility;
@@ -93,6 +94,14 @@ pub(crate) struct LocalRuntimeState {
 pub(crate) struct LocalRuntimeError {
     kind: &'static str,
     message: String,
+}
+
+#[derive(Default)]
+struct LocalRuntimeStartProgress {
+    postgresql_started: bool,
+    backend_started: bool,
+    web_started: bool,
+    api_connected: bool,
 }
 
 impl LocalRuntimeState {
@@ -575,6 +584,20 @@ async fn start_local_runtime_inner(
     state: &LocalRuntimeState,
     api: &crate::api::ApiState,
 ) -> Result<LocalRuntimeStartResult, LocalRuntimeError> {
+    let mut progress = LocalRuntimeStartProgress::default();
+    let result = start_local_runtime_attempt(app, state, api, &mut progress).await;
+    if result.is_err() {
+        rollback_failed_start(app, state, api, &progress).await;
+    }
+    result
+}
+
+async fn start_local_runtime_attempt(
+    app: &AppHandle,
+    state: &LocalRuntimeState,
+    api: &crate::api::ApiState,
+    progress: &mut LocalRuntimeStartProgress,
+) -> Result<LocalRuntimeStartResult, LocalRuntimeError> {
     state.update(|snapshot| {
         snapshot.status = LocalRuntimeStatus::Preparing;
         snapshot.error = None;
@@ -592,6 +615,16 @@ async fn start_local_runtime_inner(
     )
     .await;
     let (layout, manifest) = prepare_foundation(app, state).await?;
+    let initial_snapshot = state.snapshot()?;
+    progress.postgresql_started = !initial_snapshot
+        .postgresql
+        .as_ref()
+        .is_some_and(|postgresql| postgresql.running);
+    progress.backend_started = !initial_snapshot
+        .backend
+        .as_ref()
+        .is_some_and(|backend| backend.running);
+    let web_was_running = initial_snapshot.web.as_ref().is_some_and(|web| web.running);
     logs::append(
         &layout,
         logs::LocalRuntimeLogStage::Prepare,
@@ -637,6 +670,7 @@ async fn start_local_runtime_inner(
             format!("{error:?}"),
         )
     })?;
+    progress.api_connected = true;
     logs::append(
         &layout,
         logs::LocalRuntimeLogStage::Connect,
@@ -653,6 +687,7 @@ async fn start_local_runtime_inner(
     let web_enabled = config::web_enabled(&layout).await?;
     if let Some(descriptor) = manifest.components.web.as_ref() {
         if web_enabled {
+            progress.web_started = !web_was_running;
             state.update(|snapshot| {
                 snapshot.status = LocalRuntimeStatus::StartingWeb;
                 snapshot.error = None;
@@ -694,6 +729,7 @@ async fn start_local_runtime_inner(
             }
         }
     }
+    compatibility::mark_used(app, &layout).await?;
     state.update(|snapshot| {
         snapshot.status = LocalRuntimeStatus::Ready;
         snapshot.error = None;
@@ -708,6 +744,59 @@ async fn start_local_runtime_inner(
         snapshot: state.snapshot()?,
         server_url,
     })
+}
+
+async fn rollback_failed_start(
+    app: &AppHandle,
+    state: &LocalRuntimeState,
+    api: &crate::api::ApiState,
+    progress: &LocalRuntimeStartProgress,
+) {
+    if progress.api_connected && progress.backend_started {
+        if let Err(error) = api.disconnect() {
+            crate::diagnostics::warn(
+                "runtime.local.rollback",
+                format!("could not disconnect local API client: {error:?}"),
+            );
+        }
+    }
+    if !progress.postgresql_started && !progress.backend_started && !progress.web_started {
+        return;
+    }
+    let Ok(layout) = LocalRuntimeLayout::resolve(app) else {
+        return;
+    };
+    let Ok(manifest) = LocalRuntimeManifest::for_current_platform(app) else {
+        return;
+    };
+    if progress.web_started {
+        if let Some(descriptor) = manifest.components.web.as_ref() {
+            let web_enabled = config::web_enabled(&layout).await.unwrap_or(false);
+            if let Err(error) =
+                web::stop(&layout, descriptor, web_enabled, &state.web_process).await
+            {
+                crate::diagnostics::warn("runtime.local.rollback", error.message());
+            }
+        }
+    }
+    if progress.backend_started {
+        if let Err(error) = backend::stop(
+            &layout,
+            &manifest.components.backend,
+            &state.backend_process,
+            state,
+        )
+        .await
+        {
+            crate::diagnostics::warn("runtime.local.rollback", error.message());
+        }
+    }
+    if progress.postgresql_started {
+        if let Err(error) = postgresql::stop(&layout, &manifest.components.postgresql, state).await
+        {
+            crate::diagnostics::warn("runtime.local.rollback", error.message());
+        }
+    }
 }
 
 async fn stop_local_runtime_inner(

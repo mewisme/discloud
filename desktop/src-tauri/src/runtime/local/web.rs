@@ -643,20 +643,12 @@ async fn write_record(path: &Path, record: &WebRuntimeRecord) -> Result<(), Loca
         ))
     })?;
     content.push(b'\n');
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, content).await.map_err(|error| {
-        LocalRuntimeError::io("Could not write the managed web runtime state", error)
-    })?;
-    if fs::try_exists(path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the managed web runtime state", error)
-    })? {
-        fs::remove_file(path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the managed web runtime state", error)
-        })?;
-    }
-    fs::rename(&temporary, path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not install the managed web runtime state", error)
-    })
+    super::atomic_file::write(
+        path,
+        content,
+        "Could not install the managed web runtime state",
+    )
+    .await
 }
 
 fn node_path(runtime_dir: &Path) -> PathBuf {

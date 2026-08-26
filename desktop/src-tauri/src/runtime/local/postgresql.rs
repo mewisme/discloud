@@ -875,21 +875,12 @@ async fn write_runtime_record(
         ))
     })?;
     content.push(b'\n');
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, content).await.map_err(|error| {
-        LocalRuntimeError::io("Could not write the PostgreSQL runtime state", error)
-    })?;
-    if fs::try_exists(path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the PostgreSQL runtime state", error)
-    })? {
-        fs::remove_file(path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the PostgreSQL runtime state", error)
-        })?;
-    }
-    fs::rename(&temporary, path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not install the PostgreSQL runtime state", error)
-    })?;
-    Ok(())
+    super::atomic_file::write(
+        path,
+        content,
+        "Could not install the PostgreSQL runtime state",
+    )
+    .await
 }
 
 fn ensure_postgresql_password() -> Result<String, LocalRuntimeError> {

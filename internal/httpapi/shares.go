@@ -178,20 +178,26 @@ func registerShareRoutes(mux *http.ServeMux, service *shares.Service, authServic
 	})
 }
 
-func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service, fileService *files.Service, folderService *folders.Service) {
+func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service, fileService *files.Service, folderService *folders.Service, httpCfg config.HTTPConfig) {
 	resources := newPublicShareResources()
+	unlockLimits := newPublicShareUnlockLimits()
 
 	mux.HandleFunc("POST /api/v1/public/shares/{publicId}/unlock", func(w http.ResponseWriter, r *http.Request) {
+		publicID := r.PathValue("publicId")
+		if allowed, retryAfter := unlockLimits.allow(requestIP(r, httpCfg), publicID); !allowed {
+			writePublicShareUnlockRateLimit(w, r, retryAfter)
+			return
+		}
 		var input unlockShareRequest
 		if err := decodeJSON(w, r, accountBodyLimit, &input); err != nil {
 			WriteProblem(w, r, http.StatusBadRequest, "Bad Request", "invalid JSON body")
 			return
 		}
-		result, err := shareService.Unlock(r.Context(), r.PathValue("publicId"), input.Password)
+		result, err := shareService.Unlock(r.Context(), publicID, input.Password)
 		if writePublicShareError(w, r, err) {
 			return
 		}
-		setPublicShareSessionCookie(w, r, r.PathValue("publicId"), result)
+		setPublicShareSessionCookie(w, r, publicID, result, httpCfg)
 		w.WriteHeader(http.StatusNoContent)
 	})
 
@@ -241,10 +247,6 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 		if err := shareService.CanAccessFolder(r.Context(), share, folderID); writePublicShareError(w, r, err) {
 			return
 		}
-		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
-			return
-		}
-
 		release, ok := resources.tryAcquireArchive()
 		if !ok {
 			writePublicShareCapacityExceeded(w, r)
@@ -262,6 +264,9 @@ func registerPublicShareRoutes(mux *http.ServeMux, shareService *shares.Service,
 			return
 		case err != nil:
 			WriteProblem(w, r, http.StatusInternalServerError, "Internal Server Error", "could not prepare public archive")
+			return
+		}
+		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
 			return
 		}
 
@@ -359,12 +364,6 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *share
 		return
 	}
 
-	if download {
-		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
-			return
-		}
-	}
-
 	file, err := fileService.GetStored(r.Context(), fileID)
 	if writeFileError(w, r, err) {
 		return
@@ -402,6 +401,11 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, shareService *share
 		return
 	}
 	defer reader.Close()
+	if download {
+		if _, err := shareService.ConsumeDownload(r.Context(), share.ID); writePublicShareError(w, r, err) {
+			return
+		}
+	}
 
 	setFileHeaders(w, file, download, length)
 	if byteRange != nil {

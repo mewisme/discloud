@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use reqwest::Client;
+use reqwest::{header::RANGE, Client};
 use sha2::{Digest, Sha256};
 use tokio::{fs, io::AsyncWriteExt};
 
@@ -75,18 +75,12 @@ pub(crate) async fn download_verified(
         }
     };
 
-    if fs::try_exists(&final_path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the downloaded runtime component", error)
-    })? {
-        fs::remove_file(&final_path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the downloaded runtime component", error)
-        })?;
-    }
-    fs::rename(&temporary_path, &final_path)
-        .await
-        .map_err(|error| {
-            LocalRuntimeError::io("Could not finalize the runtime component download", error)
-        })?;
+    super::atomic_file::replace(
+        &temporary_path,
+        &final_path,
+        "Could not finalize the runtime component download",
+    )
+    .await?;
 
     Ok(VerifiedDownload {
         path: final_path,
@@ -114,6 +108,18 @@ pub(crate) async fn verify_descriptor_available(
             LocalRuntimeError::network("Could not read the runtime checksum", error)
         })?;
     parse_checksum_document(&checksum_document, &descriptor.archive_name)?;
+    client
+        .get(&descriptor.download_url)
+        .header(RANGE, "bytes=0-0")
+        .send()
+        .await
+        .map_err(|error| {
+            LocalRuntimeError::network("Could not verify the runtime component asset", error)
+        })?
+        .error_for_status()
+        .map_err(|error| {
+            LocalRuntimeError::network("Runtime component asset is unavailable", error)
+        })?;
     Ok(())
 }
 
@@ -139,6 +145,9 @@ async fn write_verified_response(
     }
     file.flush().await.map_err(|error| {
         LocalRuntimeError::io("Could not flush the runtime component archive", error)
+    })?;
+    file.sync_all().await.map_err(|error| {
+        LocalRuntimeError::io("Could not sync the runtime component archive", error)
     })?;
 
     let actual = hasher

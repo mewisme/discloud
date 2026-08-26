@@ -252,20 +252,7 @@ async fn write_env_file(
         content.push_str(value);
         content.push('\n');
     }
-    let temporary = path.with_extension("env.tmp");
-    fs::write(&temporary, content)
-        .await
-        .map_err(|error| LocalRuntimeError::io("Could not write the local server config", error))?;
-    if fs::try_exists(path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the local server config", error)
-    })? {
-        fs::remove_file(path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the local server config", error)
-        })?;
-    }
-    fs::rename(&temporary, path)
-        .await
-        .map_err(|error| LocalRuntimeError::io("Could not install the local server config", error))
+    super::atomic_file::write(path, content, "Could not install the local server config").await
 }
 
 async fn parse_env_file(path: &Path) -> Result<BTreeMap<String, String>, LocalRuntimeError> {

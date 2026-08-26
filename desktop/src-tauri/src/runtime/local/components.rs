@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
 use tokio::fs;
 
-use super::LocalRuntimeError;
+use super::{atomic_file, LocalRuntimeError};
 
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub(crate) const POSTGRESQL_VERSION: &str = "18.6.0";
@@ -85,21 +85,12 @@ pub(crate) async fn write_manifest(
         return Ok(());
     }
 
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, content).await.map_err(|error| {
-        LocalRuntimeError::io("Could not write the local runtime manifest", error)
-    })?;
-    if fs::try_exists(path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the local runtime manifest", error)
-    })? {
-        fs::remove_file(path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the local runtime manifest", error)
-        })?;
-    }
-    fs::rename(&temporary, path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not install the local runtime manifest", error)
-    })?;
-    Ok(())
+    atomic_file::write(
+        path,
+        content,
+        "Could not install the local runtime manifest",
+    )
+    .await
 }
 
 pub(crate) fn backend_descriptor(

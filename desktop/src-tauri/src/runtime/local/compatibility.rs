@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
 use tokio::fs;
 
-use super::{layout::LocalRuntimeLayout, LocalRuntimeError};
+use super::{atomic_file, layout::LocalRuntimeLayout, LocalRuntimeError};
 
 const CURRENT_DATA_SCHEMA_VERSION: u32 = 1;
 const MIN_SUPPORTED_DATA_SCHEMA_VERSION: u32 = 1;
@@ -56,6 +56,14 @@ pub(super) async fn ensure_compatible<R: Runtime>(
         ));
     }
     layout.prepare().await?;
+    Ok(compatibility)
+}
+
+pub(super) async fn mark_used<R: Runtime>(
+    app: &AppHandle<R>,
+    layout: &LocalRuntimeLayout,
+) -> Result<LocalDataCompatibility, LocalRuntimeError> {
+    let compatibility = ensure_compatible(app, layout).await?;
     write_metadata(
         layout,
         &LocalDataMetadata {
@@ -146,23 +154,12 @@ async fn write_metadata(
         LocalRuntimeError::internal(format!("Could not serialize local data metadata: {error}"))
     })?;
     content.push(b'\n');
-    let temporary = layout.data_metadata_path.with_extension("json.tmp");
-    fs::write(&temporary, content)
-        .await
-        .map_err(|error| LocalRuntimeError::io("Could not write local data metadata", error))?;
-    if fs::try_exists(&layout.data_metadata_path)
-        .await
-        .map_err(|error| LocalRuntimeError::io("Could not inspect local data metadata", error))?
-    {
-        fs::remove_file(&layout.data_metadata_path)
-            .await
-            .map_err(|error| {
-                LocalRuntimeError::io("Could not replace local data metadata", error)
-            })?;
-    }
-    fs::rename(&temporary, &layout.data_metadata_path)
-        .await
-        .map_err(|error| LocalRuntimeError::io("Could not install local data metadata", error))
+    atomic_file::write(
+        &layout.data_metadata_path,
+        content,
+        "Could not install local data metadata",
+    )
+    .await
 }
 
 async fn legacy_data_exists(layout: &LocalRuntimeLayout) -> Result<bool, LocalRuntimeError> {

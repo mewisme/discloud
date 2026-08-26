@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/mewisme/discloud/internal/config"
 	"github.com/mewisme/discloud/internal/shares"
 )
 
@@ -24,7 +24,7 @@ func publicShareSessionToken(r *http.Request, publicID string) string {
 	return cookie.Value
 }
 
-func setPublicShareSessionCookie(w http.ResponseWriter, r *http.Request, publicID string, result shares.UnlockResult) {
+func setPublicShareSessionCookie(w http.ResponseWriter, r *http.Request, publicID string, result shares.UnlockResult, cfg config.HTTPConfig) {
 	if result.Token == "" {
 		return
 	}
@@ -34,7 +34,7 @@ func setPublicShareSessionCookie(w http.ResponseWriter, r *http.Request, publicI
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: publicShareCookieName(publicID), Value: result.Token, Path: "/",
-		Expires: result.ExpiresAt, MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode,
+		Expires: result.ExpiresAt, MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r, cfg), SameSite: http.SameSiteLaxMode,
 	})
 }
 
@@ -43,10 +43,9 @@ func publicShareCookieName(publicID string) string {
 	return "discloud_share_" + hex.EncodeToString(hash[:8])
 }
 
-func requestIsHTTPS(r *http.Request) bool {
+func requestIsHTTPS(r *http.Request, cfg config.HTTPConfig) bool {
 	if r.TLS != nil {
 		return true
 	}
-	forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0])
-	return strings.EqualFold(forwarded, "https")
+	return requestFromTrustedProxy(r, cfg) && forwardedProto(r) == "https"
 }

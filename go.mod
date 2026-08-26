@@ -7,7 +7,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pquerna/otp v1.5.0
 	github.com/pressly/goose/v3 v3.27.3
-	golang.org/x/image v0.44.0
+	golang.org/x/image v0.45.0
 	golang.org/x/text v0.41.0
 )
 

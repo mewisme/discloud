@@ -115,20 +115,12 @@ impl LocalRuntimeLayout {
             ))
         })?;
         content.push(b'\n');
-        let temporary = path.with_extension("json.tmp");
-        fs::write(&temporary, content).await.map_err(|error| {
-            LocalRuntimeError::io("Could not write the local runtime root preference", error)
-        })?;
-        if fs::try_exists(&path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not inspect the local runtime root preference", error)
-        })? {
-            fs::remove_file(&path).await.map_err(|error| {
-                LocalRuntimeError::io("Could not replace the local runtime root preference", error)
-            })?;
-        }
-        fs::rename(&temporary, &path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not install the local runtime root preference", error)
-        })
+        super::atomic_file::write(
+            &path,
+            content,
+            "Could not install the local runtime root preference",
+        )
+        .await
     }
 
     pub(super) fn for_root(root_dir: PathBuf) -> Result<Self, LocalRuntimeError> {

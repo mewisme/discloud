@@ -28,7 +28,7 @@ type mfaConfirmationResponse struct {
 	RecoveryCodes []string `json:"recoveryCodes"`
 }
 
-func registerMFARoutes(mux *http.ServeMux, service *auth.Service, cfg config.AuthConfig) {
+func registerMFARoutes(mux *http.ServeMux, service *auth.Service, httpCfg config.HTTPConfig, cfg config.AuthConfig) {
 	protected := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, requireAuth(service, cfg, handler))
 	}
@@ -168,7 +168,7 @@ func registerMFARoutes(mux *http.ServeMux, service *auth.Service, cfg config.Aut
 			targetUserID,
 			principal.User.ID,
 			RequestID(r.Context()),
-			requestIP(r),
+			requestIP(r, httpCfg),
 		)
 
 		switch {

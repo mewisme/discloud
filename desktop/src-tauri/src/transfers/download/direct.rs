@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, OnceLock,
     },
     time::Duration,
 };
@@ -26,6 +26,9 @@ use crate::{
 
 const DIRECT_CHUNK_CONCURRENCY: usize = 4;
 const DIRECT_CHUNK_RETRIES: usize = 3;
+const DIRECT_CDN_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const DIRECT_CDN_REQUEST_TIMEOUT: Duration = Duration::from_secs(2 * 60);
+const DIRECT_CDN_REDIRECT_LIMIT: usize = 3;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -150,6 +153,7 @@ where
     };
     let mut output = OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
         .open(&temporary)
@@ -417,12 +421,7 @@ async fn download_chunk(
     mut chunk: DirectChunk,
     cancel: Option<(Arc<AtomicBool>, Arc<Notify>)>,
 ) -> Result<(DirectChunk, Vec<u8>), DirectDownloadError> {
-    let client = Client::builder()
-        .redirect(reqwest::redirect::Policy::limited(3))
-        .build()
-        .map_err(|error| {
-            ApiCommandError::internal(format!("Could not create direct download client: {error}"))
-        })?;
+    let client = direct_cdn_client()?;
     for attempt in 0..DIRECT_CHUNK_RETRIES {
         ensure_not_cancelled(cancel.as_ref())?;
         validate_cdn_url(&chunk.url)?;
@@ -472,9 +471,8 @@ async fn download_chunk(
             continue;
         }
         if response.status().is_success() {
-            match response.bytes().await {
-                Ok(body) => {
-                    let bytes = body.to_vec();
+            match read_chunk_body(response, chunk.size, cancel.as_ref()).await {
+                Ok(bytes) => {
                     if bytes.len() as u64 == chunk.size && sha256_hex(&bytes) == chunk.sha256 {
                         return Ok((chunk, bytes));
                     }
@@ -486,13 +484,8 @@ async fn download_chunk(
                         .into());
                     }
                 }
-                Err(error) if attempt + 1 == DIRECT_CHUNK_RETRIES => {
-                    return Err(ApiCommandError::network(
-                        "Could not read direct CDN chunk",
-                        error.without_url(),
-                    )
-                    .into())
-                }
+                Err(DirectDownloadError::Cancelled) => return Err(DirectDownloadError::Cancelled),
+                Err(error) if attempt + 1 == DIRECT_CHUNK_RETRIES => return Err(error),
                 Err(_) => {}
             }
             sleep(Duration::from_millis(300 * (1u64 << attempt))).await;
@@ -511,6 +504,66 @@ async fn download_chunk(
         sleep(Duration::from_millis(300 * (1u64 << attempt))).await;
     }
     Err(ApiCommandError::internal("Direct download retry loop exited unexpectedly.").into())
+}
+
+fn direct_cdn_client() -> Result<Client, ApiCommandError> {
+    static CLIENT: OnceLock<Result<Client, String>> = OnceLock::new();
+    match CLIENT.get_or_init(|| {
+        Client::builder()
+            .connect_timeout(DIRECT_CDN_CONNECT_TIMEOUT)
+            .timeout(DIRECT_CDN_REQUEST_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() > DIRECT_CDN_REDIRECT_LIMIT {
+                    attempt.error("too many Discord CDN redirects")
+                } else if cdn_url_allowed(attempt.url()) {
+                    attempt.follow()
+                } else {
+                    attempt.error("Discord CDN redirect target is not allowed")
+                }
+            }))
+            .build()
+            .map_err(|error| error.to_string())
+    }) {
+        Ok(client) => Ok(client.clone()),
+        Err(error) => Err(ApiCommandError::internal(format!(
+            "Could not create direct download client: {error}"
+        ))),
+    }
+}
+
+async fn read_chunk_body(
+    mut response: reqwest::Response,
+    expected_size: u64,
+    cancel: Option<&(Arc<AtomicBool>, Arc<Notify>)>,
+) -> Result<Vec<u8>, DirectDownloadError> {
+    let capacity = usize::try_from(expected_size)
+        .unwrap_or(0)
+        .min(16 * 1024 * 1024);
+    let mut bytes = Vec::with_capacity(capacity);
+    loop {
+        ensure_not_cancelled(cancel)?;
+        let next = if let Some((_, notify)) = cancel {
+            tokio::select! {
+                _ = notify.notified() => return Err(DirectDownloadError::Cancelled),
+                chunk = response.chunk() => chunk,
+            }
+        } else {
+            response.chunk().await
+        };
+        let Some(body) = next.map_err(|error| {
+            ApiCommandError::network("Could not read direct CDN chunk", error.without_url())
+        })?
+        else {
+            break;
+        };
+        if (bytes.len() as u64).saturating_add(body.len() as u64) > expected_size {
+            return Err(
+                ApiCommandError::internal("Direct CDN chunk exceeded its declared size.").into(),
+            );
+        }
+        bytes.extend_from_slice(&body);
+    }
+    Ok(bytes)
 }
 
 fn validate_file_manifest(
@@ -578,13 +631,20 @@ fn ensure_not_cancelled(
 fn validate_cdn_url(value: &str) -> Result<(), ApiCommandError> {
     let url = Url::parse(value)
         .map_err(|_| ApiCommandError::internal("Backend returned an invalid CDN URL."))?;
-    let host = url.host_str().unwrap_or_default();
-    if url.scheme() != "https" || !matches!(host, "cdn.discordapp.com" | "media.discordapp.net") {
+    if !cdn_url_allowed(&url) {
         return Err(ApiCommandError::internal(
             "Backend returned an unexpected CDN URL.",
         ));
     }
     Ok(())
+}
+
+fn cdn_url_allowed(url: &Url) -> bool {
+    url.scheme() == "https"
+        && matches!(
+            url.host_str(),
+            Some("cdn.discordapp.com" | "media.discordapp.net")
+        )
 }
 fn bytes_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";

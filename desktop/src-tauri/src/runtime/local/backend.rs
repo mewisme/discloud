@@ -684,20 +684,7 @@ async fn write_runtime_record(
         ))
     })?;
     content.push(b'\n');
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, content).await.map_err(|error| {
-        LocalRuntimeError::io("Could not write the backend runtime state", error)
-    })?;
-    if fs::try_exists(path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not inspect the backend runtime state", error)
-    })? {
-        fs::remove_file(path).await.map_err(|error| {
-            LocalRuntimeError::io("Could not replace the backend runtime state", error)
-        })?;
-    }
-    fs::rename(&temporary, path).await.map_err(|error| {
-        LocalRuntimeError::io("Could not install the backend runtime state", error)
-    })
+    super::atomic_file::write(path, content, "Could not install the backend runtime state").await
 }
 
 fn binary_path(runtime_dir: &Path) -> PathBuf {

@@ -81,7 +81,7 @@ func NewRouter(
 	}
 
 	if deps.Auth != nil {
-		registerAuthRoutes(mux, deps.Auth, authConfig)
+		registerAuthRoutes(mux, deps.Auth, httpConfig, authConfig)
 		registerUserLookupRoute(mux, deps.Auth, authConfig)
 	}
 
@@ -150,7 +150,7 @@ func NewRouter(
 	}
 
 	if deps.Shares != nil && deps.Files != nil && deps.Folders != nil {
-		registerPublicShareRoutes(mux, deps.Shares, deps.Files, deps.Folders)
+		registerPublicShareRoutes(mux, deps.Shares, deps.Files, deps.Folders, httpConfig)
 	}
 
 	if deps.Search != nil && deps.Auth != nil {

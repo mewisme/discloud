@@ -16,12 +16,15 @@ import (
 )
 
 var (
-	ErrUserNotFound  = errors.New("user not found")
-	ErrUsernameTaken = errors.New("username already exists")
-	ErrInvalidRole   = errors.New("invalid role")
-	ErrInvalidQuota  = errors.New("invalid storage quota")
-	ErrNoChanges     = errors.New("no changes supplied")
+	ErrUserNotFound    = errors.New("user not found")
+	ErrUsernameTaken   = errors.New("username already exists")
+	ErrInvalidRole     = errors.New("invalid role")
+	ErrInvalidQuota    = errors.New("invalid storage quota")
+	ErrNoChanges       = errors.New("no changes supplied")
+	ErrLastActiveAdmin = errors.New("at least one active administrator is required")
 )
+
+const adminMutationLockID int64 = 0x6469736361646d6e
 
 type Service struct {
 	pool *pgxpool.Pool
@@ -323,6 +326,14 @@ func (s *Service) Update(ctx context.Context, actorUserID, userID string, input 
 
 	var user User
 	err := postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if input.Role != nil {
+			if err := lockAdminMutations(ctx, tx); err != nil {
+				return err
+			}
+			if err := ensureAdminMutationAllowed(ctx, tx, userID, *input.Role, ""); err != nil {
+				return err
+			}
+		}
 		err := tx.QueryRow(ctx, `
 			UPDATE users
 			SET name = COALESCE($2, name),
@@ -517,6 +528,12 @@ func (s *Service) Root(ctx context.Context, userID string) (Root, error) {
 
 func (s *Service) setStatus(ctx context.Context, actorUserID, userID, status string) error {
 	return postgres.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := lockAdminMutations(ctx, tx); err != nil {
+			return err
+		}
+		if err := ensureAdminMutationAllowed(ctx, tx, userID, "", status); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, `
 			UPDATE users
 			SET status = $2,
@@ -549,6 +566,50 @@ func (s *Service) setStatus(ctx context.Context, actorUserID, userID, status str
 			ResourceID:   userID,
 		})
 	})
+}
+
+func lockAdminMutations(ctx context.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", adminMutationLockID); err != nil {
+		return fmt.Errorf("lock administrator mutation: %w", err)
+	}
+	return nil
+}
+
+func ensureAdminMutationAllowed(ctx context.Context, tx pgx.Tx, userID, nextRole, nextStatus string) error {
+	var role, status string
+	if err := tx.QueryRow(ctx, `
+		SELECT role, status
+		FROM users
+		WHERE id::text = $1
+		FOR UPDATE
+	`, userID).Scan(&role, &status); errors.Is(err, pgx.ErrNoRows) {
+		return ErrUserNotFound
+	} else if err != nil {
+		return fmt.Errorf("read administrator state: %w", err)
+	}
+
+	if nextRole == "" {
+		nextRole = role
+	}
+	if nextStatus == "" {
+		nextStatus = status
+	}
+	if role != "admin" || status != "active" || (nextRole == "admin" && nextStatus == "active") {
+		return nil
+	}
+
+	var admins int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*)
+		FROM users
+		WHERE role = 'admin' AND status = 'active'
+	`).Scan(&admins); err != nil {
+		return fmt.Errorf("count active administrators: %w", err)
+	}
+	if admins <= 1 {
+		return ErrLastActiveAdmin
+	}
+	return nil
 }
 
 func validRole(role string) bool {

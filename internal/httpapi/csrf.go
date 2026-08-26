@@ -63,7 +63,7 @@ func sameOrigin(r *http.Request, cfg config.HTTPConfig, raw string) bool {
 	}
 
 	scheme := "http"
-	if r.TLS != nil {
+	if requestIsHTTPS(r, cfg) {
 		scheme = "https"
 	}
 

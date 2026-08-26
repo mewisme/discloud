@@ -258,6 +258,8 @@ func writeAdminUserError(w http.ResponseWriter, r *http.Request, err error, inte
 		WriteProblem(w, r, http.StatusNotFound, "Not Found", "user not found")
 	case errors.Is(err, adminusers.ErrUsernameTaken):
 		WriteProblem(w, r, http.StatusConflict, "Conflict", "username already exists")
+	case errors.Is(err, adminusers.ErrLastActiveAdmin):
+		WriteProblem(w, r, http.StatusConflict, "Conflict", err.Error())
 	case errors.Is(err, auth.ErrInvalidName),
 		errors.Is(err, auth.ErrInvalidUsername),
 		errors.Is(err, auth.ErrWeakPassword),

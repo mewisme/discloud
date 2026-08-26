@@ -75,6 +75,60 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	service := New(pool)
 	quota := int64(1024)
 
+	userRole := "user"
+	if _, err := service.Update(ctx, adminID, adminID, UpdateInput{Role: &userRole}); !errors.Is(err, ErrLastActiveAdmin) {
+		t.Fatalf("demote last active admin = %v, want ErrLastActiveAdmin", err)
+	}
+	if err := service.Disable(ctx, adminID, adminID); !errors.Is(err, ErrLastActiveAdmin) {
+		t.Fatalf("disable last active admin = %v, want ErrLastActiveAdmin", err)
+	}
+
+	secondAdmin, err := service.Create(ctx, adminID, CreateInput{Name: "Second Admin", Username: "second-admin", Password: "temp-admin", Role: "admin"})
+	if err != nil {
+		t.Fatalf("create second admin: %v", err)
+	}
+	if err := service.Disable(ctx, secondAdmin.ID, adminID); err != nil {
+		t.Fatalf("disable admin with another active admin: %v", err)
+	}
+	if err := service.Disable(ctx, secondAdmin.ID, secondAdmin.ID); !errors.Is(err, ErrLastActiveAdmin) {
+		t.Fatalf("disable remaining active admin = %v, want ErrLastActiveAdmin", err)
+	}
+	if err := service.Enable(ctx, secondAdmin.ID, adminID); err != nil {
+		t.Fatalf("re-enable admin: %v", err)
+	}
+
+	results := make(chan error, 2)
+	go func() {
+		_, err := service.Update(ctx, secondAdmin.ID, adminID, UpdateInput{Role: &userRole})
+		results <- err
+	}()
+	go func() {
+		_, err := service.Update(ctx, adminID, secondAdmin.ID, UpdateInput{Role: &userRole})
+		results <- err
+	}()
+	succeeded, rejected := 0, 0
+	for range 2 {
+		err := <-results
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, ErrLastActiveAdmin):
+			rejected++
+		default:
+			t.Fatalf("concurrent admin demotion: %v", err)
+		}
+	}
+	if succeeded != 1 || rejected != 1 {
+		t.Fatalf("concurrent admin demotion succeeded=%d rejected=%d, want 1/1", succeeded, rejected)
+	}
+	adminRole := "admin"
+	if _, err := service.Update(ctx, adminID, adminID, UpdateInput{Role: &adminRole}); err != nil {
+		t.Fatalf("restore first admin role: %v", err)
+	}
+	if _, err := service.Update(ctx, adminID, secondAdmin.ID, UpdateInput{Role: &adminRole}); err != nil {
+		t.Fatalf("restore second admin role: %v", err)
+	}
+
 	user, err := service.Create(ctx, adminID, CreateInput{
 		Name:              "Alice Example",
 		Username:          "alice",
@@ -150,8 +204,8 @@ func TestAdminUserLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list users: %v", err)
 	}
-	if listed.Total != 2 {
-		t.Fatalf("total users = %d, want 2", listed.Total)
+	if listed.Total != 3 {
+		t.Fatalf("total users = %d, want 3", listed.Total)
 	}
 
 	var listedUser *User
