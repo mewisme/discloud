@@ -1,6 +1,6 @@
 import { Badge } from "@discloud/ui/components/badge"
 import { Button } from "@discloud/ui/components/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@discloud/ui/components/card"
 import { open } from "@tauri-apps/plugin-shell"
 import { DatabaseIcon, ExternalLinkIcon, FolderIcon, Globe2Icon, ServerIcon, ShieldCheckIcon } from "lucide-react"
 
@@ -36,19 +36,18 @@ export function LocalServerOverview({ settings, runtime }: { settings: LocalServ
   const requiredRunning = !!runtime?.backend?.running && !!runtime?.postgresql?.running
   const webReady = !settings.webEnabled || !!runtime?.web?.running
   const ready = requiredRunning && webReady
+  const webPort = runtime?.web?.running ? runtime.web.port : undefined
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1.5">
-            <CardTitle>Local server</CardTitle>
-            <CardDescription>Health and connectivity for the services managed by this Desktop installation.</CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {settings.webEnabled && runtime?.web?.running ? <Button type="button" variant="outline" size="sm" onClick={() => open(`http://127.0.0.1:${runtime.web?.port}`)}><ExternalLinkIcon data-icon="inline-start" />Open in web</Button> : null}
+        <CardHeader>
+          <CardTitle>Local server</CardTitle>
+          <CardDescription>Health and connectivity for the services managed by this Desktop installation.</CardDescription>
+          <CardAction className="flex items-center gap-2">
+            {settings.webEnabled && webPort ? <Button type="button" variant="outline" size="sm" onClick={() => open(`http://127.0.0.1:${webPort}`)}><ExternalLinkIcon data-icon="inline-start" />Open in web</Button> : null}
             <Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Not running"}</Badge>
-          </div>
+          </CardAction>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-3">
           {services.map((service) => <ServiceCard key={service.label} {...service} />)}
