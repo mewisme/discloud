@@ -22,6 +22,7 @@
     "api:types": "pnpm --filter @discloud/api api:types",
     "api:types:check": "pnpm --filter @discloud/api api:types:check",
     "api:typecheck": "pnpm --filter @discloud/api typecheck",
+    "release:tag": "node scripts/release-tag.mjs",
     "app-ui:typecheck": "pnpm --filter @discloud/app-ui typecheck",
     "shared:typecheck": "pnpm --filter @discloud/shared typecheck",
     "ui:typecheck": "pnpm --filter @discloud/ui typecheck"
