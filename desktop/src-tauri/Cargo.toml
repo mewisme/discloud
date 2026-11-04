@@ -46,7 +46,7 @@ tokio = { version = "1", features = [
   "sync",
   "time",
 ] }
-zip = { version = "4", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [profile.release]
 codegen-units = 1
